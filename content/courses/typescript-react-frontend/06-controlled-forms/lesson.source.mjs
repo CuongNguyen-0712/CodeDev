@@ -63,7 +63,7 @@ const [price, setPrice] = useState<string>();   // undefined on the first render
         bullets([
             "**Use controlled inputs** when the UI needs the value while the user types: errors shown as they correct a field, a submit button that depends on the values, fields that depend on each other (a price that is only shown for paid courses), formatting or limiting input, or a live preview of the course card.",
             "**Uncontrolled + FormData is fine** when you only need the values once, on submit: a search box that navigates, a newsletter sign-up, a short form validated on submit only. React 19 supports this well: `<form action={fn}>` passes a `FormData` to `fn`, and `useActionState` and `useFormStatus` give you the result and the pending state. Less state, fewer renders, nothing to keep in sync.",
-            "**Do not mix them on one input.** `value` with no `onChange` gives a read-only field (React warns); `value` and `defaultValue` together is an error; a `value` that becomes `undefined` turns a controlled input into an uncontrolled one.",
+            "**Do not mix them on one input.** `value` with no `onChange` gives a read-only field (React warns); `value` and `defaultValue` together also gets a warning, because an input must be one or the other; a `value` that becomes `undefined` turns a controlled input into an uncontrolled one.",
         ]),
         callout("info", "Validation in the form is for the user, not for security",
             "Every rule the form checks must also be checked by the API, which is the trust boundary. The form's version exists to show the error early, next to the field, in words the user understands. Keep the two in sync by testing both against the same examples."),

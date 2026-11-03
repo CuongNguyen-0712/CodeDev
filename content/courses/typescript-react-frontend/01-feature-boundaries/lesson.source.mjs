@@ -215,17 +215,21 @@ export type { Course, Category, Level } from "./api/catalogApi";`, "index.ts"),
             "**Logic is testable without a browser.** A Vitest test can call `accessLabel(\"premium\")` or the search function from `catalog.ts` with plain data. If a test needs to render the page to check a filter, the filter is still in the wrong place.",
             "**React DevTools.** The Components panel should show `CatalogPage > CourseCard` with readable props. A component that has 14 hooks listed under it is a container doing a hook's job.",
         ]),
-        code("json", `
-{
-  "rules": {
-    "no-restricted-imports": ["error", {
-      "patterns": [
-        { "group": ["**/components/**"], "message": "api/ and hooks/ must not import components" },
-        { "group": ["**/features/*/*/**"], "message": "import another feature through its index.ts" }
-      ]
-    }]
-  }
-}`, ".eslintrc.json (applied to src/features/*/api and src/features/*/hooks)"),
+        code("javascript", `
+// eslint.config.js (flat config: ESLint 9 and later; ESLint 10 no longer reads .eslintrc files)
+export default [
+  {
+    files: ["src/features/*/api/**", "src/features/*/hooks/**"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          { group: ["**/components/**"], message: "api/ and hooks/ must not import components" },
+          { group: ["**/features/*/*/**"], message: "import another feature through its index.ts" },
+        ],
+      }],
+    },
+  },
+];`, "eslint.config.js"),
 
         h2("6. Common mistakes and how to spot them"),
         bullets([

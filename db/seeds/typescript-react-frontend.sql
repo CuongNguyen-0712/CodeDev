@@ -92,6 +92,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_111');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_111');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_111'), 'The API team will rename the query parameter category to topic on GET /courses next week. The catalog feature has an API module, src/features/catalog/api/catalogApi.ts. Before changing anything, a developer runs:
@@ -148,6 +149,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_121');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_121');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_121'), 'The catalog state after a first refactor:
@@ -192,7 +194,7 @@ function CatalogBody({ state }: { state: CatalogUiState }) {
 }
 
 $ npx tsc --noEmit
-CatalogBody.tsx:9:43 - error TS2339: Property ''courses'' does not exist on type ''CatalogUiState''.
+CatalogBody.tsx:9:43 - error TS2339: Property ''courses'' does not exist on type ''{ kind: "loading"; } | { kind: "empty"; query: string; } | { kind: "success"; courses: Course[]; refreshing: boolean; }''.
   Property ''courses'' does not exist on type ''{ kind: "loading"; }''.
 
 Statement: "The error points at a real bug: as written, the component would render CourseGrid while the catalog is still loading or has no results."', 'single_choice'::question_type, 'True. After the error branch returns, state is narrowed to loading, empty or success, and only success has courses. If the code compiled (for example with a cast), a loading state would pass undefined to CourseGrid and an empty search would show an empty grid instead of the empty-state message: the same class of bug as the original incident. The fix is to handle every kind, ideally with a switch that ends in assertNever, not to silence the error with `as` or an optional field. The misconception is that such errors are the type system being fussy; here the compiler is listing the screens the component forgot.', 2, 5
@@ -253,6 +255,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_131');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_131');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_131'), 'Two components on the catalog page read the same query:
@@ -355,6 +358,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_211');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_211');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_211'), 'The catalog reducer before the fix:
@@ -457,6 +461,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_221');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_221');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_221'), 'function CourseResults({ courses, filter }: Props) {
@@ -551,6 +556,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_231');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_231');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_231'), 'function PriceField() {
@@ -612,6 +618,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_311');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_311');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_311'), 'The course landing page shows a launch countdown and a "Related courses" panel:
@@ -712,6 +719,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_321');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_321');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_321'), 'Evidence C - React DevTools Profiler, local reproduction (npm run dev), "Record why each component rendered" enabled:
@@ -940,6 +948,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_331');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_331');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_331'), 'function LiveCatalog({ filter }: { filter: Category }) {
@@ -1045,6 +1054,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_411');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_411');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_411'), 'src/features/catalog/api.ts (unchanged for months):
@@ -1140,6 +1150,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_421');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_421');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_421'), 'MyCourses.tsx:
@@ -1234,6 +1245,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_431');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_431');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_431'), 'SearchBox.tsx (no debounce yet):
