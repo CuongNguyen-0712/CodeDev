@@ -44,7 +44,7 @@ export default ({ h2, h3, p, bullets, numbered, code, callout, challenge }) => (
             "**Tool calls:** when the model asks for a tool (for example \"run the hidden tests\"), the execution of the tool is its own span.",
         ]),
         h3("The OpenTelemetry GenAI conventions (experimental)"),
-        p("OpenTelemetry has semantic conventions for generative AI so that dashboards and tools can read spans from different libraries the same way. At the time of writing they are **experimental**: names have changed between versions and may change again, so check the current specification (linked in the course sources) and the documentation of the instrumentation library you use before you build a dashboard on them. Names in use at the time of writing include:"),
+        p("OpenTelemetry has semantic conventions for generative AI so that dashboards and tools can read spans from different libraries the same way. At the time of writing they are **experimental** (status \"Development\" in the specification, which now lives in its own repository, open-telemetry/semantic-conventions-genai): names have changed between versions and may change again, so check the current specification and the documentation of the instrumentation library you use before you build a dashboard on them. Names in use at the time of writing include:"),
         code("text", `
 span name                        "chat grader-large"   ({operation} {model})
 gen_ai.operation.name            chat

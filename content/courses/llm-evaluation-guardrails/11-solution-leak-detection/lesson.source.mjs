@@ -138,7 +138,7 @@ export async function feedbackFor(attempt: Attempt, refs: References): Promise<F
         bullets([
             "Schleimer, Wilkerson, Aiken: Winnowing: Local Algorithms for Document Fingerprinting, SIGMOD 2003 (the algorithm behind MOSS)",
             "OWASP Top 10 for Large Language Model Applications: LLM02 Sensitive Information Disclosure - owasp.org/www-project-top-10-for-large-language-model-applications",
-            "OpenTelemetry semantic conventions for generative AI (record the prompt version with each call) - opentelemetry.io/docs/specs/semconv/gen-ai/",
+            "OpenTelemetry semantic conventions for generative AI (record the prompt version with each call) - github.com/open-telemetry/semantic-conventions-genai",
         ]),
         callout("tip", "Practice on your own (not graded)",
             "Take one LLM feature you run and list every secret in its prompt: hidden data, reference answers, internal notes, other users' data. For each one, write whether the model needs it; remove the ones it does not. For the rest, write one leak case and one honest case per item into an eval file, and decide which rule from this lesson would catch the leak. Then add identifier normalisation to your fingerprint and measure how many honest examples it starts to block."),

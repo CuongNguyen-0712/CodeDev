@@ -888,7 +888,7 @@ FROM q, (VALUES
     ) AS o(option_text, is_correct);
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
-    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_lle_321'), 'Trace of one learning-assistant call, manifest attribute (gen_ai.prompt.manifest):
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_lle_321'), 'Trace of one learning-assistant call, manifest attribute (codedev.prompt.manifest):
 [{"name":"submission","boundary":"t4k9w2","chars":1840,"sentChars":1840,"truncated":false,"escaped":6,"normalised":false},
  {"name":"question","boundary":"h7c1m5","chars":212,"sentChars":212,"truncated":false,"escaped":0,"normalised":false},
  {"name":"notes","boundary":"x2p8d6","chars":61234,"sentChars":4000,"truncated":true,"escaped":0,"normalised":true}]

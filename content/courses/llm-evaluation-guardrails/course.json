@@ -51,12 +51,12 @@
   ],
   "testedVersions": {
     "TypeScript": "5.9.3 (tsc --strict in the code runner)",
-    "OpenTelemetry GenAI": "semantic conventions (experimental, check current status)"
+    "OpenTelemetry GenAI": "semantic conventions (status Development, open-telemetry/semantic-conventions-genai; check current status)"
   },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
-    "https://opentelemetry.io/docs/specs/semconv/gen-ai/",
+    "https://github.com/open-telemetry/semantic-conventions-genai",
     "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html"
   ],
   "owner": "CodeDev Engineering Team",

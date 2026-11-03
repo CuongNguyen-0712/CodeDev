@@ -185,7 +185,7 @@ injection phrase list       2.1%          200      52      148         0.26     
         h2("Sources"),
         bullets([
             "OWASP Top 10 for Large Language Model Applications: LLM10 Unbounded Consumption, LLM05 Improper Output Handling - owasp.org/www-project-top-10-for-large-language-model-applications",
-            "OpenTelemetry semantic conventions for generative AI (model, token usage and attributes on every call) - opentelemetry.io/docs/specs/semconv/gen-ai/",
+            "OpenTelemetry semantic conventions for generative AI (model, token usage and attributes on every call) - github.com/open-telemetry/semantic-conventions-genai",
             "EU AI Act (Regulation (EU) 2024/1689), Article 50 transparency obligations and Annex III point 3 (education) - eur-lex.europa.eu",
         ]),
         callout("tip", "Practice on your own (not graded)",

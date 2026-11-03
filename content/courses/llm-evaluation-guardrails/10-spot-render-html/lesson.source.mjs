@@ -123,7 +123,7 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none
         bullets([
             "Without `'unsafe-inline'` in `script-src`, inline `<script>` blocks, inline event handlers such as `onerror`, and `javascript:` URLs are blocked, and each attempt produces a violation report you can alert on.",
             "Roll a new policy out with `Content-Security-Policy-Report-Only` first, read the reports for a week, then enforce it. A policy that breaks the app gets switched off and protects nobody.",
-            "Trusted Types (`require-trusted-types-for 'script'`) makes assignments such as `innerHTML = string` throw unless the string came from an approved policy, which turns every raw HTML sink into a code review point. Check browser support for your users before relying on it.",
+            "Trusted Types (`require-trusted-types-for 'script'`) makes assignments such as `innerHTML = string` throw unless the string came from an approved policy, which turns every raw HTML sink into a code review point. It has been Baseline (supported in current Chrome, Edge, Firefox and Safari) only since early 2026, and older browsers ignore the directive, so treat it as an extra layer and check what your users run.",
         ]),
         p("CSP does not fix the renderer: an injected `<a>` with a convincing text, a fake \"Log in again\" form or CSS that hides the real feedback still work. Treat it as the second layer, never the only one."),
 
