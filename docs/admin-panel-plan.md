@@ -920,6 +920,8 @@ Các insight đang có: Overview (người học hoạt động, bài nộp, cod
 
 **Thứ tự**: P8.1 quyền + tab Feedback của khoá (không migration ngoài quyền); P8.2 hộp thư feedback (migration `handled_at`); P8.3 điểm đánh giá thật (thiết kế ở mục 12, làm thành P9); P8.4 phễu theo khoá trong KPI nội dung.
 
+**Trạng thái (2026-11-03):** ~~P8.1~~ xong: tab "Feedback" của khoá có phần Ratings (P9.4) và phần Comments (lọc tất cả / đang hiện / đã ẩn / nhiều downvote, phân trang keyset, Ẩn / Hiện có lý do, audit `comment.hide` / `comment.show`; `GET /api/admin/comments`, `PATCH /api/admin/comments/:id`). ~~P8.2~~ xong: migration `20261103_015` (`handled_at`, `handled_by`, quyền `feedback.read` cho admin), trang `/admin/feedback` (mục "Feedback" đánh dấu đã xử lý / mở lại có audit `feedback.handle` / `feedback.reopen`, mục "Course comments" của mọi khoá cho ai có `comment.moderate`), Overview đếm feedback chưa xử lý. Còn lại: P8.4; bộ lọc chưa lưu vào URL; index `(created_at DESC, id DESC)` cho danh sách bình luận của mọi khoá khi bảng lớn.
+
 ## 12. Điểm đánh giá khoá học từ người học (thiết kế, 2026-11-03)
 
 Trả lời câu hỏi mở 4 và P8.3: thay số "Rated x out of 5" nhập tay bằng điểm do người học chấm.

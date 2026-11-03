@@ -23,12 +23,12 @@ import { useApp } from "@/contexts/appContext";
 
 import {
     LuActivity, LuArrowLeft, LuBookOpen, LuTags, LuClipboardList, LuKeyRound, LuLayoutDashboard, LuLoaderCircle,
-    LuLogOut, LuMoon, LuPlay, LuReceipt, LuSearch, LuServer, LuSettings, LuSun, LuTarget, LuUsers,
+    LuLogOut, LuMessageSquareText, LuMoon, LuPlay, LuReceipt, LuSearch, LuServer, LuSettings, LuSun, LuTarget, LuUsers,
 } from "react-icons/lu";
 
 const ICONS = {
     overview: LuLayoutDashboard, users: LuUsers, courses: LuBookOpen, catalog: LuTags, challenges: LuTarget, runs: LuPlay,
-    access: LuKeyRound, orders: LuReceipt, audit: LuClipboardList, system: LuServer, settings: LuSettings,
+    access: LuKeyRound, orders: LuReceipt, feedback: LuMessageSquareText, audit: LuClipboardList, system: LuServer, settings: LuSettings,
 };
 
 const ENVIRONMENTS = {

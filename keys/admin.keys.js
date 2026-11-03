@@ -15,4 +15,6 @@ export const adminKeys = {
     run: (runId) => [...adminKeys.all, 'run', runId],
     challenges: (courseId) => [...adminKeys.all, 'challenges', courseId],
     ratings: (courseId) => [...adminKeys.all, 'ratings', courseId],
+    comments: (filters) => [...adminKeys.all, 'comments', filters],
+    feedback: (filters) => [...adminKeys.all, 'feedback', filters],
 }

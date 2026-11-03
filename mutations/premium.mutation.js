@@ -105,3 +105,5 @@ export const useAdminCancelRun = () => useAdminWrite((input) => adminClient.canc
 export const useAdminExpireRuns = () => useAdminWrite((input) => adminClient.expireRuns(input));
 export const useAdminUpdateChallenge = () => useAdminWrite((input) => adminClient.updateChallenge(input));
 export const useAdminSetRatingHidden = () => useAdminWrite((input) => adminClient.setRatingHidden(input));
+export const useAdminSetCommentHidden = () => useAdminWrite((input) => adminClient.setCommentHidden(input));
+export const useAdminSetFeedbackHandled = () => useAdminWrite((input) => adminClient.setFeedbackHandled(input));
