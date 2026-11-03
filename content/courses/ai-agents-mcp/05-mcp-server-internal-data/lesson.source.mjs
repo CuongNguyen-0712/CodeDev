@@ -53,7 +53,7 @@ SHOW default_transaction_read_only;                   -- off`, "psql"),
         numbered([
             "**Read-only first.** Ship the reads, watch them in the audit log for a while, and only then consider a write tool - behind the approval policy of lesson 4.1. A read-only server can leak data but cannot destroy it, and its mistakes are easier to clean up.",
             "**Narrow tools for named tasks.** `search_lessons(query)` and `get_lesson(lessonId)` instead of `run_sql(query)`. Each tool has a fixed query you wrote and reviewed, parameters the model fills in, and a result shape you chose. The model can no longer invent a join to `users`.",
-            "**Identity from the host, authorization on the server.** The learner is whoever the host authenticated: the support console's signed-in user, or the subject of the OAuth access token on a streamable HTTP request. The server reads it from the connection and checks every row against it. A `userId` argument filled in by the model is just text from the conversation.",
+            "**Identity from the host, authorization on the server.** The learner is whoever the host authenticated: the support console's signed-in user, or the subject of the OAuth access token on a streamable HTTP request. The server reads it from the request credentials (or, over stdio, the environment the host started it with) and checks every row against it. A `userId` argument filled in by the model is just text from the conversation.",
             "**Bounded results, audited calls.** Every result has a size limit you can state in one sentence, long lists are paged, and every call leaves a record of who called which tool with what (lesson 2.3).",
         ]),
         h3("When a generic query tool is acceptable"),
@@ -89,16 +89,16 @@ ALTER ROLE mcp_content_reader SET statement_timeout = '2s';`, "migration.sql"),
       "required": ["lessonId"], "additionalProperties": false },
     "annotations": { "readOnlyHint": true } }
 ] }`, "tools-list (codedev-content).json"),
-        p("There is no `userId` anywhere. The handlers receive the learner from the connection. The sketch below is hand-written around a small dispatch function rather than a particular SDK, so you can see every decision; with an SDK the same checks go inside its tool handlers:"),
+        p("There is no `userId` anywhere. The handlers receive the learner from the authenticated request. The sketch below is hand-written around a small dispatch function rather than a particular SDK, so you can see every decision; with an SDK the same checks go inside its tool handlers:"),
         code("typescript", `
 type AuthedUser = { id: string };                     // from the verified access token / host session
-type ToolResult = { content: { type: "text"; text: string }[]; structuredContent?: unknown; isError?: boolean };
+type ToolResult = { resultType: "complete"; content: { type: "text"; text: string }[]; structuredContent?: unknown; isError?: boolean };
 
 const MAX_LIMIT = 20;
 const MAX_LESSON_CHARS = 8000;
 
-const fail = (text: string): ToolResult => ({ content: [{ type: "text", text }], isError: true });
-const ok = (value: unknown): ToolResult => ({ content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value });
+const fail = (text: string): ToolResult => ({ resultType: "complete", content: [{ type: "text", text }], isError: true });
+const ok = (value: unknown): ToolResult => ({ resultType: "complete", content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value });
 
 async function callTool(user: AuthedUser, name: string, args: Record<string, unknown>): Promise<ToolResult> {
     switch (name) {
@@ -150,7 +150,8 @@ app.post("/mcp", async (req, res) => {
             callTool(user, message.params.name, message.params.arguments ?? {}));
         return res.json({ jsonrpc: "2.0", id: message.id, result });
     }
-    // initialize, tools/list ... handled the same way
+    // server/discover, tools/list ... handled the same way; a 2026-07-28 server also rejects a request whose
+    // MCP-Protocol-Version, Mcp-Method or Mcp-Name header does not match the body (400, HeaderMismatch)
 });`, "codedev-content/http.ts"),
         p("`audited` is the wrapper you will write in the next lesson: it records the session, the user, the tool, a redacted summary of the arguments, the outcome and the duration of every call, whether it succeeds, fails or is refused."),
 
@@ -177,7 +178,7 @@ app.post("/mcp", async (req, res) => {
         h2("7. Summary"),
         numbered([
             "Start an internal-data MCP server read-only, with narrow tools for the tasks you saw in transcripts (`search_lessons`, `get_lesson`), never a generic query tool for end users; back it with a database role that can only read what those tools need.",
-            "Take the user from the authenticated connection (host session or OAuth access token for this server) and authorize every row on the server; a user id in the arguments is untrusted text from the conversation.",
+            "Take the user from the authenticated request (the OAuth access token for this server, or the environment of a stdio process) and authorize every row on the server; a user id in the arguments is untrusted text from the conversation.",
             "Bound every result (clamped limits, opaque cursors, truncated text with an explicit next page) and audit every call, so you can say exactly what the agent read and for whom.",
         ]),
 

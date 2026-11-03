@@ -230,7 +230,7 @@ agent.run                  agent.name=support  stop_reason=final  model_calls=3 
         h2("Sources"),
         bullets([
             "Anthropic, \"Building effective agents\" - anthropic.com/engineering/building-effective-agents",
-            "OpenTelemetry semantic conventions for generative AI (check their current status) - opentelemetry.io/docs/specs/semconv/gen-ai/",
+            "OpenTelemetry semantic conventions for generative AI (status: Development at the time of writing; check their current status) - github.com/open-telemetry/semantic-conventions-genai (moved there from opentelemetry.io/docs/specs/semconv/gen-ai/)",
             "OWASP Top 10 for LLM Applications 2025: LLM01 Prompt Injection, LLM06 Excessive Agency - owasp.org/www-project-top-10-for-large-language-model-applications",
         ]),
         callout("tip", "Practice on your own (not graded)",

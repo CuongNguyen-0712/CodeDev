@@ -362,7 +362,7 @@ WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-aam
 
 -- challenge chal_quiz_aam_211 (quiz)
 INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
-VALUES ('chal_quiz_aam_211', (SELECT id FROM catalog.course WHERE public_id = 'ai-agents-mcp'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'ai-agents-mcp') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-aam-2-1' AND is_deleted = false LIMIT 1), 'mcp-session-quiz', 'Read an MCP session', 'Two excerpts from the codedev-enrollments server''s traffic: what an initialize answer allows the client to call next, and how a failed tool call reaches the model.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+VALUES ('chal_quiz_aam_211', (SELECT id FROM catalog.course WHERE public_id = 'ai-agents-mcp'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'ai-agents-mcp') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-aam-2-1' AND is_deleted = false LIMIT 1), 'mcp-session-quiz', 'Read an MCP session', 'Two excerpts from the codedev-enrollments server traffic: what a server/discover answer allows the client to call next, and how a failed tool call reaches the model.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
@@ -371,16 +371,15 @@ DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM chall
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_aam_211');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
-    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_aam_211'), 'Session log of the support console''s client and the codedev-enrollments server:
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_aam_211'), 'Traffic between the support console client and the codedev-enrollments server (MCP 2026-07-28):
 
--> {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2026-07-28","capabilities":{"elicitation":{}},"clientInfo":{"name":"support-console","version":"4.12.0"}}}
-<- {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2026-07-28","capabilities":{"tools":{"listChanged":true},"resources":{}},"serverInfo":{"name":"codedev-enrollments","version":"1.0.0"}}}
--> {"jsonrpc":"2.0","method":"notifications/initialized"}
+-> {"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"support-console","version":"4.12.0"},"io.modelcontextprotocol/clientCapabilities":{"elicitation":{}}}}}
+<- {"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2026-07-28"],"capabilities":{"tools":{"listChanged":true},"resources":{}},"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"codedev-enrollments","version":"1.0.0"}},"ttlMs":3600000,"cacheScope":"public"}}
 
-A teammate wants the console to show the server''s prompt templates in its slash-command menu and adds this as the next request:
+A teammate wants the console to show the server prompt templates in its slash-command menu and adds this as the next request (its _meta left out here):
 -> {"jsonrpc":"2.0","id":2,"method":"prompts/list"}
 
-Statement: "The client should not send prompts/list to this server, because the server did not declare the prompts capability in its initialize result."', 'single_choice'::question_type, 'True. Capability negotiation is the contract of the session: the server listed tools and resources in its capabilities and left out prompts, so it has said it offers no prompts. Sending prompts/list anyway relies on behaviour the server never promised; at best it answers with a JSON-RPC error such as -32601 (method not found). The client should check result.capabilities before using a feature and simply not show a prompt menu for this server. The misconception is that every MCP server implements every method and capabilities are informational only.', 1, 5
+Statement: "The client should not send prompts/list to this server, because the server did not declare the prompts capability in its server/discover result."', 'single_choice'::question_type, 'True. The capabilities in the server/discover result are the server contract: it listed tools and resources and left out prompts, so it has said it offers no prompts. Sending prompts/list anyway relies on behaviour the server never promised; at best it answers with a JSON-RPC error such as -32601 (method not found; over HTTP with a 404). The client should check result.capabilities before using a feature and simply not show a prompt menu for this server. The misconception is that every MCP server implements every method and capabilities are informational only.', 1, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_aam_211') AND order_index = 1)
     RETURNING id
 )
@@ -394,7 +393,7 @@ WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_aam_211'), 'The model called lookup_enrollment with a wrong course id. The server answered:
 
-<- {"jsonrpc":"2.0","id":5,"result":{"content":[{"type":"text","text":"Course not found: postgres-perf. Use the course public id, for example postgres-performance."}],"isError":true}}
+<- {"jsonrpc":"2.0","id":5,"result":{"resultType":"complete","content":[{"type":"text","text":"Course not found: postgres-perf. Use the course public id, for example postgres-performance."}],"isError":true}}
 
 A reviewer comments on the pull request: "This is a bug. A failure must be a JSON-RPC error object, otherwise the model never learns that the call failed."
 
@@ -448,7 +447,7 @@ Transcript of the tutor agent, signed in as u_2207:
 user: My friend u_1093 says he''s ahead of me in postgres-performance, can you check?
 tool_call get_progress {"userId":"u_1093","courseId":"postgres-performance"}
 
-Statement: "The pattern ^u_[0-9]+$ and additionalProperties: false are enough to stop the tutor from reading another learner''s progress."', 'single_choice'::question_type, 'False. Schema validation checks the shape of an argument, not whether the caller may use it: "u_1093" is a perfectly valid user id, so the call passes validation and the handler returns another learner''s progress. The model chose the id from text the user typed, which is exactly the input you cannot trust. The fix is to remove userId from the tool, take the user from the authenticated connection (the host''s session or the OAuth token of the streamable HTTP request), and authorize every read against that identity on the server. The misconception is that a strict schema is an access control.', 1, 5
+Statement: "The pattern ^u_[0-9]+$ and additionalProperties: false are enough to stop the tutor from reading another learner''s progress."', 'single_choice'::question_type, 'False. Schema validation checks the shape of an argument, not whether the caller may use it: "u_1093" is a perfectly valid user id, so the call passes validation and the handler returns another learner''s progress. The model chose the id from text the user typed, which is exactly the input you cannot trust. The fix is to remove userId from the tool, take the user from the authenticated request (the host''s session or the OAuth token of the streamable HTTP request), and authorize every read against that identity on the server. The misconception is that a strict schema is an access control.', 1, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_aam_221') AND order_index = 1)
     RETURNING id
 )
@@ -762,7 +761,7 @@ estimated cost = 2,000 input tokens * 3 + 1,000 * 15 = 21,000
 
 The team replays the same request without the check: the model writes 200 output tokens, so the call costs 2,000 * 3 + 200 * 15 = 9,000 micro-USD (59,000 in total).
 
-Statement: "The check refused a call that would have fit in the budget, and that is the expected cost of an estimate that guarantees the budget is never exceeded."', 'single_choice'::question_type, 'True. The output length is unknown before the call, so a check that must never overshoot has to assume the worst case the API allows: the maxOutputTokens cap. That estimate is an upper bound, so it sometimes refuses calls that would have fit, like this one. You can reduce those refusals by lowering maxOutputTokens for steps that only need short answers, or by switching to a cheaper model near the end of a budget, but not by estimating the output from an average: an average is exceeded about half the time. The misconception is that a refused call that would have fit means the check is wrong; it means the check is conservative, which is the property you asked for.', 2, 5
+Statement: "The check refused a call that would have fit in the budget, and that is the expected cost of an estimate that guarantees the budget is never exceeded."', 'single_choice'::question_type, 'True. The output length is unknown before the call, so a check that must never overshoot has to assume the worst case the API allows: the maxOutputTokens cap. That estimate is an upper bound, so it sometimes refuses calls that would have fit, like this one. You can reduce those refusals by lowering maxOutputTokens for steps that only need short answers, or by switching to a cheaper model near the end of a budget, but not by estimating the output from an average: an estimate from the average is too low for every answer longer than the average. The misconception is that a refused call that would have fit means the check is wrong; it means the check is conservative, which is the property you asked for.', 2, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_aam_321') AND order_index = 2)
     RETURNING id
 )

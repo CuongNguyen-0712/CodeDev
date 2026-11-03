@@ -60,7 +60,7 @@ Workflow "Refund triage" - executions, 2026-10-23 (times UTC+7)
         p("The history entry is useful after the fact: it tells you who changed what and when. It did not stop the change from reaching production, and nobody saw the diff until a learner complained."),
 
         h2("3. What really differs: the engineering around the steps"),
-        p("Workflow automation tools such as **n8n** and **Make** let you connect apps on a canvas: a trigger, a few steps, branches, and now LLM and \"AI agent\" steps too. The course plan cites the Stack Overflow 2026 Developer Survey as showing these tools widely used among developers; check the survey itself for current figures. They are a real option, not a toy, and \"rewrite it in code\" is not an automatic answer."),
+        p("Workflow automation tools such as **n8n** and **Make** let you connect apps on a canvas: a trigger, a few steps, branches, and now LLM and \"AI agent\" steps too. They are widely used, including by teams that could write the same flow in code. They are a real option, not a toy, and \"rewrite it in code\" is not an automatic answer."),
         callout("info", "Product capabilities change fast",
             "What each tool offers differs by product, by plan and between cloud and self-hosted editions, and it changes often: version history, Git-based source control, separate environments, error workflows, credential sharing rules, execution logs and retention. Treat the comparison below as the list of questions to ask, then read the current documentation of the tool and plan you actually use (docs.n8n.io, help.make.com)."),
         p("Compare the two options on the things that decided this incident:"),

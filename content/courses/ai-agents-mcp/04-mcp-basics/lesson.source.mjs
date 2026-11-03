@@ -5,7 +5,7 @@ export default ({ h2, h3, p, bullets, numbered, code, callout, challenge }) => (
     title: "MCP: servers, tools, resources & prompts",
     slug: { _type: "slug", current: "mcp-servers-tools-resources-prompts" },
     description:
-        "CodeDev had three copies of the same enrollment tool - one in the support console, one in the internal chat bot, one in an IDE plugin - and they drifted until the same question got three different answers. Learn what the Model Context Protocol standardises: hosts, clients and servers; tools, resources and prompts; the JSON-RPC messages of a session (initialize, tools/list, tools/call); the stdio and streamable HTTP transports; capability negotiation; and when MCP is more machinery than you need.",
+        "CodeDev had three copies of the same enrollment tool - one in the support console, one in the internal chat bot, one in an IDE plugin - and they drifted until the same question got three different answers. Learn what the Model Context Protocol standardises: hosts, clients and servers; tools, resources and prompts; the JSON-RPC messages (server/discover, tools/list, tools/call); the stdio and streamable HTTP transports; capability negotiation; and when MCP is more machinery than you need.",
     estimatedTime: 25,
 
     scenario: {
@@ -61,9 +61,9 @@ $ git log --oneline -1 -- services/support-console/agent/tools.ts
             "**Resources** are read-only context the **application** chooses to attach, addressed by a URI: `codedev://courses/postgres-performance/syllabus`. The host might let the user pick one, or attach it automatically.",
             "**Prompts** are templates the **user** chooses, usually from a menu or a slash command: \"Summarise this learner's progress\" with a `userId` argument, returning ready-made messages.",
         ]),
-        p("Clients can offer capabilities to servers too - for example sampling (the server asks the host's model to generate text) and elicitation (the server asks the user a question through the host). You will not need them in this course; just know the protocol is two-way."),
+        p("Clients can offer capabilities to servers too - for example elicitation, when a tool needs the user to answer a question: the server does not send a request of its own, it returns an `input_required` result with the question, and the client retries the call with the answer. (Sampling and roots still exist but are deprecated.) You will not need them in this course; just know the protocol can ask the host for input."),
         callout("info", "Which spec this lesson follows",
-            "The examples follow the MCP specification as described in this course's plan (version 2026-07-28). MCP changes quickly; check modelcontextprotocol.io for the current specification before you build on any detail, and prefer your SDK's documented API over hand-written messages in production."),
+            "The examples follow MCP specification version 2026-07-28, the current version at the time of writing (modelcontextprotocol.io/specification/2026-07-28). It removed the `initialize` handshake and the protocol sessions of earlier versions (2025-11-25 and before), which you will still meet in older servers and SDKs. MCP changes quickly; check the changelog before you build on any detail, and prefer your SDK's documented API over hand-written messages in production."),
 
         h3("When not to use MCP"),
         p("MCP adds a process boundary, a protocol, a transport and (over HTTP) an authorization flow. It pays for itself when **the same capability is used by more than one host**, or when you want to plug third-party hosts into your data. It does not when:"),
@@ -74,32 +74,33 @@ $ git log --oneline -1 -- services/support-console/agent/tools.ts
         ]),
 
         h2("4. Worked example: one session, message by message"),
-        p("Every MCP session starts with a handshake in which both sides agree on a protocol version and say what they support. Here is the support console's client connecting to the new `codedev-enrollments` server. Every message is a JSON-RPC 2.0 object: requests carry an `id` and a `method`, responses carry the same `id` and a `result` or an `error`, notifications have no `id` and get no answer."),
+        p("Every message is a JSON-RPC 2.0 object: requests carry an `id` and a `method`, responses carry the same `id` and a `result` or an `error`, notifications have no `id` and get no answer. In version 2026-07-28 there is no handshake and no session: every request stands on its own and carries, in `params._meta`, the protocol version the client speaks and the capabilities it offers (and, recommended, the client's name and version). Every result has a `resultType`, and the server names itself in the result's `_meta`. To learn what a server offers before using it, the client calls `server/discover`, which every server must implement. Here is the support console's client asking the new `codedev-enrollments` server:"),
         code("json", `
 // client -> server: request
-{ "jsonrpc": "2.0", "id": 1, "method": "initialize",
-  "params": {
-    "protocolVersion": "2026-07-28",
-    "capabilities": { "elicitation": {} },
-    "clientInfo": { "name": "support-console", "version": "4.12.0" } } }
+{ "jsonrpc": "2.0", "id": 1, "method": "server/discover",
+  "params": { "_meta": {
+    "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+    "io.modelcontextprotocol/clientInfo": { "name": "support-console", "version": "4.12.0" },
+    "io.modelcontextprotocol/clientCapabilities": { "elicitation": {} } } } }
 
 // server -> client: response with the same id
 { "jsonrpc": "2.0", "id": 1,
   "result": {
-    "protocolVersion": "2026-07-28",
+    "resultType": "complete",
+    "supportedVersions": ["2026-07-28"],
     "capabilities": { "tools": { "listChanged": true }, "resources": {} },
-    "serverInfo": { "name": "codedev-enrollments", "version": "1.0.0" },
-    "instructions": "Read-only access to CodeDev enrollments. Users are identified by id (u_...), never by email." } }
-
-// client -> server: notification, no id, no response
-{ "jsonrpc": "2.0", "method": "notifications/initialized" }`, "handshake.jsonc"),
-        p("This is **capability negotiation**. The server declared `tools` and `resources`, so the client may list and call tools and read resources. It did not declare `prompts`, so the client must not send `prompts/list`. If the server answers with a different `protocolVersion` than the client asked for, the client either supports that version or disconnects. Neither side should use a feature the other did not declare."),
-        p("Next, the client asks which tools exist. This is where the model's view of the server comes from - the host passes these definitions to the model:"),
+    "instructions": "Read-only access to CodeDev enrollments. Users are identified by id (u_...), never by email.",
+    "_meta": { "io.modelcontextprotocol/serverInfo": { "name": "codedev-enrollments", "version": "1.0.0" } },
+    "ttlMs": 3600000, "cacheScope": "public" } }`, "discover.jsonc"),
+        p("This is **capability negotiation** without a session. The server lists `tools` and `resources`, so the client may list and call tools and read resources. It does not list `prompts`, so the client must not send `prompts/list`; a server that gets it anyway answers `-32601` (method not found). The version is checked on every request: if the server does not support the one in `_meta`, it answers with an `UnsupportedProtocolVersionError` that lists the versions it does support, and the client retries with one of them or gives up. Calling `server/discover` first is optional - a client may send any request directly - but it gives the whole contract in one call, and the client may cache it for `ttlMs`. Neither side should use a feature the other did not declare."),
+        p("Next, the client asks which tools exist. This is where the model's view of the server comes from - the host passes these definitions to the model. The remaining examples leave out `_meta` for brevity, as the specification's own examples do; every real request carries it:"),
         code("json", `
 { "jsonrpc": "2.0", "id": 2, "method": "tools/list" }
 
 { "jsonrpc": "2.0", "id": 2,
   "result": {
+    "resultType": "complete",
+    "ttlMs": 300000, "cacheScope": "public",
     "tools": [{
       "name": "lookup_enrollment",
       "description": "Returns the learner's current enrollment in one course: status (active, refunded, expired) and enrolled date. Refunded enrollments are returned with status refunded, never hidden.",
@@ -113,25 +114,27 @@ $ git log --oneline -1 -- services/support-console/agent/tools.ts
       },
       "annotations": { "readOnlyHint": true }
     }] } }`, "tools-list.jsonc"),
-        p("Notice what is missing: a `userId` parameter. The learner the console is helping is known to the host, which authenticated the support agent and opened the ticket; the server receives that identity from the connection, not from the model. Lesson 2.2 builds this rule out. Then the model decides to call the tool, and the host forwards the call:"),
+        p("Notice what is missing: a `userId` parameter. The learner the console is helping is known to the host, which authenticated the support agent and opened the ticket; the server receives that identity from the authenticated request, not from the model. Lesson 2.2 builds this rule out. Then the model decides to call the tool, and the host forwards the call:"),
         code("json", `
 { "jsonrpc": "2.0", "id": 3, "method": "tools/call",
   "params": { "name": "lookup_enrollment", "arguments": { "courseId": "postgres-performance" } } }
 
 { "jsonrpc": "2.0", "id": 3,
   "result": {
+    "resultType": "complete",
     "content": [{ "type": "text", "text": "{\\"courseId\\":\\"postgres-performance\\",\\"status\\":\\"active\\",\\"enrolledAt\\":\\"2026-10-19\\"}" }],
     "structuredContent": { "courseId": "postgres-performance", "status": "active", "enrolledAt": "2026-10-19" },
     "isError": false } }`, "tools-call.jsonc"),
         h3("Two kinds of failure"),
         p("MCP separates **protocol errors** from **tool errors**, and the difference matters to the model:"),
         code("json", `
-// protocol error: the request itself is wrong (unknown tool, arguments that break the schema)
+// protocol error: the request itself is wrong (unknown tool, a malformed request)
 { "jsonrpc": "2.0", "id": 4, "error": { "code": -32602, "message": "Unknown tool: lookup_enrolment" } }
 
-// tool error: the call was valid but the tool failed - reported inside a normal result
+// tool error: the tool exists but the call failed (bad argument value, API failure) - reported inside a normal result
 { "jsonrpc": "2.0", "id": 5,
-  "result": { "content": [{ "type": "text", "text": "Course not found: postgres-perf. Use the course public id, for example postgres-performance." }],
+  "result": { "resultType": "complete",
+              "content": [{ "type": "text", "text": "Course not found: postgres-perf. Use the course public id, for example postgres-performance." }],
               "isError": true } }`, "errors.jsonc"),
         p("A tool error with `isError: true` is meant to reach the model, which can read the message and try again with a correct id - that is why the text says what a valid id looks like. A JSON-RPC `error` is a contract violation between client and server; hosts typically surface it as a failure rather than as something for the model to fix."),
 
@@ -141,13 +144,15 @@ $ git log --oneline -1 -- services/support-console/agent/tools.ts
 { "jsonrpc": "2.0", "id": 6, "method": "resources/read",
   "params": { "uri": "codedev://courses/postgres-performance/syllabus" } }
 { "jsonrpc": "2.0", "id": 6,
-  "result": { "contents": [{ "uri": "codedev://courses/postgres-performance/syllabus",
+  "result": { "resultType": "complete", "ttlMs": 3600000, "cacheScope": "public",
+              "contents": [{ "uri": "codedev://courses/postgres-performance/syllabus",
                              "mimeType": "text/markdown", "text": "# PostgreSQL Performance Engineering\\n1. Baselines..." }] } }
 
 { "jsonrpc": "2.0", "id": 7, "method": "prompts/get",
   "params": { "name": "summarise_progress", "arguments": { "courseId": "postgres-performance" } } }
 { "jsonrpc": "2.0", "id": 7,
-  "result": { "description": "Summarise the learner's progress in a course",
+  "result": { "resultType": "complete",
+              "description": "Summarise the learner's progress in a course",
               "messages": [{ "role": "user", "content": { "type": "text", "text": "Summarise my progress in postgres-performance..." } }] } }`, "resources-prompts.jsonc"),
 
         challenge("chal_quiz_aam_211"),
@@ -156,31 +161,32 @@ $ git log --oneline -1 -- services/support-console/agent/tools.ts
         p("The messages above are the same whichever way they travel. MCP defines two standard transports:"),
         bullets([
             "**stdio.** The host starts the server as a child process and writes JSON-RPC messages to its standard input, one per line; the server answers on standard output. Logs go to standard error - a single stray `console.log` on stdout corrupts the stream. Credentials usually come from the environment the host starts the process with. Good for local tools: an IDE plugin running a server on the developer's machine.",
-            "**Streamable HTTP.** The server is a remote service with one endpoint, for example `https://api.codedev.test/mcp`. The client sends each message as an HTTP `POST`; the server answers with a JSON body or with a stream of server-sent events when it has several messages to send back. A session id issued at initialization travels in an `Mcp-Session-Id` header. Remote servers authenticate clients with OAuth-based authorization, and must validate the `Origin` header so a web page cannot talk to a local server through the browser.",
+            "**Streamable HTTP.** The server is a remote service with one endpoint, for example `https://api.codedev.test/mcp`. The client sends each request as its own HTTP `POST`; the server answers with a JSON body or with a stream of server-sent events scoped to that one request (progress notifications, then the response). There is no session: each POST carries an `MCP-Protocol-Version` header that must match the version in `_meta`, an `Mcp-Method` header and, for `tools/call`, `resources/read` and `prompts/get`, an `Mcp-Name` header with the tool name or URI, so gateways can route a request without parsing its body. Remote servers that need authorization use MCP's OAuth 2.1-based flow, and servers must validate the `Origin` header so a web page cannot talk to a local server through the browser.",
         ]),
         code("bash", `
 # stdio: the host runs the server and owns its environment
 DATABASE_URL=postgres://mcp_reader@db.codedev.test/codedev node dist/enrollments-server.js
 
-# streamable HTTP: one endpoint, one POST per message
+# streamable HTTP: one endpoint, one POST per request
 curl -s https://api.codedev.test/mcp \\
   -H "Authorization: Bearer $ACCESS_TOKEN" \\
   -H "Content-Type: application/json" \\
   -H "Accept: application/json, text/event-stream" \\
-  -H "Mcp-Session-Id: $SESSION_ID" \\
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'`, "terminal"),
+  -H "MCP-Protocol-Version: 2026-07-28" \\
+  -H "Mcp-Method: tools/list" \\
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}'`, "terminal"),
         p("For CodeDev, the enrollments server runs as a streamable HTTP service next to the API, so the console, the bot and the IDE plugin all connect to one deployment, with one set of database credentials and one place to fix SUP-4302."),
 
-        h3("What the 2026-07-28 version adds, per the course plan"),
-        p("The course plan describes this version as adding a `server/discover` method: a way for a client to learn what a server offers - its identity, supported protocol versions and capabilities - without first running a full `initialize` session. That makes it cheaper to inspect servers in a registry or behind a load balancer. Treat the exact request and response shapes as unverified until you have read them in the specification on modelcontextprotocol.io; if the server or SDK you target does not support it, the `initialize` handshake above still gives you the same information."),
+        h3("What changed in version 2026-07-28"),
+        p("Earlier versions opened every connection with an `initialize` request and a `notifications/initialized` notification, and the HTTP transport kept a session in an `Mcp-Session-Id` header. Version 2026-07-28 removed both. Requests are independent, so a server behind a load balancer needs no sticky sessions, and state that must survive between calls is passed as an explicit handle in tool arguments. `server/discover` replaces the handshake as the way to learn a server's versions, capabilities and instructions. Many servers and SDKs still speak the older versions; the specification describes how a client that supports both sends a modern request first (over stdio, `server/discover`) and falls back to `initialize` when the answer is not a modern result or error."),
 
         h2("6. How to verify an MCP server"),
         bullets([
-            "**Drive it by hand.** Send `initialize`, `notifications/initialized`, `tools/list` and one `tools/call` yourself (with `curl` for HTTP, or by piping lines into the process for stdio). If you cannot explain every field of the answers, the model cannot either.",
-            "**Read the capabilities.** The `initialize` result is the contract: every method the client uses must be covered by a declared capability. A test that calls an undeclared method should get `-32601` (method not found), not a silent success.",
+            "**Drive it by hand.** Send `server/discover`, `tools/list` and one `tools/call` yourself (with `curl` for HTTP, or by piping lines into the process for stdio). If you cannot explain every field of the answers, the model cannot either.",
+            "**Read the capabilities.** The `server/discover` result is the contract: every method the client uses must be covered by a declared capability. A test that calls an undeclared method should get `-32601` (method not found; over HTTP with a `404`), not a silent success.",
             "**Diff `tools/list` in CI.** Store the expected tool list (names, descriptions, schemas) as a snapshot and fail the build when it changes unreviewed. A description edit changes model behaviour as surely as a code change.",
             "**Test errors both ways.** An unknown tool name must give a protocol error; a valid call for a missing course must give `isError: true` with a message that tells the model what a correct argument looks like.",
-            "**Check stdout is clean** for stdio servers: run the server, send `initialize`, and assert every line on stdout parses as JSON-RPC.",
+            "**Check stdout is clean** for stdio servers: run the server, send `server/discover`, and assert every line on stdout parses as JSON-RPC.",
         ]),
 
         h2("7. Common mistakes"),
@@ -195,17 +201,17 @@ curl -s https://api.codedev.test/mcp \\
         h2("8. Summary"),
         numbered([
             "MCP lets one server expose tools (model-chosen), resources (application-chosen) and prompts (user-chosen) to many hosts; each host runs one client per server. Use it when more than one host needs the capability, not for a single in-process agent.",
-            "A session is JSON-RPC 2.0: `initialize` negotiates the protocol version and capabilities, `notifications/initialized` completes it, then `tools/list` and `tools/call`. Use only what the other side declared.",
-            "Tool failures go in the result with `isError: true` so the model can recover; protocol errors are for broken requests. stdio suits local servers, streamable HTTP suits shared remote ones; check the current spec (including `server/discover`) at modelcontextprotocol.io.",
+            "Every request is JSON-RPC 2.0 and carries the protocol version and the client's capabilities in `_meta`; `server/discover` tells the client what the server offers, then `tools/list` and `tools/call` do the work. Use only what the other side declared.",
+            "Tool failures go in the result with `isError: true` so the model can recover; protocol errors are for broken requests. stdio suits local servers, streamable HTTP suits shared remote ones; check the current spec at modelcontextprotocol.io.",
         ]),
 
         h2("Sources"),
         bullets([
-            "Model Context Protocol specification and concepts (architecture, lifecycle, tools, resources, prompts, transports) - modelcontextprotocol.io",
+            "Model Context Protocol specification and concepts (architecture, versioning, server/discover, tools, resources, prompts, transports, changelog of 2026-07-28) - modelcontextprotocol.io",
             "JSON-RPC 2.0 Specification - jsonrpc.org/specification",
             "OWASP Top 10 for LLM Applications 2025: LLM06 Excessive Agency - owasp.org/www-project-top-10-for-large-language-model-applications",
         ]),
         callout("tip", "Practice on your own (not graded)",
-            "Write down, for one assistant you use, which hosts, clients and servers are involved and which of its capabilities are tools, resources or prompts. Then hand-write the five JSON-RPC messages of a session (initialize, its response, initialized, tools/list, one tools/call) for a tool you would expose, and check every field against the current specification."),
+            "Write down, for one assistant you use, which hosts, clients and servers are involved and which of its capabilities are tools, resources or prompts. Then hand-write the JSON-RPC requests and results of server/discover, tools/list and one tools/call (with their _meta) for a tool you would expose, and check every field against the current specification."),
     ],
 });

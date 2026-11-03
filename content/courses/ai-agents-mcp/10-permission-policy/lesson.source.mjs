@@ -110,9 +110,10 @@ if (d.decision === "allow") {
         p("The approval endpoint is the only place a token is born. It runs with the support lead's own login, re-reads the pending call from the server (not from the browser), and stores the binding:"),
         code("typescript", `
 // app/api/agent-approvals/[id]/approve/route.ts
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const approver = await requireStaff(req);                 // support lead or manager, from their own session
-  const pending = await db.pendingCall.findUniqueOrThrow({ where: { id: params.id } });
+  const { id } = await params;                              // Next.js 15+: route params are a Promise
+  const pending = await db.pendingCall.findUniqueOrThrow({ where: { id } });
   const token = randomUUID();
   await db.approvalToken.create({ data: {
     token,

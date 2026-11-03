@@ -51,11 +51,11 @@
   ],
   "testedVersions": {
     "TypeScript": "5.9.3 (tsc --strict in the code runner)",
-    "MCP": "spec 2026-07-28 (lesson examples, check the current spec)"
+    "MCP": "spec 2026-07-28 (current at review; stateless: server/discover, _meta per request, no initialize/sessions; check the changelog)"
   },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
-    "https://modelcontextprotocol.io/",
+    "https://modelcontextprotocol.io/specification/2026-07-28",
     "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
     "https://www.anthropic.com/engineering/building-effective-agents"
   ],
