@@ -42,7 +42,7 @@
   "testedVersions": {
     "TypeScript": "5.9.3 (tsc --strict in the code runner)"
   },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://martinfowler.com/bliki/MonolithFirst.html",
     "https://adr.github.io/",

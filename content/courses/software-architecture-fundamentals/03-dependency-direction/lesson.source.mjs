@@ -164,7 +164,7 @@ test("a learner cannot read another learner's order", async () => {
             "**Reproduce the report.** The `curl` from section 2 now returns `404` for learner A and the order for learner B. Add it as an API test so the shortcut cannot come back silently.",
             "**Unit tests without infrastructure.** `npx vitest run src/orders/services` passes with Postgres stopped. If it needs a database, a service still imports something concrete.",
             "**A layer check in CI.** Take every import, find the layer of both ends from the path, and look the pair up in the table from section 3. Tools such as dependency-cruiser express the same rules as configuration; the exercise below builds the check itself, so you know exactly what it does.",
-            "**A cycle finder.** `npx madge --circular src` lists import cycles and exits with an error when it finds one; run it in CI next to the layer check.",
+            "**A cycle finder.** `npx madge --circular --extensions ts src` lists import cycles and exits with an error when it finds one; run it in CI next to the layer check.",
         ]),
         code("javascript", `
 // .dependency-cruiser.cjs (excerpt) - the same rules as configuration

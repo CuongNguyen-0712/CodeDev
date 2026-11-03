@@ -82,9 +82,9 @@ export function retryFetch(url: string, tries: number): Promise<Response> { ... 
         p("Use the numbers to decide **where to look**, not what to do. A ten-file app with three modules does not need a coupling report; you can see the whole graph. The report earns its place when the codebase is too big for one person to remember who imports what - which is exactly when a one-line change can surprise everyone."),
 
         h2("4. Worked example: the CodeDev module graph"),
-        p("You do not need a special tool to get the graph. `madge` prints the file-level import graph as JSON (`npx madge --json src`), and a few lines turn it into module edges, one line per file import:"),
+        p("You do not need a special tool to get the graph. `madge` prints the file-level import graph as JSON (`npx madge --json --extensions ts src`; without `--extensions` madge only reads `.js` files), and a few lines turn it into module edges, one line per file import:"),
         code("typescript", `
-// scripts/moduleEdges.ts - usage: npx madge --json src | node scripts/moduleEdges.ts
+// scripts/moduleEdges.ts - usage: npx madge --json --extensions ts src | node scripts/moduleEdges.ts
 import { readFileSync } from "node:fs";
 
 const graph: Record<string, string[]> = JSON.parse(readFileSync(0, "utf8"));
@@ -148,6 +148,6 @@ utils (fan-in 9, 30 functions)      text      formatDate, slugify      fan-in 9
             "madge documentation: --json and --circular output",
         ]),
         callout("tip", "Practice on your own (not graded)",
-            "Run npx madge --json on the src folder of a project you know, turn it into module edges with the script from section 4, and compute fan-in and fan-out for its five largest modules. Pick the module with the highest fan-in and list its exports next to the modules that use each one, as in the quiz. Would a split along reasons to change lower the fan-in of the part that changes most often?"),
+            "Run npx madge --json --extensions ts on the src folder of a project you know, turn it into module edges with the script from section 4, and compute fan-in and fan-out for its five largest modules. Pick the module with the highest fan-in and list its exports next to the modules that use each one, as in the quiz. Would a split along reasons to change lower the fan-in of the part that changes most often?"),
     ],
 });

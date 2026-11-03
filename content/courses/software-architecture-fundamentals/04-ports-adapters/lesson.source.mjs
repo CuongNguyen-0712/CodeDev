@@ -177,7 +177,7 @@ test("a mail server outage still issues the certificate", () => {
         h2("6. How to verify the inversion"),
         bullets([
             "**Grep the business folders.** `grep -rn \"new HttpPaymentClient\\|new SmtpEmailClient\\|new Date()\" src/orders src/progress` should find nothing. The only matches belong in `src/infra/` and `main.ts`.",
-            "**Let a lint rule keep it that way.** ESLint's `no-restricted-imports` with an override for `src/orders/**` and `src/progress/**` that forbids `@acme-pay/sdk` and the SMTP client turns a forgotten import into a CI failure. dependency-cruiser can express the same rule as \"orders may not depend on infra\".",
+            "**Let a lint rule keep it that way.** ESLint's `no-restricted-imports` in a config block for the files in `src/orders/**` and `src/progress/**` that forbids `@acme-pay/sdk` and the SMTP client turns a forgotten import into a CI failure. dependency-cruiser can express the same rule as \"orders may not depend on infra\".",
             "**Run the unit tests with the network off.** In CI, run the orders job in a container without network access. If a business test still reaches out, it fails at once instead of in 30 seconds.",
             "**Keep one contract test per adapter.** The adapter is the code that still talks to the vendor: test `HttpPaymentGateway` against the sandbox in a separate, slower job, so the vendor's outages break one job instead of every checkout test.",
         ]),

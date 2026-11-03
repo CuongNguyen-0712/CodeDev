@@ -176,17 +176,21 @@ export async function placeOrder(userId: string, courseId: string, cardToken: st
             "**Churn after the change.** Rerun the `git log ... | uniq -c` command from section 2 a few weeks later. Changes should now spread over several module folders instead of piling into one file.",
             "**The tests of one module run alone.** `npx vitest run src/notifications` should pass without a database or a Stripe key; if it needs them, something leaks across the boundary.",
         ]),
-        code("json", `
-{
-  "rules": {
-    "no-restricted-imports": ["error", {
-      "patterns": [{
-        "group": ["../*/*", "!../*/index"],
-        "message": "Import another module through its index.ts only."
-      }]
-    }]
-  }
-}`, ".eslintrc.json (excerpt)"),
+        code("javascript", `
+// eslint.config.js (excerpt) - flat config; .ts files also need the typescript-eslint parser
+export default [
+  {
+    files: ["src/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [{
+          group: ["../*/*", "!../*/index"],
+          message: "Import another module through its index.ts only.",
+        }],
+      }],
+    },
+  },
+];`, "eslint.config.js (excerpt)"),
 
         h2("7. Common mistakes and how to spot them"),
         bullets([
