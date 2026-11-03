@@ -294,7 +294,7 @@ Support tickets: learners whose phone clock runs about 8 minutes slow get 401 er
 
 09:15:05Z GET /me/progress 401 token_expired now=1793006105 exp=1793006100 leeway=30
 
-Statement: "Raising the API''s leeway from 30 seconds to 10 minutes fixes the root cause of these 401 responses."', 'single_choice'::question_type, 'False. The API compares exp with its own clock, which is correct; the token really is expired at 09:15:05. The root cause is in the client: it computes msLeft with the phone''s Date.now(), which is 8 minutes behind, so it believes the token has 8 more minutes and schedules the refresh 8 minutes too late. Fix the client: have the server return a relative lifetime (expiresIn: 900) and schedule from the moment the response arrives, and on a 401 token_expired refresh once and retry the request. Leeway exists for small skew between the servers that issue and verify tokens (RFC 7519 allows a few minutes at most); a 10-minute leeway would also keep every stolen or revoked 15-minute token alive for 25 minutes. The misconception is that the client''s clock takes part in server-side verification.', 2, 5
+Statement: "Raising the API''s leeway from 30 seconds to 10 minutes fixes the root cause of these 401 responses."', 'single_choice'::question_type, 'False. The API compares exp with its own clock, which is correct; the token really is expired at 09:15:05. The root cause is in the client: it computes msLeft with the phone''s Date.now(), which is 8 minutes behind, so it believes the token has 8 more minutes and schedules the refresh 8 minutes too late. Fix the client: have the server return a relative lifetime (expiresIn: 900) and schedule from the moment the response arrives, and on a 401 token_expired refresh once and retry the request. Leeway exists for small skew between the servers that issue and verify tokens (RFC 7519 suggests a small leeway, usually no more than a few minutes); a 10-minute leeway would also keep every stolen or revoked 15-minute token alive for 25 minutes. The misconception is that the client''s clock takes part in server-side verification.', 2, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nas_131') AND order_index = 2)
     RETURNING id
 )
@@ -466,14 +466,15 @@ WITH q AS (
 ...
 14:24:58 api-6 release 42 ready
 
-SELECT count(*) FROM auth.refresh_tokens WHERE token IS NOT NULL AND created_at > ''2026-10-26 14:00'';
+SELECT count(*) FROM auth.refresh_tokens WHERE token IS NOT NULL AND used_at IS NULL AND revoked_at IS NULL
+  AND created_at > ''2026-10-26 14:00'';
  count
 -------
   3114
 
 Release 42 looks up refresh tokens only with WHERE token_hash = $1.
 
-Statement: "About 3,100 learners who signed in during the deploy will get invalid_grant at their next refresh and have to sign in again."', 'single_choice'::question_type, 'True. During a rolling deploy both releases serve traffic. Every sign-in handled by a release 41 instance wrote a row with the plain token and no token_hash, and the query shows 3,114 such rows created after 14:00. Release 42 searches only by hash, finds nothing for those tokens and answers invalid_grant. That is why the new code must also read the legacy column for a while: find the row by its plain token, move it to the hash at once, and rotate. Only after the last old instance is gone does a backfill (UPDATE ... SET token_hash = encode(sha256(convert_to(token, ''UTF8'')), ''hex''), token = NULL) clear the remaining rows, and a later release drops the column. The misconception is that a schema change and a code change switch over at one instant.', 1, 5
+Statement: "The devices that hold these 3,114 live refresh tokens will get invalid_grant at their next refresh and have to sign in again."', 'single_choice'::question_type, 'True. During a rolling deploy both releases serve traffic. Every sign-in or refresh handled by a release 41 instance wrote a row with the plain token and no token_hash, and the query shows 3,114 such rows created after 14:00 that are still the live token of their session. Release 42 searches only by hash, finds nothing for those tokens and answers invalid_grant. That is why the new code must also read the legacy column for a while: find the row by its plain token, move it to the hash at once, and rotate. Only after the last old instance is gone does a backfill (UPDATE ... SET token_hash = encode(sha256(convert_to(token, ''UTF8'')), ''hex''), token = NULL) clear the remaining rows, and a later release drops the column. The misconception is that a schema change and a code change switch over at one instant.', 1, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nas_221') AND order_index = 1)
     RETURNING id
 )

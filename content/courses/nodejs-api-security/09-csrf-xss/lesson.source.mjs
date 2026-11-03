@@ -65,7 +65,7 @@ Cookie: sid=9f2c...
         bullets([
             "**It does not know about subdomains.** A \"site\" is the scheme plus the registrable domain, so `https://blog.codedev.test` and `https://app.codedev.test` are the **same site**. A page on any subdomain that serves user content, or that an attacker takes over, can send same-site requests with every `Lax` and `Strict` cookie.",
             "**It does not protect GET.** `Lax` sends the cookie on a top-level GET navigation. A GET that changes state (`/settings/email/confirm?email=...`) is open to any link.",
-            "**It is not universal.** Older browsers and some embedded webviews ignore it, and Chrome sends cookies **without** a SameSite attribute on cross-site POSTs for two minutes after they are set. An explicit attribute avoids that exception, and a server-side check does not depend on the browser at all.",
+            "**It is not universal.** Older browsers and some embedded webviews ignore it, and Chrome has sent cookies **without** a SameSite attribute on cross-site top-level POSTs for two minutes after they are set (the \"Lax+POST\" exception, which Chrome said it would phase out; check the current behaviour). An explicit attribute avoids that exception, and a server-side check does not depend on the browser at all.",
         ]),
         h3("Defences on the server for cookie-authenticated POSTs"),
         p("Use SameSite as the first layer, and add at least one check that the server controls, on every state-changing method (POST, PUT, PATCH, DELETE):"),
