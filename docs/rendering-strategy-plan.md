@@ -143,7 +143,7 @@ Ghi chú cho Bước B: `generateStaticParams` trả `[]` không dùng được 
 
 ### Đã thử (nhánh `feat/cache-components`, commit WIP `76172a6d`, chưa build được)
 
-- Bật `cacheComponents: true`, bỏ 17 `dynamic = "force-dynamic"` và 4 `revalidate`; đặt `instant = false` cho `/admin` và `/studio`.
+- Bật `cacheComponents: true`, bỏ 17 `dynamic = "force-dynamic"` và 4 `revalidate`; đặt `instant = false` cho `/admin` và `/studio`. `app/studio/` bị gitignore, nên nhánh không chứa thay đổi này: khi làm lại phải sửa tay (`force-dynamic` → `instant = false`).
 - Thêm `lib/cachedData.js` (`'use cache'` + `cacheLife` + `cacheTag`), `lib/hydrate.js` (helper hydrate theo docs) và footer `'use cache'` (vì `new Date()`).
 - Cách sửa này giải quyết được mọi lỗi phía server. **Điểm chặn:** `Date.now()` trong client component lúc prerender (`hooks/useCourseDetails.js` → `useQuery`). TanStack Query đọc thời gian khi tạo kết quả query (`timeUntilStale`). Docs Next ghi rõ: query cần cho lần render đầu phải nằm sau `<Suspense>`.
 - Hệ quả: 59 file dùng `useQuery` / `useInfiniteQuery`, kể cả navbar, banner xác minh email và trung tâm thông báo trong shell, đều phải nằm sau `<Suspense>`. Phần đó không prerender được mà render lúc request. Với trang chi tiết khoá học, vốn đang là ISR tĩnh hoàn toàn (TTFB 7 ms), điều này là **lùi bước**: chỉ còn khung tĩnh, nội dung render lại mỗi request.
