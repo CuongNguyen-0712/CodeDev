@@ -1,18 +1,25 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from "react";
-
-import QuizChallenge from "./challenges/quizChallenge";
-import CodingChallenge from "./challenges/codingChallenge";
+import dynamic from "next/dynamic";
 
 import { useOpenHint } from "@/mutations/challenge.mutation";
 
 import { Badge } from "@/components/shadcn/badge";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/shadcn/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/shadcn/alert-dialog";
 
 import { LuBug, LuCheck, LuCode, LuLightbulb, LuListChecks, LuLoaderCircle, LuLock } from "react-icons/lu";
+
+function ChallengeSkeleton() {
+    return <Skeleton role="status" aria-label="Loading challenge" className="h-72 w-full rounded-lg" />;
+}
+
+// Loaded when a lesson shows a challenge: a lesson with only quizzes never ships the code editor.
+const QuizChallenge = dynamic(() => import("./challenges/quizChallenge"), { loading: ChallengeSkeleton });
+const CodingChallenge = dynamic(() => import("./challenges/codingChallenge"), { loading: ChallengeSkeleton });
 
 const TYPE_META = {
     quiz: { label: "Knowledge check", Icon: LuListChecks },

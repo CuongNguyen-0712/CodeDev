@@ -116,7 +116,7 @@ Tổng phần render khoảng 7-10 ngày công. Phase 1 và 2 cho lợi ích đo
 ## 6. Cần quyết định
 
 1. ~~Ảnh: `next/image` hay URL Cloudinary có biến đổi.~~ Đã chốt: dùng `srcSet` Cloudinary (xem §7).
-2. Sort khoá học: phía server theo URL (đề xuất) hay chỉ trên danh sách đã tải với nhãn rõ.
+2. ~~Sort khoá học: phía server hay chỉ trên danh sách đã tải.~~ Đã làm phía server (§7, lượt 2).
 3. Có duyệt UX-606 (bỏ poll phiên 60 giây) hay giữ nguyên do ràng buộc auth.
 4. Có chấp nhận thay đổi cấu trúc `app/` (route group `(shell)`) ở Phase 3 hay giữ `HomeLayout` trong từng page.
 
@@ -152,10 +152,21 @@ Phần còn lại chủ yếu là framework: `react-dom` 202 KB, router Next 129
 
 **Chưa đo được:** LCP, TBT và CLS bằng Lighthouse. Bản build local gọi API ở `http://localhost:3000` (giá trị `NEXT_PUBLIC_*` được gắn lúc build), nên khi chạy ở cổng 3100 thì dữ liệu không tải được. Muốn đo cần chạy bản build ở cổng 3000 thay cho dev server. Các trang cần đăng nhập (`/home`, `/learning/[id]`, `/settings`, `/profile`) chưa kiểm tra trên trình duyệt vì không có tài khoản test được ghi lại trong repo.
 
+### Lượt 2 (2026-11-03)
+
+| Mục | Thay đổi | Kiểm chứng |
+|---|---|---|
+| UX-602 | Sort khoá học chạy phía server. `LIST_SORTS` + `?sort=` trong `lib/listFilters.js`: tách khỏi filter, nên không bị tính là filter đang bật và không hiện chip; vẫn nằm trong cache key. `db/course.db.js` `COURSE_SORTS`: keyset theo (khoá sort, `c.id`), unrated xếp sau. "Clear filters" giữ nguyên sort. Select có nhãn | Unit test parse/serialise; integration test trên PostgreSQL phân trang 3 thứ tự với `limit 3`, không lặp, không sót; trên trình duyệt `?sort=title` đổi URL, đúng thứ tự, không hiện "Clear" |
+| Thông báo | Trạng thái đã đọc lưu `localStorage` theo user. Id gồm giá trị (`level-N`, `course-completed-N`) nên lên level / xong khoá mới lại hiện là mới; chỉ giữ id còn đang hiển thị. `motion-safe:` cho chấm ping, chữ `text-xs`, nhãn `sr-only` "Unread" | Lint; **chưa** kiểm trên trình duyệt (cần đăng nhập) |
+| Admin table | Bỏ `sticky top-0` không có tác dụng trên `thead` (`accessAdmin`, `ordersAdmin`, `catalogPage`) | |
+| RC-02 | `QuizChallenge` / `CodingChallenge` tải bằng `next/dynamic` với skeleton `role="status"`: bài chỉ có quiz không tải editor | Build/lint; **chưa** kiểm trên `/learning/[id]` |
+
+Test cả bộ: 392 pass, 12 skip (cần dịch vụ ngoài). Lint 0 lỗi.
+
 ### Còn mở
 
 - **Mức thấp:** mở thẳng `/course?modal=feedback` gây cảnh báo hydration mismatch. Dialog Radix gắn `aria-hidden` lên phần trang chưa hydrate xong. Chỉ xảy ra khi vào trực tiếp bằng URL có `?modal=feedback`; mở modal từ menu thì không bị.
-- **Phase 2 còn lại:** `next/dynamic` cho `CodeEditor` / `codingChallenge`; tách `Provider` theo trạng thái đăng nhập. Ưu tiên thấp, vì `LevelUpDialog` / `RatePromptDialog` không kéo thư viện nặng.
-- **Mới:** `notificationCenter` lưu `readIds` trong state, nên mỗi lần reload mọi thông báo lại thành chưa đọc. Proxy giờ gắn `next` cho mọi trang private (UX-104); `safeNextPath` đã chặn URL ngoài và `/auth`.
-- **Admin table:** `sticky top-0` trên `thead` không dính, vì `components/shadcn/table.jsx` bọc bảng trong `overflow-x-auto`.
-- **Chưa làm:** Phase 3 (layout server, `loading.jsx`), Phase 4 (RC-04 editor: `useDeferredValue` sẽ làm chữ hiển thị trễ hơn textarea, cần thiết kế lại lớp tô màu trước), UX-602 sort phía server.
+- **Tách `Provider` theo trạng thái đăng nhập:** ưu tiên thấp, vì `LevelUpDialog` / `RatePromptDialog` không kéo thư viện nặng.
+- **Proxy:** giờ gắn `next` cho mọi trang private (UX-104); `safeNextPath` đã chặn URL ngoài và `/auth`.
+- **Chưa làm:** Phase 3 (layout server, `loading.jsx`; chờ quyết định 4 ở §6). Phase 4 / RC-04 editor: `useDeferredValue` sẽ làm chữ hiển thị trễ hơn textarea, cần thiết kế lại lớp tô màu trước.
+- **Chưa kiểm signed-in:** cần một tài khoản test local để kiểm `/home`, `/learning/[id]`, `/settings`, `/profile` và thông báo.

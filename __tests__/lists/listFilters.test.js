@@ -46,6 +46,21 @@ describe("list filters: parsing", () => {
     });
 });
 
+describe("list filters: sort", () => {
+    it("keeps known orders only and serialises them last", () => {
+        expect(parseListQuery("course", qs("sort=RATING")).sort).toBe("rating");
+        expect(parseListQuery("course", qs("sort=price;drop")).sort).toBe("");
+        expect(parseListQuery("roadmap", qs("sort=rating")).sort).toBe("");
+        expect(toQueryString("course", { filter: { level: ["beginner"] }, sort: "title" })).toBe("level=beginner&sort=title");
+    });
+
+    it("is not a filter, but is part of the cache identity", () => {
+        expect(isFiltered("course", { filter: {}, sort: "rating" })).toBe(false);
+        expect(listCacheIdentity("course", { filter: {}, sort: "rating" }))
+            .not.toBe(listCacheIdentity("course", { filter: {} }));
+    });
+});
+
 describe("list filters: serialisation and cache identity", () => {
     it("round-trips through the URL in canonical order", () => {
         const state = { search: "Node", filter: { level: ["master", "beginner"], rating: ["4"], language: ["12", "3"] } };

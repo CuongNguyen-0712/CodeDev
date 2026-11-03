@@ -14,13 +14,37 @@ import { cn } from "@/lib/utils";
 
 import { LuBell, LuCheck, LuCircleCheck, LuCoins, LuSparkles, LuTrophy } from "react-icons/lu";
 
+// Read state is a per-browser convenience: losing it only shows the items as new again.
+const READ_KEY = 'codedev_notifications_read:';
+
+function loadRead(userId) {
+    try {
+        return new Set(JSON.parse(localStorage.getItem(READ_KEY + userId) || '[]'));
+    } catch {
+        return new Set();
+    }
+}
+
+function saveRead(userId, ids) {
+    try {
+        localStorage.setItem(READ_KEY + userId, JSON.stringify([...ids]));
+    } catch {
+        // Storage unavailable (private mode): read state lasts for this page only.
+    }
+}
+
 export default function NotificationCenter() {
-    const { status } = useSession();
+    const { data: session, status } = useSession();
     const { data: user } = useQuery(userQueries.me(status));
     const { data: overview } = useQuery(userQueries.overview(status));
 
-    const [readIds, setReadIds] = useState(new Set());
+    const userId = status === 'authenticated' ? session?.user?.id ?? null : null;
+    const [read, setRead] = useState({ userId: null, ids: new Set() });
     const [open, setOpen] = useState(false);
+
+    // Loaded when the signed-in user is known (only on the client: the server render has no session).
+    if (userId && read.userId !== userId) setRead({ userId, ids: loadRead(userId) });
+    const readIds = read.userId === userId ? read.ids : new Set();
 
     if (status !== 'authenticated') return null;
 
@@ -41,8 +65,9 @@ export default function NotificationCenter() {
             time: 'Platform',
             href: '/home',
         },
+        // Ids carry the value they report, so reaching a new level or finishing another course is new again.
         ...(exp > 0 ? [{
-            id: 'exp-earned',
+            id: `level-${user?.level || 1}`,
             type: 'reward',
             icon: LuTrophy,
             iconClass: 'text-xp bg-xp-soft',
@@ -72,7 +97,7 @@ export default function NotificationCenter() {
             href: '/learning',
         }] : []),
         ...(completedCount > 0 ? [{
-            id: 'course-completed',
+            id: `course-completed-${completedCount}`,
             type: 'achievement',
             icon: LuCircleCheck,
             iconClass: 'text-success bg-success-soft',
@@ -85,12 +110,18 @@ export default function NotificationCenter() {
 
     const unreadCount = notifications.filter(n => !readIds.has(n.id)).length;
 
-    const markAllRead = () => {
-        setReadIds(new Set(notifications.map(n => n.id)));
+    // Only ids still shown are kept, so the stored list does not grow with every level reached.
+    const markRead = (ids) => {
+        const shown = new Set(notifications.map((n) => n.id));
+        const next = new Set([...readIds, ...ids].filter((id) => shown.has(id)));
+        setRead({ userId, ids: next });
+        saveRead(userId, next);
     };
 
+    const markAllRead = () => markRead(notifications.map((n) => n.id));
+
     const handleItemClick = (id) => {
-        setReadIds(prev => new Set([...prev, id]));
+        markRead([id]);
         setOpen(false);
     };
 
@@ -109,7 +140,7 @@ export default function NotificationCenter() {
                             <LuBell className="size-4" />
                             {unreadCount > 0 && (
                                 <span className="absolute top-1 right-1 flex size-2">
-                                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-75" />
+                                    <span className="absolute inline-flex size-full motion-safe:animate-ping rounded-full bg-primary opacity-75" />
                                     <span className="relative inline-flex size-2 rounded-full bg-primary" />
                                 </span>
                             )}
@@ -124,7 +155,7 @@ export default function NotificationCenter() {
                     <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold">Notifications</span>
                         {unreadCount > 0 && (
-                            <Badge variant="primary" className="h-5 px-1.5 text-[10px]">
+                            <Badge variant="primary" className="h-5 px-1.5 text-xs">
                                 {unreadCount} new
                             </Badge>
                         )}
@@ -170,7 +201,7 @@ export default function NotificationCenter() {
                                             <p className={cn("truncate text-xs font-medium", !isRead ? "text-foreground font-semibold" : "text-muted-foreground")}>
                                                 {item.title}
                                             </p>
-                                            <span className="shrink-0 text-[10px] text-muted-foreground">
+                                            <span className="shrink-0 text-xs text-muted-foreground">
                                                 {item.time}
                                             </span>
                                         </div>
@@ -179,7 +210,9 @@ export default function NotificationCenter() {
                                         </p>
                                     </div>
                                     {!isRead && (
-                                        <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
+                                        <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary">
+                                            <span className="sr-only">Unread</span>
+                                        </span>
                                     )}
                                 </Link>
                             );

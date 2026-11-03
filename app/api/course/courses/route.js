@@ -14,7 +14,7 @@ export const GET = apiRoute(async ({ req, userId }) => {
     const { searchParams } = new URL(req.url);
 
     // Unknown keys and values outside the database enums / id ranges are dropped here.
-    const { search, filter } = parseListQuery("course", searchParams);
+    const { search, filter, sort } = parseListQuery("course", searchParams);
 
     const lastId = searchParams.get("lastId") || null;
     if (lastId && !PUBLIC_ID.test(lastId)) {
@@ -23,5 +23,5 @@ export const GET = apiRoute(async ({ req, userId }) => {
 
     const limit = Math.min(Math.max(Number.parseInt(searchParams.get("limit"), 10) || 20, 1), 50);
 
-    return courseService.getList({ userId, search, filter, lastId, limit });
+    return courseService.getList({ userId, search, filter, sort, lastId, limit });
 }, { context: "api/course/courses", auth: "optional", allowLocked: true, limiter: rateLimiters.api });

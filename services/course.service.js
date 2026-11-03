@@ -82,9 +82,9 @@ export const courseService = {
      * normalised query: guests share one entry, signed-in users get a versioned per-user entry
      * because enrolment hides courses and fills `is_registered`.
      */
-    getList: async ({ userId = null, search = "", filter = {}, lastId = null, limit = 20 } = {}) => {
-        const hash = listHash("course", { search, filter }, { lastId, limit });
-        const load = () => courseService.loadList({ userId, search, filter, lastId, limit });
+    getList: async ({ userId = null, search = "", filter = {}, sort = "", lastId = null, limit = 20 } = {}) => {
+        const hash = listHash("course", { search, filter, sort }, { lastId, limit });
+        const load = () => courseService.loadList({ userId, search, filter, sort, lastId, limit });
 
         if (!userId) {
             const ttl = search ? TTL.COURSE_SEARCH_PUBLIC : TTL.COURSE_LIST_PUBLIC;
@@ -94,10 +94,11 @@ export const courseService = {
         return rememberForUser(userId, (v) => cacheKeys.userCourseList(userId, v, hash), TTL.USER_COURSE_LIST, load);
     },
 
-    loadList: async ({ userId = null, search = "", filter = {}, lastId = null, limit = 20 }) => {
+    loadList: async ({ userId = null, search = "", filter = {}, sort = "", lastId = null, limit = 20 }) => {
         const response = await courseDb.getCourseList({
             userId,
             search,
+            sort,
             levels: filter.level || [],
             price: filter.price?.[0] || null,
             minRating: Number(filter.rating?.[0]) || null,

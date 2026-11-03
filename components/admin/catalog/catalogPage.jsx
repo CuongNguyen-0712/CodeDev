@@ -88,7 +88,7 @@ export default function CatalogPage() {
                     <p className="p-4 text-sm text-muted-foreground">No {meta.singular} matches “{q.trim()}”.</p>
                 ) : (
                     <table className="w-full text-sm">
-                        <thead className="sticky top-0 z-10 border-b border-border bg-card">
+                        <thead className="border-b border-border">
                             <tr className="text-left text-xs text-muted-foreground">
                                 <th scope="col" className="px-4 py-2 font-normal">Name</th>
                                 {coded && <th scope="col" className="px-4 py-2 font-normal @max-2xl:hidden">Code</th>}

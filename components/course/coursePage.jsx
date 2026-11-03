@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 
@@ -74,7 +74,7 @@ function CourseItemSkeleton() {
 }
 
 export default function CoursePage() {
-    const { search, filter, params, isFiltered: hasActiveFilters, setSearch, setFilter, reset } = useListQueryState('course');
+    const { search, filter, sort, params, isFiltered: hasActiveFilters, setSearch, setFilter, setSort, reset } = useListQueryState('course');
 
     const { status: sessionStatus } = useSession();
     const isSignedIn = sessionStatus === 'authenticated';
@@ -108,21 +108,8 @@ export default function CoursePage() {
         },
     });
 
+    // Sorted by the API (`?sort=`), so the order holds across pages that are not loaded yet.
     const courses = useMemo(() => data?.pages?.flatMap(page => page.data) ?? [], [data]);
-    const [sortBy, setSortBy] = useState('default');
-
-    const sortedCourses = useMemo(() => {
-        if (sortBy === 'rating') {
-            return [...courses].sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0));
-        }
-        if (sortBy === 'lessons') {
-            return [...courses].sort((a, b) => (Number(b.lessons) || 0) - (Number(a.lessons) || 0));
-        }
-        if (sortBy === 'title') {
-            return [...courses].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-        }
-        return courses;
-    }, [courses, sortBy]);
 
     const showError = !isLoading && isError && courses.length === 0;
     // "0 courses" next to a load error reads as an empty catalog, so the count waits for real data.
@@ -164,15 +151,15 @@ export default function CoursePage() {
                         <LuLibrary className="size-4 text-muted-foreground" aria-hidden="true" />
                         <span aria-live="polite">{countLabel}</span>
                     </h2>
-                    {courses.length > 1 && (
+                    {(courses.length > 1 || sort) && (
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>Sort by:</span>
-                            <Select value={sortBy} onValueChange={setSortBy}>
-                                <SelectTrigger size="sm" className="h-8 w-36 text-xs">
+                            <span id="course-sort-label">Sort by:</span>
+                            <Select value={sort || 'default'} onValueChange={(value) => setSort(value === 'default' ? '' : value)}>
+                                <SelectTrigger size="sm" className="h-8 w-36 text-xs" aria-labelledby="course-sort-label">
                                     <SelectValue placeholder="Sort by" />
                                 </SelectTrigger>
                                 <SelectContent align="end">
-                                    <SelectItem value="default">Default</SelectItem>
+                                    <SelectItem value="default">Newest</SelectItem>
                                     <SelectItem value="rating">Highest rated</SelectItem>
                                     <SelectItem value="lessons">Most lessons</SelectItem>
                                     <SelectItem value="title">Alphabetical</SelectItem>
@@ -223,7 +210,7 @@ export default function CoursePage() {
                             ? Array.from({ length: 6 }, (_, index) => (
                                 <li key={index}><CourseItemSkeleton /></li>
                             ))
-                            : sortedCourses.map((item, index) => (
+                            : courses.map((item, index) => (
                                 <li key={item.id} className="animate-enter min-w-0" style={{ '--enter-index': index % 20 }}>
                                     <CourseItem item={item} />
                                 </li>

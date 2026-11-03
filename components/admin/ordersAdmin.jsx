@@ -50,7 +50,7 @@ export default function OrdersAdmin() {
     return (
         <>
         <Table>
-            <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableHeader>
                 <TableRow>
                     <TableHead className="@max-2xl:hidden">Date</TableHead>
                     <TableHead>User</TableHead>

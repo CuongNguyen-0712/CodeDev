@@ -28,7 +28,7 @@ export function useListQueryState(kind) {
 
     const write = useCallback((next, { push = false } = {}) => {
         const params = new URLSearchParams(latest.current.searchParams);
-        for (const key of ["q", "search", ...Object.keys(LIST_SCHEMAS[kind])]) {
+        for (const key of ["q", "search", "sort", ...Object.keys(LIST_SCHEMAS[kind])]) {
             params.delete(key);
             params.delete(`${key}[]`);
         }
@@ -52,18 +52,25 @@ export function useListQueryState(kind) {
         write({ ...latest.current.state, filter }, { push: true });
     }, [write]);
 
+    const setSort = useCallback((sort) => {
+        write({ ...latest.current.state, sort }, { push: true });
+    }, [write]);
+
+    // Clears search and filters; the chosen order stays.
     const reset = useCallback(() => {
-        write({ search: "", filter: defaultFilter(kind) }, { push: true });
+        write({ search: "", filter: defaultFilter(kind), sort: latest.current.state.sort }, { push: true });
     }, [kind, write]);
 
     return {
         search: state.search,
         filter: state.filter,
+        sort: state.sort,
         /** Canonical params for the API call and the React Query key. */
         params: useMemo(() => toQueryParams(kind, state), [kind, state]),
         isFiltered: isFiltered(kind, state),
         setSearch,
         setFilter,
+        setSort,
         reset,
     };
 }

@@ -1,6 +1,14 @@
 import { sql } from "@/lib/db";
 import { escapeLike } from "@/lib/listFilters";
 
+// Catalog orders (lib/listFilters LIST_SORTS.course). `key` takes the table alias so the same
+// expression reads the cursor row. Unrated courses (rating NULL) sort as 0, after rated ones.
+const COURSE_SORTS = {
+    rating: { key: (t) => `COALESCE(${t}.rating, 0)`, dir: "DESC" },
+    lessons: { key: (t) => `${t}.lessons`, dir: "DESC" },
+    title: { key: (t) => `${t}.title`, dir: "ASC" },
+};
+
 export const courseDb = {
     /** The viewer's own columns of a course page (merged into the cached public details). */
     getCourseViewerState: async ({ userId, courseId }) => {
@@ -111,12 +119,13 @@ export const courseDb = {
 
     /**
      * Catalog page. Every filter arrives validated by lib/listFilters (enum values, integer ids),
-     * so the casts below never see user-controlled strings. Keyset pagination on c.id.
+     * so the casts below never see user-controlled strings. Keyset pagination on (sort key, c.id).
      */
     getCourseList: async (data) => {
         const {
             userId = null,
             search = "",
+            sort = "",
             levels = [],
             price = null,
             minRating = null,
@@ -192,9 +201,23 @@ export const courseDb = {
             conditions.push(`c.category_id = ANY($${params.length}::int[])`);
         }
 
+        // Sort key (newest first when none) and its direction; ties fall back to c.id DESC, so the
+        // order is total and a page boundary never repeats or skips a course. Keys come from
+        // LIST_SORTS (lib/listFilters), never from the request.
+        const order = COURSE_SORTS[sort] || null;
+        const orderBy = order ? `${order.key("c")} ${order.dir}, c.id DESC` : "c.id DESC";
+
         if (lastId) {
             params.push(lastId);
-            conditions.push(`c.id < (SELECT id FROM catalog.course WHERE public_id = $${params.length})`);
+            const fromCursor = (expr) => `(SELECT ${expr} FROM catalog.course cur WHERE cur.public_id = $${params.length})`;
+            if (order) {
+                const key = order.key("c");
+                const cursorKey = fromCursor(order.key("cur"));
+                const after = order.dir === "DESC" ? "<" : ">";
+                conditions.push(`(${key} ${after} ${cursorKey} OR (${key} = ${cursorKey} AND c.id < ${fromCursor("cur.id")}))`);
+            } else {
+                conditions.push(`c.id < ${fromCursor("cur.id")}`);
+            }
         }
 
         if (hideEnrolled && userId) {
@@ -253,7 +276,7 @@ export const courseDb = {
                 AND r.user_id = (SELECT id FROM me)
                 AND r.is_deleted = false
             WHERE ${conditions.join(" AND ")}
-            ORDER BY c.id DESC
+            ORDER BY ${orderBy}
             LIMIT ${limitParam};
         `;
 

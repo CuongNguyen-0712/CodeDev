@@ -57,6 +57,33 @@ describe.skipIf(!hasDb)("course / learning lists (PostgreSQL)", () => {
         }
     });
 
+    it("pages every sort order without repeating or skipping a course", async () => {
+        const all = (await courseService.loadList({ filter: {}, limit: 50 })).data;
+        const ids = all.map((c) => c.id).sort();
+        const keyOf = {
+            rating: (c) => Number(c.rating) || 0,
+            lessons: (c) => Number(c.lessons),
+            title: (c) => c.title,
+        };
+
+        for (const sort of lists.LIST_SORTS.course) {
+            const seen = [];
+            let lastId = null;
+            do {
+                const page = await courseService.loadList({ filter: {}, sort, lastId, limit: 3 });
+                seen.push(...page.data);
+                lastId = page.lastId;
+            } while (lastId);
+
+            expect(seen.map((c) => c.id).sort()).toEqual(ids);
+            // Numeric orders are checked directly; title order follows the database collation.
+            if (sort !== "title") {
+                const keys = seen.map(keyOf[sort]);
+                expect(keys).toEqual([...keys].sort((a, b) => b - a));
+            }
+        }
+    });
+
     it("matches LIKE wildcards literally", async () => {
         const all = await courseService.loadList({ filter: {}, limit: 50 });
         const wildcard = await courseService.loadList({ search: "%", filter: {}, limit: 50 });
