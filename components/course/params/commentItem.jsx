@@ -7,10 +7,9 @@ import { cn } from "@/lib/utils";
 import { useApp } from "@/contexts/appContext";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
-import { Button } from "@/components/shadcn/button";
 import { AuthorStars } from "../ratingStars";
 
-import { LuHeart } from "react-icons/lu";
+import { LuThumbsDown, LuThumbsUp } from "react-icons/lu";
 
 const formatDate = (str) => {
     if (!str) return 'Recently';
@@ -45,17 +44,20 @@ const CommentItem = ({ data, courseId }) => {
 
     const formattedDate = useMemo(() => formatDate(data.created_at), [data.created_at]);
 
-    // A like is an upvote on the server; a learner's old downvote is replaced by it.
-    const isLiked = data.vote === 'upvote';
-    const likes = Number(data.upvotes) || 0;
+    const isUp = data.vote === 'upvote';
+    const isDown = data.vote === 'downvote';
+    const upvotes = Number(data.upvotes) || 0;
 
-    const handleLike = () => {
+    // Clicking the vote already given takes it back; the other one replaces it.
+    const vote = (kind) => {
         if (!session || useVoting.isPending) return;
         useVoting.mutate(
-            { commentId: data.id, courseId, vote: isLiked ? null : 'upvote' },
-            { onError: () => showAlert(500, "Could not update your like. Please try again.") }
+            { commentId: data.id, courseId, vote: data.vote === kind ? null : kind },
+            { onError: () => showAlert(500, "Could not save your vote. Please try again.") }
         );
     };
+    const signInHint = !session ? "Sign in to vote on comments" : undefined;
+    const voteButton = "inline-flex h-8 items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:relative focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&>svg]:size-4 [&>svg]:transition-transform active:[&>svg]:scale-90";
 
     const username = data.username || 'Anonymous';
 
@@ -102,23 +104,34 @@ const CommentItem = ({ data, courseId }) => {
                 {data.comment}
             </p>
 
-            {/* One like per learner, shown as a heart with its count. The count moves on click
-                (optimistic, see useCourseVotingComment) and goes back if the server refuses. */}
-            <div className="flex items-center pl-[38px]">
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    onClick={handleLike}
-                    className={cn("text-muted-foreground", isLiked && "text-destructive hover:text-destructive")}
-                    disabled={!session}
-                    title={!session ? "Sign in to like comments" : undefined}
-                    aria-label={`${isLiked ? 'Unlike' : 'Like'} this comment, ${likes} ${likes === 1 ? 'like' : 'likes'}`}
-                    aria-pressed={isLiked}
-                >
-                    <LuHeart className={cn("transition-transform duration-150 active:scale-90", isLiked && "fill-current")} aria-hidden="true" />
-                    <span className="tabular">{likes}</span>
-                </Button>
+            {/* Up shows how many found the comment helpful; down only records the learner's view, with no
+                count, so a comment is never shamed by a number. Both move at once (optimistic) and go back
+                if the server refuses. */}
+            <div className="pl-[42px]">
+                <div role="group" aria-label="Rate this comment" title={signInHint} className="inline-flex items-center overflow-hidden rounded-full border border-border bg-background">
+                    <button
+                        type="button"
+                        onClick={() => vote('upvote')}
+                        disabled={!session}
+                        aria-pressed={isUp}
+                        aria-label={`Helpful, ${upvotes} ${upvotes === 1 ? 'person' : 'people'} found this helpful`}
+                        className={cn(voteButton, "pr-2.5 pl-3", isUp && "bg-primary-soft text-primary-ink hover:bg-primary-soft hover:text-primary-ink")}
+                    >
+                        <LuThumbsUp className={cn(isUp && "fill-current")} aria-hidden="true" />
+                        <span className="tabular-nums">{upvotes}</span>
+                    </button>
+                    <span aria-hidden="true" className="h-4 w-px bg-border" />
+                    <button
+                        type="button"
+                        onClick={() => vote('downvote')}
+                        disabled={!session}
+                        aria-pressed={isDown}
+                        aria-label="Not helpful"
+                        className={cn(voteButton, "w-9", isDown && "bg-destructive-soft text-destructive hover:bg-destructive-soft hover:text-destructive")}
+                    >
+                        <LuThumbsDown className={cn(isDown && "fill-current")} aria-hidden="true" />
+                    </button>
+                </div>
             </div>
         </article>
     );
