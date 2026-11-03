@@ -140,7 +140,7 @@ export default function OrderStatusPage({ orderId }) {
                             {state ? <state.Icon className="size-5" aria-hidden="true" /> : <LuReceipt className="size-5" aria-hidden="true" />}
                         </span>
                         <div className="min-w-0 space-y-1">
-                            <h1 id="order-status-title" className="text-xl font-semibold tracking-tight text-foreground">
+                            <h1 id="order-status-title" className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                                 {state?.title || `Order ${statusMeta.label.toLowerCase()}`}
                             </h1>
                             <p className="text-sm text-muted-foreground">

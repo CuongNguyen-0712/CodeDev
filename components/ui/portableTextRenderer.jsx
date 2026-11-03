@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { PortableText } from "@portabletext/react";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { SyntaxHighlighter } from "@/lib/syntaxHighlighter";
 import { syntaxTheme } from "@/lib/syntaxTheme";
 import createImageUrlBuilder from "@sanity/image-url";
 

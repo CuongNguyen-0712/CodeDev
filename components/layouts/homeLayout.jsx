@@ -1,13 +1,24 @@
 'use client'
 import Navbar from '@/components/ui/navbar';
 import Dashboard from '@/components/ui/dashboard';
-import Feedback from '@/components/ui/feedback';
+import dynamic from 'next/dynamic';
+import { useSearchParams } from 'next/navigation';
 import Footer from '@/components/ui/footer';
 import VerifyEmailBanner from '@/components/auth/verifyEmailBanner';
 
 import { SidebarInset, SidebarProvider } from '@/components/shadcn/sidebar';
 
+import { Suspense } from "react";
 import { useApp } from "@/contexts/appContext";
+
+// The feedback form (and the zod schemas it validates with) loads only once `?modal=feedback` is set,
+// so it stays out of every page's initial bundle.
+const Feedback = dynamic(() => import('@/components/ui/feedback'));
+
+function FeedbackGate() {
+    const params = useSearchParams();
+    return params.get('modal') === 'feedback' ? <Feedback /> : null;
+}
 
 function LayoutContent({ children }) {
     const {
@@ -44,7 +55,9 @@ function LayoutContent({ children }) {
                 </section>
             </SidebarInset>
 
-            <Feedback />
+            <Suspense fallback={null}>
+                <FeedbackGate />
+            </Suspense>
             {/* Toasts: rendered once by the root providers (AppToaster), not per page layout. */}
         </SidebarProvider>
     );

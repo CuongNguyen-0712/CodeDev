@@ -10,6 +10,7 @@ import { useOpenHint } from "@/mutations/challenge.mutation";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/shadcn/alert-dialog";
 
 import { LuBug, LuCheck, LuCode, LuLightbulb, LuListChecks, LuLoaderCircle, LuLock } from "react-icons/lu";
 
@@ -94,6 +95,7 @@ const HINT_LABELS = { 1: "A question to guide you", 2: "Where to look", 3: "A si
 function ChallengeHints({ challenge, isDone, legacyHint }) {
     const total = Number(challenge.hints_total) || 0;
     const [opened, setOpened] = useState(() => challenge.hints || []);
+    const [confirmLevel3, setConfirmLevel3] = useState(false);
     const openHint = useOpenHint();
 
     if (total === 0) {
@@ -113,6 +115,14 @@ function ChallengeHints({ challenge, isDone, legacyHint }) {
         { challengeId: challenge.id, level: next },
         { onSuccess: (hint) => setOpened((prev) => [...prev.filter((h) => h.level !== hint.level), hint]) }
     );
+
+    const onButtonClick = () => {
+        if (costsExp) {
+            setConfirmLevel3(true);
+        } else {
+            handleOpen();
+        }
+    };
 
     return (
         <div className="space-y-3 rounded-md border border-dashed px-3 py-2 text-sm">
@@ -144,10 +154,27 @@ function ChallengeHints({ challenge, isDone, legacyHint }) {
                             Hint 3 is a worked example. Opening it before you pass halves the EXP for this challenge.
                         </p>
                     )}
-                    <Button variant="outline" size="sm" onClick={handleOpen} disabled={openHint.isPending}>
+                    <Button variant="outline" size="sm" onClick={onButtonClick} disabled={openHint.isPending}>
                         {openHint.isPending && <LuLoaderCircle className="animate-spin" aria-hidden="true" />}
                         {costsExp ? "Show hint 3 (half EXP)" : `Show hint ${next}`}
                     </Button>
+
+                    <AlertDialog open={confirmLevel3} onOpenChange={setConfirmLevel3}>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Reveal Hint 3?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Hint 3 provides a worked solution example. Opening it before passing this challenge will reduce the EXP earned for this challenge by 50%.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Keep trying</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => { setConfirmLevel3(false); handleOpen(); }}>
+                                    Reveal hint (half EXP)
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </div>
             )}
 

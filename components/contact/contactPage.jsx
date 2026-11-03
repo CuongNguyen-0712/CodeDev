@@ -1,19 +1,20 @@
-'use client'
-import { useState, useEffect, useRef } from "react";
+'use client';
 
-import useInfiniteScroll from '@/hooks/useInfiniteScroll'
-
-import { ErrorReload } from '../ui/error'
-import SearchBar from "../ui/searchBar";
-
-import { uniqWith } from "lodash";
-import { api } from "@/lib/axios";
+import { useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+
+import { userQueries } from "@/queries/user.query";
+import useInfiniteScroll from "@/hooks/useInfiniteScroll";
+import { ErrorReload } from "../ui/error";
+import SearchBar from "../ui/searchBar";
 import { LevelBadge, RankBadge } from "@/components/ui/level";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
 
 import { LuLoaderCircle, LuUsers, LuUserSearch, LuX } from "react-icons/lu";
 
@@ -24,7 +25,7 @@ function initials(name = '') {
 
 function PersonSkeleton() {
     return (
-        <li className="flex items-center gap-3 px-4 py-3">
+        <li className="flex items-center gap-3 px-4 py-3" aria-hidden="true">
             <Skeleton className="size-9 rounded-full" />
             <div className="flex-1 space-y-1.5">
                 <Skeleton className="h-4 w-40 max-w-full" />
@@ -36,159 +37,50 @@ function PersonSkeleton() {
     );
 }
 
-// `state` / `setState` are optional: the /contact page renders this without
-// them, while a host panel can pass them to control visibility and closing.
 export default function Contact({ state, setState }) {
+    const { status } = useSession();
+    const [search, setSearch] = useState('');
 
-    const [social, setSocial] = useState({
-        data: {
-            user: [],
-            team: []
-        },
-        hasMore: true,
-        pending: true,
-        error: null,
-        search: '',
-        cursor: null,
-        limit: 20,
-    })
-
-    // The social endpoint only returns users, so the list is fixed to users.
-    const [filter] = useState('User');
-    const [apiQueue, setApiQueue] = useState([]);
-    // A ref, not state: the queue effect must not set state synchronously.
-    const processingRef = useRef(false);
+    const {
+        data,
+        isLoading,
+        isError,
+        error,
+        refetch,
+        hasNextPage,
+        fetchNextPage,
+        isFetchingNextPage,
+        isPlaceholderData,
+    } = useInfiniteQuery(userQueries.users(status, search));
 
     const { setRef } = useInfiniteScroll({
-        hasMore: social.hasMore,
+        hasMore: hasNextPage && !isPlaceholderData,
+        isLoading: isFetchingNextPage,
         onLoadMore: () => {
-            if (!processingRef.current && social.hasMore) {
-                setApiQueue((prev) => [...prev, { type: "fetch" }]);
+            if (hasNextPage && !isPlaceholderData) {
+                fetchNextPage();
             }
-        }
-    })
+        },
+    });
 
-    const fetchData = async () => {
-        if (!social.hasMore) return;
-
-        const role = filter.toLowerCase();
-
-        try {
-            const response = await api.get('users', {
-                params: {
-                    search: social.search.trim(),
-                    cursor: social.cursor || undefined,
-                    limit: social.limit,
-                }
-            })
-
-            // lib/axios resolves to the response body: { success, data, message }.
-            if (response?.success) {
-                const data = Array.isArray(response.data?.items) ? response.data.items : [];
-                const nextCursor = response.data?.nextCursor || null;
-                setSocial(prev => ({
-                    ...prev,
-                    data: {
-                        ...prev.data,
-                        [role]: uniqWith([...prev.data[role] ?? [], ...data], (a, b) => a.id === b.id),
-                    },
-                    hasMore: Boolean(nextCursor),
-                    cursor: nextCursor,
-                    pending: false
-                }))
-            }
-            else {
-                setSocial(prev => ({ ...prev, error: { status: response?.status || 500, message: response?.message }, pending: false }))
-            }
-        } catch (err) {
-            setSocial(prev => ({ ...prev, error: { status: 500, message: 'Something is wrong, please try again' }, pending: false }))
-        }
-    }
-
-    // The initial load is queued by the search reset below, so every
-    // fetch goes through the queue and reads the current cursor.
-    const processQueue = async () => {
-        if (processingRef.current || apiQueue.length === 0) return;
-
-        processingRef.current = true;
-
-        const task = apiQueue[0];
-
-        // Fetches queued together (e.g. on mount) would read the same cursor; run one.
-        let consumed = 1;
-        if (task.type === "fetch") {
-            while (consumed < apiQueue.length && apiQueue[consumed].type === "fetch") consumed++;
-        }
-
-        try {
-            if (task.type === "fetch") {
-                await fetchData();
-            }
-            else {
-                await task.execute();
-            }
-        } finally {
-            processingRef.current = false;
-            setApiQueue((prev) => prev.slice(consumed));
-        }
-    }
-
-    useEffect(() => {
-        processQueue();
-    }, [apiQueue])
-
-    // A new search term (and the first render) resets the list and queues a fetch: adjusted during
-    // render, not in an effect. A term of only spaces keeps the current results.
-    const [searchedTerm, setSearchedTerm] = useState(null);
-    if (searchedTerm !== social.search) {
-        setSearchedTerm(social.search);
-        if (!(social.search.length > 0 && social.search.trim() === '')) {
-            setSocial((prev) => ({
-                ...prev,
-                data: {
-                    user: [],
-                    team: []
-                },
-                cursor: null,
-                hasMore: true,
-                pending: true
-            }))
-            setApiQueue((prev) => [...prev, { type: "fetch" }]);
-        }
-    }
-
-    const refetchData = () => {
-        setSocial((prev) => ({
-            ...prev,
-            error: null,
-            data: {
-                user: [],
-                team: []
-            },
-            pending: true,
-            cursor: null,
-            hasMore: true
-        }));
-        // Queue it so the fetch runs after the reset above is applied
-        setApiQueue((prev) => [...prev, { type: "fetch" }]);
-    }
-
-    const setSearch = (data) => setSocial((prev) => ({ ...prev, search: data }));
-
+    const people = data?.pages?.flatMap((page) => page?.items || []) || [];
     const isVisible = state !== false;
-    const people = social.data[filter.toLowerCase()] || [];
-    const isInitialLoading = social.pending && !social.cursor;
-    const hasQuery = social.search.trim().length > 0;
-    const countLabel = `${people.length}${social.hasMore ? '+' : ''} ${people.length === 1 ? 'person' : 'people'}`;
+    const hasQuery = search.trim().length > 0;
+    // The query waits for the session; until then show the skeleton, not "no learners".
+    const isInitialLoading = (status === 'loading' || isLoading) && people.length === 0;
+
+    const countLabel = `${people.length}${hasNextPage ? '+' : ''} ${people.length === 1 ? 'person' : 'people'}`;
     const listLabel = isInitialLoading
         ? 'Loading people...'
-        : `${countLabel}${hasQuery ? ` matching "${social.search.trim()}"` : ''}`;
+        : `${countLabel}${hasQuery ? ` matching "${search.trim()}"` : ''}`;
 
     return (
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
             <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-2">
-                    <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Contacts</h1>
+                    <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                        Find learners
+                    </h1>
                     <p className="max-w-[60ch] text-sm text-muted-foreground">
                         Find other CodeDev learners by username, see their level and open their profile.
                     </p>
@@ -208,12 +100,11 @@ export default function Contact({ state, setState }) {
             </header>
 
             <section className="w-full" aria-label="Search people">
-                {/* Without `submit`, the search bar applies the typed value through setSearch, which triggers the search effect. */}
                 <SearchBar
                     placeholder="Search by username..."
-                    search={social.search}
+                    search={search}
                     setSearch={setSearch}
-                    pending={social.pending}
+                    pending={isLoading}
                     isFilter={false}
                 />
             </section>
@@ -229,29 +120,33 @@ export default function Contact({ state, setState }) {
                         <ul className="m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0" aria-busy="true">
                             {Array.from({ length: 6 }, (_, index) => <PersonSkeleton key={index} />)}
                         </ul>
-                    ) : social.error ? (
-                        <ErrorReload data={social.error} refetch={refetchData} />
+                    ) : isError ? (
+                        <ErrorReload data={error || { status: 500, message: "Could not load learners" }} refetch={refetch} />
                     ) : people.length === 0 ? (
-                        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-14 text-center">
-                            <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                                <LuUserSearch className="size-5" aria-hidden="true" />
-                            </span>
-                            <div className="space-y-1">
-                                <h3 className="text-sm font-semibold">
-                                    {hasQuery ? 'No one matches this username' : 'No other learners yet'}
-                                </h3>
-                                <p className="max-w-[48ch] text-sm text-muted-foreground">
+                        <Empty className="border">
+                            <EmptyHeader>
+                                <EmptyMedia variant="icon">
+                                    <LuUserSearch aria-hidden="true" />
+                                </EmptyMedia>
+                                <EmptyTitle>
+                                    <h3 className="text-base font-semibold">
+                                        {hasQuery ? 'No one matches this username' : 'No other learners yet'}
+                                    </h3>
+                                </EmptyTitle>
+                                <EmptyDescription className="max-w-[48ch]">
                                     {hasQuery
                                         ? 'Check the spelling or try a shorter part of the username.'
                                         : 'People you are not connected with yet will appear here as they join.'}
-                                </p>
-                            </div>
+                                </EmptyDescription>
+                            </EmptyHeader>
                             {hasQuery && (
-                                <Button variant="outline" size="sm" onClick={() => setSearch('')}>
-                                    Clear search
-                                </Button>
+                                <EmptyContent>
+                                    <Button variant="outline" size="sm" onClick={() => setSearch('')}>
+                                        Clear search
+                                    </Button>
+                                </EmptyContent>
                             )}
-                        </div>
+                        </Empty>
                     ) : (
                         <ul className="m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0">
                             {people.map((item, index) => {
@@ -290,20 +185,26 @@ export default function Contact({ state, setState }) {
                         </ul>
                     )}
 
-                    {!isInitialLoading && !social.error && people.length > 0 && (
+                    {!isInitialLoading && !isError && people.length > 0 && (
                         <div className="flex min-h-8 items-center justify-center text-xs text-muted-foreground">
-                            {!social.pending && social.hasMore ? (
-                                <span ref={setRef} className="flex items-center gap-2">
+                            {isFetchingNextPage ? (
+                                <span className="flex items-center gap-2">
                                     <LuLoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
                                     Loading more people...
                                 </span>
-                            ) : !social.hasMore ? (
+                            ) : hasNextPage ? (
+                                <span ref={setRef} className="flex items-center gap-2">
+                                    <Button variant="link" size="xs" onClick={() => fetchNextPage()}>
+                                        Load more
+                                    </Button>
+                                </span>
+                            ) : (
                                 <span>End of the list</span>
-                            ) : null}
+                            )}
                         </div>
                     )}
                 </section>
             )}
         </div>
-    )
+    );
 }

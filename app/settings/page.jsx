@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 
-import { LoadingRedirect } from "@/components/ui/loading"
+import { PageSkeleton } from "@/components/ui/loading"
 
 import SettingsPage from "@/components/settings/settingsPage"
 
@@ -15,10 +15,10 @@ export async function generateMetadata() {
 
 export default function Page() {
     return (
-        <Suspense fallback={<LoadingRedirect />}>
-            <HomeLayout>
+        <HomeLayout>
+            <Suspense fallback={<PageSkeleton />}>
                 <SettingsPage />
-            </HomeLayout>
-        </Suspense>
+            </Suspense>
+        </HomeLayout>
     )
 }

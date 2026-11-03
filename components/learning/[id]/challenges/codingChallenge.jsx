@@ -411,7 +411,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
                         onClick={(event) => openConfirm({ kind: "reset" }, event.currentTarget)}
                         disabled={isBusy}
                         aria-label="Reset to starter code"
-                        className="text-editor-muted hover:bg-editor-raised hover:text-editor-foreground"
+                        className="size-7 sm:size-6 text-editor-muted hover:bg-editor-raised hover:text-editor-foreground"
                     >
                         <LuRotateCcw />
                     </Button>
@@ -423,7 +423,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
                 size="xs"
                 onClick={handleRun}
                 disabled={isBusy}
-                className="bg-editor-raised text-editor-foreground hover:bg-editor-border"
+                className="h-7 px-2.5 sm:h-6 sm:px-2 bg-editor-raised text-editor-foreground hover:bg-editor-border font-medium"
                 title="Run sample tests (Ctrl+Enter)"
             >
                 {phase === "running" ? <LuLoaderCircle className="animate-spin" /> : <LuPlay />}
@@ -434,6 +434,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
                 size="xs"
                 onClick={handleSubmit}
                 disabled={!canSubmit}
+                className="h-7 px-2.5 sm:h-6 sm:px-2 font-medium"
                 title={
                     attemptsLeft === 0 ? "No attempts left"
                         : samplesPassedForCode ? "Submit: saves this code and runs the hidden tests (uses 1 attempt)"

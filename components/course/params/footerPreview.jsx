@@ -80,13 +80,17 @@ export default function FooterPreview({ courseId, loading = false, className }) 
 
     return (
         <div className={cn("contents", className)}>
-            <PurchaseActions
-                courseId={courseId}
-                course={data}
-                isLoading={loading || isLoading}
-                error={error}
-                onRetry={refetch}
-            />
+            {/* Below sm the page's fixed bottom bar carries this action once the course has loaded;
+                one live PurchaseActions keeps a single checkout / idempotency key per page. */}
+            <div className={cn("contents", data && "max-sm:hidden")}>
+                <PurchaseActions
+                    courseId={courseId}
+                    course={data}
+                    isLoading={loading || isLoading}
+                    error={error}
+                    onRetry={refetch}
+                />
+            </div>
 
             <Tooltip>
                 <TooltipTrigger asChild>

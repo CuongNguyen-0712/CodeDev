@@ -120,6 +120,7 @@ function PhotoSection({ data, onSaved }) {
     const [file, setFile] = useState(null);
     const [preview, setPreview] = useState(null);
     const [pending, setPending] = useState(false);
+    const [avatarError, setAvatarError] = useState(null);
 
     useEffect(() => () => {
         if (preview) URL.revokeObjectURL(preview);
@@ -130,6 +131,7 @@ function PhotoSection({ data, onSaved }) {
     const clearSelection = () => {
         setFile(null);
         setPreview(null);
+        setAvatarError(null);
         if (inputRef.current) inputRef.current.value = '';
     };
 
@@ -140,12 +142,15 @@ function PhotoSection({ data, onSaved }) {
             return;
         }
         // Quick feedback only: the server checks the real format and size again.
+        setAvatarError(null);
         if (!AVATAR_TYPES.includes(next.type)) {
+            setAvatarError('Choose a PNG, JPG, WebP or GIF image.');
             alert(400, 'Choose a PNG, JPG, WebP or GIF image.');
             e.target.value = '';
             return;
         }
         if (next.size > AVATAR_MAX_BYTES) {
+            setAvatarError('Images can be at most 5 MB.');
             alert(413, 'Images can be at most 5 MB.');
             e.target.value = '';
             return;
@@ -221,6 +226,12 @@ function PhotoSection({ data, onSaved }) {
                     <p className="truncate text-xs text-muted-foreground" aria-live="polite">
                         {file ? `Selected: ${file.name}` : 'A square image of at least 400 x 400 px works best.'}
                     </p>
+                    {avatarError && (
+                        <p role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
+                            <LuCircleAlert className="size-3.5 shrink-0" aria-hidden="true" />
+                            {avatarError}
+                        </p>
+                    )}
                 </div>
             </div>
             <SectionFooter

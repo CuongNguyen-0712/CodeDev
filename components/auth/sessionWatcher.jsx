@@ -17,7 +17,13 @@ import {
     setKnownAccessExpiry,
 } from "@/lib/authRefresh";
 
-import { UserRealtimeBridge } from "@/components/realtime/userRealtimeBridge";
+import dynamic from "next/dynamic";
+
+// The private channel exists only for a signed-in user, so pusher-js loads only then.
+const UserRealtimeBridge = dynamic(
+    () => import("@/components/realtime/userRealtimeBridge").then((m) => m.UserRealtimeBridge),
+    { ssr: false },
+);
 import { devLog } from "@/lib/userMessage";
 
 /**
@@ -133,10 +139,11 @@ export function SessionWatcher() {
 }
 
 export function AuthSessionWatcher() {
+    const { status } = useSession();
     return (
         <>
             <SessionWatcher />
-            <UserRealtimeBridge />
+            {status === "authenticated" && <UserRealtimeBridge />}
         </>
     );
 }

@@ -11,7 +11,7 @@ import { useCourseRegister } from "@/mutations/course.mutation";
 import { commerceQueries } from "@/queries/premium.query";
 import { userQueries } from "@/queries/user.query";
 import { FIT_LABELS, courseFit, levelOverride, recommendedLevel } from "@/lib/levels";
-import { fitCover } from "@/lib/coverFit";
+import { coverSrcSet, fitCover } from "@/lib/coverFit";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -127,6 +127,8 @@ export const CourseItem = ({ item }) => {
                     <img
                         ref={fitCover}
                         src={item.image}
+                        srcSet={coverSrcSet(item.image)}
+                        sizes="(min-width: 1280px) 360px, (min-width: 640px) 50vw, 100vw"
                         alt=""
                         loading="lazy"
                         draggable={false}

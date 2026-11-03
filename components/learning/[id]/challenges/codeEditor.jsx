@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { SyntaxHighlighter } from "@/lib/syntaxHighlighter";
 import { SiC, SiCplusplus, SiDotnet, SiGo, SiJavascript, SiKotlin, SiOpenjdk, SiPhp, SiPython, SiRust, SiTypescript } from "react-icons/si";
 import { LuAlignLeft, LuFileCode, LuKeyboard } from "react-icons/lu";
 
@@ -588,7 +588,7 @@ export default function CodeEditor({
                                 size="icon-xs"
                                 aria-label="Keyboard shortcuts"
                                 title="Keyboard shortcuts"
-                                className="text-editor-muted hover:bg-editor-raised hover:text-editor-foreground"
+                                className="size-7 sm:size-6 text-editor-muted hover:bg-editor-raised hover:text-editor-foreground"
                             >
                                 <LuKeyboard />
                             </Button>
@@ -623,7 +623,7 @@ export default function CodeEditor({
                         onClick={handleFormat}
                         disabled={readOnly}
                         title="Format code (Shift+Alt+F)"
-                        className="text-editor-muted hover:bg-editor-raised hover:text-editor-foreground"
+                        className="h-7 px-2 sm:h-6 sm:px-1.5 text-editor-muted hover:bg-editor-raised hover:text-editor-foreground"
                     >
                         <LuAlignLeft />
                         <span className="max-sm:sr-only">Format</span>

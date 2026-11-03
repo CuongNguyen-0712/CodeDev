@@ -71,7 +71,7 @@ export default function MockCheckoutPage({ orderId }) {
             ) : !order ? null : (
                 <section aria-labelledby="mock-checkout-title" className="flex flex-col gap-5 rounded-lg border bg-card p-6">
                     <div className="space-y-1">
-                        <h1 id="mock-checkout-title" className="text-xl font-semibold tracking-tight">Simulated checkout</h1>
+                        <h1 id="mock-checkout-title" className="text-xl font-semibold tracking-tight sm:text-2xl">Simulated checkout</h1>
                         <p className="text-sm text-muted-foreground">
                             Choose the result the test payment provider should report for this order.
                         </p>

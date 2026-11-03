@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { levelMapping } from "@/constants/constants";
 import { cn } from "@/lib/utils";
-import { fitCover } from "@/lib/coverFit";
+import { coverSrcSet, fitCover } from "@/lib/coverFit";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -89,6 +89,8 @@ export function RecommendationCard({ item, compact = false, onClickGuard, maxRea
                     <img
                         ref={fitCover}
                         src={course.image || FALLBACK_IMAGE}
+                        srcSet={coverSrcSet(course.image)}
+                        sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                         alt=""
                         loading="lazy"
                         draggable={false}

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { getAuthSession } from "@/lib/session";
 import { onboardingService } from "@/services/onboarding.service";
 
-import { LoadingRedirect } from "@/components/ui/loading";
+import { PageSkeleton } from "@/components/ui/loading";
 
 import HomePage from "@/components/home/homePage";
 
@@ -26,10 +26,10 @@ export default async function Page() {
     }
 
     return (
-        <Suspense fallback={<LoadingRedirect />}>
-            <HomeLayout>
+        <HomeLayout>
+            <Suspense fallback={<PageSkeleton />}>
                 <HomePage />
-            </HomeLayout>
-        </Suspense>
+            </Suspense>
+        </HomeLayout>
     );
 }

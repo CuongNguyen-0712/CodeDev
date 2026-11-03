@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 
 import HomeLayout from '@/components/layouts/homeLayout';
 
-import { LoadingRedirect } from '@/components/ui/loading';
+import { PageSkeleton } from '@/components/ui/loading';
 
 import OrdersPage from '@/components/commerce/ordersPage';
 
@@ -15,10 +15,10 @@ export async function generateMetadata() {
 
 export default async function Page() {
     return (
-        <Suspense fallback={<LoadingRedirect />}>
-            <HomeLayout>
+        <HomeLayout>
+            <Suspense fallback={<PageSkeleton />}>
                 <OrdersPage />
-            </HomeLayout>
-        </Suspense>
+            </Suspense>
+        </HomeLayout>
     );
 }

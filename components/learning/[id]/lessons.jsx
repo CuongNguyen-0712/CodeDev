@@ -88,22 +88,28 @@ function StepButton({ lesson, unlocked, direction, onSelect }) {
 
     const isNext = direction === 'next';
     const Arrow = !unlocked ? LuLock : isNext ? LuArrowRight : LuArrowLeft;
+    const shortcut = isNext ? 'Alt + →' : 'Alt + ←';
 
     return (
         <button
             type="button"
             onClick={() => unlocked && onSelect?.(lesson)}
             disabled={!unlocked}
-            title={!unlocked ? 'Complete this lesson to unlock the next one.' : lesson.title}
+            title={!unlocked ? 'Complete this lesson to unlock the next one.' : `${lesson.title} (${shortcut})`}
             className={cn(
                 'group flex min-w-0 items-center gap-3 rounded-lg border px-3.5 py-3 text-left transition-colors hover:border-primary/40 hover:bg-primary-soft/40 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border disabled:hover:bg-transparent',
                 isNext && 'flex-row-reverse text-right'
             )}
         >
             <Arrow className="size-4 shrink-0 text-muted-foreground group-hover:text-primary-ink group-disabled:group-hover:text-muted-foreground" aria-hidden="true" />
-            <span className="min-w-0">
-                <span className="block text-xs text-muted-foreground">
-                    {isNext ? 'Next lesson' : 'Previous lesson'}{!unlocked && ' (locked)'}
+            <span className="min-w-0 flex-1">
+                <span className={cn("flex items-center gap-1.5 text-xs text-muted-foreground", isNext ? "justify-end" : "justify-between")}>
+                    <span>{isNext ? 'Next lesson' : 'Previous lesson'}{!unlocked && ' (locked)'}</span>
+                    {unlocked && (
+                        <span className="hidden font-mono text-[10px] text-muted-foreground/75 sm:inline-block">
+                            ({shortcut})
+                        </span>
+                    )}
                 </span>
                 <span className="block truncate text-sm font-medium">{lesson.title}</span>
             </span>
@@ -137,6 +143,27 @@ export default function LearningLesson({
         ...courseQueries.learning(lessonId),
         enabled: Boolean(lessonId && !isLocked),
     });
+
+    // Keyboard navigation (Alt + Left/Right arrow) when focus is not inside an editor or input (UX-402)
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (!e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+            const tag = document.activeElement?.tagName?.toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || tag === 'select' || document.activeElement?.isContentEditable) return;
+            if (document.activeElement?.closest?.('.monaco-editor, [data-editor]')) return;
+
+            if (e.key === 'ArrowLeft' && prevLesson && isPrevUnlocked) {
+                e.preventDefault();
+                onSelectLesson?.(prevLesson);
+            } else if (e.key === 'ArrowRight' && nextLesson && isNextUnlocked) {
+                e.preventDefault();
+                onSelectLesson?.(nextLesson);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [prevLesson, nextLesson, isPrevUnlocked, isNextUnlocked, onSelectLesson]);
 
     const scrollRef = useRef(null);
 

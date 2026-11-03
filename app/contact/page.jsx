@@ -2,7 +2,7 @@ import { Suspense } from "react";
 
 import HomeLayout from "@/components/layouts/homeLayout";
 
-import { LoadingRedirect } from "@/components/ui/loading";
+import { PageSkeleton } from "@/components/ui/loading";
 
 import ContactPage from "@/components/contact/contactPage";
 
@@ -13,10 +13,10 @@ export const metadata = {
 
 export default function Page() {
     return (
-        <Suspense fallback={<LoadingRedirect />}>
-            <HomeLayout>
+        <HomeLayout>
+            <Suspense fallback={<PageSkeleton />}>
                 <ContactPage />
-            </HomeLayout>
-        </Suspense>
+            </Suspense>
+        </HomeLayout>
     )
 }

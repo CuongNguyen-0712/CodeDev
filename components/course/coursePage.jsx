@@ -1,5 +1,5 @@
 'use client'
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 
@@ -15,6 +15,8 @@ import useInfiniteScroll from "@/hooks/useInfiniteScroll";
 
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
 
 import { CourseItem } from "./courseItem";
 
@@ -106,7 +108,21 @@ export default function CoursePage() {
         },
     });
 
-    const courses = data?.pages?.flatMap(page => page.data) ?? [];
+    const courses = useMemo(() => data?.pages?.flatMap(page => page.data) ?? [], [data]);
+    const [sortBy, setSortBy] = useState('default');
+
+    const sortedCourses = useMemo(() => {
+        if (sortBy === 'rating') {
+            return [...courses].sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0));
+        }
+        if (sortBy === 'lessons') {
+            return [...courses].sort((a, b) => (Number(b.lessons) || 0) - (Number(a.lessons) || 0));
+        }
+        if (sortBy === 'title') {
+            return [...courses].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+        }
+        return courses;
+    }, [courses, sortBy]);
 
     const showError = !isLoading && isError && courses.length === 0;
     // "0 courses" next to a load error reads as an empty catalog, so the count waits for real data.
@@ -143,49 +159,71 @@ export default function CoursePage() {
 
             <section aria-labelledby="course-list-heading" className="flex flex-col gap-3">
                 {/* Clearing filters lives in the SearchBar chip row; the empty state offers it too. */}
-                <h2 id="course-list-heading" className="flex min-h-8 items-center gap-2 text-sm font-medium text-foreground">
-                    <LuLibrary className="size-4 text-muted-foreground" aria-hidden="true" />
-                    <span aria-live="polite">{countLabel}</span>
-                </h2>
+                <div className="flex flex-wrap items-center justify-between gap-3 min-h-8">
+                    <h2 id="course-list-heading" className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <LuLibrary className="size-4 text-muted-foreground" aria-hidden="true" />
+                        <span aria-live="polite">{countLabel}</span>
+                    </h2>
+                    {courses.length > 1 && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>Sort by:</span>
+                            <Select value={sortBy} onValueChange={setSortBy}>
+                                <SelectTrigger size="sm" className="h-8 w-36 text-xs">
+                                    <SelectValue placeholder="Sort by" />
+                                </SelectTrigger>
+                                <SelectContent align="end">
+                                    <SelectItem value="default">Default</SelectItem>
+                                    <SelectItem value="rating">Highest rated</SelectItem>
+                                    <SelectItem value="lessons">Most lessons</SelectItem>
+                                    <SelectItem value="title">Alphabetical</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                </div>
 
                 {showError ? (
                     <ErrorReload data={error} refetch={refetch} />
                 ) : showEmpty ? (
-                    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-14 text-center">
-                        <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                            <LuSearchX className="size-5" aria-hidden="true" />
-                        </span>
-                        <div className="space-y-1">
-                            <h3 className="text-sm font-semibold">
-                                {hasActiveFilters
-                                    ? 'No courses match these filters'
-                                    : isSignedIn ? 'No new courses to show' : 'No courses available yet'}
-                            </h3>
-                            <p className="max-w-[48ch] text-sm text-muted-foreground">
+                    <Empty className="border">
+                        <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                                <LuSearchX aria-hidden="true" />
+                            </EmptyMedia>
+                            <EmptyTitle>
+                                <h3 className="text-base font-semibold">
+                                    {hasActiveFilters
+                                        ? 'No courses match these filters'
+                                        : isSignedIn ? 'No new courses to show' : 'No courses available yet'}
+                                </h3>
+                            </EmptyTitle>
+                            <EmptyDescription className="max-w-[48ch]">
                                 {hasActiveFilters
                                     ? 'Clear the search or widen the filters to see more courses.'
                                     : isSignedIn
                                         ? 'The catalog hides courses you are already enrolled in. Continue those from My learning.'
                                         : 'New courses are published regularly. Check back soon to start learning.'}
-                            </p>
-                        </div>
-                        {hasActiveFilters ? (
-                            <Button variant="outline" size="sm" onClick={reset}>
-                                Reset filters
-                            </Button>
-                        ) : isSignedIn && (
-                            <Button asChild size="sm">
-                                <Link href="/learning">Go to My learning</Link>
-                            </Button>
-                        )}
-                    </div>
+                            </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                            {hasActiveFilters ? (
+                                <Button variant="outline" size="sm" onClick={reset}>
+                                    Reset filters
+                                </Button>
+                            ) : isSignedIn && (
+                                <Button asChild size="sm">
+                                    <Link href="/learning">Go to My learning</Link>
+                                </Button>
+                            )}
+                        </EmptyContent>
+                    </Empty>
                 ) : (
                     <ul className="grid list-none grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                         {isLoading
                             ? Array.from({ length: 6 }, (_, index) => (
                                 <li key={index}><CourseItemSkeleton /></li>
                             ))
-                            : courses.map((item, index) => (
+                            : sortedCourses.map((item, index) => (
                                 <li key={item.id} className="animate-enter min-w-0" style={{ '--enter-index': index % 20 }}>
                                     <CourseItem item={item} />
                                 </li>

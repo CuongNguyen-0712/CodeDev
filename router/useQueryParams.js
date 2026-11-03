@@ -1,12 +1,12 @@
 "use client";
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 export function useQueryParams() {
     const router = useRouter();
-    const searchParams = useSearchParams();
 
     const updateQuery = (updates) => {
-        const params = new URLSearchParams(searchParams);
+        const currentSearch = typeof window !== 'undefined' ? window.location.search : '';
+        const params = new URLSearchParams(currentSearch);
 
         Object.entries(updates).forEach(
             ([key, value]) => {

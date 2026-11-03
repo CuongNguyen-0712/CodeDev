@@ -118,5 +118,21 @@ export const userQueries = {
             ...QUERY_TIMES.personal,
             refetchOnWindowFocus: true,
         };
+    },
+
+    users(status, search) {
+        return {
+            queryKey: userKeys.users(search?.trim() || ''),
+            enabled: status === 'authenticated',
+            queryFn: ({ pageParam }) =>
+                userClient.getUsers({
+                    ...(search?.trim() ? { search: search.trim() } : {}),
+                    ...(pageParam ? { cursor: pageParam } : {}),
+                }),
+            initialPageParam: null,
+            getNextPageParam: (lastPage) => lastPage?.nextCursor || undefined,
+            placeholderData: keepPreviousData,
+            ...QUERY_TIMES.personal,
+        };
     }
 }

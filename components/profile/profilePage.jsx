@@ -19,6 +19,8 @@ import { Button } from "@/components/shadcn/button";
 import { Progress } from "@/components/shadcn/progress";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
+import AchievementsSection from "@/components/profile/achievementsSection";
 import { cn } from "@/lib/utils";
 
 import {
@@ -101,18 +103,24 @@ export function CourseList({ status, courses, total }) {
     if (courses.length === 0) {
         const copy = EMPTY_COPY[status];
         return (
-            <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-                <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                    <LuBookOpen className="size-5" aria-hidden="true" />
-                </span>
-                <div className="space-y-1">
-                    <h3 className="text-sm font-semibold">{copy.title}</h3>
-                    <p className="max-w-[44ch] text-sm text-muted-foreground">{copy.description}</p>
-                </div>
-                <Button asChild variant="outline" size="sm">
-                    <Link href="/course"><LuLibrary />Browse courses</Link>
-                </Button>
-            </div>
+            <Empty className="border-0 py-8">
+                <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                        <LuBookOpen aria-hidden="true" />
+                    </EmptyMedia>
+                    <EmptyTitle>
+                        <h3 className="text-base font-semibold">{copy.title}</h3>
+                    </EmptyTitle>
+                    <EmptyDescription className="max-w-[44ch]">
+                        {copy.description}
+                    </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                    <Button asChild variant="outline" size="sm">
+                        <Link href="/course"><LuLibrary />Browse courses</Link>
+                    </Button>
+                </EmptyContent>
+            </Empty>
         );
     }
 
@@ -311,20 +319,24 @@ function ActivitySection({ status }) {
                         ))}
                     </div>
                 ) : isError ? null : languages.length === 0 ? (
-                    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-10 text-center">
-                        <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                            <LuCode className="size-5" aria-hidden="true" />
-                        </span>
-                        <div className="space-y-1">
-                            <h3 className="text-sm font-semibold">No languages yet</h3>
-                            <p className="text-sm text-muted-foreground">
+                    <Empty className="border">
+                        <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                                <LuCode aria-hidden="true" />
+                            </EmptyMedia>
+                            <EmptyTitle>
+                                <h3 className="text-base font-semibold">No languages yet</h3>
+                            </EmptyTitle>
+                            <EmptyDescription>
                                 Languages from courses you start or finish are counted here.
-                            </p>
-                        </div>
-                        <Button asChild variant="outline" size="sm">
-                            <Link href="/learning"><LuBookOpen />Go to My learning</Link>
-                        </Button>
-                    </div>
+                            </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                            <Button asChild variant="outline" size="sm">
+                                <Link href="/learning"><LuBookOpen />Go to My learning</Link>
+                            </Button>
+                        </EmptyContent>
+                    </Empty>
                 ) : (
                     <LanguageList languages={languages} />
                 )}
@@ -337,6 +349,7 @@ export default function ProfilePage() {
     const { status } = useSession();
 
     const { data, isLoading, error, isError, refetch } = useQuery(userQueries.me(status));
+    const { data: overview } = useQuery(userQueries.overview(status));
     const { data: privacy } = useQuery(userQueries.privacy(status));
 
     const isSessionLoading = status === 'loading';
@@ -354,18 +367,24 @@ export default function ProfilePage() {
             ) : isError ? (
                 <ErrorReload data={error} refetch={refetch} title="Could not load your profile" />
             ) : status !== 'authenticated' ? (
-                <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-14 text-center">
-                    <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                        <LuUserPen className="size-5" aria-hidden="true" />
-                    </span>
-                    <div className="space-y-1">
-                        <h1 className="text-sm font-semibold">Sign in to see your profile</h1>
-                        <p className="text-sm text-muted-foreground">Your progress, points and courses are tied to your account.</p>
-                    </div>
-                    <Button asChild size="sm">
-                        <Link href="/auth">Sign in</Link>
-                    </Button>
-                </div>
+                <Empty className="border">
+                    <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                            <LuUserPen aria-hidden="true" />
+                        </EmptyMedia>
+                        <EmptyTitle>
+                            <h1 className="text-lg font-semibold tracking-tight">Sign in to see your profile</h1>
+                        </EmptyTitle>
+                        <EmptyDescription className="max-w-[48ch]">
+                            Your progress, points and courses are tied to your account.
+                        </EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent>
+                        <Button asChild size="sm">
+                            <Link href="/auth">Sign in</Link>
+                        </Button>
+                    </EmptyContent>
+                </Empty>
             ) : (
                 <>
                     <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -447,6 +466,7 @@ export default function ProfilePage() {
                     </div>
 
                     <MyRankSummary />
+                    <AchievementsSection user={data} overview={overview} />
                     <ActivitySection status={status} />
                     <ExperienceSection status={status} currentLevel={progress.level} />
                 </>

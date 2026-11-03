@@ -17,7 +17,8 @@ import { courseQueries } from "@/queries/course.query";
 import { useCourseFavorite, useCourseUnfavorite } from "@/mutations/course.mutation";
 
 import { levelMapping } from "@/constants/constants";
-import { fitCover } from "@/lib/coverFit";
+import { coverSrcSet, fitCover } from "@/lib/coverFit";
+import { PurchaseActions } from "@/components/commerce/purchaseActions";
 import { cn } from "@/lib/utils";
 import { formatMoney, formatPoints, isPremium, offersOf } from "@/components/commerce/format";
 
@@ -36,6 +37,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Separator } from "@/components/shadcn/separator";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
 
 import {
     LuArrowLeft,
@@ -270,7 +272,7 @@ export default function PreviewPage({ params } = {}) {
                 </Breadcrumb>
             </header>
 
-            <main className="mx-auto flex w-full max-w-6xl flex-col px-4 pt-6 pb-12 sm:px-6 lg:pt-10">
+            <main className="mx-auto flex w-full max-w-6xl flex-col px-4 pt-6 pb-24 sm:pb-12 sm:px-6 lg:pt-10">
                 {isLoading ? (
                     <HeaderSkeleton />
                 ) : error ? (
@@ -279,20 +281,24 @@ export default function PreviewPage({ params } = {}) {
                         refetch={() => refetch()}
                     />
                 ) : !data ? (
-                    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-14 text-center">
-                        <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                            <LuSearchX className="size-5" aria-hidden="true" />
-                        </span>
-                        <div className="space-y-1">
-                            <h1 className="text-sm font-semibold">Course not found</h1>
-                            <p className="max-w-[48ch] text-sm text-muted-foreground">
+                    <Empty className="border">
+                        <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                                <LuSearchX aria-hidden="true" />
+                            </EmptyMedia>
+                            <EmptyTitle>
+                                <h1 className="text-lg font-semibold tracking-tight">Course not found</h1>
+                            </EmptyTitle>
+                            <EmptyDescription className="max-w-[48ch]">
                                 This course may have been removed or hidden. Pick another one from the catalog.
-                            </p>
-                        </div>
-                        <Button asChild size="sm">
-                            <Link href="/course"><LuLibrary />Browse courses</Link>
-                        </Button>
-                    </div>
+                            </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                            <Button asChild size="sm">
+                                <Link href="/course"><LuLibrary />Browse courses</Link>
+                            </Button>
+                        </EmptyContent>
+                    </Empty>
                 ) : (
                     <>
                         {/* Course header */}
@@ -406,6 +412,8 @@ export default function PreviewPage({ params } = {}) {
                                         <img
                                             ref={fitCover}
                                             src={data.image}
+                                            srcSet={coverSrcSet(data.image)}
+                                            sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
                                             alt=""
                                             decoding="async"
                                             className="size-full object-cover data-[fit=contain]:object-contain data-[fit=contain]:p-[10%]"
@@ -480,6 +488,24 @@ export default function PreviewPage({ params } = {}) {
                     </>
                 )}
             </main>
+
+            {data && (
+                <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t bg-background/95 px-4 py-3 shadow-md backdrop-blur-sm sm:hidden">
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-semibold text-foreground">{data.title}</p>
+                        <p className="text-xs text-muted-foreground">{premium ? priceLabel : 'Free course'}</p>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-2">
+                        <PurchaseActions
+                            courseId={params.id}
+                            course={data}
+                            isLoading={isLoading}
+                            error={error}
+                            onRetry={refetch}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

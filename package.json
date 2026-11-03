@@ -83,6 +83,7 @@
   "devDependencies": {
     "baseline-browser-mapping": "^2.11.33",
     "eslint": "^10.13.0",
+    "globals": "^16.4.0",
     "vitest": "^5.0.5"
   },
   "overrides": {

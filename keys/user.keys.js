@@ -11,4 +11,5 @@ export const userKeys = {
     privacy: () => [...userKeys.all, 'privacy'],
     ranks: () => [...userKeys.all, 'ranks'],
     ranking: (board, period) => [...userKeys.all, 'ranking', board, period],
+    users: (search) => [...userKeys.all, 'users', search],
 }

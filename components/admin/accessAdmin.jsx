@@ -187,7 +187,7 @@ function Entitlements({ user }) {
                 <p className="text-sm text-destructive">Could not load access. <button type="button" className="underline" onClick={() => entitlements.refetch()}>Retry</button></p>
             ) : (
                 <Table>
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 z-10 bg-card">
                         <TableRow>
                             <TableHead>Course</TableHead>
                             <TableHead className="@max-2xl:hidden">Source</TableHead>

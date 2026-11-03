@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import HomeLayout from '@/components/layouts/homeLayout';
 import CoursePage from "@/components/course/coursePage";
 
-import { LoadingRedirect } from "@/components/ui/loading";
+import { PageSkeleton } from "@/components/ui/loading";
 
 export async function generateMetadata() {
     return {
@@ -14,10 +14,10 @@ export async function generateMetadata() {
 
 export default async function Page() {
     return (
-        <Suspense fallback={<LoadingRedirect />}>
-            <HomeLayout>
+        <HomeLayout>
+            <Suspense fallback={<PageSkeleton />}>
                 <CoursePage />
-            </HomeLayout>
-        </Suspense>
+            </Suspense>
+        </HomeLayout>
     )
 }

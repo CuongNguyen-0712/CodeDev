@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { LoadingRedirect } from "@/components/ui/loading";
+import { PageSkeleton } from "@/components/ui/loading";
 
 import RoadmapPage from "@/components/roadmap/roadmapPage";
 import HomeLayout from '@/components/layouts/homeLayout';
@@ -12,10 +12,10 @@ export const metadata = {
 
 export default function Page() {
 	return (
-		<Suspense fallback={<LoadingRedirect />}>
-			<HomeLayout>
+		<HomeLayout>
+			<Suspense fallback={<PageSkeleton />}>
 				<RoadmapPage />
-			</HomeLayout>
-		</Suspense>
+			</Suspense>
+		</HomeLayout>
 	)
 }

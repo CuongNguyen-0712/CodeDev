@@ -10,7 +10,7 @@ import javascript from "react-syntax-highlighter/dist/esm/languages/prism/javasc
 
 import { courseQueries } from "@/queries/course.query";
 import { levelMapping } from "@/constants/constants";
-import { fitCover } from "@/lib/coverFit";
+import { coverSrcSet, fitCover } from "@/lib/coverFit";
 
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -248,6 +248,8 @@ export function CourseShelf({
                                         <img
                                             ref={fitCover}
                                             src={course.image}
+                                            srcSet={coverSrcSet(course.image)}
+                                            sizes="(min-width: 1024px) 270px, (min-width: 640px) 50vw, 100vw"
                                             alt=""
                                             loading="lazy"
                                             draggable={false}

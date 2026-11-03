@@ -90,4 +90,9 @@ export const userClient = {
     deleteUnverified: async (confirm) => {
         return await apiClient.post('/user/delete-unverified', { confirm });
     },
+
+    getUsers: async (params) => {
+        const res = await apiClient.get('/users', { params });
+        return res.data;
+    },
 };
