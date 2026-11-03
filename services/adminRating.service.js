@@ -2,6 +2,7 @@ import { adminDb } from "@/db/admin.db";
 import { adminRatingDb } from "@/db/adminRating.db";
 import { redis } from "@/lib/cache";
 import { cacheKeys } from "@/lib/cacheKeys";
+import { revalidateCoursePage } from "@/lib/pageCache";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
 
@@ -42,6 +43,7 @@ export const adminRatingService = {
         });
 
         if (result.changed) {
+            revalidateCoursePage(courseId);
             try {
                 await redis.del(cacheKeys.courseDetailsPublic(courseId));
             } catch (error) {

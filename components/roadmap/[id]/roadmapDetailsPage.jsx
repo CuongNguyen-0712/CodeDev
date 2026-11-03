@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouterActions } from '@/router/useRouterActions';
 import { useQuery } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
 import { roadmapQueries } from '@/queries/roadmap.query';
 import { levelMapping } from '@/constants/constants';
 import { useApp } from '@/contexts/appContext';
@@ -169,10 +170,14 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
     const isCompact = viewport.width > 0 && viewport.width < 1024;
     const isMobile = viewport.width > 0 && viewport.width < 640;
 
-    // Query roadmap details
+    // The server renders the guest view (cached for everyone); a signed-in learner's copy, with their
+    // course progress, loads under its own key while the guest view stays on screen.
+    const { status } = useSession();
+    const scope = status === 'authenticated' ? 'viewer' : 'public';
+    const publicData = initialData ? { success: true, data: initialData } : undefined;
     const { data: queryData, isLoading, isError, error, refetch } = useQuery({
-        ...roadmapQueries.details(id),
-        initialData: initialData ? { success: true, data: initialData } : undefined,
+        ...roadmapQueries.details(id, scope),
+        ...(scope === 'public' ? { initialData: publicData } : { placeholderData: (previous) => previous ?? publicData }),
     });
 
     const roadmapData = queryData?.data || initialData || {};

@@ -15,6 +15,17 @@ export const courseQueries = {
         }
     },
 
+    // The signed-in viewer's favourite / enrolment / progress / ownership of a course; the page and
+    // `details` are cached for everyone. Read both through hooks/useCourseDetails.
+    viewer(status, courseId) {
+        return {
+            queryKey: courseKeys.viewer(courseId),
+            queryFn: () => courseClient.getViewerState(courseId),
+            enabled: status === 'authenticated' && !!courseId,
+            ...QUERY_TIMES.personal,
+        }
+    },
+
     /**
      * @param {Record<string,string>} params canonical query from lib/listFilters (`toQueryParams`)
      * Each distinct query is its own cache entry, so going back to an earlier search is instant;

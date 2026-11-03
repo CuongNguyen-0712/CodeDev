@@ -1,17 +1,26 @@
-import { Suspense } from "react";
+import { cache } from "react";
 import { notFound } from "next/navigation";
-import { getAuthSession } from "@/lib/session";
-import { LoadingRedirect } from "@/components/ui/loading";
 import DefaultLayout from "@/components/layouts/defaultLayout";
 import RoadmapDetailsPage from "@/components/roadmap/[id]/roadmapDetailsPage";
 import { roadmapService } from "@/services/roadmap.service";
-import { roadmapQueries } from "@/queries/roadmap.query";
-import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query";
+
+// ISR: the page renders the guest view (same for everyone); a signed-in learner's course progress
+// loads in the browser (roadmapQueries.details(id, "viewer")). Regenerated after
+// TTL.ROADMAP_DETAILS_PUBLIC, like the Redis copy it is built from.
+export const revalidate = 600;
+
+// No roadmap is built ahead: each page is generated on its first visit, then served from the cache.
+export async function generateStaticParams() {
+    return [];
+}
+
+// One lookup per render, shared by generateMetadata and the page.
+const loadRoadmap = cache((id) => roadmapService.getDetails({ publicId: id }));
 
 export async function generateMetadata({ params }) {
     try {
         const { id } = await params;
-        const data = await roadmapService.getDetails({ publicId: id });
+        const data = await loadRoadmap(id);
 
         if (!data) {
             return {
@@ -33,27 +42,11 @@ export async function generateMetadata({ params }) {
 
 export default async function Page({ params }) {
     const { id } = await params;
-    const queryClient = new QueryClient();
-
-    // Include the signed-in user so the prefetched data carries their progress
-    let userId = null;
-    try {
-        const session = await getAuthSession({ soft: true });
-        userId = session?.user?.id ?? null;
-    } catch {
-        userId = null;
-    }
 
     let roadmapData = null;
     let missing = false;
     try {
-        roadmapData = await roadmapService.getDetails({ publicId: id, userId });
-        if (roadmapData) {
-            queryClient.setQueryData(roadmapQueries.details(id).queryKey, {
-                success: true,
-                data: roadmapData,
-            });
-        }
+        roadmapData = await loadRoadmap(id);
     } catch (err) {
         // roadmapService throws ApiError 404 for unknown ids; other errors leave the client to retry.
         if (err?.status === 404) missing = true;
@@ -64,12 +57,8 @@ export default async function Page({ params }) {
     if (missing) notFound();
 
     return (
-        <Suspense fallback={<LoadingRedirect />}>
-            <DefaultLayout>
-                <HydrationBoundary state={dehydrate(queryClient)}>
-                    <RoadmapDetailsPage params={{ id }} initialData={roadmapData} />
-                </HydrationBoundary>
-            </DefaultLayout>
-        </Suspense>
+        <DefaultLayout>
+            <RoadmapDetailsPage params={{ id }} initialData={roadmapData} />
+        </DefaultLayout>
     );
 }

@@ -5,6 +5,7 @@ import { ApiError } from "@/lib/error/apiError";
 import { redis } from "@/lib/cache";
 import { cacheKeys, TTL, invalidateUserCache, rememberForUser } from "@/lib/cacheKeys";
 import { listCacheIdentity } from "@/lib/listFilters";
+import { revalidateCoursePage } from "@/lib/pageCache";
 import { publish, publishToUser } from "@/lib/pusher";
 import { channels, events, progressReasons } from "@/lib/realtime";
 import { challengeService } from "@/services/challenge.service";
@@ -15,6 +16,7 @@ async function afterProgressChange({ userId, courseId, reason }) {
     await invalidateUserCache(userId);
     if (courseId && (reason === progressReasons.REGISTERED || reason === progressReasons.WITHDRAWN)) {
         // Learner counts on the public course page changed.
+        revalidateCoursePage(courseId);
         await redis.del(cacheKeys.courseDetailsPublic(courseId));
     }
     publishToUser(userId, events.PROGRESS_UPDATED, { courseId: courseId || null, reason });
@@ -63,19 +65,27 @@ export const courseService = {
         if (!data.userId) return loadPublic();
 
         // Signed in: the shared published row plus the viewer's own columns (never cached together).
-        const [publicRow, viewer] = await Promise.all([loadPublic(), courseDb.getCourseViewerState(data)]);
+        const [publicRow, viewer] = await Promise.all([loadPublic(), courseService.getViewerState(data)]);
         // Not published: only its owners may see it, which the full per-user query decides.
         if (!publicRow) return load();
 
-        const own = viewer.rows[0] || {};
+        return { ...publicRow, ...viewer };
+    },
+
+    /** The viewer's own columns of a course page; the page itself is cached for everyone (ISR). */
+    getViewerState: async ({ userId, courseId }) => {
+        const { rows } = await courseDb.getCourseViewerState({ userId, courseId });
+        const own = rows[0] || {};
         return {
-            ...publicRow,
             is_favorite: own.is_favorite ?? null,
             status: own.status ?? null,
             progress: own.progress ?? 0,
             owned: own.owned ?? false,
         };
     },
+
+    /** Exists and is not deleted, published or not: tells a real 404 from an unpublished course. */
+    exists: async (courseId) => (await courseDb.courseExists(courseId)).rowCount > 0,
 
     /**
      * Catalog list. `filter` comes from lib/listFilters (validated). Results are cached per

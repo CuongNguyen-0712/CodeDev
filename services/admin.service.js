@@ -3,6 +3,7 @@ import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
 import { redis } from "@/lib/cache";
 import { cacheKeys, invalidateUserCache } from "@/lib/cacheKeys";
+import { revalidateCoursePage } from "@/lib/pageCache";
 import { publishToUser } from "@/lib/pusher";
 import { events, progressReasons } from "@/lib/realtime";
 import { maskEmail } from "@/services/adminUser.service";
@@ -40,6 +41,7 @@ function mapCourse(row) {
 }
 
 export async function dropCatalogCaches(courseId) {
+    revalidateCoursePage(courseId);
     try {
         // Public course lists are keyed per query and expire within TTL.COURSE_LIST_PUBLIC.
         await redis.del(

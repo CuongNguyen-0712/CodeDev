@@ -175,7 +175,8 @@ function useFavoriteMutation(action, isFavorite) {
                 ...queryClient.getQueriesData({ queryKey: listKey }),
             ];
 
-            queryClient.setQueryData(detailsKey, (old) => (old && typeof old === 'object' ? { ...old, is_favorite: isFavorite } : old));
+            // The flag lives in the viewer's part of the page (hooks/useCourseDetails), under detailsKey.
+            queryClient.setQueryData(courseKeys.viewer(courseId), (old) => (old && typeof old === 'object' ? { ...old, is_favorite: isFavorite } : old));
             queryClient.setQueriesData({ queryKey: listKey }, (old) => {
                 if (!old?.pages) return old;
                 return {

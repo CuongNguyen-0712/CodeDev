@@ -1,8 +1,7 @@
 'use client'
 
-import { useQuery } from "@tanstack/react-query";
+import { useCourseDetails } from "@/hooks/useCourseDetails";
 
-import { courseQueries } from "@/queries/course.query";
 import { useApp } from "@/contexts/appContext";
 import { cn } from "@/lib/utils";
 
@@ -64,7 +63,7 @@ function CourseTopics({ course }) {
 // come from the (shared, already cached) details query.
 export default function FooterPreview({ courseId, loading = false, className }) {
     const { showAlert: alert } = useApp();
-    const { data, isLoading, error, refetch } = useQuery(courseQueries.details(courseId));
+    const { data, isLoading, error, refetch, viewerPending } = useCourseDetails(courseId);
 
     const handleShare = async () => {
         if (typeof window === 'undefined') return;
@@ -86,7 +85,7 @@ export default function FooterPreview({ courseId, loading = false, className }) 
                 <PurchaseActions
                     courseId={courseId}
                     course={data}
-                    isLoading={loading || isLoading}
+                    isLoading={loading || isLoading || viewerPending}
                     error={error}
                     onRetry={refetch}
                 />

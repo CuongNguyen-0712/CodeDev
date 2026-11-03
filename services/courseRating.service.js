@@ -1,6 +1,7 @@
 import { courseRatingDb } from "@/db/courseRating.db";
 import { redis } from "@/lib/cache";
 import { cacheKeys } from "@/lib/cacheKeys";
+import { revalidateCoursePage } from "@/lib/pageCache";
 import { ApiError } from "@/lib/error/apiError";
 import { MIN_RATINGS, RATE_PROMPT_LESSON } from "@/lib/ratingRules";
 
@@ -57,6 +58,7 @@ export const courseRatingService = {
         }
 
         await courseRatingDb.upsert({ userDbId: state.user_id, courseDbId: state.course_id, stars: value });
+        revalidateCoursePage(courseId);
         try {
             await redis.del(cacheKeys.courseDetailsPublic(courseId));
         } catch (error) {

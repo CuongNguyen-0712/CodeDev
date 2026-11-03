@@ -3,6 +3,8 @@ export const courseKeys = {
     list: (params) => [...courseKeys.all, 'list', params],
     filters: () => [...courseKeys.all, 'filters'],
     details: (courseId) => [...courseKeys.all, 'details', courseId],
+    // Under `details`, so every invalidation of a course page refreshes the viewer's part too.
+    viewer: (courseId) => [...courseKeys.details(courseId), 'viewer'],
     register: () => [...courseKeys.all, 'register'],
     withdraw: () => [...courseKeys.all, 'withdraw'],
     learning: (lessonId) => [...courseKeys.all, 'learning', lessonId],

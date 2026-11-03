@@ -6,6 +6,11 @@ export const courseClient = {
         return Array.isArray(res.data) ? res.data[0] : res.data;
     },
 
+    getViewerState: async (courseId) => {
+        const res = await apiClient.get('/course/viewer-state', { params: { courseId } });
+        return res.data;
+    },
+
     getList: async (params) => {
         const res = await apiClient.get('/course/courses', { params });
         return res.data;

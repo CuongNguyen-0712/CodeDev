@@ -14,9 +14,11 @@ export const roadmapQueries = {
     },
 
     // Includes the signed-in learner's course progress; PROGRESS_UPDATED events invalidate it.
-    details(id) {
+    // `scope`: "public" is the guest view the page renders on the server (ISR, same for everyone);
+    // "viewer" is the signed-in learner's own copy, fetched in the browser.
+    details(id, scope = "public") {
         return {
-            queryKey: roadmapKeys.details(id),
+            queryKey: [...roadmapKeys.details(id), scope],
             queryFn: () => roadmapClient.getDetails(id),
             ...QUERY_TIMES.catalog,
         }

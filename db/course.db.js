@@ -24,6 +24,10 @@ export const courseDb = {
         );
     },
 
+    courseExists: async (courseId) => {
+        return sql(`SELECT 1 FROM catalog.course WHERE public_id = $1 AND is_deleted = false`, [courseId]);
+    },
+
     getCourseDetails: async (data) => {
         const { userId, courseId } = data;
 

@@ -12,8 +12,7 @@ import { useApp } from "@/contexts/appContext";
 import { useSession } from "next-auth/react";
 import { useRouterActions } from "@/router/useRouterActions";
 
-import { useQuery } from "@tanstack/react-query";
-import { courseQueries } from "@/queries/course.query";
+import { useCourseDetails } from "@/hooks/useCourseDetails";
 import { useCourseFavorite, useCourseUnfavorite } from "@/mutations/course.mutation";
 
 import { levelMapping } from "@/constants/constants";
@@ -196,7 +195,7 @@ function Syllabus({ modules }) {
 }
 
 export default function PreviewPage({ params } = {}) {
-    const { data, isLoading, error, refetch } = useQuery(courseQueries.details(params.id));
+    const { data, isLoading, error, refetch, viewerPending } = useCourseDetails(params.id);
 
     const useFavorite = useCourseFavorite();
     const useUnfavorite = useCourseUnfavorite();
@@ -371,7 +370,7 @@ export default function PreviewPage({ params } = {}) {
                                 <FooterPreview
                                     courseId={params.id}
                                     status={data?.status ?? 'not_enrolled'}
-                                    loading={isLoading}
+                                    loading={isLoading || viewerPending}
                                 />
 
                                 {authStatus === 'authenticated' && (
@@ -380,6 +379,7 @@ export default function PreviewPage({ params } = {}) {
                                         type="button"
                                         variant="outline"
                                         onClick={handleSubmitFavorite}
+                                        disabled={viewerPending}
                                         aria-pressed={isFavorite}
                                     >
                                         <LuHeart
@@ -414,6 +414,8 @@ export default function PreviewPage({ params } = {}) {
                                             src={data.image}
                                             srcSet={coverSrcSet(data.image)}
                                             sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
+                                            // The cover is the page's largest paint.
+                                            fetchPriority="high"
                                             alt=""
                                             decoding="async"
                                             className="size-full object-cover data-[fit=contain]:object-contain data-[fit=contain]:p-[10%]"
@@ -499,7 +501,7 @@ export default function PreviewPage({ params } = {}) {
                         <PurchaseActions
                             courseId={params.id}
                             course={data}
-                            isLoading={isLoading}
+                            isLoading={isLoading || viewerPending}
                             error={error}
                             onRetry={refetch}
                         />
