@@ -163,7 +163,11 @@ export default function CourseDetail({ courseId }) {
                 open={Boolean(pending)}
                 onOpenChange={(open) => !open && setPending(null)}
                 title={pending ? `${pending.label}?` : ""}
-                description="Learners see the change within a couple of minutes (cached course pages)."
+                description={`${pending?.input.hidden === true
+                    ? "Learners stop seeing it in the syllabus and the course player, cannot open it, and no longer need it to complete the course. Their progress on it is kept for when it is shown again. "
+                    : pending?.input.hidden === false
+                        ? "Learners see it again; anyone already past it gets it unlocked and needs it to complete the course. "
+                        : ""}Cached course pages update within a couple of minutes.`}
                 confirmLabel="Save"
                 destructive={false}
                 reasonLabel="Reason"

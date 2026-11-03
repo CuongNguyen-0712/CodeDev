@@ -70,12 +70,12 @@ BEGIN
     v_level := v_exp.new_level;
     v_total_exp := v_exp.exp_after;
 
-    -- Unlock the next lesson in course order.
+    -- Unlock the next visible lesson in course order.
     SELECT l2.id INTO next_lesson_id
     FROM course.lesson cur_l
     JOIN course.module cur_m ON cur_m.id = cur_l.module_id
-    JOIN course.module m2 ON m2.course_id = cur_m.course_id AND m2.is_deleted = false
-    JOIN course.lesson l2 ON l2.module_id = m2.id AND l2.is_deleted = false
+    JOIN course.module m2 ON m2.course_id = cur_m.course_id AND m2.is_deleted = false AND m2.is_hidden = false
+    JOIN course.lesson l2 ON l2.module_id = m2.id AND l2.is_deleted = false AND l2.is_hidden = false
     JOIN learning.history h ON h.lesson_id = l2.id AND h.user_id = v_user_id AND h.course_id = v_course_id
     WHERE cur_l.id = _lesson_id
       AND h.status = 'enrolled'
@@ -92,14 +92,14 @@ BEGIN
         WHERE user_id = v_user_id AND course_id = v_course_id AND lesson_id = next_lesson_id;
     END IF;
 
-    SELECT COUNT(*) INTO total_lessons
+    SELECT COUNT(*), COUNT(*) FILTER (WHERE h.status = 'completed')
+    INTO total_lessons, completed_lessons
     FROM course.lesson l
     JOIN course.module m ON m.id = l.module_id
-    WHERE m.course_id = v_course_id AND l.is_deleted = false AND m.is_deleted = false;
-
-    SELECT COUNT(*) INTO completed_lessons
-    FROM learning.history
-    WHERE user_id = v_user_id AND course_id = v_course_id AND status = 'completed';
+    LEFT JOIN learning.history h ON h.lesson_id = l.id AND h.user_id = v_user_id AND h.course_id = v_course_id
+    WHERE m.course_id = v_course_id
+      AND l.is_deleted = false AND l.is_hidden = false
+      AND m.is_deleted = false AND m.is_hidden = false;
 
     UPDATE learning.register
     SET progress = completed_lessons

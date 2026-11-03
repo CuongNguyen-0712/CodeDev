@@ -8,10 +8,12 @@ CREATE OR REPLACE FUNCTION public.learning_lesson(p_user_id character varying, p
 AS $function$
 DECLARE
   v_user_id bigint;
+  v_course_id bigint;
 BEGIN
   SELECT id INTO v_user_id FROM identity.users WHERE public_id = p_user_id;
 
-  PERFORM public.assert_lesson_access(v_user_id, p_lesson_id);
+  v_course_id := public.assert_lesson_access(v_user_id, p_lesson_id);
+  PERFORM public.unlock_first_open_lesson(v_user_id, v_course_id);
 
   IF EXISTS (
     SELECT 1 FROM learning.history h

@@ -27,8 +27,8 @@ AS $function$
                         WHERE s.user_id = _user_id AND s.challenge_id = ch.id AND s.status = 'passed')
                END AS passed
         FROM challenge.challenges ch
-        JOIN course.lesson l ON l.id = ch.lesson_id AND l.is_deleted = false
-        JOIN course.module m ON m.id = l.module_id AND m.is_deleted = false
+        JOIN course.lesson l ON l.id = ch.lesson_id AND l.is_deleted = false AND l.is_hidden = false
+        JOIN course.module m ON m.id = l.module_id AND m.is_deleted = false AND m.is_hidden = false
         WHERE ch.course_id = _course_id AND ch.is_deleted = false AND ch.is_published = true
           AND ch.status = 'open' AND ch.type IN ('quiz', 'fix_bug', 'mini_coding')
     ),

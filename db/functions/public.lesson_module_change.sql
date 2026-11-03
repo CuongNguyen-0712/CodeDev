@@ -6,24 +6,18 @@ CREATE OR REPLACE FUNCTION public.lesson_module_change()
  RETURNS trigger
  LANGUAGE plpgsql
 AS $function$
+DECLARE
+    old_live boolean := CASE WHEN TG_OP = 'INSERT' THEN false ELSE NOT OLD.is_deleted AND NOT OLD.is_hidden END;
+    new_live boolean := CASE WHEN TG_OP = 'DELETE' THEN false ELSE NOT NEW.is_deleted AND NOT NEW.is_hidden END;
 BEGIN
-    IF TG_OP = 'INSERT' THEN
-        IF NOT NEW.is_deleted THEN
-            UPDATE course.module SET lessons = lessons + 1 WHERE id = NEW.module_id;
-        END IF;
-    ELSIF TG_OP = 'UPDATE' THEN
-        IF NEW.is_deleted AND NOT OLD.is_deleted THEN
-            UPDATE course.module SET lessons = GREATEST(lessons - 1, 0) WHERE id = OLD.module_id;
-        ELSIF NOT NEW.is_deleted AND OLD.is_deleted THEN
-            UPDATE course.module SET lessons = lessons + 1 WHERE id = NEW.module_id;
-        ELSIF NOT NEW.is_deleted AND NEW.module_id <> OLD.module_id THEN
-            UPDATE course.module SET lessons = GREATEST(lessons - 1, 0) WHERE id = OLD.module_id;
-            UPDATE course.module SET lessons = lessons + 1 WHERE id = NEW.module_id;
-        END IF;
-    ELSIF TG_OP = 'DELETE' THEN
-        IF NOT OLD.is_deleted THEN
-            UPDATE course.module SET lessons = GREATEST(lessons - 1, 0) WHERE id = OLD.module_id;
-        END IF;
+    IF old_live AND new_live AND OLD.module_id = NEW.module_id THEN
+        RETURN NULL;
+    END IF;
+    IF old_live THEN
+        UPDATE course.module SET lessons = GREATEST(lessons - 1, 0) WHERE id = OLD.module_id;
+    END IF;
+    IF new_live THEN
+        UPDATE course.module SET lessons = lessons + 1 WHERE id = NEW.module_id;
     END IF;
 
     RETURN NULL;

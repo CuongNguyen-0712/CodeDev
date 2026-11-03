@@ -37,21 +37,8 @@ BEGIN
     WHERE user_id = v_user_id AND course_id = v_course_id AND is_deleted = false
       AND (status = 'enrolled' OR last_seen IS NULL OR last_seen < now() - interval '1 minute');
 
-    IF v_register_status = 'enrolled' THEN
-        UPDATE learning.history h
-        SET status = 'in_progress', last_seen = now()
-        WHERE h.user_id = v_user_id
-          AND h.course_id = v_course_id
-          AND h.status = 'enrolled'
-          AND h.lesson_id = (
-              SELECT l.id
-              FROM course.module m
-              JOIN course.lesson l ON l.module_id = m.id
-              WHERE m.course_id = v_course_id AND m.is_deleted = false AND l.is_deleted = false
-              ORDER BY m.order_index, l.order_index
-              LIMIT 1
-          );
-    END IF;
+    -- First visit opens the first visible lesson; later a hidden / shown lesson never leaves a lock.
+    PERFORM public.unlock_first_open_lesson(v_user_id, v_course_id);
 
     WITH module_data AS (
         SELECT
@@ -136,10 +123,10 @@ BEGIN
                  AND h.module_id = m.id
                  AND h.user_id = v_user_id
                  AND h.course_id = v_course_id
-                WHERE l.module_id = m.id AND l.is_deleted = false
+                WHERE l.module_id = m.id AND l.is_deleted = false AND l.is_hidden = false
             ), '[]'::jsonb) AS lessons
         FROM course.module m
-        WHERE m.course_id = v_course_id AND m.is_deleted = false
+        WHERE m.course_id = v_course_id AND m.is_deleted = false AND m.is_hidden = false
     ),
     progress_data AS (
         SELECT

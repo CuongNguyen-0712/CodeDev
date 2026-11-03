@@ -9,8 +9,10 @@ CREATE OR REPLACE FUNCTION public.assert_lesson_access(_user_id bigint, _lesson_
 AS $function$
 DECLARE
     v_course_id bigint;
+    v_unavailable boolean;
 BEGIN
-    SELECT m.course_id INTO v_course_id
+    SELECT m.course_id, (l.is_deleted OR l.is_hidden OR m.is_deleted OR m.is_hidden)
+    INTO v_course_id, v_unavailable
     FROM course.lesson l
     JOIN course.module m ON m.id = l.module_id
     WHERE l.id = _lesson_id;
@@ -22,6 +24,10 @@ BEGIN
            WHERE r.user_id = _user_id AND r.course_id = v_course_id AND r.is_deleted = false
        ) THEN
         RAISE EXCEPTION USING ERRCODE = 'CD403', MESSAGE = 'You do not have access to this lesson';
+    END IF;
+
+    IF v_unavailable THEN
+        RAISE EXCEPTION USING ERRCODE = 'CD404', MESSAGE = 'This lesson is not available';
     END IF;
 
     RETURN v_course_id;
