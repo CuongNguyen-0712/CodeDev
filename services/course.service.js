@@ -8,6 +8,7 @@ import { listCacheIdentity } from "@/lib/listFilters";
 import { publish, publishToUser } from "@/lib/pusher";
 import { channels, events, progressReasons } from "@/lib/realtime";
 import { challengeService } from "@/services/challenge.service";
+import { ratePromptFor } from "@/services/courseRating.service";
 
 /** Cache + realtime side effects after a write that changes a user's learning state. */
 async function afterProgressChange({ userId, courseId, reason }) {
@@ -237,6 +238,8 @@ export const courseService = {
             awardedPoints: Number(row.awardedPoints) || 0,
             awardedExp,
             courseCompleted: Boolean(row.courseCompleted),
+            // null, or { stars } when this completion should ask for a course rating (plan 12.3).
+            ratePrompt: await ratePromptFor({ userId: data.userId, courseId: data.courseId, result: row }),
             ...(awardedExp > 0 && {
                 exp: Number(row.exp) || 0,
                 level: Number(row.level) || 1,

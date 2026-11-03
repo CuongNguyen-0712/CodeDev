@@ -1,6 +1,7 @@
 'use server';
 
 import { courseService } from "@/services/course.service";
+import { courseRatingService } from "@/services/courseRating.service";
 import { ApiError } from "@/lib/error/apiError";
 import { rateLimiters } from "@/lib/rateLimit";
 import { runAction } from "@/lib/serverAction";
@@ -84,6 +85,13 @@ export async function postCommentAction({ courseId, content } = {}) {
         const result = await courseService.postComment({ userId, courseId, content: trimmed });
         return typeof result === 'object' ? result : null;
     }, { limiter: rateLimiters.comment, context: "postCommentAction" });
+}
+
+// One 1-5 star rating per learner and course; enrolled learners with a completed lesson only (plan 12).
+export async function rateCourseAction({ courseId, stars } = {}) {
+    return runAction(async ({ userId }) => {
+        return courseRatingService.rate({ userId, courseId: parseCourseId(courseId), stars });
+    }, { limiter: rateLimiters.vote, context: "rateCourseAction" });
 }
 
 export async function voteCommentAction({ commentId, courseId, vote } = {}) {
