@@ -8,6 +8,22 @@ What already holds: no admin screen scrolls sideways at 375 or 768 px (content c
 secondary columns), axe reports 0 WCAG 2.2 AA issues on the measured screens in both themes, every list
 screen opens with a finding from its data, loading states keep the card frame.
 
+## Status (2026-11-03)
+
+Done: 1 (row actions carry their row, `RowAction target`), 4 (Needs attention ends on "Open System"),
+5 (permission filter; a sticky role header is not possible inside the sideways-scrolling table and was
+left out), 6 (search on Catalog and Courses kept in the URL, on a course's Challenges in the page; no
+column sort yet), 7 (Run, Course and User detail findings; Access and Settings keep their description),
+8 (public learner pages measured at 768 px beside the open sidebar and at 375 px: no sideways scroll,
+axe 0; signed-in pages still to measure), 10 (command palette, Ctrl/Cmd+K and a Search button),
+11 (chart readout: peak by default, hovered or arrow-key day otherwise), 12 (empty states for Orders,
+Audit, Access).
+
+Open: 2 (flows not yet seen in a browser, now including the palette, list search, chart readout and the
+new findings), 3 (sessions dropping in local work), 9 (compact recommendation cards, needs a signed-in
+home), 13 (motion seen with the window in view), 14 (PRODUCT.md / DESIGN.md need the product owner's
+answers through impeccable `init`).
+
 ## P0: correctness and access
 
 1. **Row actions need the item in their name.** A table has many buttons named only "Rename", "Delete",
