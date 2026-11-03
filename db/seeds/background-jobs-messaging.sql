@@ -786,9 +786,9 @@ Evidence D - the message and the grader:
 sub_8812: learner u_4471, lesson ts-generics, enqueued 09:01:58, body 9.8 MB
 report.json: cut at 4,096 bytes and padded with NUL bytes (sandbox log writer, output over 4 MB)
 time to fail one attempt: 38 ms
-grader duration p50 before 09:02: 1.1 s; sandbox CPU since 09:02: 2%
+grader duration p50 before 09:02: 80 ms; sandbox CPU since 09:02: 2%
 
-Statement: "The grader became slow at 09:02: grading now takes longer than the time between arrivals, which is why the backlog builds up."', 'single_choice'::question_type, 'False. D shows one attempt failing in 38 ms, the grader''s p50 before the incident at 1.1 s and the sandbox CPU at 2% since 09:02: the grader is idle, not slow. A slow grader would show a lower graded/min, not zero, and a backlog growing by the difference between arrivals and completions; A shows zero completions and growth equal to the full arrival rate. The misconception is to blame throughput when the evidence says nothing is being completed at all.', 4, 5
+Statement: "The grader became slow at 09:02: grading now takes longer than the time between arrivals, which is why the backlog builds up."', 'single_choice'::question_type, 'False. D shows one attempt failing in 38 ms, the grader''s p50 before the incident at 80 ms and the sandbox CPU at 2% since 09:02: the grader is idle, not slow. A slow grader would show a lower graded/min, not zero, and a backlog growing by the difference between arrivals and completions; A shows zero completions and growth equal to the full arrival rate. The misconception is to blame throughput when the evidence says nothing is being completed at all.', 4, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_bjm_311') AND order_index = 4)
     RETURNING id
 )
@@ -844,7 +844,7 @@ Evidence D - the message and the grader:
 sub_8812: learner u_4471, lesson ts-generics, enqueued 09:01:58, body 9.8 MB
 report.json: cut at 4,096 bytes and padded with NUL bytes (sandbox log writer, output over 4 MB)
 time to fail one attempt: 38 ms
-grader duration p50 before 09:02: 1.1 s; sandbox CPU since 09:02: 2%
+grader duration p50 before 09:02: 80 ms; sandbox CPU since 09:02: 2%
 
 Planned verification on staging, after setting attempts: 3 and a dead-letter queue: replay sub_8812''s body, then 1,000 normal submissions, and watch the queue.
 

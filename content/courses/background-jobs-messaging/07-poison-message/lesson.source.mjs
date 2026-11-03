@@ -62,7 +62,7 @@ alerts: none on queue depth or message age`, "apps/worker/config/grade-submissio
 sub_8812: learner u_4471, lesson ts-generics, enqueued 09:01:58, body 9.8 MB
 report.json: cut at 4,096 bytes and padded with NUL bytes (sandbox log writer, output over 4 MB)
 time to fail one attempt: 38 ms
-grader duration p50 before 09:02: 1.1 s; sandbox CPU since 09:02: 2%`, "queue browser and sandbox metrics"),
+grader duration p50 before 09:02: 80 ms; sandbox CPU since 09:02: 2%`, "queue browser and sandbox metrics"),
 
         h2("3. Reading the evidence"),
         p("One line per piece, describing what it **shows**, not what you expect it to show:"),

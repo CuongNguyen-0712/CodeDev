@@ -53,7 +53,7 @@
     "TypeScript": "5.9.3 (tsc --strict in the code runner)",
     "Queues": "BullMQ / SQS / RabbitMQ concepts in lesson examples (check current docs)"
   },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html",
     "https://docs.bullmq.io/",
