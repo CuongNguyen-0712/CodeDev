@@ -255,7 +255,7 @@ Kết luận thẳng: **tải lần đầu không nhanh hơn, hơi chậm hơn**
 | `/course`: bỏ "ẩn khoá đã ghi danh" trên server | Danh sách giống nhau cho mọi người, có thể `'use cache'` theo query | Người đã ghi danh thấy lại các khoá đó trong catalog (có badge). Không giúp LCP tải lần đầu, vì nội dung theo URL vẫn stream sau shell |
 | Skeleton nút hành động cùng kích thước nút thật | CLS 0,04 → gần 0 | Không |
 
-Khuyến nghị: giữ Cache Components, giữ Partial Prefetching; đo lại sau hai sửa trên. Nếu tải lần đầu vẫn chậm hơn R2 trên 0,3 s thì chọn tắt `partialPrefetching`.
+**Quyết định (2026-11-03): giữ như hiện tại** (Cache Components + Partial Prefetching, prefetch trên thẻ khoá học). Xem lại khi có số đo 5 lần trên máy rảnh; nếu tải lần đầu vẫn chậm hơn R2 trên 0,3 s thì tắt `partialPrefetching` trước.
 
 ## 7. Không làm
 
