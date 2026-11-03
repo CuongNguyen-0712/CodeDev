@@ -12,9 +12,12 @@ export async function generateMetadata() {
 export const revalidate = 600;
 
 export default async function Page() {
-    const stats = await courseService.getCatalogStats().catch(() => null);
+    const [stats, shelf] = await Promise.all([
+        courseService.getCatalogStats().catch(() => null),
+        courseService.getList({ limit: 4 }).catch(() => null),
+    ]);
 
     return (
-        <AboutPage stats={stats} />
+        <AboutPage stats={stats} courses={shelf?.data ?? []} />
     );
 }

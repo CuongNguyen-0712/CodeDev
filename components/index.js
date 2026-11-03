@@ -3,17 +3,14 @@
 import { useState } from "react";
 
 import Link from "next/link";
-import { useInfiniteQuery } from "@tanstack/react-query";
 
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import javascript from "react-syntax-highlighter/dist/esm/languages/prism/javascript";
 
-import { courseQueries } from "@/queries/course.query";
 import { levelMapping } from "@/constants/constants";
 import { coverSrcSet, fitCover } from "@/lib/coverFit";
 
 import { Button } from "@/components/shadcn/button";
-import { Skeleton } from "@/components/shadcn/skeleton";
 import { syntaxTheme } from "@/lib/syntaxTheme";
 
 import { SiJavascript } from "react-icons/si";
@@ -197,18 +194,17 @@ function CodeSample() {
     );
 }
 
-// Four real courses from the catalog. Also used on /about, inside its own column (className).
+// Four real courses from the catalog, rendered by the page on the server (`courses`). Also used on
+// /about, inside its own column (className).
 export function CourseShelf({
+    courses = [],
     title = "Start with a real course",
     lead = "Every lesson opens with a bug someone actually shipped, then walks you to the fix.",
     className = "mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 sm:px-6",
     titleClassName = "text-3xl font-semibold tracking-tight sm:text-4xl",
 }) {
-    const { data, isLoading, isError } = useInfiniteQuery(courseQueries.list({}, { limit: 4 }));
-    const courses = (data?.pages?.[0]?.data ?? []).slice(0, 4);
-
     // Supporting section: without courses there is nothing to show, so it stays out of the page.
-    if (isError || (!isLoading && courses.length === 0)) return null;
+    if (courses.length === 0) return null;
 
     return (
         <section aria-labelledby="shelf-title" className={className}>
@@ -231,48 +227,40 @@ export function CourseShelf({
             </div>
 
             <ul className="grid list-none gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
-                {isLoading
-                    ? Array.from({ length: 4 }, (_, index) => (
-                        <li key={index} className="flex flex-col gap-3" aria-hidden="true">
-                            <Skeleton className="aspect-video w-full rounded-md" />
-                            <Skeleton className="h-5 w-4/5" />
-                            <Skeleton className="h-4 w-1/2" />
-                        </li>
-                    ))
-                    : courses.map((course, index) => (
-                        <li key={course.id} className="animate-enter" style={{ "--enter-index": index }}>
-                            <Link href={`/course/${course.id}`} className="group/shelf flex flex-col gap-3 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
-                                <span className="block aspect-video overflow-hidden rounded-md bg-muted">
-                                    {course.image && (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img
-                                            ref={fitCover}
-                                            src={course.image}
-                                            srcSet={coverSrcSet(course.image)}
-                                            sizes="(min-width: 1024px) 270px, (min-width: 640px) 50vw, 100vw"
-                                            alt=""
-                                            loading="lazy"
-                                            draggable={false}
-                                            className="block size-full object-cover transition-transform duration-300 ease-out group-hover/shelf:scale-[1.03] data-[fit=contain]:object-contain data-[fit=contain]:p-[12%]"
-                                            onLoad={(e) => fitCover(e.currentTarget)}
-                                        />
-                                    )}
-                                </span>
-                                <span className="text-base leading-snug font-semibold text-foreground group-hover/shelf:text-primary-ink">
-                                    {course.title}
-                                </span>
-                                <span className="tabular text-sm text-muted-foreground">
-                                    {[course.language_name, levelMapping[course.level]?.label, `${Number(course.lessons) || 0} lessons`].filter(Boolean).join(" · ")}
-                                </span>
-                            </Link>
-                        </li>
-                    ))}
+                {courses.map((course, index) => (
+                    <li key={course.id} className="animate-enter" style={{ "--enter-index": index }}>
+                        <Link href={`/course/${course.id}`} className="group/shelf flex flex-col gap-3 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+                            <span className="block aspect-video overflow-hidden rounded-md bg-muted">
+                                {course.image && (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                        ref={fitCover}
+                                        src={course.image}
+                                        srcSet={coverSrcSet(course.image)}
+                                        sizes="(min-width: 1024px) 270px, (min-width: 640px) 50vw, 100vw"
+                                        alt=""
+                                        loading="lazy"
+                                        draggable={false}
+                                        className="block size-full object-cover transition-transform duration-300 ease-out group-hover/shelf:scale-[1.03] data-[fit=contain]:object-contain data-[fit=contain]:p-[12%]"
+                                        onLoad={(e) => fitCover(e.currentTarget)}
+                                    />
+                                )}
+                            </span>
+                            <span className="text-base leading-snug font-semibold text-foreground group-hover/shelf:text-primary-ink">
+                                {course.title}
+                            </span>
+                            <span className="tabular text-sm text-muted-foreground">
+                                {[course.language_name, levelMapping[course.level]?.label, `${Number(course.lessons) || 0} lessons`].filter(Boolean).join(" · ")}
+                            </span>
+                        </Link>
+                    </li>
+                ))}
             </ul>
         </section>
     );
 }
 
-export default function IndexPage({ stats = null }) {
+export default function IndexPage({ stats = null, courses = [] }) {
     const catalog = catalogSentence(stats);
 
     return (
@@ -314,7 +302,7 @@ export default function IndexPage({ stats = null }) {
                 </div>
             </section>
 
-            <CourseShelf />
+            <CourseShelf courses={courses} />
 
             <section aria-labelledby="loop-title" className="w-full bg-canvas py-20 lg:py-28">
                 <div className="mx-auto grid w-full max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-12 lg:gap-10">

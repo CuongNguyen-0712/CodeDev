@@ -162,7 +162,27 @@ function NodeDetailsPanel({ node, stepNumber, onClose = null }) {
     );
 }
 
+// The server renders the guest view (cached for everyone) straight from `initialData`, without the
+// React Query cache, so the page can be prerendered. A signed-in learner's copy, with their course
+// progress, loads under its own key while the guest view stays on screen.
 export default function RoadmapDetailsPage({ params, initialData = null }) {
+    const { status } = useSession();
+    if (status !== 'authenticated' && initialData) {
+        return <RoadmapView params={params} initialData={initialData} query={{}} />;
+    }
+    return <RoadmapWithQuery params={params} initialData={initialData} scope={status === 'authenticated' ? 'viewer' : 'public'} />;
+}
+
+function RoadmapWithQuery({ params, initialData, scope }) {
+    const publicData = initialData ? { success: true, data: initialData } : undefined;
+    const query = useQuery({
+        ...roadmapQueries.details(params.id, scope),
+        ...(scope === 'public' ? { initialData: publicData } : { placeholderData: (previous) => previous ?? publicData }),
+    });
+    return <RoadmapView params={params} initialData={initialData} query={query} />;
+}
+
+function RoadmapView({ params, initialData, query }) {
     const { id } = params;
     const { navigate } = useRouterActions();
     const { showAlert } = useApp();
@@ -170,15 +190,7 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
     const isCompact = viewport.width > 0 && viewport.width < 1024;
     const isMobile = viewport.width > 0 && viewport.width < 640;
 
-    // The server renders the guest view (cached for everyone); a signed-in learner's copy, with their
-    // course progress, loads under its own key while the guest view stays on screen.
-    const { status } = useSession();
-    const scope = status === 'authenticated' ? 'viewer' : 'public';
-    const publicData = initialData ? { success: true, data: initialData } : undefined;
-    const { data: queryData, isLoading, isError, error, refetch } = useQuery({
-        ...roadmapQueries.details(id, scope),
-        ...(scope === 'public' ? { initialData: publicData } : { placeholderData: (previous) => previous ?? publicData }),
-    });
+    const { data: queryData, isLoading = false, isError = false, error = null, refetch } = query;
 
     const roadmapData = queryData?.data || initialData || {};
     const nodes = roadmapData?.nodes || [];

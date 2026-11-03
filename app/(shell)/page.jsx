@@ -12,9 +12,13 @@ export const revalidate = 600;
 
 export default async function Page() {
     // Without the database (a build machine, an outage) the copy still reads, just without figures.
-    const stats = await courseService.getCatalogStats().catch(() => null);
+    const [stats, shelf] = await Promise.all([
+        courseService.getCatalogStats().catch(() => null),
+        // The course shelf is rendered here too, so the page carries it in its HTML.
+        courseService.getList({ limit: 4 }).catch(() => null),
+    ]);
 
     return (
-        <IndexPage stats={stats} />
+        <IndexPage stats={stats} courses={shelf?.data ?? []} />
     )
 }

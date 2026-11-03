@@ -70,7 +70,7 @@ function catalogSentence(stats) {
     return `Today the catalog holds ${n(stats.courses)} courses${free} with ${work.join(", ")}${languages}${roadmaps}.`;
 }
 
-export default function AboutPage({ stats = null }) {
+export default function AboutPage({ stats = null, courses = [] }) {
     const catalog = catalogSentence(stats);
 
     return (
@@ -136,6 +136,7 @@ export default function AboutPage({ stats = null }) {
             </section>
 
             <CourseShelf
+                courses={courses}
                 title="What a course looks like"
                 lead="Four courses from the catalog, each with its language, level and length."
                 className="flex w-full flex-col gap-8"
