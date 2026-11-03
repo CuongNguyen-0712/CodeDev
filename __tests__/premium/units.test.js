@@ -112,6 +112,73 @@ describe("recommendations (rules)", () => {
     });
 });
 
+describe("recommendations (V1.3 §7.5, learner with a User Level)", () => {
+    const now = Date.parse("2026-11-03T00:00:00Z");
+    const levelled = (enrolments = []) => ({
+        ...normaliseProfile({ exp: 2000, exp_level: 8, enrolments, owned_course_ids: [] }),
+        now,
+    });
+    const done = (id, daysAgo) => ({ course_id: id, status: "completed", completed_at: new Date(now - daysAgo * 86_400_000).toISOString() });
+
+    it("adds +30 for the next step after a course completed in the last 14 days, and +10 for the same track", () => {
+        const track = [{ title: "Backend", role_code: null }];
+        const result = rankCourses(levelled([done("intro", 3)]), [
+            course("intro", { level: "beginner", roadmaps: track }),
+            course("next", { prerequisites: [{ id: "intro", title: "Intro" }], roadmaps: track }),
+            course("other"),
+        ]);
+        expect(result.items.map((i) => i.course.id)).toEqual(["next", "other"]);
+        expect(result.items[0].score).toBe(25 + 5 + 30 + 10);
+        expect(result.items[0].reasons).toEqual(expect.arrayContaining([
+            "Next step after Intro, which you just completed",
+            "Same track as the course you just completed (Backend)",
+        ]));
+    });
+
+    it("gives no continuation bonus after 14 days", () => {
+        const result = rankCourses(levelled([done("intro", 20)]), [
+            course("next", { prerequisites: [{ id: "intro", title: "Intro" }] }),
+        ]);
+        expect(result.items[0].reasons).not.toContain("Next step after Intro, which you just completed");
+    });
+
+    it("leaves out locked and too-early courses, ranks suitable > review, and breaks ties by lower tier", () => {
+        const result = rankCourses(levelled(), [
+            course("locked", { prerequisites: [{ id: "x", title: "X" }] }),
+            course("expert", { level: "expert" }),
+            course("review", { level: "beginner" }),
+            course("suits-adv", { level: "advanced", recommended_min_level: 6, recommended_max_level: 12 }),
+            course("suits-int"),
+        ]);
+        expect(result.items.map((i) => i.course.id)).toEqual(["suits-int", "suits-adv", "review"]);
+    });
+
+    it("adds up to +10 for the community completion rate, only with enough enrolments", () => {
+        const result = rankCourses(levelled(), [
+            course("popular", { enrolments: 20, completions: 15 }),
+            course("few", { enrolments: 2, completions: 2 }),
+        ]);
+        expect(result.items[0]).toMatchObject({ course: { id: "popular" }, score: 25 + 8 });
+        expect(result.items[0].reasons).toContain("75% of learners who start it finish it");
+        expect(result.items[1].score).toBe(25);
+    });
+});
+
+describe("recommendations (V1.3 §7.5, brand-new learner)", () => {
+    it("starts with beginner courses without prerequisites, most often finished first", () => {
+        const fresh = normaliseProfile({ enrolments: [], owned_course_ids: [] });
+        const result = rankCourses(fresh, [
+            course("hard", { students: 999 }),
+            course("needs-intro", { level: "beginner", prerequisites: [{ id: "intro", title: "Intro" }] }),
+            course("b-low", { level: "beginner", enrolments: 10, completions: 2 }),
+            course("b-high", { level: "beginner", enrolments: 10, completions: 7 }),
+        ]);
+        expect(result.fallback).toBe(true);
+        expect(result.items.map((i) => i.course.id)).toEqual(["b-high", "b-low"]);
+        expect(result.items[0].reasons).toEqual(["A good first course: no prerequisites"]);
+    });
+});
+
 describe("webhook signatures", () => {
     const secret = "test-secret-0123456789";
     const body = JSON.stringify({ id: "evt_1", type: "payment.succeeded" });

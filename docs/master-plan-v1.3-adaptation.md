@@ -163,7 +163,14 @@ và số coding của tier bằng cách phân bổ qua 8–15 lesson.
   hint mở trước lần pass đầu (`code_submissions.submitted_at`); `lib/hintUsage.js` chia nhóm không hint / hint 1–2 /
   hint 3 (assisted, nửa EXP), số hint trung bình mỗi bài, 5 bài pass gần nhất sau khi mở hint 3 (link tới lesson
   `#challenge-<id>`). Không cache Redis (endpoint experience vốn không cache) nên không cần invalidate.
-- **P10. (Tùy chọn) Điểm gợi ý course theo V1.3 §7.5** (+30/+25/+15/+5/+10, top 5 kèm lý do).
+- **P10. Điểm gợi ý course theo V1.3 §7.5 — xong 03/11 (không migration).** `services/recommendation.service.js`
+  giữ các tín hiệu onboarding (role, skill, goal, industry, ngôn ngữ) và thêm, khi học viên đã có User Level (EXP > 0):
+  bỏ course bị khóa (thiếu prerequisite) và `too_early`; nhãn Phù hợp / Thử thách / Ôn tập +25 / +15 / +5; tiếp nối lộ
+  trình +30 (prerequisite hoàn thành trong 14 ngày, ngày hoàn thành = lúc nhận EXP bonus course trong
+  `profile.exp_transaction`); cùng roadmap với course vừa hoàn thành +10; tỷ lệ hoàn thành cộng đồng +0–10 (chỉ khi
+  ≥5 lượt đăng ký); hòa điểm thì tier thấp trước. User mới (chưa EXP, chưa onboarding): course beginner không có
+  prerequisite, sắp theo tỷ lệ hoàn thành. Số course trả về vẫn theo `limit` của API (mặc định 6), lý do hiển thị
+  như cũ.
 
 Bỏ qua có chủ đích: event endpoint `/internal/experience/events` (chấm và cộng EXP đã cùng transaction), điều chỉnh
 theo phong độ (V1.3 cũng tắt lúc đầu), backlog AI V1.3 §8.

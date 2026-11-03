@@ -38,7 +38,7 @@ describe("recommender level signal", () => {
         goal_codes: [], prerequisites: [], roadmaps: [],
     });
     const levelReason = (profile, level) =>
-        scoreCourse(profile, course(level)).reasons.find((r) => /level|basic|advanced|step up/i.test(r.text));
+        scoreCourse(profile, course(level)).reasons.find((r) => /level|basic|advanced|step up|review/i.test(r.text));
 
     it("uses the onboarding level until the learner has EXP", () => {
         const fresh = normaliseProfile({ experience_level: "beginner", exp: 0, exp_level: 1 });
@@ -48,8 +48,9 @@ describe("recommender level signal", () => {
     it("switches to the User Level once EXP exists", () => {
         // Self-declared beginner, but already level 8: intermediate suits, beginner is a review.
         const levelled = normaliseProfile({ experience_level: "beginner", exp: 2000, exp_level: 8 });
-        expect(levelReason(levelled, "intermediate")).toMatchObject({ text: "Suits your level 8" });
-        expect(levelReason(levelled, "beginner").points).toBeLessThan(0);
+        // V1.3 §7.5 fit points: suitable +25, review +5, too_early negative (and never a candidate).
+        expect(levelReason(levelled, "intermediate")).toMatchObject({ text: "Suits your level 8", points: 25 });
+        expect(levelReason(levelled, "beginner")).toMatchObject({ text: "A review of what you know", points: 5 });
         expect(levelReason(levelled, "expert").points).toBeLessThan(0);
     });
 

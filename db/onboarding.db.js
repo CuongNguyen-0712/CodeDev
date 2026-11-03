@@ -164,7 +164,10 @@ export const onboardingDb = {
                           JOIN catalog.industry i ON i.id = ui.industry_id WHERE ui.user_id = u.id), '{}') AS industry_codes,
                 COALESCE((SELECT array_agg(g.code) FROM profile.user_learning_goal ug
                           JOIN catalog.learning_goal g ON g.id = ug.learning_goal_id WHERE ug.user_id = u.id), '{}') AS goal_codes,
-                COALESCE((SELECT json_agg(json_build_object('course_id', c.public_id, 'status', rg.status))
+                -- completed_at: when the course bonus EXP was awarded (submit_lesson awards it once, on completion).
+                COALESCE((SELECT json_agg(json_build_object('course_id', c.public_id, 'status', rg.status,
+                              'completed_at', (SELECT min(t.created_at) FROM profile.exp_transaction t
+                                               WHERE t.user_id = u.id AND t.source_type = 'course' AND t.source_id = c.id)))
                           FROM learning.register rg JOIN catalog.course c ON c.id = rg.course_id
                           WHERE rg.user_id = u.id AND rg.is_deleted = false), '[]') AS enrolments,
                 COALESCE((SELECT array_agg(c.public_id) FROM commerce.entitlement e
@@ -220,7 +223,11 @@ export const onboardingDb = {
                           JOIN roadmap.nodes n ON n.id = nc.node_id
                           JOIN roadmap.roadmaps rm ON rm.id = n.roadmap_id
                           LEFT JOIN catalog.career_role rr ON rr.id = rm.career_role_id
-                          WHERE nc.course_id = c.id), '[]') AS roadmaps
+                          WHERE nc.course_id = c.id), '[]') AS roadmaps,
+                (SELECT COUNT(*)::int FROM learning.register rg
+                 WHERE rg.course_id = c.id AND rg.is_deleted = false) AS enrolments,
+                (SELECT COUNT(*)::int FROM learning.register rg
+                 WHERE rg.course_id = c.id AND rg.is_deleted = false AND rg.status = 'completed') AS completions
             FROM catalog.course c
             JOIN catalog.language l ON l.id = c.language_id
             JOIN catalog.category cat ON cat.id = c.category_id
