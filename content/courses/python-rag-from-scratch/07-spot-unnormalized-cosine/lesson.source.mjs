@@ -24,7 +24,7 @@ rank  chunk                    score   norm    words  source
 2     pdf-terms#p7             2.4000  4.031  2,380  pdf import (sum of 23 paragraphs)
 3     kb-e1042#1               1.0000  1.000     180  embeddings API
 4     kb-sync#2                0.9600  1.000     210  embeddings API`, "retrieval log, vector retriever"),
-        p("Two facts in this log are enough to suspect the code before reading it. Cosine similarity is bounded by -1 and 1, and 4.92 is not. And the ranking follows the **norm** column - the length of each vector - almost exactly. The PDF import builds one vector per page by adding up the vectors of its paragraphs, so a page with 41 paragraphs gets a vector about 41 times longer than one paragraph's, pointing in an average direction. Something in the search lets that length decide."),
+        p("Two facts in this log are enough to suspect the code before reading it. Cosine similarity is bounded by -1 and 1, and 4.92 is not. And the ranking follows the **norm** column - the length of each vector - almost exactly. The PDF import builds one vector per page by adding up the vectors of its paragraphs, so a page with 41 paragraphs gets a vector up to 41 times longer than one paragraph's (7.6 times here, because its paragraphs point in different directions), pointing in an average direction. Something in the search lets that length decide."),
 
         h2("2. The request and the AI's answer"),
         p("This is the request the team sent, word for word:"),

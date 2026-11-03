@@ -30,7 +30,7 @@ query: "how long does a refund take on an annual plan?"
 rank  chunk                 rrf     cost (tokens)
 1     kb-refunds#1          0.0325  13
 2     kb-refunds-annual#1   0.0323  35
-3     kb-cancel#2           0.0317  11
+3     kb-cancel#2           0.0315  11
 4     kb-credit#1           0.0161   9
 5     blog-pricing#3        0.0156  41
 

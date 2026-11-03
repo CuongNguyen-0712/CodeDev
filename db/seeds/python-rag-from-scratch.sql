@@ -532,13 +532,13 @@ query: "how long does a refund take on an annual plan?"
 rank  chunk                 rrf     cost
 1     kb-refunds#1          0.0325  13
 2     kb-refunds-annual#1   0.0323  35
-3     kb-cancel#2           0.0317  11
+3     kb-cancel#2           0.0315  11
 4     kb-credit#1           0.0161   9
 5     blog-pricing#3        0.0156  41
 
 Golden-set label for this question: relevant = [kb-refunds-annual]
 
-Statement: "Retrieval did its job for this question: the chunk that answers it is in the top 5, at rank 2."', 'single_choice'::question_type, 'True. kb-refunds-annual#1 is the labelled relevant chunk and it is ranked 2nd, so recall@5 = 1 and the reciprocal rank is 1/2 for this question. The misconception this guards against: a wrong answer means retrieval failed. Check whether the right chunk was retrieved before you touch the retriever.', 1, 5
+Statement: "Retrieval did its job for this question: the chunk that answers it is in the top 5, at rank 2."', 'single_choice'::question_type, 'True. kb-refunds-annual#1 is a chunk of kb-refunds-annual, the labelled relevant document, and it is ranked 2nd, so recall@5 = 1 and the reciprocal rank is 1/2 for this question. The misconception this guards against: a wrong answer means retrieval failed. Check whether the right chunk was retrieved before you touch the retriever.', 1, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_py_rag_331') AND order_index = 1)
     RETURNING id
 )
@@ -555,7 +555,7 @@ query: "how long does a refund take on an annual plan?"
 rank  chunk                 rrf     cost
 1     kb-refunds#1          0.0325  13
 2     kb-refunds-annual#1   0.0323  35
-3     kb-cancel#2           0.0317  11
+3     kb-cancel#2           0.0315  11
 4     kb-credit#1           0.0161   9
 5     blog-pricing#3        0.0156  41
 
@@ -601,7 +601,7 @@ query: "how long does a refund take on an annual plan?"
 rank  chunk                 rrf     cost
 1     kb-refunds#1          0.0325  13
 2     kb-refunds-annual#1   0.0323  35
-3     kb-cancel#2           0.0317  11
+3     kb-cancel#2           0.0315  11
 4     kb-credit#1           0.0161   9
 5     blog-pricing#3        0.0156  41
 
@@ -651,7 +651,7 @@ query: "how long does a refund take on an annual plan?"
 rank  chunk                 rrf     cost
 1     kb-refunds#1          0.0325  13
 2     kb-refunds-annual#1   0.0323  35
-3     kb-cancel#2           0.0317  11
+3     kb-cancel#2           0.0315  11
 4     kb-credit#1           0.0161   9
 5     blog-pricing#3        0.0156  41
 
