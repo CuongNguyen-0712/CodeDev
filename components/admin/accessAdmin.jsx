@@ -198,7 +198,7 @@ function Entitlements({ user }) {
                     </TableHeader>
                     <TableBody>
                         {entitlements.data.length === 0 && (
-                            <TableRow><TableCell colSpan={5} className="text-muted-foreground">No course access.</TableCell></TableRow>
+                            <TableRow><TableCell colSpan={5} className="text-muted-foreground">No course access yet. Grant a course with the form below.</TableCell></TableRow>
                         )}
                         {entitlements.data.map((e) => (
                             <TableRow key={e.id}>

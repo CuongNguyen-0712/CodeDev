@@ -149,7 +149,10 @@ export default function AuditPage() {
                     ) : query.isError ? (
                         <p className="p-4 text-sm">Couldn&apos;t load the audit log. <button type="button" className="font-medium text-primary-ink hover:underline" onClick={() => query.refetch()}>Retry</button></p>
                     ) : entries.length === 0 ? (
-                        <p className="p-4 text-sm text-muted-foreground">No entry matches these filters.</p>
+                        <p className="p-4 text-sm text-muted-foreground">
+                            No entry matches these filters.{" "}
+                            {filtered && <button type="button" className="font-medium text-primary-ink hover:underline" onClick={() => update({ actor: "", action: "", target: "", targetId: "" })}>Clear filters</button>}
+                        </p>
                     ) : (
                         <ul className="divide-y divide-border">
                             {entries.map((entry) => (

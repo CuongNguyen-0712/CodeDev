@@ -1,5 +1,6 @@
 'use client';
 
+import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -62,7 +63,12 @@ export default function OrdersAdmin() {
             </TableHeader>
             <TableBody>
                 {data.length === 0 && (
-                    <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No orders yet.</TableCell></TableRow>
+                    <TableRow>
+                        <TableCell colSpan={7} className="py-6 text-center text-muted-foreground">
+                            No orders yet. Prices are set per course under{" "}
+                            <Link href="/admin/courses" className="font-medium text-primary-ink hover:underline">Courses</Link>.
+                        </TableCell>
+                    </TableRow>
                 )}
                 {data.map((order) => (
                     <TableRow key={order.id}>
