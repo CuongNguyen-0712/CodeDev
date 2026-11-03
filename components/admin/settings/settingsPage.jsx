@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
@@ -11,6 +12,7 @@ import PageHeader from "@/components/admin/shell/pageHeader";
 import { formatNumber } from "@/components/admin/ui/format";
 import { TableSkeleton } from "@/components/admin/ui/adminSkeleton";
 import { Badge } from "@/components/shadcn/badge";
+import { Input } from "@/components/shadcn/input";
 import { cn } from "@/lib/utils";
 
 import { LuCheck } from "react-icons/lu";
@@ -47,13 +49,33 @@ function Rows({ rows }) {
 }
 
 function Matrix({ roles }) {
+    const [query, setQuery] = useState("");
     const granted = new Set(roles.grants);
-    const byResource = roles.permissions.reduce((groups, permission) => {
+    const needle = query.trim().toLowerCase();
+    const shown = needle
+        ? roles.permissions.filter((permission) => [permission.code, permission.description, permission.resource].some((text) => text?.toLowerCase().includes(needle)))
+        : roles.permissions;
+    const byResource = shown.reduce((groups, permission) => {
         (groups[permission.resource] ||= []).push(permission);
         return groups;
     }, {});
     return (
         <>
+        {/* About a hundred permissions: a filter finds one without scrolling the whole matrix. */}
+        <div className="flex flex-wrap items-center gap-3">
+            <Input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Filter by permission, resource or description"
+                aria-label="Filter permissions"
+                className="max-w-sm"
+            />
+            <p className="text-sm text-muted-foreground" aria-live="polite">
+                {needle ? `${shown.length} of ${roles.permissions.length} permissions` : `${roles.permissions.length} permissions`}
+            </p>
+        </div>
+        {shown.length === 0 && <p className="text-sm text-muted-foreground">No permission matches “{query.trim()}”.</p>}
         {/* A phone has no room for one column per role: each permission lists the roles holding it. */}
         <div className="-mx-5 divide-y divide-border border-t border-border @2xl:hidden">
             {Object.entries(byResource).map(([resource, permissions]) => (
