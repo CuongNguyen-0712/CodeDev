@@ -209,7 +209,13 @@ Kết quả bảng route (build có Cache Components):
 
 Kiểm chứng: test 398 pass, lint 0 lỗi, `npm run budget` OK (`/` 1102/1160 KB). Bản production local: các trang công khai trả 200; khoá không tồn tại 404. Khi đã đăng nhập: `/home`, `/learning`, `/ranking`, `/orders`, `/profile`, `/settings`, `/contact`, trang khoá học (nút viewer đúng) và workspace bài học (editor) không lỗi. `/course/[id]` là HIT, `x-nextjs-prerender: 1`, `s-maxage=300`; LCP 2.06 s, CLS 0.04 (R2: 1.77 s / 0.02).
 
-**Đổi hành vi cần biết:** `/profile/<không tồn tại>` giờ trả **200** với trang "Page not found" và `noindex` (soft 404), thay vì status 404. Lý do: khung shell tĩnh đã gửi đi trước khi page gọi `notFound()`. Muốn có lại 404 thật thì đưa `/profile/[id]` ra khỏi route group `(shell)` hoặc cho layout biết sớm. Chưa làm.
+**404 cho id không tồn tại (đã sửa sau B6):**
+- **Vấn đề:** với PPR và Partial Prefetching, khung shell được gửi trước khi page gọi `notFound()`. Status đã chốt ở 200, nên trang "Page not found" chỉ có `noindex` (soft 404). Lỗi gặp ở `/course/[id]`, `/roadmap/[id]` và `/profile/[id]`.
+- **Cách sửa** theo docs (`loading.js` → "Status codes": kiểm slug trong Proxy và giữ cho nhanh): `lib/pageExistence.js`, được `proxy.js` gọi cho GET/HEAD. Id không tồn tại thì rewrite sang `/_not-found` với status **404**, trước khi page render.
+  - Kiểm tồn tại bằng query rất nhẹ: `courseDb.courseExists` (khoá chưa xoá, kể cả chưa publish), `roadmapDb.exists`, `profileDb.publicProfileExists` (cùng điều kiện hiển thị với trang hồ sơ).
+  - Kết quả giữ trong bộ nhớ mỗi instance: có thì 5 phút (hồ sơ 1 phút vì quyền riêng tư), không có thì 30 giây; tối đa 5.000 mục.
+  - Lỗi DB thì cho qua, page tự quyết như trước.
+- **Kiểm chứng** (bản production local): khoá, roadmap, hồ sơ không tồn tại, roadmap id không phải UUID và URL mã hoá hỏng đều trả 404; request RSC tới id không tồn tại cũng 404. Trang tồn tại vẫn 200, 17-37 ms. Test `__tests__/ui/pageExistence.test.js`.
 
 ## Trạng thái B6 (2026-11-03)
 

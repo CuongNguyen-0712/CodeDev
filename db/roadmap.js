@@ -1,6 +1,10 @@
 import { sql } from '@/lib/db'
 
 export const roadmapDb = {
+    exists: async (publicId) => {
+        return sql(`SELECT 1 FROM roadmap.roadmaps WHERE public_id = $1 LIMIT 1`, [publicId])
+    },
+
     getList: async () => {
         const params = []
         const query = `

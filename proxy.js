@@ -12,6 +12,7 @@ import { adminEnabled, isAdminPath } from "@/lib/adminMode";
 import { ADMIN_CSP_HEADER, adminCsp, isAdminPage } from "@/lib/adminCsp";
 import { decodeAuthJwt } from "@/lib/authJwt";
 import { isVerifyLocked, VERIFY_REQUIRED_PATH } from "@/lib/verifyLock";
+import { pageExists } from "@/lib/pageExistence";
 
 import { match } from "path-to-regexp";
 
@@ -41,6 +42,12 @@ export default async function proxy(req) {
 
     if (!adminEnabled() && isAdminPath(pathname)) {
         return new NextResponse(null, { status: 404 })
+    }
+
+    // A missing course / roadmap / profile id answers a real 404 here: the page itself could only
+    // stream its not-found UI with a 200 (lib/pageExistence).
+    if ((req.method === 'GET' || req.method === 'HEAD') && !(await pageExists(pathname))) {
+        return NextResponse.rewrite(new URL('/_not-found', req.url), { status: 404 })
     }
 
     // A token flagged revoked / expired / invalid is as good as no token.
