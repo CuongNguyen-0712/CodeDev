@@ -15,7 +15,7 @@
         {
           "type": "single_choice",
           "points": 5,
-          "question": "Draft plan, section \"API capacity\":\n\nload test (steady state): 340 req/s POST /api/submissions on 4 API instances\nAPI CPU: 40% average, 46% on the busiest instance\nsubmit p95: 6.2 s, pool wait p95: 5.8 s (pool size 10 per instance)\n\nconclusion: capacity = 340 / 0.40 = 850 req/s\n\nStatement: \"The CPU reading supports 850 req/s as the capacity of these 4 instances.\"",
+          "question": "Draft plan, section \"API capacity\":\n\nload test (80 s deadline spike): 340 req/s POST /api/submissions on 2 API instances\nAPI CPU: 40% average, 46% on the busiest instance\nsubmit p95: 6.2 s, pool wait p95: 5.8 s (pool size 6 per instance)\n\nconclusion: capacity = 340 / 0.40 = 850 req/s\n\nStatement: \"The CPU reading supports 850 req/s as the capacity of these 4 instances.\"",
           "explanation": "False. Dividing the load by CPU utilisation assumes CPU is the first resource to run out and that latency stays acceptable until CPU reaches 100%. The same evidence shows the opposite: at 340 req/s requests already wait 5.8 s (p95) for a pool connection and the submit p95 is 6.2 s, so the objective is broken at 340 req/s with CPU at 40%. The first bottleneck is the pool, not CPU. Capacity is the highest load at which the objective still holds, found with a step test (the knee), not an extrapolation of one resource. The misconception is that idle CPU means spare capacity.",
           "options": [
             {

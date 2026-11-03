@@ -38,7 +38,7 @@ server error rate:   (1,260 + 540) / 308,160 = 0.58%`, "the same log, re-analyse
         p("Three things the report hid. The rate limiter turned away almost 5% of submissions: correct protective behaviour, but not capacity. 1,890 requests failed with 401 because 400 of the 5,000 test accounts had tokens that expired during the run: a broken test, not a broken API. And the 540 requests that got no response at all were silently dropped by `if r[\"status\"]`, because the generator logs status 0 for them."),
 
         h2("2. Read the evidence: what a load test log contains"),
-        p("Every load tool can export one row per request. The fields differ by tool and version (k6 has CSV and JSON outputs, Locust has a CSV history, wrk2 prints aggregates; check current docs for the exact columns), but you need four things per request, and you should know which timestamp you have:"),
+        p("You need one row per request, and tools differ in how they give it to you: k6 writes per-request rows with its CSV and JSON outputs, Locust's CSV files hold aggregated statistics (per-request rows need a listener on its request event), and wrk2 prints aggregates only; check current docs for the exact columns, but you need four things per request, and you should know which timestamp you have:"),
         code("json", `
 {"sent_ms": 305012, "endpoint": "POST /api/submissions", "status": 201, "duration_ms": 412}
 {"sent_ms": 305014, "endpoint": "GET /api/leaderboard",  "status": 200, "duration_ms": 37}

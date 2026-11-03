@@ -28,7 +28,7 @@ requests             GET /api/leaderboard?courseId=42      leaderboard of ~120 c
 other traffic        none                                  ~260 submissions/s writing to the
                                                            same tables
 load generator       k6 on the API's VM                    -
-load model           1,000 VUs, no sleep(), closed loop    learners arrive on their own
+load model           1,000 VUs, sleep(3.3), closed loop    learners arrive on their own
 result               p95 18 ms at 300 req/s                p95 2.4 s`, "BM-0907 vs exam day"),
         p("Every row is a way for a benchmark to measure something other than the question it was asked. The question was \"will the leaderboard hold on exam day?\" The benchmark answered \"how fast is a leaderboard of one tiny course, served from memory, with no writes, by a machine that is also generating the load?\" - very fast, as it turns out."),
 
@@ -88,14 +88,14 @@ print(f"learners at design load: {learners:,.0f}")
 print(f"leaderboard arrival rate: {leaderboard_rps:.0f} req/s")
 
 # what the old closed-loop script really sent: N / (R + Z)
-vus, mean_latency_s, think_s = 1_000, 0.2, 0.0
+vus, mean_latency_s, think_s = 1_000, 0.01, 3.3
 print(f"BM-0907 closed loop: {vus / (mean_latency_s + think_s):,.0f} req/s from {vus:,} VUs")`, "exam_day_rates.py"),
         code("bash", `
 $ python3 exam_day_rates.py
 learners at design load: 5,762
 leaderboard arrival rate: 600 req/s
-BM-0907 closed loop: 5,000 req/s from 1,000 VUs`, "terminal"),
-        p("Then the k6 script: two open-model scenarios that run together, so the leaderboard competes with submissions for the same database, and course ids drawn with production's weights instead of one fixed id:"),
+BM-0907 closed loop: 302 req/s from 1,000 VUs`, "terminal"),
+        p("BM-0907 offered about half of the leaderboard design rate, and no submissions at all. Then the k6 script: two open-model scenarios that run together, so the leaderboard competes with submissions for the same database, and course ids drawn with production's weights instead of one fixed id:"),
         code("javascript", `
 import http from "k6/http";
 import { SharedArray } from "k6/data";

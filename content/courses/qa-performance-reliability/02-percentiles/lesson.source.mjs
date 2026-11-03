@@ -119,7 +119,7 @@ average of the two p95s  ->  1,555 ms   (not a percentile of the 10,000 requests
 
         h2("7. How to verify a percentile report"),
         bullets([
-            "**Recompute from the raw export.** Take the per-request output of the load tool (k6, Locust and wrk2 can all write raw or detailed results; check the docs of your version) and compute the percentiles yourself. Large differences mean a different method, different filtering, or a different window.",
+            "**Recompute from the raw export.** Take the per-request output of the load tool (k6 writes it with its JSON or CSV output; Locust and wrk2 report aggregates, so collect raw samples with a request hook or from the access log; check the docs of your version) and compute the percentiles yourself. Large differences mean a different method, different filtering, or a different window.",
             "**Sanity checks that must always hold.** p50 <= p95 <= p99 <= max, and with nearest-rank every percentile is a value that appears in the samples. A p99 above the maximum means an extrapolating method.",
             "**Compare the mean with the median.** A mean far above p50 means a skewed or bimodal distribution. Plot a histogram before you explain anything: two humps usually mean two code paths (cache hit and miss, warm and cold, one healthy instance and one sick one).",
             "**Check the counts.** count + failed + invalid must equal the number of records. State the sample count next to every percentile so a reader can tell a p99 from 50 requests from one from 600,000.",

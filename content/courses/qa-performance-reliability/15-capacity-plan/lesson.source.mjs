@@ -19,7 +19,7 @@ export default ({ h2, h3, p, bullets, numbered, code, callout, challenge }) => (
         p("This is the core of the spring plan. It is short, it looks quantitative, and every line of it is an assumption:"),
         code("text", `
 Capacity plan - spring exam (approved)
-  load test:        340 req/s POST /api/submissions, 4 API instances
+  load test:        340 req/s POST /api/submissions, 2 API instances
   API CPU:          40% average
   capacity:         340 / 0.40 = 850 req/s
   headroom:         850 / 340 = 2.5x  -> no changes needed
@@ -35,7 +35,7 @@ demand
   this exam: 4,800 learners enrolled                 -> 262 x 4,800 / 3,700 = 340/s
   past forecasts: actual peak beat the forecast by 9% and by 17%
 
-API instance (step test, lesson 3.3, steady state per step, pool fixed)
+API instance (step test, lesson 3.3, steady state per step, pool of 6, 38 ms hold)
   per instance  100/s  110/s  120/s  130/s  140/s  150/s
   SLI (>=99.5%) 99.9%  99.9%  99.8%  99.7%  99.1%  96.4%
   load balancer: busiest instance received up to 10% above the mean
@@ -61,9 +61,9 @@ grader node: 24 sandboxes; grading queue wait grows sharply above ~80% busy`, "e
         h3("Little's Law for pools and workers"),
         p("For anything that holds a slot while it works, Little's Law (lesson 4.2) gives the average number of busy slots: **L = lambda x W**, arrival rate times time held."),
         bullets([
-            "**Database connections.** 408/s x 0.038 s = 15.5 connections busy on average across the fleet. Spread over the instances that remain after one fails (5 of 6), about 3.1 per instance against a pool of 10. Little's Law gives the mean, not the bursts, so the evidence that the pool is big enough is the pool wait time in the validation run, not this division alone.",
+            "**Database connections.** 408/s x 0.038 s = 15.5 connections busy on average across the fleet. Spread over the instances that remain after one fails (5 of 6), about 3.1 per instance against a pool of 6. Little's Law gives the mean, not the bursts, so the evidence that the pool is big enough is the pool wait time in the validation run, not this division alone.",
             "**Grader sandboxes.** 408/s x 1.6 s = 652.8 sandboxes busy on average. At most 80% busy (above it the queue wait grows sharply) means 652.8 / 0.8 = 816 sandboxes, which is 34 nodes of 24.",
-            "**The pools multiply.** 6 instances x 10 connections = 60 connections that the pooler and PostgreSQL must accept. Check that number against their limits; a plan that adds API instances can break the database it never mentions.",
+            "**The pools multiply.** 6 instances x 6 connections = 36 connections that the pooler and PostgreSQL must accept. Check that number against their limits; a plan that adds API instances can break the database it never mentions.",
         ]),
         h3("Why a utilisation cap and not 100%"),
         p("Near saturation, waiting time grows much faster than load. In the simplest queueing model (one server, random arrivals) the average wait in the queue is `rho / (1 - rho)` service times at utilisation `rho`: 4 service times at 80%, 9 at 90%, 19 at 95%. Real systems differ in the exact curve, which is why the cap comes from the knee you measured, but the shape is the reason no plan runs a queue near 100%."),
@@ -118,7 +118,7 @@ evidence = {
     "api_rps_per_instance": 100,    # step test: SLI held to 130/s per instance, broke at 150/s
     "lb_skew": 0.10,                # busiest instance got 10% above the mean in the test
     "db_hold_s": 0.038,             # mean connection hold time of a submit, from traces
-    "pool_per_instance": 10,
+    "pool_per_instance": 6,         # the pool size the step test ran with
     "grading_s": 1.6,               # mean grading time in the steady state at 340/s
     "sandboxes_per_node": 24,
     "sandbox_util_max": 0.80,       # queue wait grows fast above this, see the knee test
@@ -132,7 +132,7 @@ design_rps                         408
 api_instances                      6
 busiest_instance_rps_after_loss    89.8
 busy_db_conns_per_instance         3.1
-db_conns_total                     60
+db_conns_total                     36
 busy_sandboxes                     652.8
 grader_nodes                       34
 sandbox_util_one_node_lost         0.824`, "output"),
@@ -143,8 +143,8 @@ design load          408/s      forecast 340/s (262/s x 4,800/3,700)         act
                                 + 20% (past forecasts off by 9%, 17%)
 API instances        6          100/s per instance; step test held 130/s,    step test per instance
                                 broke at 150/s; 10% balancing skew; N+1      before each exam
-DB connections       10 x 6     15.5 busy on average (408 x 0.038 s);        pool wait p95 in the
-                                pooler and PostgreSQL accept 60 + admin      validation run
+DB connections       6 x 6      15.5 busy on average (408 x 0.038 s);        pool wait p95 in the
+                                pooler and PostgreSQL accept 36 + admin      validation run
 grader nodes         34 x 24    652.8 busy (408 x 1.6 s) at <= 80%;          queue wait at design load
                                 82% with one node lost                       with one node removed
 admission limit      480/s      > 408 design, < 500 = 5 x 100 after a loss   rejected share in the run`, "capacity-plan-exam-2026-11-12.txt"),

@@ -53,7 +53,7 @@
     "Python": "3 (code runner)",
     "Load tools": "k6 / Locust / wrk2 output formats in lessons (check current docs)"
   },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://grafana.com/docs/k6/latest/",
     "https://github.com/giltene/wrk2",

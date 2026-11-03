@@ -9,6 +9,7 @@ case = {"a": [[latency_ms, ...], ...],   # one list of samples per run of build 
 1. p95 of each run, nearest rank: sort the run's samples, rank = ceil(95 * n / 100),
    p95 = sorted[rank - 1].
 2. diff = mean(p95 of A's runs) - mean(p95 of B's runs)   (positive: B is faster)
+   every mean here is sum(values) / len(values) in floats (not statistics.mean)
 3. Bootstrap over RUNS (a run is the unit, not a sample). PRNG: state starts at S;
    next() sets state = (1103515245 * state + 12345) % 2**31 and returns state; a draw from
    a list of k items picks index next() % k. For each of the R resamples, in this order:
