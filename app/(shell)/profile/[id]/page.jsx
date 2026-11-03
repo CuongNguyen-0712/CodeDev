@@ -5,8 +5,6 @@ import PublicProfilePage from "@/components/profile/publicProfilePage";
 
 import { profileService } from "@/services/profile.service";
 
-export const dynamic = "force-dynamic";
-
 // Next may hand the segment over still percent-encoded (usernames can contain spaces / accents).
 const decodeKey = (value) => {
     try {
@@ -18,6 +16,9 @@ const decodeKey = (value) => {
 
 // One lookup per request, shared by generateMetadata and the page.
 const loadProfile = cache((key) => profileService.getPublicProfile(key));
+
+// Public profiles follow privacy settings at once, so they render per request (not cached).
+export const instant = false;
 
 export async function generateMetadata({ params }) {
     const { id } = await params;

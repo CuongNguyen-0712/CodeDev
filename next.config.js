@@ -2,6 +2,10 @@
 const nextConfig = {
     output: 'standalone',
     reactStrictMode: false,
+    // Cache Components (Partial Prerendering): static shell + cached data ('use cache') + runtime
+    // data streamed behind <Suspense>. See docs/rendering-strategy-plan.md.
+    cacheComponents: true,
+    partialPrefetching: false,
     experimental: {
         // Avatar uploads go through a server action; the service enforces the real 5 MB limit
         // (the default 1 MB would reject larger photos before validation runs).

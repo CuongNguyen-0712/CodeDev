@@ -1,8 +1,6 @@
-import { Suspense } from "react";
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query";
 
 import RoadmapPage from "@/components/roadmap/roadmapPage";
-import { PageSkeleton } from "@/components/ui/loading";
 
 import { roadmapService } from "@/services/roadmap.service";
 import { roadmapQueries } from "@/queries/roadmap.query";
@@ -32,11 +30,10 @@ async function RoadmapList({ searchParams }) {
 	)
 }
 
-// Request-dependent (URL), so behind <Suspense>: with Cache Components the rest is the static shell.
+// The list is the main content and follows the URL; as on /course, a <Suspense> around it would
+// show it late, so the route renders per request.
+export const instant = false;
+
 export default function Page({ searchParams }) {
-	return (
-		<Suspense fallback={<PageSkeleton />}>
-			<RoadmapList searchParams={searchParams} />
-		</Suspense>
-	)
+	return <RoadmapList searchParams={searchParams} />
 }

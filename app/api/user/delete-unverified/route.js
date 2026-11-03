@@ -6,8 +6,6 @@ import { clearLinkConflictCookie, clearRefreshCookie, readLinkConflictCookie } f
 
 import { accountLinkService } from "@/services/accountLink.service";
 
-export const dynamic = "force-dynamic";
-
 // The conflict of this very session, from a Connect just refused (plan 12.4).
 async function sessionConflict(session) {
     const conflict = await readLinkConflictCookie();

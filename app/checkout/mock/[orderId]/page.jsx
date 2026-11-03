@@ -6,6 +6,9 @@ import { LoadingRedirect } from '@/components/ui/loading';
 
 import MockCheckoutPage from '@/components/commerce/mockCheckoutPage';
 
+// Checkout is per request and never cached.
+export const instant = false;
+
 export async function generateMetadata() {
     return {
         title: 'Test payment | CodeDev',

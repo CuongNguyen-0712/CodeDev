@@ -1,9 +1,16 @@
+import { Suspense } from "react";
+import { PageSkeleton } from "@/components/ui/loading";
+
 import { redirect } from "next/navigation";
 
 import { getAuthSession } from "@/lib/session";
 import { onboardingService } from "@/services/onboarding.service";
 
 import HomePage from "@/components/home/homePage";
+
+// The onboarding check redirects before anything is sent, so this page waits for the server
+// (docs/rendering-strategy-plan.md, decision on /home).
+export const instant = false;
 
 export async function generateMetadata() {
     return {
@@ -21,6 +28,8 @@ export default async function Page() {
     }
 
     return (
-        <HomePage />
+        <Suspense fallback={<PageSkeleton />}>
+            <HomePage />
+        </Suspense>
     );
 }

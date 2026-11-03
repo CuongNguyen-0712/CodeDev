@@ -8,6 +8,9 @@ import StydyingPage from "@/components/learning/[id]/studyingPage";
 
 import { courseService } from "@/services/course.service";
 
+// The lesson workspace is per learner and per request.
+export const instant = false;
+
 export async function generateMetadata({ params }) {
     const { id } = await params;
 

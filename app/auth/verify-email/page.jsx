@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+import { PageSkeleton } from "@/components/ui/loading";
+
 import VerifyEmail from "@/components/auth/verifyEmail"
 
 import DefaultLayout from '@/components/layouts/defaultLayout'
@@ -15,7 +18,9 @@ export default function Page() {
     return (
         <DefaultLayout>
             <main className="flex min-h-[70dvh] w-full items-center justify-center px-4 py-16 sm:px-6">
-                <VerifyEmail />
+                <Suspense fallback={<PageSkeleton />}>
+                    <VerifyEmail />
+                </Suspense>
             </main>
         </DefaultLayout>
     )

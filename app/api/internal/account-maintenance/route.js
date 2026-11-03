@@ -4,7 +4,6 @@ import { hasBearerSecret } from "@/lib/requestGuard";
 
 import { runAccountMaintenance } from "@/services/accountMaintenance.service";
 
-export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**

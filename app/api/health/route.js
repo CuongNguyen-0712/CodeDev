@@ -3,8 +3,6 @@ import { NextResponse } from "next/server";
 import { hasBearerSecret } from "@/lib/requestGuard";
 import { checkDatabase, healthReport } from "@/services/health.service";
 
-export const dynamic = "force-dynamic";
-
 const NO_STORE = { "Cache-Control": "no-store" };
 
 /**

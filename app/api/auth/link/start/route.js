@@ -4,8 +4,6 @@ import { rateLimiters } from "@/lib/rateLimit";
 import { apiRoute } from "@/lib/routeHandler";
 import { PROVIDER_LABEL } from "@/services/accountLink.service";
 
-export const dynamic = "force-dynamic";
-
 /**
  * POST /api/auth/link/start { provider }: "Connect" in Settings (plan 10.4). Remembers the
  * signed-in user and session for 10 minutes; the client then runs the provider's sign-in and the

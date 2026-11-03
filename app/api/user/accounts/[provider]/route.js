@@ -2,8 +2,6 @@ import { RateLimiter, rateLimiters } from "@/lib/rateLimit";
 import { apiRoute } from "@/lib/routeHandler";
 import { accountLinkService } from "@/services/accountLink.service";
 
-export const dynamic = "force-dynamic";
-
 /**
  * DELETE /api/user/accounts/:provider: disconnects GitHub / Google (plan 10.5). Refused with
  * 409 LAST_SIGN_IN_METHOD when nothing else (password or another provider) could sign in.

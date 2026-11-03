@@ -11,8 +11,6 @@ import { AUTH_ERROR, TOKEN, isFatalSessionError } from "@/constants/auth";
 
 import { authService } from "@/services/auth.service";
 
-export const dynamic = "force-dynamic";
-
 // Client-generated, reused for every retry of the same refresh (see lib/authRefresh.js).
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{16,128}$/;
 

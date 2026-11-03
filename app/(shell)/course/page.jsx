@@ -1,8 +1,6 @@
-import { Suspense } from "react";
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query";
 
 import CoursePage from "@/components/course/coursePage";
-import { PageSkeleton } from "@/components/ui/loading";
 
 import { courseService } from "@/services/course.service";
 import { courseQueries } from "@/queries/course.query";
@@ -43,12 +41,12 @@ async function CourseList({ searchParams }) {
     )
 }
 
-// The list depends on the request (URL and viewer), so it sits behind <Suspense>: with Cache
-// Components the rest of the route is the prerendered shell.
+// The list is the page's main content and depends on the request (URL and viewer). Behind <Suspense>
+// it would stream into a hidden segment that shows only when React reveals it, seconds later on a
+// slow phone (measured: LCP 1.6 s -> 5.7 s), so the route renders per request instead of keeping a
+// prerendered shell around a skeleton.
+export const instant = false;
+
 export default function Page({ searchParams }) {
-    return (
-        <Suspense fallback={<PageSkeleton />}>
-            <CourseList searchParams={searchParams} />
-        </Suspense>
-    )
+    return <CourseList searchParams={searchParams} />
 }

@@ -1,28 +1,30 @@
-import { cache } from "react"
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 
 import PreviewPage from "@/components/course/params/previewPage"
 import { CourseContent, CourseMobileBar, CoursePageFrame } from "@/components/course/params/courseContent"
+import { PageSkeleton } from "@/components/ui/loading"
 
-import { courseService } from "@/services/course.service"
 import { courseQueries } from "@/queries/course.query"
+import { courseExists, getPrerenderedCourseIds, getPublicCourse } from "@/lib/cachedData"
+import { dehydrateCached } from "@/lib/hydrate"
+import { cacheTags } from "@/lib/pageCache"
 
 import DefaultLayout from "@/components/layouts/defaultLayout";
 
-import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query";
+import { HydrationBoundary } from "@tanstack/react-query";
 
-// ISR: the page holds only the public course (same for everyone), so one copy serves every visitor.
-// The viewer's enrolment, progress and ownership load in the browser (hooks/useCourseDetails).
-// Regenerated after TTL.COURSE_DETAILS_PUBLIC at the latest; writes drop it at once (lib/pageCache).
-export const revalidate = 300;
+// ISR: the page holds only the public course (same for everyone, 'use cache' in lib/cachedData), so
+// one copy serves every visitor. The viewer's enrolment, progress and ownership load in the browser
+// (hooks/useCourseDetails). Writes mark it stale at once (lib/pageCache).
 
-// No course is built ahead: each page is generated on its first visit, then served from the cache.
+// The newest courses are built ahead; any other is generated on its first visit, then cached.
+// `params` is awaited outside <Suspense>, so that first visit creates the URL's own ISR entry.
 export async function generateStaticParams() {
-    return [];
+    return (await getPrerenderedCourseIds()).map((id) => ({ id }));
 }
 
-// One lookup per render, shared by generateMetadata and the page (Redis-cached in the service).
-const loadCourse = cache((id) => courseService.getDetails({ courseId: id }));
+const loadCourse = (id) => getPublicCourse(id);
 
 export async function generateMetadata({ params }) {
     const { id } = await params;
@@ -52,24 +54,27 @@ export default async function Page({ params }) {
 
     // Unknown or deleted: a real 404. Unpublished: still open to the learners who own it, so the
     // browser asks again with their session (the API decides).
-    if (data === null && !(await courseService.exists(id).catch(() => true))) notFound();
+    if (data === null && !(await courseExists(id).catch(() => true))) notFound();
 
-    const queryClient = new QueryClient();
-    if (data) {
-        queryClient.setQueryData(courseQueries.details(id).queryKey, data);
-    }
+    // TanStack's dehydrate() reads the clock, which a prerender rejects (lib/hydrate).
+    const state = await dehydrateCached(
+        data ? [{ queryKey: courseQueries.details(id).queryKey, data }] : [],
+        { tags: [cacheTags.course(id)] }
+    );
 
     // Published: the page is rendered here, on the server; only the islands are client code.
     // Otherwise the client fallback fetches it with the viewer's session.
     return (
         <DefaultLayout>
-            <HydrationBoundary state={dehydrate(queryClient)}>
+            <HydrationBoundary state={state}>
                 {data ? (
                     <CoursePageFrame title={data.title} mobileBar={<CourseMobileBar course={data} courseId={id} />}>
                         <CourseContent course={data} courseId={id} />
                     </CoursePageFrame>
                 ) : (
-                    <PreviewPage params={{ id }} />
+                    <Suspense fallback={<PageSkeleton />}>
+                        <PreviewPage params={{ id }} />
+                    </Suspense>
                 )}
             </HydrationBoundary>
         </DefaultLayout>

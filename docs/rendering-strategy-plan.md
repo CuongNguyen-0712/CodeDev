@@ -189,6 +189,28 @@ Rủi ro:
 - **Hai nguồn sự thật cho một màn hình:** server render và cache React Query. Quy tắc để tránh: phần server render là dữ liệu public; dữ liệu của viewer chỉ có ở island.
 - **Realtime:** sự kiện Pusher đổi dữ liệu server render phải đi qua `revalidateTag` phía server (đã có điểm gọi trong service) hoặc `router.refresh()`.
 
+## Trạng thái B1-B5 (2026-11-03)
+
+| Phase | Commit | Đã làm |
+|---|---|---|
+| B1 | `b1501784` | `components/auth/signedIn.jsx`: banner xác minh email, `RankUpWatcher` và `LevelPointsChip` chỉ render khi đã đăng nhập (không bao giờ trên server). Menu tài khoản và chuông trong navbar vốn đã theo `status` |
+| B2 | `900d2582` | `/course/[id]` là Server Component (`courseContent.jsx`, không hook). Island trong `courseIslands.jsx`: nút quay lại, badge ghi danh, nút mua / ghi danh / yêu thích, ảnh bìa, logo, comment, thanh mua trên điện thoại. `previewPage` là đường dự phòng phía client (khoá chưa publish, tải lỗi) |
+| B3 | `2edc3541` | Kệ khoá học ở landing và about nhận dữ liệu qua props từ server. `/roadmap/[id]` render bản khách từ dữ liệu server; chỉ đọc React Query khi đã đăng nhập |
+| B4 | `f1d36b78` | Catalog đọc `searchParams` / session trong component con. Sau đó đổi lại ở B5, xem bên dưới |
+| B5 | (commit này) | `cacheComponents: true` (`partialPrefetching` vẫn `false`). Lấy lại từ nhánh WIP: bỏ 16 `force-dynamic`, `lib/cachedData.js` (`'use cache'` cho thống kê, kệ khoá học, khoá học public, kiểm tồn tại, roadmap public; id prerender sẵn), `lib/hydrate.js`, `lib/pageCache.js` dùng `revalidateTag(tag, "max")`, footer `'use cache'`. `apiRoute` gọi `connection()` trước khi đọc cookie (bỏ 37 log `HANGING_PROMISE_REJECTION` lúc build). `<Suspense>` + skeleton cho trang private và trang auth đọc React Query / thời gian lúc render. `instant = false` cho `/home` (redirect onboarding), `/profile/[id]`, `/learning/[id]`, `/orders/[id]`, `/checkout/mock/[orderId]`, `/admin`, `/studio` (thư mục bị gitignore, sửa tay) |
+
+**Bài học ở B5:** khi nội dung chính của trang phụ thuộc request (danh sách catalog theo URL và viewer), đặt nó sau `<Suspense>` để có shell PPR là **lùi bước**. Nội dung được stream vào segment ẩn và chỉ hiện khi React reveal: `/course` LCP 1.6 s → 5.7 s trên mobile chậm. Vì vậy `/course` và `/roadmap` dùng `instant = false` và render chặn như R1 (LCP đo lại 1.94 s). PPR chỉ có ích khi phần động **nhỏ** so với phần tĩnh.
+
+Kết quả bảng route (build có Cache Components):
+- `○` tĩnh: `/`, `/about`, `/blog`, `/help`, `/auth/*`, các khung trang private.
+- `○` cho 12 khoá mới nhất và mọi roadmap (prerender sẵn); `◐` cho id khác: khung chung, tạo theo URL ở lần vào đầu.
+- `ƒ`: `/course`, `/roadmap`, `/home`.
+- `◐` các route `[id]` per-request.
+
+Kiểm chứng: test 398 pass, lint 0 lỗi, `npm run budget` OK (`/` 1102/1160 KB). Bản production local: các trang công khai trả 200; khoá không tồn tại 404. Khi đã đăng nhập: `/home`, `/learning`, `/ranking`, `/orders`, `/profile`, `/settings`, `/contact`, trang khoá học (nút viewer đúng) và workspace bài học (editor) không lỗi. `/course/[id]` là HIT, `x-nextjs-prerender: 1`, `s-maxage=300`; LCP 2.06 s, CLS 0.04 (R2: 1.77 s / 0.02).
+
+**Đổi hành vi cần biết:** `/profile/<không tồn tại>` giờ trả **200** với trang "Page not found" và `noindex` (soft 404), thay vì status 404. Lý do: khung shell tĩnh đã gửi đi trước khi page gọi `notFound()`. Muốn có lại 404 thật thì đưa `/profile/[id]` ra khỏi route group `(shell)` hoặc cho layout biết sớm. Chưa làm.
+
 ## 7. Không làm
 
 - Không cache trang có tác dụng phụ hoặc trạng thái tiền (`/orders/[id]`, `/checkout/*`, `/admin/*`).
