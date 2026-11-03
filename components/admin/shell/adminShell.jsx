@@ -30,9 +30,9 @@ const ICONS = {
 };
 
 const ENVIRONMENTS = {
-    production: { label: "Production", chip: "border-warning/30 bg-warning-soft text-warning", dot: "bg-warning", stripe: "bg-warning" },
-    staging: { label: "Staging", chip: "border-info/30 bg-info-soft text-info", dot: "bg-info", stripe: "bg-info" },
-    development: { label: "Development", chip: "border-success/30 bg-success-soft text-success", dot: "bg-success", stripe: null },
+    production: { label: "Production", chip: "border-warning/30 bg-warning-soft text-warning", dot: "bg-warning" },
+    staging: { label: "Staging", chip: "border-info/30 bg-info-soft text-info", dot: "bg-info" },
+    development: { label: "Development", chip: "border-success/30 bg-success-soft text-success", dot: "bg-success" },
 };
 
 function NavItems({ items, activeKey }) {
@@ -147,7 +147,6 @@ export default function AdminShell({ permissions, environment, user, children })
 
     return (
         <AdminProvider permissions={permissions} environment={environment}>
-            {env.stripe && <div aria-hidden="true" className={cn("fixed inset-x-0 top-0 z-50 h-1", env.stripe)} />}
             <SidebarProvider className="h-dvh min-h-0 overflow-hidden">
                 <a
                     href="#admin-main"

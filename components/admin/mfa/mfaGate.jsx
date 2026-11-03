@@ -12,6 +12,8 @@ import { LogoMark } from "@/components/ui/logo";
 import { Button } from "@/components/shadcn/button";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/shadcn/field";
 
+import { LuCheck, LuCopy } from "react-icons/lu";
+
 const inputClass = "h-10 w-full rounded-md border border-input bg-background px-3 font-mono text-base tracking-widest focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
 const group = (secret) => secret.match(/.{1,4}/g).join(" ");
 
@@ -88,6 +90,7 @@ function Enroll() {
     const router = useRouter();
     const [setup, setSetup] = useState(null);
     const [codes, setCodes] = useState(null);
+    const [copied, setCopied] = useState(false);
     const [error, setError] = useState("");
     const [busy, setBusy] = useState(false);
     const [freshSignIn, setFreshSignIn] = useState(false);
@@ -113,16 +116,27 @@ function Enroll() {
         setBusy(false);
     };
 
+    const copy = () => navigator.clipboard?.writeText(codes.join("\n")).then(() => setCopied(true), () => {});
+
     if (codes) {
         return (
             <Shell title="Save your recovery codes" description="If you lose your phone, each of these opens the admin area once. They are shown only now: keep them in a password manager.">
-                <ol className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-card p-4 font-mono text-sm">
-                    {codes.map((code) => <li key={code}>{code}</li>)}
+                <ol className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-card p-3" aria-label="Recovery codes">
+                    {codes.map((code, index) => (
+                        <li key={code} className="flex items-center gap-2 rounded-md bg-muted px-2.5 py-2 sm:gap-2.5 sm:px-3">
+                            <span className="w-4 shrink-0 text-right text-xs tabular-nums text-muted-foreground" aria-hidden="true">{index + 1}</span>
+                            <code className="font-mono text-sm whitespace-nowrap tabular-nums select-all sm:text-[0.9375rem] sm:tracking-wider">{code}</code>
+                        </li>
+                    ))}
                 </ol>
-                <div className="flex justify-between gap-3">
-                    <Button variant="outline" onClick={() => navigator.clipboard?.writeText(codes.join("\n")).catch(() => {})}>Copy codes</Button>
+                <div className="flex flex-wrap justify-between gap-3">
+                    <Button variant="outline" onClick={copy}>
+                        {copied ? <LuCheck aria-hidden="true" /> : <LuCopy aria-hidden="true" />}
+                        {copied ? "Copied" : "Copy codes"}
+                    </Button>
                     <Button onClick={() => router.refresh()}>I saved them</Button>
                 </div>
+                <p className="sr-only" aria-live="polite">{copied ? "Recovery codes copied." : ""}</p>
             </Shell>
         );
     }
