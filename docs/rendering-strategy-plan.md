@@ -116,6 +116,14 @@ Mỗi phase là một PR. Định nghĩa xong: lint, test, `next build`, `npm ru
 3. **Kiểm onboarding ở `/home`:** chuyển vào proxy là thay đổi auth, cần duyệt.
 4. **Trạng thái viewer trên trang chi tiết:** chấp nhận tải bằng CSR (một request nhỏ, có skeleton) hay stream bằng PPR (chỉ có khi làm Bước B).
 
+### Đánh giá và đề xuất (2026-11-03)
+
+| Quyết định | Hiện trạng | Mức | Đề xuất |
+|---|---|---|---|
+| Nơi lưu `'use cache'` | Production chạy trên Vercel (`docs/environments.md`, production checklist); Docker standalone là phương án phụ. Chưa có `'use cache'` nào. Cache dùng chung hiện là Redis trong service (`redis.remember`, version key theo user), cộng ISR ở `/` và `/about` | Thấp: chỉ cần khi làm Bước B | Dùng `'use cache'` thường. Kết quả được prerender vào static shell hoặc output ISR thì bền: Vercel lưu nó, Docker lưu trong `.next`. Redis trong service vẫn là lớp cache runtime dùng chung, nên chưa cần `'use cache: remote'` hay `cacheHandlers` riêng (docs: nền tảng hosting thường tự cung cấp handler). Chỉ thêm handler Redis khi tự host **nhiều** container và đo thấy cache runtime bị miss nhiều |
+| Kiểm onboarding của `/home` | Mỗi lần vào `/home`: một lần đọc session và một query DB có index, không cache (`onboardingDb.getState`). Lỗi thì cho qua (`false`). Chỉ người dùng mới có trạng thái pending | Thấp | **Giữ trong page, không chuyển vào proxy.** Muốn chuyển phải thêm cờ vào JWT và cập nhật token khi người dùng hoàn tất hoặc bỏ qua onboarding; token cũ có thể gây vòng redirect. Đó là thay đổi auth với lợi ích một query. Tuỳ chọn rẻ: cache trạng thái cuối (`completed` / `skipped` không bao giờ quay lại) trong Redis cache của user. Ở Bước B để `/home` chặn trên server (`instant = false`), vì redirect sau khi shell đã stream sẽ làm màn hình nháy |
+| Trạng thái viewer trên trang chi tiết | `courseService.getDetails` ghép phần public (Redis) với 4 cột của viewer (`is_favorite`, `status`, `progress`, `owned`; một query có index) vào cùng key React Query `courseKeys.details(id)`. Page đọc session nên mọi request đều là SSR | Trung bình: khách vẫn nhanh nhờ Redis, nhưng trang không thể là ISR hay CDN | **Bước A: tải phía client.** Tách thành query riêng `courseKeys.viewer(id)` với một route GET nhỏ (khách nhận `null`). Vùng nút mua, ghi danh, yêu thích có skeleton để không gây CLS; mutation invalidate key này. Không dùng lại `details` cho viewer: dữ liệu public hydrate từ server sẽ còn "fresh" 30 s, nên client không hỏi lại và người đã đăng nhập sẽ thấy trạng thái khách. Việc tách này cũng là điều kiện của Bước B: lúc đó viewer stream trong `<Suspense>` và prefetch vào chính key ấy |
+
 ## 7. Không làm
 
 - Không cache trang có tác dụng phụ hoặc trạng thái tiền (`/orders/[id]`, `/checkout/*`, `/admin/*`).
