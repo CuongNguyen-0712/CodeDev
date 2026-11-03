@@ -73,7 +73,7 @@ export default function CourseAdmin() {
     return (
         <>
             {courses.length > 0 && (
-                <ListSearch value={q} onChange={(value) => update({ q: value })} label="Search courses by title, slug or status" shown={shown.length} total={courses.length} noun="courses" />
+                <ListSearch value={q} onChange={(value) => update({ q: value })} label="Search courses by title, slug or status" shown={shown.length} total={courses.length} noun="courses" delay={300} />
             )}
             <Table>
                 <TableHeader>

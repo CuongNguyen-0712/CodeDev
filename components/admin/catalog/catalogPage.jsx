@@ -74,7 +74,7 @@ export default function CatalogPage() {
             />
             <TabBar tabs={KINDS} value={kind} onChange={(key) => update({ kind: key, q: "" })} label="Catalog lists" />
             {query.data?.items.length > 0 && (
-                <ListSearch value={q} onChange={(value) => update({ q: value })} label={`Search ${meta.label.toLowerCase()}`} shown={items.length} total={query.data.items.length} noun={meta.label.toLowerCase()} />
+                <ListSearch value={q} onChange={(value) => update({ q: value })} label={`Search ${meta.label.toLowerCase()}`} shown={items.length} total={query.data.items.length} noun={meta.label.toLowerCase()} delay={300} />
             )}
 
             <section tabIndex={0} className="overflow-x-auto rounded-lg border border-border bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" aria-label={meta.label} aria-busy={query.isPending}>
