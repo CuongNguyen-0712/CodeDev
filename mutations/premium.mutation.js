@@ -104,3 +104,4 @@ export const useAdminRevokeUserSessions = () => useAdminWrite((input) => adminCl
 export const useAdminCancelRun = () => useAdminWrite((input) => adminClient.cancelRun(input));
 export const useAdminExpireRuns = () => useAdminWrite((input) => adminClient.expireRuns(input));
 export const useAdminUpdateChallenge = () => useAdminWrite((input) => adminClient.updateChallenge(input));
+export const useAdminSetRatingHidden = () => useAdminWrite((input) => adminClient.setRatingHidden(input));

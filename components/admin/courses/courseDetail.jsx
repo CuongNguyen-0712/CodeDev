@@ -10,6 +10,7 @@ import { QUERY_TIMES, retryTransient } from "@/lib/queryTimes";
 import { useAdmin } from "@/components/admin/adminContext";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import ChallengeManager from "@/components/admin/challenges/challengeManager";
+import CourseRatings from "@/components/admin/courses/courseRatings";
 import PageHeader from "@/components/admin/shell/pageHeader";
 import Finding from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
@@ -26,6 +27,7 @@ import { LuArrowDown, LuArrowUp, LuCheck, LuExternalLink, LuEye, LuEyeOff, LuTri
 const TABS = [
     { key: "structure", label: "Structure" },
     { key: "challenges", label: "Challenges" },
+    { key: "feedback", label: "Feedback", permission: "comment.moderate" },
 ];
 
 function MoveButtons({ disabledUp, disabledDown, onMove, label }) {
@@ -98,8 +100,8 @@ export default function CourseDetail({ courseId }) {
 
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
                 <div className="min-w-0">
-                    <TabBar tabs={TABS} value={tab} onChange={setTab} label="Course sections" />
-                    {tab === "challenges" ? <ChallengeManager courseId={courseId} /> : (
+                    <TabBar tabs={TABS.filter((item) => !item.permission || can(item.permission))} value={tab} onChange={setTab} label="Course sections" />
+                    {tab === "challenges" ? <ChallengeManager courseId={courseId} /> : tab === "feedback" ? <CourseRatings courseId={courseId} /> : (
                         <div className="space-y-4">
                             {course.modules.length === 0 && <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">This course has no module yet. Modules and lessons come from the content seeds.</p>}
                             {course.modules.map((module, moduleIndex) => (

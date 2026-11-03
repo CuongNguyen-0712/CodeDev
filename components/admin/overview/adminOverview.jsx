@@ -112,7 +112,7 @@ function Kpis({ counts }) {
 
 /** How many kinds of work wait in Needs attention: a warning chip, or a calm one when nothing waits. */
 function AttentionBadge({ counts }) {
-    const waiting = [counts.dead_letters_open, counts.runs_expired, counts.purge_soon, counts.courses?.draft].filter((count) => count > 0).length;
+    const waiting = [counts.dead_letters_open, counts.runs_expired, counts.purge_soon, counts.courses?.draft, counts.courses_low_rated].filter((count) => count > 0).length;
     return waiting ? <Badge variant="warning">{waiting} to review</Badge> : <Badge variant="success">Clear</Badge>;
 }
 
@@ -122,6 +122,7 @@ function NeedsAttention({ counts, can }) {
         { key: "expired", count: counts.runs_expired, label: "Code runs stuck past the deadline", href: "/admin/runs?tab=active", permission: "submission.read" },
         { key: "purge", count: counts.purge_soon, label: "Unverified accounts removed within a day", href: "/admin/users?tab=unverified", permission: "user.read" },
         { key: "draft", count: counts.courses?.draft || 0, label: "Draft courses", href: "/admin/courses", permission: "admin.read" },
+        { key: "rating", count: counts.courses_low_rated || 0, label: "Courses rated below 3 (5+ ratings)", href: "/admin/courses", permission: "comment.moderate" },
     ].filter((row) => row.count > 0);
 
     if (rows.length === 0) return <p className="text-sm text-muted-foreground">Nothing is waiting. Queues are empty and no job failed for good.</p>;

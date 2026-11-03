@@ -26,6 +26,7 @@ export const adminDashboardDb = {
             (SELECT COUNT(*) FROM challenge.code_runs WHERE queued_at >= date_trunc('day', now()) AND status IN ('failed', 'timeout'))::int AS runs_failed_today,
             (SELECT COUNT(*) FROM challenge.code_runs WHERE status IN ('queued', 'running') AND deadline_at < now())::int AS runs_expired,
             (SELECT COUNT(*) FROM ops.dead_letters WHERE resolved_at IS NULL)::int AS dead_letters_open,
+            (SELECT COUNT(*) FROM catalog.course WHERE is_deleted IS NOT TRUE AND rating_count >= 5 AND rating_avg < 3)::int AS courses_low_rated,
             (SELECT COUNT(*) FROM identity.users WHERE purge_after IS NOT NULL AND email_verified IS NOT TRUE AND status = 'active' AND purge_after <= now() + interval '1 day')::int AS purge_soon,
             (SELECT COUNT(*) FROM learning.register WHERE created_at > now() - interval '7 days')::int AS enrollments_7d,
             (SELECT COUNT(*) FROM commerce.orders WHERE created_at > now() - interval '7 days')::int AS orders_7d
