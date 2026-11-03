@@ -113,7 +113,7 @@ describe.skipIf(!process.env.DATABASE_URL)("enrollLearner (PostgreSQL)", () => {
         h2("4. The pyramid and the trophy are arguments about cost"),
         p("You will meet two pictures of a healthy test suite. Both are useful once you see that they answer the same question: **where do we spend our testing time?**"),
         bullets([
-            "**The test pyramid** (Mike Cohn; described in Martin Fowler's \"The Practical Test Pyramid\"): many unit tests at the bottom, fewer integration tests in the middle, a handful of end-to-end tests at the top. The reason is cost: the higher a test sits, the slower it runs, the more it breaks for unrelated reasons, and the less precisely its failure tells you what is wrong.",
+            "**The test pyramid** (Mike Cohn; described in Ham Vocke's \"The Practical Test Pyramid\" on martinfowler.com): many unit tests at the bottom, fewer integration tests in the middle, a handful of end-to-end tests at the top. The reason is cost: the higher a test sits, the slower it runs, the more it breaks for unrelated reasons, and the less precisely its failure tells you what is wrong.",
             "**The testing trophy** (Kent C. Dodds): static analysis at the base, then unit tests, then the largest share of integration tests, then a few end-to-end tests. The reason is also cost, measured differently: integration tests give more confidence per test for code that is mostly wiring, such as an API handler that reads a request, calls the database and returns JSON.",
         ]),
         p("They disagree about the middle because they assume different code. Code full of rules and calculations (points, progress, prices, levels) is cheap to test at the unit level. Code that mostly moves data between a request and a database has few rules of its own, and its bugs live in the joints, so integration tests catch more of them. Neither picture is a quota. Nobody should ask \"do we have 70% unit tests?\"; ask \"for the bugs we actually have, what is the cheapest test that catches them?\""),
@@ -172,7 +172,7 @@ describe.skipIf(!process.env.DATABASE_URL)("enrollLearner (PostgreSQL)", () => {
 
         h2("Sources"),
         bullets([
-            "Martin Fowler / Ham Vocke, The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
+            "Ham Vocke, The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
             "Vitest documentation, Getting Started and the CLI reporters - vitest.dev",
         ]),
         callout("tip", "Practice on your own (not graded)",

@@ -221,7 +221,7 @@ echo "100 shuffled runs passed"`, "terminal (Vitest 3.x; check the sequence opti
         h2("Sources"),
         bullets([
             "Vitest documentation: configuration options isolate, retry and sequence (shuffle, seed), and vi.useFakeTimers / vi.setSystemTime - vitest.dev/config and vitest.dev/api/vi",
-            "Martin Fowler: The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
+            "Ham Vocke: The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
             "MDN: Map (iteration in insertion order) and Array.prototype.sort (stable since ES2019) - developer.mozilla.org",
         ]),
         callout("tip", "Self-practice (not graded): add a CI job that runs the suite in random order",

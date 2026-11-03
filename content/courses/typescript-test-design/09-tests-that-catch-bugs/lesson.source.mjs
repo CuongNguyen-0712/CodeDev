@@ -132,7 +132,7 @@ test.each([
         bullets([
             "Vitest documentation: test.each - vitest.dev/api",
             "StrykerJS documentation: mutant states (killed, survived) and supported mutators - stryker-mutator.io/docs",
-            "Martin Fowler: The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
+            "Ham Vocke: The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
         ]),
         callout("tip", "Self-practice (not graded): mutate your own tests",
             "Pick one function with a business rule from a project you work on and its tests. Make five mutants by hand - one comparison flipped, one constant changed, one line removed, one rounding changed, two branches swapped - and run the tests after each. Write down which mutants survived and add one case for each, with a name that says which edge it covers."),

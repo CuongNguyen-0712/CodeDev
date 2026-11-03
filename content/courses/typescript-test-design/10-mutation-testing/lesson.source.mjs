@@ -133,7 +133,7 @@ npx stryker run --incremental`, "terminal (check both options in the docs of you
         bullets([
             "StrykerJS documentation: getting started, configuration (mutate, thresholds, incremental), mutant states and the list of mutators - stryker-mutator.io/docs",
             "Vitest documentation: coverage - vitest.dev/guide/coverage",
-            "Martin Fowler: The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
+            "Ham Vocke: The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
         ]),
         callout("tip", "Self-practice (not graded): one survivor at a time",
             "Install StrykerJS in a small project of your own with tests, limit `mutate` to one file that holds a business rule, and run it. For every survivor, write one line: missing test (then write it), equivalent (then add a disable comment with the reason), or not worth testing (and why). Run it again and compare the score and the list."),

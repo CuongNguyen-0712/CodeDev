@@ -195,7 +195,7 @@ test("a new enrollment sends one welcome email; a duplicate sends none", async (
         h2("Sources"),
         bullets([
             "Vitest guide, Mocking (functions, vi.fn, vi.spyOn, modules) - vitest.dev/guide/mocking",
-            "Martin Fowler, Mocks Aren't Stubs, and The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
+            "Martin Fowler, Mocks Aren't Stubs - martinfowler.com/articles/mocksArentStubs.html; Ham Vocke, The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
             "PostgreSQL documentation, Appendix A: Error Codes (23505 unique_violation)",
         ]),
         callout("tip", "Practice on your own (not graded)",

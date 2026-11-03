@@ -190,7 +190,7 @@ test("the reminder goes out one hour before the deadline", () => {
         bullets([
             "Vitest guide, Mocking: dates and timers (vi.useFakeTimers, vi.setSystemTime, vi.advanceTimersByTime) - vitest.dev/guide/mocking",
             "MDN Web Docs: Date, Date.UTC() and Date.prototype.toISOString()",
-            "Martin Fowler, The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
+            "Ham Vocke, The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
         ]),
         callout("tip", "Practice on your own (not graded)",
             "Search your own project for new Date() and Date.now(). For each hit, decide whether it is an edge (keep it) or a decision (inject the clock), and add one test at an exact boundary instant for the most important decision. Then add a CI job that runs the suite with TZ=UTC and compare it with your local zone."),

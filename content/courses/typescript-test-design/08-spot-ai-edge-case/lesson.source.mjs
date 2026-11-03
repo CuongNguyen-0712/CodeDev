@@ -145,7 +145,7 @@ test.each([
         bullets([
             "MDN: Number.isInteger, Number.MAX_SAFE_INTEGER and Math.round - developer.mozilla.org",
             "Vitest documentation: test.each - vitest.dev/api",
-            "Martin Fowler: The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
+            "Ham Vocke: The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
         ]),
         callout("tip", "Self-practice (not graded): review an AI-written rule",
             "Pick a rule from a project of your own that contains a number: a minimum order amount, a password length, a rate limit. Ask an AI assistant to implement it and to write tests. Before you read its answer, write the edge list from section 3. Then count how many of your edges its tests cover, and add the missing ones as test.each rows with a why column."),

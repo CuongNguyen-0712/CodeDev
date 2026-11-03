@@ -41,10 +41,10 @@
   ],
   "testedVersions": {
     "TypeScript": "5.9.3 (tsc --strict in the code runner)",
-    "Vitest": "3.x (lesson examples)",
+    "Vitest": "3.x (lesson examples; current release 5.1, examples checked against the 4.0/5.0 migration guides, not run on 5.x)",
     "StrykerJS": "lesson examples, check current docs"
   },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://martinfowler.com/articles/practical-test-pyramid.html",
     "https://vitest.dev/guide/mocking",

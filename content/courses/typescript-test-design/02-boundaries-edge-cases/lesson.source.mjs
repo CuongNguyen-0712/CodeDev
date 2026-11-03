@@ -182,7 +182,7 @@ function calculateProgress(lessons: unknown, completions: unknown): Progress {
         h2("Sources"),
         bullets([
             "Vitest API reference: test.each and test.todo - vitest.dev/api",
-            "Martin Fowler / Ham Vocke, The Practical Test Pyramid (unit tests and what to test) - martinfowler.com/articles/practical-test-pyramid.html",
+            "Ham Vocke, The Practical Test Pyramid (unit tests and what to test) - martinfowler.com/articles/practical-test-pyramid.html",
         ]),
         callout("tip", "Practice on your own (not graded)",
             "Pick one function with a limit in a project you know (a page size, a minimum password length, a discount threshold). Write its test list as it.todo entries with the four kinds of input, then turn them into tests and check each boundary by flipping its comparison once."),

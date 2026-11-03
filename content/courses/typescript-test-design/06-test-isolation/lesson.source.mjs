@@ -204,7 +204,7 @@ test("the shuffle keeps every question exactly once", () => {
         bullets([
             "Vitest guide: Test Filtering, Improving Performance (pools, isolate, file parallelism) and the sequence configuration options - vitest.dev",
             "Vitest guide, Mocking: restoring mocks, timers and environment variables - vitest.dev/guide/mocking",
-            "Martin Fowler, The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
+            "Ham Vocke, The Practical Test Pyramid - martinfowler.com/articles/practical-test-pyramid.html",
         ]),
         callout("tip", "Practice on your own (not graded)",
             "Run your project's test suite with --sequence.shuffle five times and write down every test that fails in at least one run, with its seed. For each, find the shared state using the three questions from section 2 and fix the state rather than the order. Then search the source folders for top-level new Map(), let and singleton instances, and decide for each one whether tests need a way to get a fresh copy."),
