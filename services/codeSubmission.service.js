@@ -19,7 +19,7 @@ async function resolveCodingChallenge({ userId, challengeId }) {
     const response = await challengeDb.getChallengeContext({ userId, challengeId: id });
     const ctx = response?.rows?.[0];
 
-    if (!ctx) {
+    if (!ctx || ctx.lesson_unavailable) {
         throw new ApiError("Challenge not found", 404);
     }
 

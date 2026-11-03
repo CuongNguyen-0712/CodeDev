@@ -383,6 +383,12 @@ ALTER TABLE identity.users
 
 - `/admin/courses/[id]`: cây module → lesson → challenge. Sửa tiêu đề, `order_index`, `is_hidden`; xoá mềm (`is_deleted`). Mỗi lesson có link "Mở trong Studio" tới document Sanity tương ứng (`content_source`).
 - Bộ đếm `modules / lessons` của course cập nhật trong cùng transaction khi ẩn / hiện (như `catalog.course_publish_sync` đang làm cho publish).
+- **Ẩn với học viên nghĩa là gì** (migration `20261103_001_hidden_lessons`, test `__tests__/learning/hiddenLessons.integration.test.js`). Lesson ẩn, hoặc lesson thuộc module ẩn:
+  - không có trong syllabus (`courseDb.getCourseDetails`), trong trình học (`learning_progress_content`) và trong EXP ước tính của catalog;
+  - không mở được: `assert_lesson_access` trả `CD404` "This lesson is not available" (sau kiểm tra quyền `CD403`), nên trang lesson và nộp lesson trả 404; challenge của nó trả 404 "Challenge not found" (`getChallengeContext.lesson_unavailable`);
+  - không tính vào tiến độ: `submit_lesson` bỏ qua nó khi mở khoá lesson kế tiếp, chỉ đếm lesson hiện cho tổng, cho số đã xong (`learning.register.progress`) và cho điều kiện hoàn thành; `course_completion_status` bỏ challenge của nó;
+  - không đếm: `course.module.lessons`, `catalog.course.modules` và `catalog.course.lessons` chỉ đếm mục hiện (trigger `lesson_module_change` / `lesson_course_change`).
+  - Mở khoá vẫn tuần tự trên các lesson hiện. `unlock_first_open_lesson` (gọi ở trình học và trang lesson) luôn mở lesson hiện đầu tiên chưa xong: học viên đang ở lesson bị ẩn được chuyển sang lesson hiện kế tiếp; lesson được hiện lại nằm trước vị trí học viên thì mở cho họ và phải học xong mới tính hoàn thành lại. Course đã `completed` thì giữ nguyên. Dòng `learning.history` của lesson ẩn được giữ, nên hiện lại thì trạng thái của học viên trở về như cũ.
 - Checklist trước khi publish (cảnh báo, không chặn): có module, mọi lesson có `content_source`, challenge coding có test case, có offer nếu `premium`.
 
 **Catalog** (`/admin/catalog`): CRUD `catalog.category`, `catalog.language`, `catalog.skill`, `catalog.career_role` (+ `career_role_skill`), `catalog.industry`, `catalog.learning_goal`. Xoá chỉ khi không còn course tham chiếu, nếu không thì ẩn. Sau mỗi thay đổi xoá cache catalog (`dropCatalogCaches` trong `services/admin.service.js:41`).

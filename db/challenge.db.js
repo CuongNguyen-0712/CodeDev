@@ -91,6 +91,11 @@ export const challengeDb = {
                 ch.lesson_id::text AS lesson_id,
                 u.id::text AS user_db_id,
                 h.status AS lesson_status,
+                -- Hidden / deleted lesson or module: the challenge is gone for learners.
+                EXISTS (
+                    SELECT 1 FROM course.lesson l JOIN course.module m ON m.id = l.module_id
+                    WHERE l.id = ch.lesson_id AND (l.is_hidden OR l.is_deleted OR m.is_hidden OR m.is_deleted)
+                ) AS lesson_unavailable,
                 -- Entitlement (single source of truth for access) + active enrolment.
                 (public.has_course_access(u.id, ch.course_id) AND EXISTS (
                     SELECT 1 FROM learning.register r

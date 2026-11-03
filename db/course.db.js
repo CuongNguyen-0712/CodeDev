@@ -83,6 +83,7 @@ export const courseDb = {
                                 FROM course.lesson lesson
                                 WHERE lesson.module_id = m.id
                                 AND lesson.is_deleted = false
+                                AND lesson.is_hidden = false
                             )
                     )
                     ORDER BY m.order_index
@@ -90,6 +91,7 @@ export const courseDb = {
                 FROM course.module m
                 WHERE m.course_id = c.id
                 AND m.is_deleted = false
+                AND m.is_hidden = false
             ) AS modules
         FROM catalog.course c
         JOIN catalog.language lang
@@ -228,9 +230,9 @@ export const courseDb = {
                 (SELECT o.amount FROM commerce.offer o WHERE o.course_id = c.id AND o.price_type = 'points' AND o.is_active) AS points_price,
                 -- Maximum EXP of the course: lessons + first pass of every published challenge + completion bonus.
                 (
-                    (SELECT COALESCE(SUM(r.amount), 0) FROM course.module m JOIN course.lesson ls ON ls.module_id = m.id AND ls.is_deleted = false
+                    (SELECT COALESCE(SUM(r.amount), 0) FROM course.module m JOIN course.lesson ls ON ls.module_id = m.id AND ls.is_deleted = false AND ls.is_hidden = false
                      JOIN profile.exp_rule r ON r.rule_key = 'lesson' AND r.is_active
-                     WHERE m.course_id = c.id AND m.is_deleted = false)
+                     WHERE m.course_id = c.id AND m.is_deleted = false AND m.is_hidden = false)
                   + (SELECT COALESCE(SUM(r.amount), 0) FROM challenge.challenges ch
                      JOIN profile.exp_rule r ON r.is_active AND r.rule_key = CASE WHEN ch.type = 'quiz' THEN 'quiz.' || ch.difficulty
                                                                                ELSE 'coding.' || ch.type || '.' || ch.difficulty END

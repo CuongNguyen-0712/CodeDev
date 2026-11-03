@@ -6,33 +6,27 @@ CREATE OR REPLACE FUNCTION public.lesson_course_change()
  RETURNS trigger
  LANGUAGE plpgsql
 AS $function$
+DECLARE
+    old_live boolean := CASE WHEN TG_OP = 'INSERT' THEN false ELSE NOT OLD.is_deleted AND NOT OLD.is_hidden END;
+    new_live boolean := CASE WHEN TG_OP = 'DELETE' THEN false ELSE NOT NEW.is_deleted AND NOT NEW.is_hidden END;
 BEGIN
-    IF TG_OP = 'INSERT' THEN
-        IF NOT NEW.is_deleted THEN
-            UPDATE catalog.course
-            SET modules = modules + 1, lessons = lessons + NEW.lessons
-            WHERE id = NEW.course_id;
-        END IF;
-    ELSIF TG_OP = 'UPDATE' THEN
-        IF NEW.is_deleted AND NOT OLD.is_deleted THEN
-            UPDATE catalog.course
-            SET modules = GREATEST(modules - 1, 0), lessons = GREATEST(lessons - OLD.lessons, 0)
-            WHERE id = OLD.course_id;
-        ELSIF NOT NEW.is_deleted AND OLD.is_deleted THEN
-            UPDATE catalog.course
-            SET modules = modules + 1, lessons = lessons + NEW.lessons
-            WHERE id = NEW.course_id;
-        ELSIF NOT NEW.is_deleted AND NEW.lessons <> OLD.lessons THEN
+    IF old_live AND new_live AND OLD.course_id = NEW.course_id THEN
+        IF NEW.lessons <> OLD.lessons THEN
             UPDATE catalog.course
             SET lessons = GREATEST(lessons + (NEW.lessons - OLD.lessons), 0)
             WHERE id = NEW.course_id;
         END IF;
-    ELSIF TG_OP = 'DELETE' THEN
-        IF NOT OLD.is_deleted THEN
-            UPDATE catalog.course
-            SET modules = GREATEST(modules - 1, 0), lessons = GREATEST(lessons - OLD.lessons, 0)
-            WHERE id = OLD.course_id;
-        END IF;
+        RETURN NULL;
+    END IF;
+    IF old_live THEN
+        UPDATE catalog.course
+        SET modules = GREATEST(modules - 1, 0), lessons = GREATEST(lessons - OLD.lessons, 0)
+        WHERE id = OLD.course_id;
+    END IF;
+    IF new_live THEN
+        UPDATE catalog.course
+        SET modules = modules + 1, lessons = lessons + NEW.lessons
+        WHERE id = NEW.course_id;
     END IF;
 
     RETURN NULL;
