@@ -28,7 +28,7 @@
     { "code": "domain-rules", "text": "Put enrollment and progress rules in services: no duplicates, prerequisites first, progress that never goes backwards" }
   ],
   "testedVersions": { "TypeScript": "5.9.3 (tsc --strict in the code runner)", "NestJS": "11 (lesson examples)", "class-validator": "0.14 (lesson examples)" },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://docs.nestjs.com/modules",
     "https://docs.nestjs.com/fundamentals/circular-dependency",
@@ -36,7 +36,8 @@
   ],
   "owner": "CodeDev Engineering Team",
   "knownIssues": [
-    "No NestJS in the code runner: challenges use plain TypeScript classes and a small module container that follows NestJS's provider, export and import rules"
+    "No NestJS in the code runner: challenges use plain TypeScript classes and a small module container that follows NestJS's provider, export and import rules",
+    "Lesson examples were written against NestJS 11 and class-validator 0.14; NestJS 12 (CommonJS) and class-validator 0.15 are reported compatible but the examples were not re-run on them (review 03/11/2026)"
   ],
   "scenario": { "title": "Break the Circular Dependency", "quiz": "chal_quiz_nmm_411", "fixBug": "chal_coding_nmm_412" },
   "careerRoles": ["backend_developer", "fullstack_developer"],

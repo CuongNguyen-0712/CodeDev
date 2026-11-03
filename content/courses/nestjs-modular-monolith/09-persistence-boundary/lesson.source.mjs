@@ -158,8 +158,10 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
 const moduleRef = await Test.createTestingModule({ imports: [EnrollmentModule] })
     .overrideProvider(ENROLLMENT_REPOSITORY).useValue(new InMemoryEnrollmentRepository())
     .overrideProvider(CourseService).useValue(fakeCourses)
+    .overrideProvider(getRepositoryToken(EnrollmentEntity)).useValue({})   // forFeature's repository needs a DataSource
     .compile();
 const service = moduleRef.get(EnrollmentService);`, "enrollment.module.spec.ts"),
+        p("The last override is there because the module still imports `TypeOrmModule.forFeature([EnrollmentEntity])`. Its repository provider is created even though nothing uses it any more, and without a `TypeOrmModule.forRoot()` in the test it cannot find a `DataSource`, so `compile()` would fail. `getRepositoryToken` from `@nestjs/typeorm` names that provider; overriding it with an empty value removes the dependency."),
 
         challenge("chal_quiz_nmm_331"),
 

@@ -73,7 +73,7 @@ Error: Already enrolled
             "**400 Bad Request** (`ValidationFailed`): the request itself is malformed; the client must change it. The field list tells it where.",
             "**403 Forbidden** (`NotAllowed`): the user is known but not allowed. Do not retry.",
             "**402 Payment Required** (`PaymentRequired`): RFC 9110 reserves this code without defining its use, and many APIs use it for \"upgrade first\". If you use it, document it, as CodeDev does: the app answers it with the upgrade screen.",
-            "**500 Internal Server Error**: anything you did not anticipate. Only 5xx (and a few others, such as 429 and 503) say \"try again later\".",
+            "**500 Internal Server Error**: anything you did not anticipate. Only 5xx (and a few others, such as 408 and 429) say \"try again later\".",
         ]),
         h3("A body format every client can parse"),
         p("RFC 9457, Problem Details for HTTP APIs, defines a JSON error format with the media type `application/problem+json`. Its members are `type` (a URI that identifies the kind of problem, and the value clients should branch on), `title` (a short summary that does not change between occurrences), `status`, `detail` (an explanation of this occurrence) and `instance` (which request it was). You may add extension members, such as the list of missing prerequisites. One format for every error means the mobile app writes one error parser instead of one per endpoint."),

@@ -118,6 +118,7 @@ Oct 26 09:44  Hotfix abandoned. Release 2026.10.26-2 rolled back and paused.`, "
             "`@Module({ imports: [CourseModule] })` is evaluated with `CourseModule === undefined`. The decorator stores `[undefined]`.",
             "Later, Nest scans the modules and reports \"the module at index [0] of the EnrollmentModule imports array is undefined\".",
         ]),
+        p("These steps describe a project compiled to CommonJS, which is what the CodeDev API uses and what Nest projects have long been by default (newer Nest CLI versions can also scaffold ES modules). In an ES module build the same cycle fails one step earlier, with `ReferenceError: Cannot access 'CourseModule' before initialization`. The message differs; the cause and the fix are the same."),
         p("The same thing happens to the constructor parameter types that Nest reads to inject `CourseService`, which is why the staging hotfix in D still failed with `?` at index [1]: `forwardRef()` on the import fixed the first `undefined`, not the second. The hypothesis that explains all four pieces: **since PR #731, CourseModule and EnrollmentModule depend on each other, at the module level and at the service level.** The error is the runtime's way of saying that one of the two has to exist first, and neither can."),
         h3("Rule out the tempting wrong ones"),
         bullets([

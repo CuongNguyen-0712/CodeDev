@@ -563,7 +563,7 @@ return this.enrollments.create(row.userId, course.id);
 
 Support ticket #5520: "Beta tester u_311 enrolled in c_1201 from the web app, but the CSV import of the same tester into the same course failed with 403."
 
-Statement: "After both controllers call one EnrollmentsService.enroll() that holds the rule, a unit test of enroll() with a beta course and a beta tester covers the behaviour of both endpoints."', 'single_choice'::question_type, 'True. The two endpoints disagree because each controller holds its own copy of the rule, and only one copy was updated when beta courses were added. Once the rule lives in the service and both controllers only map their input (the session user, or a CSV row) to the same enroll() call, there is one implementation, so one unit test of the service with a fake repository checks what both endpoints do, and a future change to the rule cannot reach only one of them. The controllers still need a small test each for their own mapping, such as where the user id comes from. The misconception is that copying a small if-statement is harmless; copies of business rules drift.', 2, 5
+Statement: "After both controllers call one EnrollmentsService.enroll() that holds the rule, a unit test of enroll() with a beta course and a beta tester checks the enrollment rule that both endpoints now apply."', 'single_choice'::question_type, 'True. The two endpoints disagree because each controller holds its own copy of the rule, and only one copy was updated when beta courses were added. Once the rule lives in the service and both controllers only map their input (the session user, or a CSV row) to the same enroll() call, there is one implementation, so one unit test of the service with a fake repository checks what both endpoints do, and a future change to the rule cannot reach only one of them. The controllers still need a small test each for their own mapping, such as where the user id comes from. The misconception is that copying a small if-statement is harmless; copies of business rules drift.', 2, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_221') AND order_index = 2)
     RETURNING id
 )
@@ -974,6 +974,7 @@ constructor(
 const moduleRef = await Test.createTestingModule({ imports: [EnrollmentModule] })
   .overrideProvider(ENROLLMENT_REPOSITORY).useValue(new InMemoryEnrollmentRepository())
   .overrideProvider(CourseService).useValue(fakeCourses)
+  .overrideProvider(getRepositoryToken(EnrollmentEntity)).useValue({})   // forFeature''s repository needs a DataSource
   .compile();
 const service = moduleRef.get(EnrollmentService);
 
@@ -1178,7 +1179,7 @@ Oct 26 09:38  Hotfix attempt on staging: imports: [forwardRef(() => CourseModule
               index [1] is available in the EnrollmentModule context.
 Oct 26 09:44  Hotfix abandoned, release rolled back.
 
-Statement: "Once forwardRef() is added on both modules and on both constructor parameters, the app boots and the circular dependency between courses and enrollments is resolved."', 'single_choice'::question_type, 'False. forwardRef() on both sides does make the app boot: it tells Nest to resolve the reference later, after both files have loaded. But the two modules still need each other. Neither can be tested or understood alone, the construction order stays fragile, and the next import added to either side can bring the error back in a new form. The 09:38 attempt in D shows how fragile it is: forwardRef() on one import only moved the error to the constructor parameter (the `?` at index [1]). Nest''s documentation says circular dependencies should be avoided where possible, and this codebase''s architecture rule forbids forwardRef(). The misconception is "it boots, so it is fixed": the cycle is hidden, not removed.', 4, 5
+Statement: "Once forwardRef() is added on both modules and on both constructor parameters, the app boots and CourseModule and EnrollmentModule no longer depend on each other."', 'single_choice'::question_type, 'False. forwardRef() on both sides does make the app boot: it tells Nest to resolve the reference later, after both files have loaded. But the two modules still need each other. Neither can be tested or understood alone, the construction order stays fragile, and the next import added to either side can bring the error back in a new form. The 09:38 attempt in D shows how fragile it is: forwardRef() on one import only moved the error to the constructor parameter (the `?` at index [1]). Nest''s documentation says circular dependencies should be avoided where possible, and this codebase''s architecture rule forbids forwardRef(). The misconception is "it boots, so it is fixed": the cycle is hidden, not removed.', 4, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_411') AND order_index = 4)
     RETURNING id
 )
