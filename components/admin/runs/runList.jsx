@@ -28,10 +28,11 @@ import { LuX } from "react-icons/lu";
 const TABS = [
     { key: "active", label: "Active" },
     { key: "failed", label: "Failed" },
-    { key: "timeout", label: "Timed out" },
+    { key: "timeout", label: "Timed out or cancelled" },
     { key: "all", label: "Last 7 days" },
 ];
-const LANGUAGES = ["javascript", "typescript", "python", "java", "c", "cpp", "go", "rust", "php", "kotlin", "csharp", "sql"];
+// The runner's languages (LANGUAGE_FILES in services/challenge.service.js); it has no SQL runner.
+const LANGUAGES = ["javascript", "typescript", "python", "java", "c", "cpp", "go", "rust", "php", "kotlin", "csharp"];
 const SLOW_WAIT_SEC = 60;
 
 /** Queue per sandbox (the screen's signature element, docs/admin-panel-plan.md 5.5). */
@@ -94,7 +95,7 @@ function RunRow({ run, canCancel, onCancel }) {
 function runFinding(expired, counts) {
     if (expired) return <Finding tone="attention">{`${plural(expired, "run")} past the deadline; the hourly sweeper closes them, or close them now.`}</Finding>;
     if (!counts?.all) return "No code run in the last 7 days.";
-    const bad = (counts.failed || 0) + (counts.timeout || 0);
+    const bad = (counts.failed || 0) + (counts.timed_out || 0);
     if (!bad) return <Finding tone="good">{`${plural(counts.all, "run")} in the last 7 days, none failed.`}</Finding>;
     return <Finding tone={bad / counts.all > 0.1 ? "attention" : undefined}>{`${formatNumber(bad)} of ${plural(counts.all, "run")} in the last 7 days failed or timed out.`}</Finding>;
 }

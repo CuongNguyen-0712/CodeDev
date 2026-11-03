@@ -47,7 +47,7 @@ function Checklist({ items }) {
             <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-3">
                 <div>
                     <h2 className="text-sm font-semibold">Publish checklist</h2>
-                    <p className="text-xs text-muted-foreground">{open ? "Warnings never block publishing." : "Every check passes."}</p>
+                    <p className="text-xs text-muted-foreground">{open ? "Warnings don't block publishing, except a premium course without a price." : "Every check passes."}</p>
                 </div>
                 {open ? <Badge variant="warning">{open} to fix</Badge> : <Badge variant="success">Ready</Badge>}
             </header>

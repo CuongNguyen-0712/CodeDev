@@ -2,14 +2,13 @@ import { courseRatingDb } from "@/db/courseRating.db";
 import { redis } from "@/lib/cache";
 import { cacheKeys } from "@/lib/cacheKeys";
 import { ApiError } from "@/lib/error/apiError";
+import { MIN_RATINGS, RATE_PROMPT_LESSON } from "@/lib/ratingRules";
 
 /**
  * Course ratings from learners (docs/admin-panel-plan.md 12): one 1-5 star rating per learner and
  * course, by enrolled learners with a completed lesson. The average is shown from MIN_RATINGS on.
  */
-export const MIN_RATINGS = 3;
-// Asked for when the third lesson of a course is completed for the first time, and at completion.
-export const RATE_PROMPT_LESSON = 3;
+export { MIN_RATINGS, RATE_PROMPT_LESSON };
 
 const view = (state) => ({
     average: state.rating_count >= MIN_RATINGS ? state.rating_avg : null,

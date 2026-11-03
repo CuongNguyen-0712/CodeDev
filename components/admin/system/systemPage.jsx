@@ -106,10 +106,11 @@ export default function SystemPage() {
     }
 
     const { health, queue, outbox, deadLetters, database, grafanaUrl } = data;
+    const openDeadLetters = data.deadLettersOpen ?? deadLetters.length;
     const degraded = [["Database", health.database?.status], ["Cache", health.cache?.reachable ? "healthy" : "degraded"], ["Storage", health.storage?.status], ["Jobs", health.jobs?.status]]
         .filter(([, status]) => status && status !== "healthy").map(([name]) => name);
     const finding = degraded.length ? <Finding tone="critical">{`${degraded.join(", ")} ${degraded.length === 1 ? "is" : "are"} not healthy.`}</Finding>
-        : deadLetters.length ? <Finding tone="attention">{`${formatNumber(deadLetters.length)} dead letter${deadLetters.length === 1 ? "" : "s"} open.`}</Finding>
+        : openDeadLetters ? <Finding tone="attention">{`${formatNumber(openDeadLetters)} dead letter${openDeadLetters === 1 ? "" : "s"} open.`}</Finding>
         : <Finding tone="good">Every service answers and no job failed for good.</Finding>;
 
     return (
@@ -120,7 +121,7 @@ export default function SystemPage() {
             <QueueStrip queue={queue} />
 
             <div className="space-y-4">
-                <Panel title="Dead letters" badge={deadLetters.length > 0 && <Badge variant="destructive">{formatNumber(deadLetters.length)} open</Badge>} action={<GrafanaLink url={grafanaUrl} path="/d/codedev-jobs" />}>
+                <Panel title="Dead letters" badge={openDeadLetters > 0 && <Badge variant="destructive">{formatNumber(openDeadLetters)} open</Badge>} action={<GrafanaLink url={grafanaUrl} path="/d/codedev-jobs" />}>
                     {deadLetters.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No open dead letter. Background work that fails for good lands here.</p>
                     ) : (

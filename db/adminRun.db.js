@@ -49,6 +49,8 @@ export const adminRunDb = {
         `SELECT COUNT(*) FILTER (WHERE status IN ('queued', 'running'))::int AS active,
                 COUNT(*) FILTER (WHERE status = 'failed' AND queued_at > now() - interval '7 days')::int AS failed,
                 COUNT(*) FILTER (WHERE status IN ('timeout', 'cancelled') AND queued_at > now() - interval '7 days')::int AS timeout,
+                -- Timeouts alone: a run an admin cancelled is not a failure of the runner.
+                COUNT(*) FILTER (WHERE status = 'timeout' AND queued_at > now() - interval '7 days')::int AS timed_out,
                 COUNT(*) FILTER (WHERE queued_at > now() - interval '7 days')::int AS "all"
          FROM challenge.code_runs
          WHERE status IN ('queued', 'running') OR queued_at > now() - interval '7 days'`

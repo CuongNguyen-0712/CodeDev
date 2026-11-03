@@ -22,8 +22,12 @@ function deployment(env = process.env) {
  * measured on each load (it is what the screen is opened for when something is wrong).
  */
 export const adminDashboardService = {
-    /** canReadAudit: the recent audit rows only for audit.read (the figures are shared by every admin). */
-    overview: async ({ canReadAudit = false } = {}) => {
+    /**
+     * canReadAudit: the recent audit rows only for audit.read (the figures are shared by every admin).
+     * fresh: the Refresh button recounts instead of serving the cached figures; measuredAt says how old they are.
+     */
+    overview: async ({ canReadAudit = false, fresh = false } = {}) => {
+        if (fresh) await redis.del(cacheKeys.adminDashboard()).catch(() => {});
         const [figures, health] = await Promise.all([
             redis.remember(cacheKeys.adminDashboard(), TTL.ADMIN_DASHBOARD, async () => {
                 const [counts, series, audit] = await Promise.all([

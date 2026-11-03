@@ -25,7 +25,7 @@ export function OrdersFinding({ fallback }) {
     const { data } = useQuery(adminQueries.orders());
     if (!data) return fallback;
     if (data.length === 0) return "No course has been bought yet. Purchases with points and online payment land here.";
-    const refunds = data.filter((order) => order.failure_reason === "already_owned_refund_required").length;
+    const refunds = data.filter((order) => order.failure_reason === "already_owned_refund_required" && order.status !== "refunded").length;
     const failed = data.filter((order) => order.status === "failed").length;
     const completed = data.filter((order) => order.status === "completed").length;
     const summary = `${plural(completed, "completed order")} of the latest ${data.length}.`;

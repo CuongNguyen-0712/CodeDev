@@ -8,6 +8,7 @@ import { adminClient } from "@/clients/premium.client";
 import { adminKeys } from "@/keys/admin.keys";
 import { useApp } from "@/contexts/appContext";
 import { QUERY_TIMES, retryTransient } from "@/lib/queryTimes";
+import { LOW_RATING, MIN_RATINGS, RATE_PROMPT_LESSON } from "@/lib/ratingRules";
 import { useAdmin } from "@/components/admin/adminContext";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import { useAdminSetRatingHidden } from "@/mutations/premium.mutation";
@@ -29,9 +30,9 @@ function ratingFinding(data) {
     const recent = data.recent.count ? ` · last 30 days ${Number(data.recent.average).toFixed(2)} from ${formatNumber(data.recent.count)}` : "";
     const hidden = data.hidden ? ` · ${formatNumber(data.hidden)} hidden` : "";
     const text = `${average} out of 5 from ${formatNumber(data.count)} rating${data.count === 1 ? "" : "s"}${recent}${hidden}.`;
-    // Shown to learners from 3 ratings on; a low average with enough ratings needs a look.
-    if (data.count >= 5 && data.average < 3) return <Finding tone="attention">{text}</Finding>;
-    return data.count < 3 ? `${text} Learners see it from 3 ratings.` : text;
+    // Shown to learners from MIN_RATINGS on; a low average with enough ratings needs a look.
+    if (data.count >= LOW_RATING.minRatings && data.average < LOW_RATING.below) return <Finding tone="attention">{text}</Finding>;
+    return data.count < MIN_RATINGS ? `${text} Learners see it from ${MIN_RATINGS} ratings.` : text;
 }
 
 /** Learners' ratings of one course: average, 1-5 distribution, and hiding a rating (docs/admin-panel-plan.md 12.5). */
@@ -70,7 +71,7 @@ export default function CourseRatings({ courseId }) {
 
             <div tabIndex={data.items.length ? 0 : undefined} className="overflow-x-auto rounded-lg border border-border bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                 {data.items.length === 0 ? (
-                    <p className="p-4 text-sm text-muted-foreground">No ratings yet. Learners are asked after their third lesson and when they finish the course.</p>
+                    <p className="p-4 text-sm text-muted-foreground">{`No ratings yet. Learners are asked after lesson ${RATE_PROMPT_LESSON} and when they finish the course.`}</p>
                 ) : (
                     <table className="w-full text-sm">
                         <thead>

@@ -65,15 +65,15 @@ const newRecoveryCode = () => {
 
 const invalidCode = () => new ApiError("That code is not valid. Check the time on your phone and try again.", 400, { code: "MFA_INVALID" });
 
-async function audit(client, actor, action, reason = null) {
-    await adminDb.audit(client, { actorId: actor.id, action, targetType: "user", targetId: actor.publicId, reason });
+async function audit(client, actor, action, { reason = null, ip = null } = {}) {
+    await adminDb.audit(client, { actorId: actor.id, action, targetType: "user", targetId: actor.publicId, reason, ip });
 }
 
 // 5 wrong codes within an hour lock the second factor for an hour (about 120 guesses a day at most).
 export const mfaFailureGuard = new FailureGuard({ prefix: "admin-mfa", maxFailures: 5, windowSeconds: 60 * 60, lockSeconds: 60 * 60 });
 
 /** Refuses while locked; a wrong code counts and is audited (outside the rolled-back transaction), a right one clears the count. */
-async function guarded(actor, work) {
+async function guarded(actor, work, ip = null) {
     const lock = await mfaFailureGuard.status(actor.publicId);
     if (lock.locked) {
         throw new ApiError(`Too many wrong codes. Try again in ${Math.ceil(lock.retryAfter / 60)} minutes.`, 429, { code: "MFA_LOCKED" });
@@ -85,7 +85,7 @@ async function guarded(actor, work) {
     } catch (error) {
         if (error?.errorCode === "MFA_INVALID") {
             await mfaFailureGuard.fail(actor.publicId);
-            await withTransaction((client) => audit(client, actor, "mfa.failed"));
+            await withTransaction((client) => audit(client, actor, "mfa.failed", { ip }));
         }
         throw error;
     }
@@ -127,7 +127,7 @@ export const adminMfaService = {
     },
 
     /** First code from the app: enrols, returns the recovery codes once, and verifies this session. */
-    confirm: async ({ actor, sessionId, code }) => guarded(actor, () => withTransaction(async (client) => {
+    confirm: async ({ actor, sessionId, code, ip = null }) => guarded(actor, () => withTransaction(async (client) => {
         const row = await adminMfaDb.lock(client, { userDbId: actor.id });
         if (!row) throw new ApiError("Start the setup first", 409);
         if (row.confirmed_at) throw new ApiError("Two-factor authentication is already set up", 409, { code: "MFA_ENROLLED" });
@@ -138,12 +138,12 @@ export const adminMfaService = {
         await adminMfaDb.confirm(client, { userDbId: actor.id, step });
         await adminMfaDb.replaceRecoveryCodes(client, { userDbId: actor.id, hashes: codes.map(hashRecovery) });
         if (sessionId) await adminMfaDb.markSession(client, { sessionId, userDbId: actor.id });
-        await audit(client, actor, "mfa.enroll");
+        await audit(client, actor, "mfa.enroll", { ip });
         return { recoveryCodes: codes };
-    })),
+    }), ip),
 
     /** A code from the app (never the same one twice) or a recovery code; verifies and confirms this session. */
-    verify: async ({ actor, sessionId, code }) => guarded(actor, () => withTransaction(async (client) => {
+    verify: async ({ actor, sessionId, code, ip = null }) => guarded(actor, () => withTransaction(async (client) => {
         const row = await adminMfaDb.lock(client, { userDbId: actor.id });
         if (!row?.confirmed_at) throw new ApiError("Two-factor authentication is not set up", 409, { code: "MFA_NOT_ENROLLED" });
 
@@ -161,9 +161,9 @@ export const adminMfaService = {
         if (!sessionId || !(await adminMfaDb.markSession(client, { sessionId, userDbId: actor.id }))) {
             throw new ApiError("Sign in again", 401);
         }
-        if (usedRecovery) await audit(client, actor, "mfa.recovery_code_used");
+        if (usedRecovery) await audit(client, actor, "mfa.recovery_code_used", { ip });
         return { verified: true };
-    })),
+    }), ip),
 
     /** Lost device (npm run admin:role -- reset-mfa): removes the factor; the user enrols again. */
     reset: async ({ userDbId, client }) => adminMfaDb.reset(client, { userDbId }),

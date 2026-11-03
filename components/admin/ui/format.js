@@ -26,7 +26,8 @@ export function formatRelative(value, now = Date.now()) {
     const seconds = Math.round((new Date(value).getTime() - now) / 1000);
     if (Number.isNaN(seconds)) return "—";
     for (const [unit, size] of STEPS) {
-        if (Math.abs(seconds) >= size) return relative.format(Math.round(seconds / size), unit);
+        // Whole units only: 36 hours ago is "1 day ago", not a rounded-up "2 days ago".
+        if (Math.abs(seconds) >= size) return relative.format(Math.trunc(seconds / size), unit);
     }
     return "just now";
 }

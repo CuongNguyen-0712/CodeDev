@@ -144,7 +144,8 @@ export default function AdminShell({ permissions, environment, user, children })
     const { theme, toggleTheme } = useTheme();
     const env = ENVIRONMENTS[environment] || ENVIRONMENTS.development;
     const granted = new Set(permissions);
-    const visible = (items) => items.filter((item) => granted.has(item.permission));
+    // An item may name several permissions: any one of them shows it.
+    const visible = (items) => items.filter((item) => [].concat(item.permission).some((code) => granted.has(code)));
     const activeKey = activeNavKey(pathname);
     const [paletteOpen, setPaletteOpen] = useState(false);
 

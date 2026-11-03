@@ -81,7 +81,7 @@ export default function OrdersAdmin() {
                         </TableCell>
                         <TableCell>
                             <Badge variant={STATUS_VARIANT[order.status] || "muted"}>{order.status}</Badge>
-                            {order.failure_reason === "already_owned_refund_required" && (
+                            {order.failure_reason === "already_owned_refund_required" && order.status !== "refunded" && (
                                 <span className="ml-2 text-xs text-warning">refund needed</span>
                             )}
                         </TableCell>

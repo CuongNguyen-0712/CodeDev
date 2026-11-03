@@ -7,7 +7,6 @@ import { QUIZ_COOLDOWN_SECONDS } from "@/lib/challenges/quiz";
 import { adminEnabled } from "@/lib/adminMode";
 import { adminEnvironment } from "@/lib/adminActor";
 
-const LIMITERS = ["quiz", "codeRun", "codeSubmit", "codeRunPoll", "comment", "upload", "commerce", "admin", "api"];
 
 /**
  * Read-only configuration for the Settings screen (docs/admin-panel-plan.md 06). Names and
@@ -38,7 +37,8 @@ export const adminSettingsService = {
                 maxTotalInputBytes: MAX_TOTAL_INPUT_BYTES,
                 maxJobSeconds: MAX_JOB_MS / 1000,
                 quizCooldownSeconds: QUIZ_COOLDOWN_SECONDS,
-                rateLimits: LIMITERS.filter((name) => rateLimiters[name]).map((name) => ({
+                // Every limiter in lib/rateLimit.js, read live so the card never drifts from the code.
+                rateLimits: Object.keys(rateLimiters).map((name) => ({
                     name, limit: rateLimiters[name].limit, windowSeconds: rateLimiters[name].windowSeconds,
                 })),
             },

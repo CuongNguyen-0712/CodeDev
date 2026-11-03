@@ -204,10 +204,11 @@ describe.skipIf(!hasDb)("admin two-factor (PostgreSQL)", () => {
     it("filters the audit log by an action prefix that contains an underscore", async () => {
         const { adminAuditDb, escapeLike } = await import("@/db/adminAudit.db");
         expect(escapeLike("dead_letter%")).toBe("dead\\_letter\\%");
-        await sql(`INSERT INTO identity.audit_log (actor_id, action, target_type, target_id) VALUES ($1, $2, 'user', $3)`, [userDbId, `zz_${TAG}.check`, publicId]);
-        const { rows } = await adminAuditDb.list({ action: `zz_${TAG}`, range: "1h" });
-        expect(rows.map((row) => row.action)).toEqual([`zz_${TAG}.check`]);
-        expect((await adminAuditDb.list({ action: `zz${TAG}`, range: "1h" })).rows).toEqual([]);
+        // Checked with SQL literals: audit_log is append-only, so a test row could never be removed.
+        const like = async (value, pattern) => (await sql(`SELECT $1 LIKE $2 ESCAPE '\\' AS hit`, [value, pattern])).rows[0].hit;
+        expect(await like("dead_letter.retry", `${escapeLike("dead_letter")}.%`)).toBe(true);
+        expect(await like("deadXletter.retry", `${escapeLike("dead_letter")}.%`)).toBe(false);
+        expect((await adminAuditDb.list({ action: `zz_${TAG}`, range: "1h" })).rows).toEqual([]);
     });
 
     it("locks the second factor after 5 wrong codes and audits each one", async () => {

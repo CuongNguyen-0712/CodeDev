@@ -46,7 +46,7 @@ function TierSummary({ tiers }) {
             <TableHeader>
                 <TableRow>
                     <TableHead>Tier</TableHead>
-                    <TableHead className="text-right @max-2xl:hidden">Courses</TableHead>
+                    <TableHead className="text-right @max-2xl:hidden">Published</TableHead>
                     <TableHead className="text-right">Enrolled</TableHead>
                     <TableHead className="text-right @max-2xl:hidden">Completed</TableHead>
                     <TableHead className="text-right">Completion</TableHead>

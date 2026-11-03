@@ -10,6 +10,8 @@ export const adminOpsDb = {
          FROM identity.auth_outbox`
     )).rows[0],
 
+    countOpenDeadLetters: async () => (await sql(`SELECT COUNT(*)::int AS n FROM ops.dead_letters WHERE resolved_at IS NULL`)).rows[0].n,
+
     deadLetters: async ({ open = true, limit = 50 }) => (await sql(
         `SELECT id::text, source, kind, ref, left(error, 300) AS error, attempts, created_at, resolved_at, resolution
          FROM ops.dead_letters

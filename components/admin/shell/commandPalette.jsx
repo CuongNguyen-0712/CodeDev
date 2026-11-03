@@ -12,8 +12,8 @@ import { LuArrowRight, LuSearch, LuUser } from "react-icons/lu";
 
 /** Every place the admin can open, filtered by the permissions this admin holds. */
 function destinations(granted) {
-    const screens = [...ADMIN_NAV, ...ADMIN_FOOTER_NAV].filter((item) => granted.has(item.permission));
-    const settings = granted.has("settings.read")
+    const screens = [...ADMIN_NAV, ...ADMIN_FOOTER_NAV].filter((item) => [].concat(item.permission).some((code) => granted.has(code)));
+    const settings = granted.has("platform.settings")
         ? SETTINGS_SECTIONS.map((section) => ({ key: `settings-${section.key}`, href: `/admin/settings/${section.key}`, label: `Settings: ${section.label}` }))
         : [];
     return [...screens.map((item) => ({ key: item.key, href: item.href, label: item.label })), ...settings];

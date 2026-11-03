@@ -6,7 +6,7 @@ export const adminAuditService = {
     list: async ({ actor, filters, beforeId }) => {
         const [{ rows }, facets] = await Promise.all([
             adminAuditDb.list({ ...filters, beforeId, limit: 51 }),
-            beforeId ? Promise.resolve(null) : adminAuditDb.facets(),
+            beforeId ? Promise.resolve(null) : adminAuditDb.facets(filters.range),
         ]);
         const pii = actorCan(actor, "user.pii");
         const page = rows.slice(0, 50);

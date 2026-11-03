@@ -7,7 +7,9 @@ import { sql } from "@/lib/db";
 
 const COURSE_COLUMNS = `
     c.public_id AS id, c.title, c.level, c.publish_status, c.published_at, c.access_model, c.course_type,
-    c.students, c.lessons, c.modules, c.updated_at,
+    -- Live count (catalog.course.students only ever goes up: unenrolling never lowers it); same rule as the KPIs.
+    (SELECT COUNT(*) FROM learning.register r WHERE r.course_id = c.id AND r.is_deleted = false)::int AS students,
+    c.lessons, c.modules, c.updated_at,
     l.name AS language_name, cat.name AS category_name,
     COALESCE((SELECT json_agg(json_build_object('code', s.code, 'weight', cs.weight) ORDER BY s.code)
               FROM catalog.course_skill cs JOIN catalog.skill s ON s.id = cs.skill_id WHERE cs.course_id = c.id), '[]') AS skills,
@@ -224,6 +226,13 @@ export const adminDb = {
             [userDbId, courseDbId, actorId, expiresAt ?? null]
         );
     },
+
+    /** The highest role rank of a user (0 without roles), for the "lower role only" rule. */
+    userRank: async (client, userPublicId) => (await client.query(
+        `SELECT u.public_id, (SELECT COALESCE(MAX(r.rank), 0) FROM identity.user_roles ur JOIN identity.roles r ON r.id = ur.role_id WHERE ur.user_id = u.id)::int AS rank
+         FROM identity.users u WHERE u.public_id = $1`,
+        [userPublicId]
+    )).rows[0] || null,
 
     revokeEntitlement: async (client, entitlementPublicId, reason) => {
         return client.query(

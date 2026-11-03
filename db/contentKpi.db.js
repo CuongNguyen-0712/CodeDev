@@ -113,7 +113,7 @@ export const contentKpiDb = {
     /** The same totals per course level over every course that is not deleted. */
     listCompletionByLevel: async () => {
         return sql(
-            `SELECT c.level::text AS level, COUNT(DISTINCT c.id)::int AS courses,
+            `SELECT c.level::text AS level, COUNT(DISTINCT c.id) FILTER (WHERE c.publish_status = 'published')::int AS courses,
                     COUNT(r.user_id)::int AS enrolled,
                     COUNT(r.user_id) FILTER (WHERE r.status = 'completed')::int AS completed
              FROM catalog.course c

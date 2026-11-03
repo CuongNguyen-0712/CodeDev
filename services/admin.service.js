@@ -308,6 +308,8 @@ export const adminService = {
             const revoked = await adminDb.revokeEntitlement(client, input.entitlementId, "admin");
             if (revoked.rowCount === 0) throw new ApiError("Active entitlement not found", 404);
             const row = revoked.rows[0];
+            // Same rule as granting: never the actor's own access or someone of the same or a higher role (rolls back).
+            assertOtherLowerRank(actor, await adminDb.userRank(client, row.user_public_id));
             await adminDb.audit(client, {
                 actorId: actor.id,
                 action: "entitlement.revoke",

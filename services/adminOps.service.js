@@ -13,11 +13,12 @@ import { healthReport } from "@/services/health.service";
  */
 export const adminOpsService = {
     overview: async () => {
-        const [health, queue, outbox, deadLetters, database] = await Promise.all([
+        const [health, queue, outbox, deadLetters, deadLettersOpen, database] = await Promise.all([
             healthReport(),
             adminRunDb.queue(),
             adminOpsDb.outbox(),
             adminOpsDb.deadLetters({ open: true, limit: 50 }),
+            adminOpsDb.countOpenDeadLetters(),
             adminOpsDb.database(),
         ]);
         return {
@@ -25,6 +26,8 @@ export const adminOpsService = {
             queue,
             outbox,
             deadLetters,
+            // The list shows the newest 50; the count is all open ones.
+            deadLettersOpen,
             database: { ...database, tables: database.tables.map((row) => ({ ...row, bytes: Number(row.bytes), rows: Number(row.rows) })) },
             grafanaUrl: process.env.GRAFANA_URL || null,
         };

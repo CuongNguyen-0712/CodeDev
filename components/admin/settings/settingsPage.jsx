@@ -61,7 +61,7 @@ function Matrix({ roles }) {
     }, {});
     return (
         <>
-        {/* About a hundred permissions: a filter finds one without scrolling the whole matrix. */}
+        {/* Dozens of permissions: a filter finds one without scrolling the whole matrix. */}
         <div className="flex flex-wrap items-center gap-3">
             <Input
                 type="search"

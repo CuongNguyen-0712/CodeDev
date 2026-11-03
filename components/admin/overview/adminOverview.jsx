@@ -1,9 +1,11 @@
 'use client';
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { adminClient } from "@/clients/premium.client";
 import { adminQueries } from "@/queries/premium.query";
+import { LOW_RATING } from "@/lib/ratingRules";
 import { useAdmin } from "@/components/admin/adminContext";
 import PageHeader from "@/components/admin/shell/pageHeader";
 import BarChart from "@/components/admin/ui/barChart";
@@ -122,7 +124,7 @@ function NeedsAttention({ counts, can }) {
         { key: "expired", count: counts.runs_expired, label: "Code runs stuck past the deadline", href: "/admin/runs?tab=active", permission: "submission.read" },
         { key: "purge", count: counts.purge_soon, label: "Unverified accounts removed within a day", href: "/admin/users?tab=unverified", permission: "user.read" },
         { key: "draft", count: counts.courses?.draft || 0, label: "Draft courses", href: "/admin/courses", permission: "admin.read" },
-        { key: "rating", count: counts.courses_low_rated || 0, label: "Courses rated below 3 (5+ ratings)", href: "/admin/courses", permission: "comment.moderate" },
+        { key: "rating", count: counts.courses_low_rated || 0, label: `Courses rated below ${LOW_RATING.below} (${LOW_RATING.minRatings}+ ratings)`, href: "/admin/courses", permission: "comment.moderate" },
         { key: "feedback", count: counts.feedback_open || 0, label: "Feedback waiting for a reply", href: "/admin/feedback", permission: "feedback.read" },
     ].filter((row) => row.count > 0);
 
@@ -160,13 +162,17 @@ function OverviewSkeleton() {
 
 export default function AdminOverview() {
     const { can } = useAdmin();
-    const { data, isPending, isError, refetch, isFetching, dataUpdatedAt } = useQuery(adminQueries.dashboard());
+    const queryClient = useQueryClient();
+    const { data, isPending, isError, refetch, isFetching } = useQuery(adminQueries.dashboard());
+    // Refresh recounts on the server; the automatic refetch may serve figures cached up to 60 s.
+    const recount = () => queryClient.fetchQuery({ ...adminQueries.dashboard(), queryFn: () => adminClient.getDashboard({ fresh: true }), staleTime: 0 });
 
-    const updated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : null;
+    // When the figures were counted (they are cached on the server), not when the browser fetched them.
+    const updated = data?.measuredAt ? new Date(data.measuredAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : null;
     const actions = (
         <>
             {updated && <span className="text-xs text-muted-foreground">Updated {updated}</span>}
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} aria-label="Refresh overview">
+            <Button variant="outline" size="sm" onClick={recount} disabled={isFetching} aria-label="Refresh overview">
                 <LuRefreshCw aria-hidden="true" className={cn(isFetching && "animate-spin motion-reduce:animate-none")} />
                 Refresh
             </Button>
@@ -232,7 +238,7 @@ export default function AdminOverview() {
                             <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Premium courses</dt><dd className="tabular-nums">{formatNumber(counts.courses_premium)}</dd></div>
                             <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Users</dt><dd className="tabular-nums">{formatNumber(counts.users_total)}</dd></div>
                             <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Unverified</dt><dd className="tabular-nums">{formatNumber(counts.unverified)}</dd></div>
-                            <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Admins</dt><dd className="tabular-nums">{formatNumber((staff.super_admin || 0) + (staff.admin || 0))}</dd></div>
+                            <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Admins</dt><dd className="tabular-nums">{formatNumber(staff.admins || 0)}</dd></div>
                             <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Course managers</dt><dd className="tabular-nums">{formatNumber(staff.course_manager || 0)}</dd></div>
                         </dl>
                     </Panel>

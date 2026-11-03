@@ -76,10 +76,13 @@ function Tests({ tests }) {
 function Source({ runId, hasSource }) {
     const [show, setShow] = useState(false);
     const query = useQuery({
-        queryKey: [...adminKeys.run(runId), "source"],
+        // Every read of the source writes a submission.view audit row: fetch it once per opening, and keep
+        // the key outside adminKeys.all so admin writes (which invalidate that prefix) don't read it again.
+        queryKey: ["admin-run-source", runId],
         queryFn: () => adminClient.getRunSource(runId),
         enabled: show,
-        ...QUERY_TIMES.live,
+        staleTime: Infinity,
+        refetchOnWindowFocus: false,
         retry: false,
     });
 
@@ -96,7 +99,8 @@ function Source({ runId, hasSource }) {
     if (query.isPending) return <TableSkeleton rows={3} columns={3} label="Loading tests" />;
     if (query.isError) return <p className="rounded-lg border border-border p-4 text-sm">Couldn&apos;t load the source. <button type="button" className="font-medium text-primary-ink hover:underline" onClick={() => query.refetch()}>Retry</button></p>;
 
-    const failed = query.data.tests.filter((test) => test.status !== "passed");
+    // Keep each test's number from the Tests list ("Test 3" stays "Test 3" here).
+    const failed = query.data.tests.map((test, index) => ({ ...test, number: index + 1 })).filter((test) => test.status !== "passed");
     return (
         <div className="space-y-4">
             <pre className="max-h-[28rem] overflow-auto rounded-lg bg-editor p-4 font-mono text-sm text-editor-foreground"><code>{query.data.code ?? "Removed by retention."}</code></pre>
@@ -105,7 +109,7 @@ function Source({ runId, hasSource }) {
                     <h3 className="text-sm font-semibold">Failed tests</h3>
                     {failed.map((test, index) => (
                         <div key={test.id ?? index} className="overflow-hidden rounded-lg border border-border">
-                            <p className="border-b border-border px-4 py-2 text-sm">{test.name || `Test ${index + 1}`}</p>
+                            <p className="border-b border-border px-4 py-2 text-sm">{test.name || `Test ${test.number}`}</p>
                             <dl className="grid gap-px bg-border text-sm sm:grid-cols-2">
                                 <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Expected</dt><dd><pre className="mt-1 whitespace-pre-wrap font-mono text-xs">{String(test.expected ?? "—")}</pre></dd></div>
                                 <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Actual</dt><dd><pre className="mt-1 whitespace-pre-wrap font-mono text-xs">{String(test.actual ?? test.error ?? "—")}</pre></dd></div>
@@ -180,7 +184,9 @@ export default function RunDetail({ runId }) {
             </PageHeader>
 
             <dl className="mb-6 grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-4 [&>div]:border-border [&>div:nth-child(even)]:border-l [&>div:nth-child(n+3)]:border-t sm:[&>div:nth-child(n+3)]:border-t-0 sm:[&>div:nth-child(n+5)]:border-t sm:[&>div:not(:nth-child(4n+1))]:border-l">
-                <Fact label="Learner"><Link href={`/admin/users/${encodeURIComponent(run.user_id)}`} className="text-primary-ink hover:underline">{run.username}</Link></Fact>
+                <Fact label="Learner">{can("user.read")
+                    ? <Link href={`/admin/users/${encodeURIComponent(run.user_id)}`} className="text-primary-ink hover:underline">{run.username}</Link>
+                    : run.username}</Fact>
                 <Fact label="Challenge">{run.challenge_title}</Fact>
                 <Fact label="Tests"><span className="text-lg font-semibold tabular-nums">{passed} / {run.tests.length}</span> <span className="text-muted-foreground">passed</span></Fact>
                 <Fact label="Sandbox"><span className="font-mono text-xs">{run.sandbox || "default"}</span></Fact>

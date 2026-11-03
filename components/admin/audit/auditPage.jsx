@@ -17,7 +17,11 @@ import { cn } from "@/lib/utils";
 import { plural } from "@/components/admin/ui/finding";
 
 const RANGES = [{ key: "1h", label: "1 hour" }, { key: "24h", label: "24 hours" }, { key: "7d", label: "7 days" }, { key: "30d", label: "30 days" }, { key: "all", label: "All" }];
-const TARGET_LINKS = { user: (id) => `/admin/users/${encodeURIComponent(id)}`, code_run: (id) => `/admin/runs/${encodeURIComponent(id)}` };
+const TARGET_LINKS = {
+    user: (id) => `/admin/users/${encodeURIComponent(id)}`,
+    code_run: (id) => `/admin/runs/${encodeURIComponent(id)}`,
+    course: (id) => `/admin/courses/${encodeURIComponent(id)}`,
+};
 
 const stamp = (value) => {
     const date = new Date(value);
@@ -27,11 +31,13 @@ const stamp = (value) => {
 const show = (value) => (value === undefined ? "—" : typeof value === "object" ? JSON.stringify(value) : String(value));
 
 /** The audit screen's finding: volume over the facet window and where most of it went. */
-function auditFinding(facets) {
+function auditFinding(facets, range) {
     const total = facets.actions.reduce((sum, item) => sum + item.count, 0);
     const target = facets.targets?.[0];
     const actor = facets.actors?.[0];
-    return `${plural(total, "change")} in the last 90 days${target ? `, most often to ${target.value} (${formatNumber(target.count)})` : ""}${actor ? `, most by ${actor.value}` : ""}.`;
+    // The facets are counted over the range the list shows (db/adminAudit.db.js).
+    const window = range === "all" ? "in all" : `in the last ${RANGES.find((item) => item.key === range)?.label || "7 days"}`;
+    return `${plural(total, "change")} ${window}${target ? `, most often to ${target.value} (${formatNumber(target.count)})` : ""}${actor ? `, most by ${actor.value}` : ""}.`;
 }
 
 function FilterGroup({ title, items, value, onChange }) {
@@ -111,7 +117,7 @@ export default function AuditPage() {
         <>
             <PageHeader
                 title="Audit"
-                description={facets?.actions?.length ? auditFinding(facets) : "Every privileged change, newest first. The log is append-only."}
+                description={facets?.actions?.length ? auditFinding(facets, filters.range) : "Every privileged change, newest first. The log is append-only."}
                 actions={filtered && <Button variant="outline" size="sm" onClick={() => update({ actor: "", action: "", target: "", targetId: "" })}>Clear filters</Button>}
             />
             <div className="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-6">

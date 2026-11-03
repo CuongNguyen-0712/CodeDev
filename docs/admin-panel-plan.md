@@ -972,3 +972,29 @@ Chọn **kết hợp, điểm lưu theo người**: mỗi người học một p
 | ~~P9.3~~ | Giao diện học viên: hộp mời chấm, "Your rating" trên trang khoá, sao trong form bình luận và cạnh tên người viết, hiển thị `rating_avg` + số phiếu — xong 2026-11-03: migration `20261103_013` đổi `catalog.course.rating` thành `numeric(3,2)` = trung bình của người học từ 3 phiếu (NULL dưới đó) và `reviews` = số phiếu, cùng trigger giữ, nên mọi chỗ đang đọc (danh sách và bộ lọc, chi tiết, onboarding, roadmap, `learning.user_progress`, gợi ý) không phải sửa; số nhập tay bị bỏ. `RatePromptDialog` gắn trong providers như hộp level-up và mở sau khi hộp level-up đóng; "Your rating" nằm trong khung bình luận; sao của người viết cạnh tên |
 | ~~P9.4~~ | Admin: biểu đồ trong tab Feedback, ẩn phiếu, cảnh báo Overview, view Grafana — xong 2026-11-03: migration `20261103_014` (quyền `comment.moderate` cho admin và course manager, view `metrics.ratings_daily`); tab "Feedback" ở chi tiết khoá (phần Ratings: dòng tóm tắt, biểu đồ 1–5 sao bằng `BarChart`, bảng phiếu mới nhất, Ẩn / Hiện có lý do và audit `rating.hide` / `rating.show`); `/api/admin/courses/:id/ratings`; Overview "Needs attention" đếm khoá dưới 3 sao với từ 5 phiếu. Phần bình luận của tab là P8.1 |
 | P9.5 | Sau khi deploy ổn: migration bỏ `community.comment.rating` (luôn bằng 1). `catalog.course.rating` giữ lại làm cột hiển thị (P9.3) |
+
+## 13. Rà soát dữ liệu các trang admin (2026-11-03)
+
+Ba lượt đọc độc lập (Overview / Users / Access / Orders; Courses / Catalog / Challenges / Runs; System / Settings / Audit / Feedback / shell), số liệu đối chiếu bằng SQL trên DB local.
+
+**Đã sửa:**
+
+| Chỗ | Vấn đề | Sửa |
+|---|---|---|
+| Settings | Kiểm `settings.read`, vốn là quyền "Read user settings" của học viên: course manager đọc được ma trận quyền và cảnh báo cấu hình | Quyền mới `platform.settings` (admin), migration `20261103_016`; trang, API, nav, command palette |
+| Overview | "Archived" luôn 0 (archive đặt `is_deleted`, query lọc bỏ); "Active learners" tính cả staff; "Admins" cộng hai role (trùng người); "Updated" là giờ trình duyệt tải, không phải giờ đếm (cache 60 s); vài số đếm không hiển thị | Đếm archived riêng; bỏ người có role rank ≥ 30; đếm người khác nhau đang active; hiện `measuredAt`, nút Refresh đếm lại (`?fresh=1`); bỏ số thừa |
+| Orders | Nhãn "refund needed" và finding đỏ không tắt sau khi đã hoàn | Bỏ qua đơn `refunded` |
+| Access | Thu quyền học không kiểm cấp bậc (tự thu của mình, thu của admin cấp cao hơn) | Cùng luật với cấp quyền, rollback nếu sai |
+| Audit | Số đếm bộ lọc theo 90 ngày trong khi danh sách theo khoảng đang chọn; "most by" lấy 20 actor bất kỳ; lọc theo tiền tố bắt nhầm (`user` khớp `user_role…`); regex từ chối action có số; thiếu link mở course | Đếm theo khoảng đang chọn; `ORDER BY` trước `LIMIT`; khớp đúng nhóm hoặc action; cho phép số; thêm link course |
+| System | Số dead letter dừng ở 50 | Đếm riêng toàn bộ |
+| Settings | Thẻ rate limit chỉ liệt kê 9 / 22 limiter | Đọc toàn bộ từ `rateLimiters` |
+| Runs | Tab "Timed out" gồm cả run admin huỷ và finding coi đó là lỗi; mỗi lần tải lại source ghi thêm audit `submission.view`; bộ lọc ngôn ngữ có `sql` mà runner không chạy; số thứ tự test trong "Failed tests" lệch; link learner không kiểm `user.read` | Đổi tên tab, finding chỉ tính timeout thật; query source không refetch và nằm ngoài `adminKeys.all`; bỏ `sql`; giữ số thứ tự; kiểm quyền |
+| Courses / KPI | Số learner dùng bộ đếm `catalog.course.students` (không giảm khi rút); tier "Courses" đếm cả draft rỗng; checklist nói "không bao giờ chặn" nhưng server chặn khoá premium chưa có giá | Đếm trực tiếp từ `learning.register`; cột "Published"; sửa câu chữ |
+| 2FA | Dòng audit `mfa.*` không có IP | Truyền IP |
+| Chung | Ngưỡng rating viết tay ở nhiều chỗ; `formatRelative` làm tròn lên ("2 days ago" cho 36 giờ); test ghi dòng vào audit (append-only) mỗi lần chạy | `lib/ratingRules.js`; lấy phần nguyên; test kiểm bằng SQL, không ghi |
+
+**Chưa sửa (việc riêng hoặc chấp nhận):**
+
+- **Ẩn module / bài học trong admin không ẩn với học viên**: không truy vấn hay hàm SQL nào phía học viên đọc `is_hidden` (`course.db.js` syllabus, `learning_progress_content`, `learning_lesson`, `assert_lesson_access`, `course_completion_status`); checklist "N visible lessons" vì vậy cũng chưa đúng. Cần migration sửa 4 hàm và quy tắc tiến độ: làm thành việc riêng.
+- "Today" / chuỗi 14 ngày theo ngày UTC (đã ghi chú trong code); cần quyết định múi giờ của app nếu muốn theo giờ Việt Nam.
+- `swapOrder` khi hai mục trùng `order_index` (hiện 0 trường hợp); ba định nghĩa số challenge (tất cả / published / published và open); bộ lọc trong Users, Comments, Feedback chưa lưu URL; enum (level, status, currency) chép lại trong `courseAdmin.jsx`; trạng thái `inactive` không có tab; giờ trong bảng (giờ máy) và nhãn ngày (UTC) khác nhau.
