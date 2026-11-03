@@ -60,7 +60,7 @@ $ redis-cli --memkeys    # run on the replica: it scans the whole keyspace
             "**allkeys-lru, allkeys-lfu, allkeys-random**: any key may be evicted, least recently used, least frequently used or at random. Right for a pure cache, where an eviction costs one reload. Wrong for sessions: an idle learner's session is exactly a least recently used key, and its TTL is only an upper bound on its life.",
             "**volatile-lru, volatile-lfu, volatile-random, volatile-ttl**: only keys with an expiry may be evicted (volatile-ttl picks the ones closest to expiring). Meant for an instance that mixes cache keys with TTLs and permanent keys without. It works only if every cache key has a TTL; keys written without one are invisible to the policy, as this incident shows.",
         ]),
-        p("LRU and LFU in Redis are approximations that sample a few keys (maxmemory-samples) rather than tracking exact order, and newer Redis releases may add policies or tune these; the documentation of your version is the reference."),
+        p("LRU and LFU in Redis are approximations that sample a few keys (maxmemory-samples) rather than tracking exact order. Newer releases add policies: Redis 8.6 added allkeys-lrm and volatile-lrm (least recently modified, which ignores reads). The documentation of your version is the reference."),
         h3("The design rule"),
         p("Data that can be reloaded and data that cannot should not share an eviction policy. The simplest robust layout for CodeDev is two instances (or two databases in a managed service that supports separate policies per database):"),
         code("text", `

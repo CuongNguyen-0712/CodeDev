@@ -35,13 +35,13 @@ export class LoginRateLimitGuard implements CanActivate {
         p("This is a **fixed window**: the first request creates a counter that lives 60 seconds, every request increments it, and when the key expires the budget starts again from zero. It promises \"at most 5 requests per window\". It does not promise \"at most 5 requests in any 60 seconds\", and the attacker found the difference."),
 
         h2("2. Reproduce it and read the evidence"),
-        p("The access log for one attacking IP, with the TTL of its counter added from `redis-cli TTL rl:login:203.0.113.7` at each step:"),
+        p("The access log for one attacking IP, with the TTL of its counter added from `redis-cli TTL rl:login:203.0.113.7` at each step (TTL rounds to the nearest second, so the last 400 ms of the window show as 0; `PTTL` gives milliseconds):"),
         code("text", `
 10:00:00.000 POST /auth/login 401   counter 1, TTL 60  (window opens)
-10:00:59.600 POST /auth/login 401   counter 2, TTL 1
-10:00:59.700 POST /auth/login 401   counter 3, TTL 1
-10:00:59.800 POST /auth/login 401   counter 4, TTL 1
-10:00:59.900 POST /auth/login 401   counter 5, TTL 1
+10:00:59.600 POST /auth/login 401   counter 2, TTL 0
+10:00:59.700 POST /auth/login 401   counter 3, TTL 0
+10:00:59.800 POST /auth/login 401   counter 4, TTL 0
+10:00:59.900 POST /auth/login 401   counter 5, TTL 0
 10:01:00.050 POST /auth/login 401   counter 1, TTL 60  (key expired at 10:01:00.000: new window)
 10:01:00.150 POST /auth/login 401   counter 2
 10:01:00.250 POST /auth/login 401   counter 3
@@ -57,7 +57,7 @@ $ redis-cli EXPIRE rl:login:test 60
 (integer) 1
 $ redis-cli TTL rl:login:test
 (integer) 57
-# ...wait until the TTL is 1, run INCR four times, then wait one more second:
+# ...wait until the TTL is 1, run INCR four times, then wait two more seconds:
 $ redis-cli GET rl:login:test
 (nil)                              # a fresh budget, whatever happened a second ago`, "terminal"),
 

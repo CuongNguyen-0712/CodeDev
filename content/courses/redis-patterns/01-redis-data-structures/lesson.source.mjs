@@ -128,7 +128,7 @@ instance B: SET leaderboard:global {..., "u_88": 400, "u_91": 150}   OK   <- A's
         bullets([
             "**A big key is a latency problem, not only a memory problem.** Reading, writing, deleting or migrating it blocks Redis for the time it takes. Use `UNLINK` instead of `DEL` to free a big key in the background (Redis 4+).",
             "**Collections grow without a limit unless you give them one.** A feed list needs `LTRIM`, a stream `MAXLEN` or `MINID`, a per-contest sorted set a key per contest and a TTL or a cleanup job when the contest ends.",
-            "**Small hashes, sets and sorted sets are stored compactly.** Up to a threshold (in Redis 7 the defaults are 128 entries and 64-byte values for hashes and sorted sets, `hash-max-listpack-entries` and friends) they use a `listpack` encoding that costs far less memory than the full structure. `OBJECT ENCODING` shows which one a key uses. That is why a hash per session is cheap.",
+            "**Small hashes, sets and sorted sets are stored compactly.** Up to a threshold (in Redis 7 and 8 the defaults are 512 entries for hashes, 128 for sets and sorted sets, and 64-byte values: `hash-max-listpack-entries` and friends) they use a `listpack` encoding that costs far less memory than the full structure. `OBJECT ENCODING` shows which one a key uses. That is why a hash per session is cheap.",
             "**Key names cost memory too.** Millions of keys with long prefixes add up; short, consistent prefixes (`sess:`, `course:`, `lb:`) are easier to scan and cheaper.",
         ]),
 
