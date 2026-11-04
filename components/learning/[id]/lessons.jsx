@@ -73,7 +73,7 @@ function LessonNotice({ icon: Icon, title, children }) {
     return (
         <div className="flex h-full items-center justify-center px-6 py-16">
             <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-                <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                <span className="flex shrink-0 text-muted-foreground">
                     <Icon className="size-5" aria-hidden="true" />
                 </span>
                 <h2 className="text-base font-semibold">{title}</h2>
@@ -97,7 +97,7 @@ function StepButton({ lesson, unlocked, direction, onSelect }) {
             disabled={!unlocked}
             title={!unlocked ? 'Complete this lesson to unlock the next one.' : `${lesson.title} (${shortcut})`}
             className={cn(
-                'group flex min-w-0 items-center gap-3 rounded-lg border px-3.5 py-3 text-left transition-colors hover:border-primary/40 hover:bg-primary-soft/40 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border disabled:hover:bg-transparent',
+                'group flex min-w-0 items-center gap-3 rounded-lg border px-3.5 py-3 text-left transition-colors hover:border-primary/40 hover:bg-primary-soft/40 disabled:cursor-not-allowed disabled:text-muted-foreground disabled:[&_*]:text-muted-foreground disabled:hover:border-border disabled:hover:bg-transparent',
                 isNext && 'flex-row-reverse text-right'
             )}
         >
@@ -106,7 +106,7 @@ function StepButton({ lesson, unlocked, direction, onSelect }) {
                 <span className={cn("flex items-center gap-1.5 text-xs text-muted-foreground", isNext ? "justify-end" : "justify-between")}>
                     <span>{isNext ? 'Next lesson' : 'Previous lesson'}{!unlocked && ' (locked)'}</span>
                     {unlocked && (
-                        <span className="hidden font-mono text-[10px] text-muted-foreground/75 sm:inline-block">
+                        <span className="hidden font-mono text-xs text-muted-foreground sm:inline-block">
                             ({shortcut})
                         </span>
                     )}

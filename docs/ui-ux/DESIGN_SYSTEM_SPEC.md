@@ -65,7 +65,7 @@ Measured contrast pairs are recorded as comments above each block in `app/global
 | Hover | `hover:bg-accent` (neutral), `hover:bg-primary-hover` (primary), `hover:bg-destructive-soft` (destructive outline) |
 | Active / selected | `bg-primary-soft text-primary-ink`; sidebar `data-[active=true]:bg-primary-soft/70 text-primary-ink`; `aria-current` |
 | Focus | 2 px outline in `--ring` with 2 px offset (base layer), shadcn `focus-visible:ring-[3px] ring-ring/50` |
-| Disabled | `disabled:opacity-50` + `pointer-events-none`; always paired with a reason in text or a tooltip when the user cannot proceed |
+| Disabled | App code: `text-muted-foreground` and `cursor-not-allowed` (or `cursor-default` for an `aria-disabled` control that stays focusable), never opacity: faded text measured 2.2-2.7:1. shadcn primitives keep their `disabled:opacity-50`. Always paired with a reason in text or a tooltip when the user cannot proceed |
 | Invalid | `aria-invalid` gives a destructive border and message |
 
 ## 3. Typography
@@ -115,6 +115,8 @@ Scale in use (Tailwind defaults): `text-sm` 267 uses, `text-xs` 187, `text-base`
 
 `react-icons/lu` (Lucide) only. Decorative icons get `aria-hidden="true"`; icon-only buttons get an accessible name. No emoji in the UI (email templates updated with project logo badge and clean copy; audit UX-210).
 
+Icons sit plain, in their hue or `text-muted-foreground`, beside the text they belong to: no tinted or grey square behind them. Exceptions: `EmptyMedia variant="icon"` in an empty state, the level-up dialog, a course thumbnail placeholder, and avatar fallbacks (initials).
+
 ## 7. Forms
 
 | Rule | Status |
@@ -139,3 +141,26 @@ The editor, terminal panel, lesson code blocks and the landing sample share the 
 | ≥ 1440 (large) | Same | Content capped at `max-w-6xl`; no stretched line lengths |
 
 Touch targets: at least 24 × 24 px everywhere (WCAG 2.5.8) and at least 44 px for primary actions and list rows on touch layouts.
+
+## 10. Rules from the 2026-11-04 UI pass
+
+Measured against the tokens (WCAG 2.x, light and dark) and checked with the taste-skill lint and inspector. New screens follow these; `docs/notification-plan.md` has the inbox specifics.
+
+| Rule | Why |
+|---|---|
+| Nothing below 11px; anything read is `text-xs` (12px) or larger | 10px labels in the editor, the lesson pager and the bell badge were the only text under the floor |
+| `text-primary` never as text; use `text-primary-ink` | `#7C3AED` is 2.6-3.4:1 on every dark surface |
+| No opacity for disabled or de-emphasised content (see 2.4) | Faded text fails 4.5:1 in both themes |
+| A state is never shown by a background tint alone: unread, selected and current also change ink, weight or a mark | `bg-primary-soft/15` over a surface measured 1.02:1 |
+| State fill and hover fill live on different elements | Tailwind v4 orders `hover:` after base utilities, so hover wipes the state fill |
+| Skeletons use `bg-muted-foreground/20` (the `Skeleton` component) | `bg-accent` and `bg-muted/40-80` were 1.1-1.35:1, so loading looked like an empty page |
+| No gradients; the logo wordmark is the one exception (brand) | Generated-page tell; removed from the next-action card |
+| No eyebrow or small uppercase label above a heading | Fold it into the heading or the sentence under it |
+| One translucent sticky bar (the shell header); other sticky bars are opaque with a top border | The phone buy bar had its own blur and shadow |
+| No shadow on things at rest; only menus, popovers, dialogs and sheets float | Cards and the editor panel separate by border and tone |
+| The line under a page title states what the data says (counts, balance, unread) | Descriptions of the interface carry no information on a return visit |
+| Counts carry their noun ("3 unread", "Unread 3"), and a changed count is announced as a phrase | A bare number is ambiguous to everyone, and silent to screen readers |
+| Mono is for code, ids and SHAs; numbers use `tabular` in the text face | Mono on prices and counts was costume |
+| `.dark` sets `color-scheme: dark`; `::selection` uses `primary-soft` | Native controls, autofill and selection now follow the theme |
+
+Kept on purpose although the taste-skill flags them: the violet brand accent, hairline `border` lines (decorative, 1.5:1), JetBrains Mono for code and ids, the `text-3xl sm:text-4xl` page title, and the gradient wordmark (`components/ui/logo.jsx`, marked `taste-skill-ignore`).

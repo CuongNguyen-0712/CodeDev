@@ -91,7 +91,7 @@ function RedeemDialogContent({ courseId, courseTitle, points, onOpenChange }) {
                 <DialogDescription>
                     {succeeded
                         ? `You can now start ${courseTitle || 'this course'}.`
-                        : `Use your points to unlock ${courseTitle || 'this course'}. Points are deducted once the server confirms the redemption.`}
+                        : `Spend points to get ${courseTitle || 'this course'}. They are deducted once the redemption is confirmed.`}
                 </DialogDescription>
             </DialogHeader>
 

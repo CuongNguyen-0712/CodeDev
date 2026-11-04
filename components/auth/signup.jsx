@@ -239,7 +239,7 @@ export default function Signup({ active, changeForm, onSignedUp }) {
                         <li key={label}>
                             <button
                                 type="button"
-                                className="group flex min-h-8 w-full flex-col gap-2 rounded-md text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+                                className="group flex min-h-8 w-full flex-col gap-2 rounded-md text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-progress"
                                 aria-current={isCurrent ? "step" : undefined}
                                 disabled={isBusy}
                                 onClick={() => {

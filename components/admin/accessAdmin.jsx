@@ -125,7 +125,7 @@ function AdjustBalance({ kind, user, onAdjusted }) {
     return (
         <section className="space-y-3 rounded-lg border border-border p-4" aria-labelledby={`${id}-heading`}>
             <h3 id={`${id}-heading`} className="text-sm font-semibold">{config.title}</h3>
-            <p className="text-sm">Current: <span className="font-mono tabular-nums">{current.toLocaleString()} {config.unit}</span></p>
+            <p className="text-sm">Current: <span className="font-medium tabular-nums">{current.toLocaleString()} {config.unit}</span></p>
             <form onSubmit={submit} className="space-y-3">
                 <div className="space-y-1.5">
                     <Label htmlFor={`${id}-amount`}>Amount (negative to deduct)</Label>

@@ -161,8 +161,8 @@ export default function ConfirmLink() {
     return (
         <section className="flex w-full max-w-md flex-col items-start gap-5">
             <span className={copy.ok
-                ? "flex size-11 items-center justify-center rounded-lg bg-success-soft text-success"
-                : "flex size-11 items-center justify-center rounded-lg bg-destructive-soft text-destructive"}>
+                ? "flex shrink-0 text-success"
+                : "flex shrink-0 text-destructive"}>
                 <Icon className="size-5" aria-hidden="true" />
             </span>
             <div className="flex flex-col gap-2">

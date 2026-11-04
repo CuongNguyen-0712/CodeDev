@@ -375,7 +375,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                                     outcome === 'correct' && 'border-success/50 bg-success-soft',
                                     outcome === 'incorrect' && 'border-destructive/50 bg-destructive-soft',
                                     outcome === 'missed' && 'border-success/60 bg-success-soft/60',
-                                    isSubmitted && !outcome && !selected && 'opacity-70 hover:border-border hover:bg-background'
+                                    isSubmitted && !outcome && !selected && 'text-muted-foreground [&_*]:text-muted-foreground hover:border-border hover:bg-background'
                                 )}
                             >
                                 <span

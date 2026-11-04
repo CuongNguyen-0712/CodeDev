@@ -38,7 +38,7 @@ function SessionRow({ item, onRevoke, revoking }) {
 
     return (
         <li className="flex items-center gap-3 px-4 py-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+            <span className="flex shrink-0 text-muted-foreground">
                 <Icon className="size-4" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">

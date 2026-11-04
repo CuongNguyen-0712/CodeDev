@@ -28,7 +28,7 @@ export function RatingStars({ value, onChange, label = "Your rating", disabled =
                     onMouseEnter={() => !disabled && setHover(stars)}
                     className={cn(
                         "rounded-md p-0.5 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
-                        disabled ? "cursor-default opacity-60" : "cursor-pointer"
+                        disabled ? "cursor-default" : "cursor-pointer"
                     )}
                 >
                     <input

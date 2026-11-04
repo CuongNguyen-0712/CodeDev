@@ -47,10 +47,7 @@ export function ErrorReload({
                 compact ? "items-start p-3" : "flex-col items-center px-6 py-10 text-center"
             )}
         >
-            <span className={cn(
-                "flex shrink-0 items-center justify-center rounded-md bg-destructive-soft text-destructive",
-                compact ? "size-8" : "size-10"
-            )}>
+            <span className="flex shrink-0 text-destructive">
                 <LuTriangleAlert className={compact ? "size-4" : "size-5"} aria-hidden="true" />
             </span>
 
@@ -90,7 +87,7 @@ export function PageError({
     return (
         <div className="flex min-h-[60vh] w-full items-center justify-center px-6 py-16" role="alert">
             <div className="flex max-w-md flex-col items-center gap-4 text-center">
-                <span className="flex size-12 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <span className="flex shrink-0 text-muted-foreground">
                     <LuUnlink className="size-6" aria-hidden="true" />
                 </span>
                 <div className="space-y-2">

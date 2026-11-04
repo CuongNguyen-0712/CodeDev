@@ -115,7 +115,7 @@ export default function ExperienceSection({ status, currentLevel = 1 }) {
                             const Icon = source.icon;
                             return (
                                 <li key={tx.id} className="flex items-center gap-3 px-3.5 py-3 sm:px-4">
-                                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                                    <span className="flex shrink-0 text-muted-foreground">
                                         <Icon className="size-4" aria-hidden="true" />
                                     </span>
                                     <div className="min-w-0 flex-1 space-y-0.5">

@@ -73,7 +73,7 @@ function CourseItemSkeleton() {
     );
 }
 
-export default function CoursePage() {
+export default function CoursePage({ stats = null }) {
     const { search, filter, sort, params, isFiltered: hasActiveFilters, setSearch, setFilter, setSort, reset } = useListQueryState('course');
 
     const { status: sessionStatus } = useSession();
@@ -127,7 +127,9 @@ export default function CoursePage() {
                     Course catalog
                 </h1>
                 <p className="max-w-[60ch] text-sm text-muted-foreground">
-                    Filter courses by level, price, rating, language, category, career role, industry or skill, then open one to review its syllabus.
+                    {stats?.courses
+                        ? `${stats.courses} courses${stats.languages ? ` in ${stats.languages} languages` : ""}${stats.free_courses ? `, ${stats.free_courses} of them free` : ""}. Filter by level, price, language or role.`
+                        : "Filter courses by level, price, language or role, then open one to see its syllabus."}
                 </p>
             </header>
 

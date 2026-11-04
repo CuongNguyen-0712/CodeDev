@@ -47,7 +47,7 @@ function PriceSummary({ offers = [] }) {
     return (
         <div className="flex flex-col gap-0.5 text-sm">
             {offers.map((offer) => (
-                <span key={offer.priceType} className="font-mono tabular-nums">
+                <span key={offer.priceType} className="tabular-nums">
                     {offer.priceType === "money" ? formatMoney(offer.amount, offer.currency) : `${offer.amount.toLocaleString()} pts`}
                 </span>
             ))}
@@ -99,7 +99,7 @@ export default function CourseAdmin() {
                             <TableCell><Badge variant={STATUS_VARIANT[course.publishStatus] || "muted"}>{course.publishStatus}</Badge></TableCell>
                             <TableCell className="@max-2xl:hidden"><Badge variant={course.accessModel === "premium" ? "primary" : "info"}>{course.accessModel}</Badge></TableCell>
                             <TableCell className="@max-2xl:hidden"><PriceSummary offers={course.offers} /></TableCell>
-                            <TableCell className="text-right font-mono tabular-nums @max-2xl:hidden">{course.students}</TableCell>
+                            <TableCell className="text-right tabular-nums @max-2xl:hidden">{course.students}</TableCell>
                             <TableCell className="text-right">
                                 <RowAction icon={LuPencil} label="Manage" target={course.title} tone="primary" onClick={() => setEditingId(course.id)} />
                             </TableCell>

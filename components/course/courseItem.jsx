@@ -107,7 +107,7 @@ export const CourseItem = ({ item, priority = false }) => {
     ];
 
     return (
-        <article className="group/course flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground transition-[border-color,box-shadow] duration-200 hover:border-primary/50 hover:shadow-md">
+        <article className="group/course flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground transition-colors duration-200 hover:border-primary/50">
             {item.image && (
                 // Decorative duplicate of the title link below, so it stays out of the tab order and screen readers.
                 <Link href={`/course/${item.id}`} tabIndex={-1} aria-hidden="true" className="block aspect-video overflow-hidden border-b bg-muted">
@@ -185,10 +185,11 @@ export const CourseItem = ({ item, priority = false }) => {
                     ) : null}
                 </div>
 
-                {(recommended || estimatedExp > 0) && (
+                {(recommended || estimatedExp > 0 || fit) && (
                     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                         {recommended && <span>Recommended <span className="tabular text-foreground">Lv {recommended.min}–{recommended.max}</span></span>}
-                        {estimatedExp > 0 && <span className="tabular text-xp">≈ {estimatedExp.toLocaleString()} EXP</span>}
+                        {/* Muted like the rest of the line: the card's colour stays on level, price and fit. */}
+                        {estimatedExp > 0 && <span className="tabular">≈ {estimatedExp.toLocaleString()} EXP</span>}
                         {fit && (
                             <Badge variant={fit === 'suitable' ? 'success' : fit === 'too_early' ? 'warning' : 'muted'} className="ml-auto">
                                 {FIT_LABELS[fit]}

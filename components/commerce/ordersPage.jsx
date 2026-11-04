@@ -189,7 +189,7 @@ function PointsTab({ status }) {
     return (
         <div className="flex flex-col gap-4">
             <section aria-labelledby="balance-heading" className="flex items-center gap-3 rounded-lg border bg-card p-4">
-                <span className="flex size-10 items-center justify-center rounded-md bg-primary-soft text-primary-soft-foreground">
+                <span className="flex shrink-0 text-primary-ink">
                     <LuCoins className="size-5" aria-hidden="true" />
                 </span>
                 <div>
@@ -277,6 +277,8 @@ export default function OrdersPage() {
     const searchParams = useSearchParams();
     const requested = searchParams?.get('tab');
     const defaultTab = TABS.includes(requested) ? requested : 'orders';
+    // Same query as the Points tab (one request): the balance belongs in the page's first line.
+    const balance = useInfiniteQuery(commerceQueries.wallet(status)).data?.pages?.[0]?.balance;
 
     return (
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
@@ -284,8 +286,8 @@ export default function OrdersPage() {
                 <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
                     Orders and points
                 </h1>
-                <p className="max-w-[60ch] text-sm text-muted-foreground">
-                    Review your course purchases and redemptions, and see how you earned and spent your points.
+                <p className="text-sm text-muted-foreground tabular">
+                    {balance == null ? "Your course orders and every points entry." : `${formatPoints(balance)} available. Your course orders and every points entry.`}
                 </p>
             </header>
 

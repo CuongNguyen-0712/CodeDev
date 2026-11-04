@@ -450,7 +450,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
     return (
         <div className="space-y-3">
             {/* Phones: bleed past the lesson's px-5 gutter so code gets the full screen width. */}
-            <div className="overflow-hidden rounded-lg border border-editor-border bg-editor text-editor-foreground shadow-sm max-sm:-mx-5 max-sm:rounded-none max-sm:border-x-0">
+            <div className="overflow-hidden rounded-lg border border-editor-border bg-editor text-editor-foreground max-sm:-mx-5 max-sm:rounded-none max-sm:border-x-0">
                 <CodeEditor
                     value={draft.code}
                     onChange={draft.setCode}
@@ -476,18 +476,18 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
                             <TabsTrigger value="tests" className={darkTabTrigger}>
                                 <LuListChecks />
                                 <span className="max-sm:sr-only">Tests</span>
-                                <span className="font-mono text-[10px] text-editor-muted tabular">{visibleTests.length + hiddenCount}</span>
+                                <span className="font-mono text-[11px] text-editor-muted tabular">{visibleTests.length + hiddenCount}</span>
                             </TabsTrigger>
                             <TabsTrigger value="console" className={darkTabTrigger}>
                                 <LuTerminal />
                                 <span className="max-sm:sr-only">Console</span>
-                                <span className="font-mono text-[10px] text-editor-muted tabular">{consoleLines.length}</span>
+                                <span className="font-mono text-[11px] text-editor-muted tabular">{consoleLines.length}</span>
                             </TabsTrigger>
                             <TabsTrigger value="history" className={darkTabTrigger}>
                                 <LuHistory />
                                 <span className="max-sm:sr-only">History</span>
                                 {historyQuery.data && (
-                                    <span className="font-mono text-[10px] text-editor-muted tabular">{historyQuery.data.submissions.length}</span>
+                                    <span className="font-mono text-[11px] text-editor-muted tabular">{historyQuery.data.submissions.length}</span>
                                 )}
                             </TabsTrigger>
                         </TabsList>
@@ -570,7 +570,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
                                 <ol className="list-none space-y-1">
                                     {consoleLines.map((line, i) => (
                                         <li key={i} className="flex gap-2">
-                                            <span className="shrink-0 rounded-sm bg-editor-raised px-1 text-[10px] text-editor-muted">{line.test}</span>
+                                            <span className="shrink-0 rounded-sm bg-editor-raised px-1 text-[11px] text-editor-muted">{line.test}</span>
                                             <code className={cn(
                                                 "break-all",
                                                 line.level === "error" ? "text-editor-danger" : line.level === "warn" ? "text-editor-warning" : "text-editor-foreground"

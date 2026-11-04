@@ -666,7 +666,7 @@ export default function OnboardingPage() {
     if (sessionStatus !== "authenticated") {
         return (
             <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-3 px-4 py-20 text-center">
-                <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                <span className="flex shrink-0 text-muted-foreground">
                     <LuUser className="size-5" aria-hidden="true" />
                 </span>
                 <div className="space-y-1">

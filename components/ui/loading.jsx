@@ -9,16 +9,16 @@ export function PageSkeleton() {
     return (
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10" role="status" aria-busy="true" aria-label="Loading page content">
             <div className="space-y-3">
-                <div className="h-8 w-56 rounded-md bg-muted/80 animate-pulse" />
-                <div className="h-4 w-96 max-w-full rounded-md bg-muted/60 animate-pulse" />
+                <div className="h-8 w-56 rounded-md bg-muted-foreground/20 animate-pulse" />
+                <div className="h-4 w-96 max-w-full rounded-md bg-muted-foreground/20 animate-pulse" />
             </div>
-            <div className="h-10 w-full rounded-md bg-muted/40 animate-pulse" />
+            <div className="h-10 w-full rounded-md bg-muted-foreground/20 animate-pulse" />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {Array.from({ length: 6 }, (_, i) => (
                     <div key={i} className="flex flex-col gap-3 rounded-lg border bg-card p-4">
-                        <div className="aspect-video w-full rounded-md bg-muted/60 animate-pulse" />
-                        <div className="h-4 w-3/4 rounded-md bg-muted/60 animate-pulse" />
-                        <div className="h-3 w-1/2 rounded-md bg-muted/40 animate-pulse" />
+                        <div className="aspect-video w-full rounded-md bg-muted-foreground/20 animate-pulse" />
+                        <div className="h-4 w-3/4 rounded-md bg-muted-foreground/20 animate-pulse" />
+                        <div className="h-3 w-1/2 rounded-md bg-muted-foreground/20 animate-pulse" />
                     </div>
                 ))}
             </div>

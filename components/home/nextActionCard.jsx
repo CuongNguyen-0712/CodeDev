@@ -1,6 +1,6 @@
 'use client';
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import { userQueries } from "@/queries/user.query";
@@ -8,9 +8,14 @@ import { userQueries } from "@/queries/user.query";
 import { Button } from "@/components/shadcn/button";
 import { Progress } from "@/components/shadcn/progress";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { Badge } from "@/components/shadcn/badge";
 
-import { LuArrowRight, LuBookOpen, LuLibrary, LuPlay, LuSparkles } from "react-icons/lu";
+import { LuLibrary, LuLoaderCircle, LuPlay } from "react-icons/lu";
+
+// The learning workspace takes a moment to open: the link's icon spins while the navigation is pending.
+function PendingIcon({ icon: Icon }) {
+    const { pending } = useLinkStatus();
+    return pending ? <LuLoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Icon className="size-4" aria-hidden="true" />;
+}
 
 export default function NextActionCard() {
     const { status } = useSession();
@@ -40,20 +45,14 @@ export default function NextActionCard() {
 
     if (!activeCourse) {
         return (
-            <div className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-r from-primary-soft/40 via-background to-background p-5 sm:p-6">
+            <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                            <span className="flex size-6 items-center justify-center rounded-md bg-primary-soft text-primary-ink">
-                                <LuSparkles className="size-3.5" aria-hidden="true" />
-                            </span>
-                            <span className="text-xs font-semibold uppercase tracking-wider text-primary-ink">Get started</span>
-                        </div>
                         <h2 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
-                            Ready to learn by writing code?
+                            Pick your first course
                         </h2>
                         <p className="max-w-[50ch] text-sm text-muted-foreground">
-                            Pick your first course from the catalog or follow a tailored career roadmap.
+                            Choose one from the catalog, or follow a roadmap for the role you want.
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-2.5">
@@ -82,34 +81,22 @@ export default function NextActionCard() {
     return (
         <section
             aria-labelledby="next-action-heading"
-            className="group relative overflow-hidden rounded-xl border border-primary/25 bg-card p-5 shadow-xs transition-colors hover:border-primary/40 sm:p-6"
+            className="rounded-xl border border-primary/30 bg-card p-5 transition-colors hover:border-primary/50 sm:p-6 dark:border-primary/45 dark:hover:border-primary/70"
         >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
                 <div className="min-w-0 flex-1 space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <span className="flex size-6 items-center justify-center rounded-md bg-primary-soft text-primary-ink">
-                            <LuBookOpen className="size-3.5" aria-hidden="true" />
-                        </span>
-                        <span className="text-xs font-semibold uppercase tracking-wider text-primary-ink">
-                            {isStarted ? "Continue where you left off" : "Next up on your plate"}
-                        </span>
-                        <Badge variant="outline" className="tabular text-xs">
-                            {percent}% completed
-                        </Badge>
-                    </div>
-
                     <div className="space-y-1">
                         <h2 id="next-action-heading" className="truncate text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                             {activeCourse.title}
                         </h2>
                         <p className="truncate text-sm text-muted-foreground">
-                            {[activeCourse.language_name, activeCourse.category_name].filter(Boolean).join(' · ')}
-                            {total > 0 && ` — ${completed} of ${total} lessons passed`}
+                            {[isStarted ? "In progress" : "Not started", activeCourse.language_name, activeCourse.category_name].filter(Boolean).join(' · ')}
+                            {total > 0 && `, ${completed} of ${total} lessons passed`}
                         </p>
                     </div>
 
                     <div className="flex max-w-md items-center gap-3">
-                        <Progress value={percent} className="h-2 flex-1 bg-muted" aria-label={`${activeCourse.title} progress`} />
+                        <Progress value={percent} className="h-2 flex-1" aria-label={`${activeCourse.title} progress`} />
                         <span className="w-10 text-right text-xs font-medium tabular text-muted-foreground">
                             {percent}%
                         </span>
@@ -119,9 +106,8 @@ export default function NextActionCard() {
                 <div className="flex shrink-0 flex-wrap items-center gap-3">
                     <Button asChild size="lg" className="w-full sm:w-auto">
                         <Link href={`/learning/${activeCourse.id}`}>
-                            <LuPlay className="size-4" aria-hidden="true" />
+                            <PendingIcon icon={LuPlay} />
                             {isStarted ? "Continue learning" : "Start course"}
-                            <LuArrowRight className="size-4" aria-hidden="true" />
                         </Link>
                     </Button>
                     <Button asChild variant="outline" size="lg" className="w-full sm:w-auto">

@@ -57,7 +57,7 @@ const CommentItem = ({ data, courseId }) => {
         );
     };
     const signInHint = !session ? "Sign in to vote on comments" : undefined;
-    const voteButton = "inline-flex h-8 items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:relative focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&>svg]:size-4 [&>svg]:transition-transform active:[&>svg]:scale-90";
+    const voteButton = "inline-flex h-8 items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:relative focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none [&>svg]:size-4 [&>svg]:transition-transform active:[&>svg]:scale-90";
 
     const username = data.username || 'Anonymous';
 

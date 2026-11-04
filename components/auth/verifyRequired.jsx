@@ -129,7 +129,7 @@ export default function VerifyRequired() {
 
     return (
         <section className="flex w-full max-w-md flex-col items-start gap-5">
-            <span className="flex size-11 items-center justify-center rounded-lg bg-warning-soft text-warning">
+            <span className="flex shrink-0 text-warning">
                 <LuMailWarning className="size-5" aria-hidden="true" />
             </span>
             <div className="flex flex-col gap-2">

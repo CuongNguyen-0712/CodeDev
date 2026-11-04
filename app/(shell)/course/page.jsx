@@ -5,6 +5,7 @@ import CoursePage from "@/components/course/coursePage";
 import { courseService } from "@/services/course.service";
 import { courseQueries } from "@/queries/course.query";
 import { getAuthSession } from "@/lib/session";
+import { getCatalogStats } from "@/lib/cachedData";
 import { parseListQuery, toQueryParams } from "@/lib/listFilters";
 
 export async function generateMetadata() {
@@ -21,13 +22,17 @@ async function CourseList({ searchParams }) {
 
     // Signed-in learners do not see the courses they are enrolled in (as the API does).
     const session = await getAuthSession({ soft: true });
-    const firstPage = await courseService
-        .getList({ userId: session?.user?.id ?? null, ...state, limit: 20 })
-        .catch((error) => {
-            // The client fetches it again and shows Retry if that fails too.
-            console.error("Failed to prefetch the course list:", error);
-            return null;
-        });
+    const [firstPage, stats] = await Promise.all([
+        courseService
+            .getList({ userId: session?.user?.id ?? null, ...state, limit: 20 })
+            .catch((error) => {
+                // The client fetches it again and shows Retry if that fails too.
+                console.error("Failed to prefetch the course list:", error);
+                return null;
+            }),
+        // The line under the title; without it the page shows its plain description.
+        getCatalogStats().catch(() => null),
+    ]);
 
     const queryClient = new QueryClient();
     if (firstPage) {
@@ -36,7 +41,7 @@ async function CourseList({ searchParams }) {
 
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
-            <CoursePage />
+            <CoursePage stats={stats} />
         </HydrationBoundary>
     )
 }

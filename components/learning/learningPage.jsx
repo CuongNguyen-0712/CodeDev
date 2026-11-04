@@ -5,7 +5,7 @@ import Link from "next/link"
 import { ErrorReload } from "../ui/error";
 import SearchBar from "../ui/searchBar";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { userQueries } from "@/queries/user.query";
 import { useSession } from "next-auth/react";
 import { useListQueryState } from "@/hooks/useListQueryState";
@@ -97,6 +97,16 @@ export default function LearningPage() {
     const showError = !isLoading && isError && courses.length === 0;
     const showEmpty = !isLoading && !isError && courses.length === 0;
 
+    const { data: overview } = useQuery(userQueries.overview(status));
+    const counts = overview?.courses;
+    const finding = counts
+        ? [
+            counts.in_progress?.length && `${counts.in_progress.length} in progress`,
+            counts.enrolled?.length && `${counts.enrolled.length} not started`,
+            counts.completed?.length && `${counts.completed.length} completed`,
+        ].filter(Boolean).join(" · ") || "No courses yet"
+        : null;
+
     return (
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
             <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -104,9 +114,11 @@ export default function LearningPage() {
                     <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
                         My learning
                     </h1>
-                    <p className="max-w-[60ch] text-sm text-muted-foreground">
-                        Pick up where you left off, track lesson progress and manage the courses you are enrolled in.
-                    </p>
+                    {finding ? (
+                        <p className="text-sm text-muted-foreground tabular">{finding}</p>
+                    ) : (
+                        <Skeleton className="h-4 w-48" />
+                    )}
                 </div>
                 <Button asChild variant="outline" className="self-start sm:self-auto">
                     <Link href="/course">

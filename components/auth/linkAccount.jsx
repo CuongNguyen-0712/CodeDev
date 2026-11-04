@@ -70,8 +70,8 @@ export default function LinkAccount() {
 
     return (
         <section className="flex w-full max-w-md flex-col items-start gap-5">
-            <span className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <LuMailCheck className="size-5" aria-hidden="true" />
+            <span className="text-primary-ink">
+                <LuMailCheck className="size-6" aria-hidden="true" />
             </span>
             <div className="flex flex-col gap-2">
                 <h1 className="text-2xl font-semibold tracking-tight text-foreground">Check your inbox</h1>

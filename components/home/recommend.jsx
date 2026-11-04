@@ -186,7 +186,7 @@ export default function HomeRecommend() {
             {!isLoading && !isError && isFallback && (
                 <div className="flex flex-col gap-3 rounded-lg border border-dashed bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-start gap-3">
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary-soft-foreground">
+                        <span className="flex shrink-0 text-primary-ink">
                             <LuSlidersHorizontal className="size-4" aria-hidden="true" />
                         </span>
                         <div className="min-w-0 space-y-0.5">
@@ -261,7 +261,7 @@ export default function HomeRecommend() {
                                         onClick={handleClickGuard}
                                         className="flex h-full min-h-48 flex-col items-start justify-end gap-3 rounded-lg border border-dashed bg-card p-4 transition-colors outline-none hover:border-primary/40 hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                                     >
-                                        <span className="flex size-9 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                                        <span className="flex shrink-0 text-muted-foreground">
                                             <LuLibrary className="size-4" aria-hidden="true" />
                                         </span>
                                         <span className="space-y-1">
@@ -283,7 +283,7 @@ export default function HomeRecommend() {
 
             <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-start gap-3">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <span className="flex shrink-0 text-muted-foreground">
                         <LuRoute className="size-4" aria-hidden="true" />
                     </span>
                     <div className="min-w-0 space-y-0.5">

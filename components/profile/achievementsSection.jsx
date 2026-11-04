@@ -66,7 +66,7 @@ export default function AchievementsSection({ user, overview }) {
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {BADGES.map((badge) => {
                     const unlocked = badge.isUnlocked(user, overview);
                     const Icon = badge.icon;
@@ -76,24 +76,17 @@ export default function AchievementsSection({ user, overview }) {
                             <TooltipTrigger asChild>
                                 <div
                                     className={cn(
-                                        "flex flex-col items-center gap-2 rounded-lg border p-3.5 text-center transition-colors",
+                                        "flex min-w-0 items-center gap-3 rounded-lg border px-3.5 py-3 transition-colors",
                                         unlocked
                                             ? "border-primary/25 bg-card hover:border-primary/50"
-                                            : "border-border/60 bg-muted/30 opacity-60"
+                                            : "border-border/60 bg-muted/30"
                                     )}
                                 >
-                                    <div
-                                        className={cn(
-                                            "flex size-10 items-center justify-center rounded-full",
-                                            unlocked
-                                                ? "bg-primary-soft text-primary-ink"
-                                                : "bg-muted text-muted-foreground"
-                                        )}
-                                    >
+                                    <div className={cn("flex shrink-0", unlocked ? "text-primary-ink" : "text-muted-foreground")}>
                                         {unlocked ? <Icon className="size-5" /> : <LuLock className="size-4 text-muted-foreground" />}
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="truncate text-xs font-semibold text-foreground">{badge.title}</p>
+                                        <p className={cn("truncate text-xs font-semibold", unlocked ? "text-foreground" : "text-muted-foreground")}>{badge.title}</p>
                                         <span className="text-xs text-muted-foreground">
                                             {unlocked ? "Unlocked" : "Locked"}
                                         </span>

@@ -62,7 +62,7 @@ export default function VerifyEmailBanner() {
 
     // Grace period still running (plan 12): quote the lock date; after it, the deletion date.
     const lockAhead = me.verify_lock_at && new Date(me.verify_lock_at) > new Date()
-    let notice = "Verify your email to secure your account and unlock purchases."
+    let notice = "Verify your email before you buy or redeem a course."
     if (lockAhead) notice = `Verify your email by ${formatDeadline(me.verify_lock_at)} to keep using CodeDev.`
     else if (me.purge_after) notice = `Verify your email by ${formatDeadline(me.purge_after)}, or this account and its data will be deleted.`
 

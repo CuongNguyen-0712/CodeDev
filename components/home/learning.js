@@ -89,7 +89,7 @@ function RowsSkeleton({ rows = 3, withBar = false }) {
 function PanelEmpty({ icon: Icon, title, description, action = null }) {
     return (
         <div className="flex flex-col items-center gap-3 px-4 py-6 text-center sm:py-8">
-            <span className="flex size-9 items-center justify-center rounded-md bg-muted text-muted-foreground">
+            <span className="flex shrink-0 text-muted-foreground">
                 <Icon className="size-4" aria-hidden="true" />
             </span>
             <div className="space-y-1">

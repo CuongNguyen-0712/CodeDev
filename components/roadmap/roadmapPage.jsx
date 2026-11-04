@@ -221,7 +221,7 @@ export default function RoadmapPage() {
                     Roadmaps
                 </h1>
                 <p className="max-w-[60ch] text-sm text-muted-foreground">
-                    Ordered learning paths for developer roles. Each step links to the courses that cover it, so you always know what to study next.
+                    {roadmaps?.length ? `${roadmaps.length} paths for developer roles. ` : ""}Each step links to the courses that cover it.
                 </p>
             </header>
 

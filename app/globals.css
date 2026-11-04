@@ -175,6 +175,8 @@
      input / ring on background           3.35:1 / 6.88:1
    ========================================================== */
 .dark {
+    /* Native controls, autofill and scrollbars follow the dark theme too. */
+    color-scheme: dark;
     /* Surfaces: violet ink with clear elevation steps (canvas < sidebar < background < card < popover) */
     --background: #100E15;
     --foreground: #EEEBF4;
@@ -364,6 +366,12 @@
     * {
         scrollbar-width: thin;
         scrollbar-color: var(--scrollbar-thumb) transparent;
+    }
+
+    /* Selected text in the brand tint (8.9:1 dark, 6.3:1 light); the editor keeps its own. */
+    ::selection {
+        background-color: var(--primary-soft);
+        color: var(--primary-soft-foreground);
     }
 
     html {

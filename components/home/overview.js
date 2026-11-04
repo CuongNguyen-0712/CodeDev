@@ -130,12 +130,11 @@ export default function HomeOverview() {
                 </Avatar>
 
                 <div className="min-w-0 space-y-1 lg:space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">Welcome back</p>
                     <h1 className="text-2xl font-semibold tracking-tight break-words text-foreground sm:text-3xl lg:text-4xl">
                         {displayName}
                     </h1>
                     <p className="line-clamp-2 max-w-[60ch] text-sm text-muted-foreground">
-                        {data?.bio || "Pick up your courses, check your progress and find something new to learn."}
+                        {data?.bio || "Welcome back. Pick up where you stopped, or find the next course."}
                     </p>
                     <Button asChild variant="outline" size="sm" className="mt-1">
                         <Link href="/settings">
@@ -151,7 +150,7 @@ export default function HomeOverview() {
                 {/* Card Top: Level Badge + Rank Title + Ledger link */}
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                        <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-xp-soft text-xp">
+                        <div className="flex shrink-0 text-xp">
                             <LuTrophy className="size-5" aria-hidden="true" />
                         </div>
                         <div className="min-w-0">

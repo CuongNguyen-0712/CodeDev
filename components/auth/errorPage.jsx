@@ -98,7 +98,7 @@ export default function ErrorPage() {
     return (
         <main className="flex min-h-dvh w-full items-center justify-center bg-background px-4 py-16 sm:px-6">
             <div className="flex w-full max-w-md flex-col items-start gap-5">
-                <span className="flex size-11 items-center justify-center rounded-lg bg-destructive-soft text-destructive">
+                <span className="flex shrink-0 text-destructive">
                     <LuTriangleAlert className="size-5" aria-hidden="true" />
                 </span>
 

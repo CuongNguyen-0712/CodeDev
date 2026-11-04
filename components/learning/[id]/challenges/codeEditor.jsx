@@ -667,7 +667,7 @@ export default function CodeEditor({
 
                     <textarea
                         ref={textareaRef}
-                        className="absolute inset-0 size-full resize-none overflow-auto bg-transparent p-3 whitespace-pre text-transparent caret-editor-accent outline-none [tab-size:4] [-webkit-text-fill-color:transparent] selection:bg-syntax-selection focus-visible:outline-none"
+                        className="absolute inset-0 size-full resize-none overflow-auto bg-transparent p-3 whitespace-pre text-transparent caret-editor-accent outline-none [tab-size:4] [-webkit-text-fill-color:transparent] selection:bg-syntax-selection focus-visible:outline-none" // taste-skill-ignore: transparent textarea over the highlighted code
                         value={value}
                         onChange={handleChange}
                         onKeyUp={updateCursorPos}

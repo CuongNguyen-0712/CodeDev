@@ -55,7 +55,7 @@ function LearnerLink({ user, isViewer, stretch = false }) {
         <Link
             href={`/profile/${encodeURIComponent(user.username)}`}
             className={cn(
-                "min-w-0 truncate rounded-sm font-medium text-foreground hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                "min-w-0 max-w-full truncate rounded-sm font-medium text-foreground hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                 stretch && "after:absolute after:inset-0 after:content-['']"
             )}
             title={name}
@@ -75,7 +75,7 @@ const PODIUM_TONE = { 1: "bg-xp-soft text-xp", 2: "bg-muted text-muted-foregroun
 function Podium({ entries, board, viewerId }) {
     if (entries.length === 0) return null;
     return (
-        <ol className="m-0 grid list-none gap-3 p-0 sm:grid-cols-3 sm:items-end" aria-label="Top 3">
+        <ol className="m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0" aria-label="Top 3">
             {entries.map((entry, index) => {
                 const Icon = PODIUM_ICON[entry.position];
                 return (
@@ -83,17 +83,16 @@ function Podium({ entries, board, viewerId }) {
                         key={entry.user.id}
                         style={{ '--enter-index': index % 20 }}
                         className={cn(
-                            "animate-enter relative flex items-center gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-accent/40 sm:flex-col sm:text-center",
-                            entry.position === 1 ? "sm:order-2 sm:pb-6" : entry.position === 2 ? "sm:order-1" : "sm:order-3",
-                            entry.user.id === viewerId && "border-primary/40 bg-primary-soft/40"
+                            "animate-enter relative flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40",
+                            entry.user.id === viewerId && "bg-primary-soft/40"
                         )}
                     >
                         <span className={cn("flex size-9 shrink-0 items-center justify-center gap-0.5 rounded-full tabular text-sm font-semibold", PODIUM_TONE[entry.position])}>
                             <Icon className="size-3.5" aria-hidden="true" />
                             {entry.position}
                         </span>
-                        <LearnerAvatar user={entry.user} className={entry.position === 1 ? "sm:size-14" : "sm:size-12"} />
-                        <div className="flex min-w-0 flex-1 flex-col gap-1 sm:items-center">
+                        <LearnerAvatar user={entry.user} className={entry.position === 1 ? "size-10" : "size-9"} />
+                        <div className="flex min-w-0 flex-1 flex-col gap-1">
                             <LearnerLink user={entry.user} isViewer={entry.user.id === viewerId} stretch />
                             <RankBadge tier={entry.tier} title={entry.tierTitle} />
                         </div>
