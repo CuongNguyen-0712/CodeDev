@@ -6,9 +6,8 @@ import AdminShell from "@/components/admin/shell/adminShell";
 import MfaGate from "@/components/admin/mfa/mfaGate";
 
 import { adminEnabled, adminIpAllowed } from "@/lib/adminMode";
-import { adminEnvironment, adminTitlePrefix, getAdminActor } from "@/lib/adminActor";
+import { adminEnvironment, adminTitlePrefix, getAdminActor, getAdminSession } from "@/lib/adminActor";
 import { RateLimiter } from "@/lib/rateLimit";
-import { getAuthSession } from "@/lib/session";
 import { adminMfaService, mfaRequiredFor } from "@/services/adminMfa.service";
 
 // Gated per request (session, permissions, address, second factor), so navigations here wait for the server.
@@ -31,7 +30,7 @@ export default async function AdminLayout({ children }) {
     if (!adminEnabled()) notFound();
     if (!adminIpAllowed(RateLimiter.getClientIp(await headers(), { trustedOnly: true }))) notFound();
 
-    const session = await getAuthSession({ soft: true });
+    const session = await getAdminSession();
     if (!session?.user?.id) redirect("/auth?next=/admin");
 
     const actor = await getAdminActor();
