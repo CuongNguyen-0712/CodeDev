@@ -11,6 +11,7 @@ vi.mock("next/headers", () => ({
     cookies: async () => ({ getAll: () => [], get: () => undefined }),
     headers: async () => new Headers(),
 }));
+vi.mock("next/server", async (importOriginal) => ({ ...(await importOriginal()), connection: async () => {} }));
 vi.mock("@/services/auth.service", () => ({
     authService: { getSessionStatus: vi.fn(async () => ({ userId: "u1" })) },
 }));
