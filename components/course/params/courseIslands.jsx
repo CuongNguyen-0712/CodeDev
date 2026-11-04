@@ -20,7 +20,7 @@ import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 
-import { LuArrowLeft, LuHeart } from "react-icons/lu";
+import { LuArrowLeft, LuHeart, LuLink } from "react-icons/lu";
 
 // Enrollment status is shown as a tinted badge with a text label, never colour alone.
 const ENROLLMENT_STATUS = {
@@ -41,6 +41,29 @@ export function BackToCourses() {
                 </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">Back to courses</TooltipContent>
+        </Tooltip>
+    );
+}
+
+// Top-bar action: copies the page URL. Kept out of the header's action row, which is for enrolment.
+export function CopyCourseLink() {
+    const { showAlert: alert } = useApp();
+    const handleShare = async () => {
+        try {
+            await navigator.clipboard.writeText(window.location.href);
+            alert(200, "Course link copied to clipboard!");
+        } catch {
+            alert(0, "Copy this link: " + window.location.href);
+        }
+    };
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon-sm" onClick={handleShare} aria-label="Copy course link">
+                    <LuLink />
+                </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Copy course link</TooltipContent>
         </Tooltip>
     );
 }

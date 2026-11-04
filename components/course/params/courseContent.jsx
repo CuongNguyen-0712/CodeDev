@@ -7,7 +7,7 @@ import Link from "next/link";
 import ExpandableText from "../../ui/expandableText";
 
 import CommentPage from "./commentPage";
-import { BackToCourses, CourseActions, CourseCover, EnrollmentBadge, LanguageLogo, MobilePurchaseActions } from "./courseIslands";
+import { BackToCourses, CopyCourseLink, CourseActions, CourseCover, EnrollmentBadge, LanguageLogo, MobilePurchaseActions } from "./courseIslands";
 import { LEVEL_ICON, formatDuration } from "../courseMeta";
 
 import { levelMapping } from "@/constants/constants";
@@ -89,6 +89,8 @@ export function CourseTopBar({ title, loading = false }) {
                     </BreadcrumbItem>
                 </BreadcrumbList>
             </Breadcrumb>
+
+            <CopyCourseLink />
         </header>
     );
 }
@@ -350,17 +352,23 @@ export function CourseContent({ course, courseId }) {
     );
 }
 
-/** Fixed bottom bar on phones: title, price and the one live purchase action. */
+/**
+ * Bottom bar on phones: title, price and the live purchase action(s). It is the frame's last child
+ * and sticks to the bottom of the scroller, so it never covers the page's end and needs no guessed
+ * padding; a premium course has two actions (buy, redeem) and each takes a full row.
+ */
 export function CourseMobileBar({ course, courseId }) {
     const { premium, label: priceLabel } = coursePrice(course);
     return (
-        <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t bg-background/95 px-4 py-3 shadow-md backdrop-blur-sm sm:hidden">
-            <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-semibold text-foreground">{course.title}</p>
-                <p className="text-xs text-muted-foreground">{premium ? priceLabel : 'Free course'}</p>
+        <div className="sticky bottom-0 z-30 mt-auto flex w-full shrink-0 flex-col gap-2 border-t bg-background px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
+            <div className="flex min-w-0 items-baseline justify-between gap-3">
+                <p className="min-w-0 truncate text-xs font-semibold text-foreground">{course.title}</p>
+                <p className="shrink-0 text-xs text-muted-foreground">{premium ? priceLabel : 'Free course'}</p>
             </div>
-            <div className="shrink-0 flex items-center gap-2">
-                <Suspense fallback={<Skeleton className="h-9 w-28" />}>
+            {/* The signed-in states render as `contents` (one child per action), the signed-out state as a
+                flex-wrap row: a full-width button takes its own row either way. */}
+            <div className="flex flex-col gap-2 [&_a]:w-full [&_button]:w-full">
+                <Suspense fallback={<Skeleton className="h-9 w-full" />}>
                     <MobilePurchaseActions courseId={courseId} />
                 </Suspense>
             </div>
@@ -373,7 +381,7 @@ export function CoursePageFrame({ title, loading, children, mobileBar = null }) 
     return (
         <div className="flex min-h-full w-full flex-col bg-background">
             <CourseTopBar title={title} loading={loading} />
-            <main className="mx-auto flex w-full max-w-6xl flex-col px-4 pt-6 pb-24 sm:pb-12 sm:px-6 lg:pt-10">
+            <main className="mx-auto flex w-full max-w-6xl flex-col px-4 pt-6 pb-10 sm:px-6 sm:pb-12 lg:pt-10">
                 {children}
             </main>
             {mobileBar}

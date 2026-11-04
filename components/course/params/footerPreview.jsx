@@ -2,17 +2,15 @@
 
 import { useCourseDetails } from "@/hooks/useCourseDetails";
 
-import { useApp } from "@/contexts/appContext";
 import { cn } from "@/lib/utils";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/shadcn/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 
 import { PurchaseActions } from "@/components/commerce/purchaseActions";
 
-import { LuBriefcase, LuChevronDown, LuLink, LuSparkles } from "react-icons/lu";
+import { LuBriefcase, LuChevronDown, LuSparkles } from "react-icons/lu";
 
 // One compact button ("4 skills") that opens the full list, instead of a row of chips.
 function TopicPopover({ icon: Icon, count, noun, title, items }) {
@@ -57,25 +55,12 @@ function CourseTopics({ course }) {
     );
 }
 
-// Primary purchase / enroll / continue action for the course details header, plus a copy-link
-// button. The name and props are kept from the old bottom bar so existing imports keep working;
+// Primary purchase / enroll / continue action for the course details header (the copy-link button
+// is in the top bar: CopyCourseLink). The name and props are kept from the old bottom bar so existing imports keep working;
 // The `cost` and `status` props are still accepted but ignored: price, ownership and enrolment
 // come from the (shared, already cached) details query.
 export default function FooterPreview({ courseId, loading = false, className }) {
-    const { showAlert: alert } = useApp();
     const { data, isLoading, error, refetch, viewerPending } = useCourseDetails(courseId);
-
-    const handleShare = async () => {
-        if (typeof window === 'undefined') return;
-        try {
-            if (navigator.clipboard) {
-                await navigator.clipboard.writeText(window.location.href);
-                alert(200, "Course link copied to clipboard!");
-            }
-        } catch {
-            alert(0, "Copy this link: " + window.location.href);
-        }
-    };
 
     return (
         <div className={cn("contents", className)}>
@@ -90,21 +75,6 @@ export default function FooterPreview({ courseId, loading = false, className }) 
                     onRetry={refetch}
                 />
             </div>
-
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={handleShare}
-                        aria-label="Copy course link"
-                    >
-                        <LuLink />
-                    </Button>
-                </TooltipTrigger>
-                <TooltipContent>Copy course link</TooltipContent>
-            </Tooltip>
 
             <CourseTopics course={data} />
         </div>

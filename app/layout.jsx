@@ -6,6 +6,7 @@ import { THEME_SCRIPT } from '@/lib/themeScript';
 
 import { Provider } from '@/contexts/providers';
 import { AuthSessionWatcher } from '@/components/auth/sessionWatcher';
+import ViewportReset from '@/components/ui/viewportReset';
 
 export default async function RootLayout({ children }) {
   return (
@@ -19,6 +20,7 @@ export default async function RootLayout({ children }) {
       <body>
         <Provider>
           <AuthSessionWatcher />
+          <ViewportReset />
           {children}
         </Provider>
       </body>
