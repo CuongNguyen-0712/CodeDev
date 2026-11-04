@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import { userQueries } from "@/queries/user.query";
 import { userKeys } from "@/keys/user.keys";
 import { BOARD_LABELS, rankUps } from "@/lib/ranking";
 import { notify } from "@/components/ui/alert";
+import { useRewardsStore } from "@/stores/rewardsStore";
 import { Button } from "@/components/shadcn/button";
 import { Progress } from "@/components/shadcn/progress";
 import {
@@ -176,11 +177,6 @@ export function LevelPointsChip({ className }) {
 }
 
 // --------------------------------------------------------------------------- reward feedback
-export const LEVEL_UP_EVENT = "codedev:level-up";
-// Sent when the level-up dialog closes, so a dialog queued behind it (the course rating prompt) can open.
-export const LEVEL_UP_CLOSED_EVENT = "codedev:level-up-closed";
-const REWARDS_EVENT = "codedev:rewards";
-
 /**
  * One toast per award ("+20 points · +15 EXP") and, when the level went up, the level-up dialog.
  * `rewards`: { awardedPoints, awardedExp, level?, previousLevel? } as returned by the server.
@@ -207,14 +203,12 @@ export function announceRewards(rewards, { title, id } = {}) {
     }
 
     // RankUpWatcher refetches the ranks and toasts a new tier.
-    if ((points > 0 || exp > 0) && typeof window !== "undefined") {
-        window.dispatchEvent(new Event(REWARDS_EVENT));
-    }
+    if (points > 0 || exp > 0) useRewardsStore.getState().bumpRewards();
 
     const level = Number(rewards?.level) || 0;
     const previousLevel = Number(rewards?.previousLevel) || 0;
-    if (level > previousLevel && previousLevel > 0 && typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent(LEVEL_UP_EVENT, { detail: { level, previousLevel } }));
+    if (level > previousLevel && previousLevel > 0) {
+        useRewardsStore.getState().showLevelUp({ level, previousLevel });
     }
 }
 
@@ -240,30 +234,20 @@ export function RankUpWatcher() {
         last.current = { userId, ranks: data };
     }, [data, userId]);
 
+    const rewardsSeq = useRewardsStore((s) => s.rewardsSeq);
     useEffect(() => {
-        const onRewards = () => queryClient.invalidateQueries({ queryKey: userKeys.ranks() });
-        window.addEventListener(REWARDS_EVENT, onRewards);
-        return () => window.removeEventListener(REWARDS_EVENT, onRewards);
-    }, [queryClient]);
+        if (rewardsSeq > 0) queryClient.invalidateQueries({ queryKey: userKeys.ranks() });
+    }, [rewardsSeq, queryClient]);
 
     return null;
 }
 
 /** Mounted once in the root providers; opens when announceRewards reports a level-up. */
 export function LevelUpDialog() {
-    const [levelUp, setLevelUp] = useState(null);
-
-    useEffect(() => {
-        const onLevelUp = (event) => setLevelUp(event.detail);
-        window.addEventListener(LEVEL_UP_EVENT, onLevelUp);
-        return () => window.removeEventListener(LEVEL_UP_EVENT, onLevelUp);
-    }, []);
+    const levelUp = useRewardsStore((s) => s.levelUp);
+    const close = useRewardsStore((s) => s.closeLevelUp);
 
     const gained = levelUp ? levelUp.level - levelUp.previousLevel : 0;
-    const close = () => {
-        setLevelUp(null);
-        window.dispatchEvent(new Event(LEVEL_UP_CLOSED_EVENT));
-    };
 
     return (
         <Dialog open={Boolean(levelUp)} onOpenChange={(open) => !open && close()}>

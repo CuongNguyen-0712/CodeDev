@@ -5,7 +5,7 @@ import { Toaster as Sonner } from "sonner";
 
 import { useTheme } from "@/contexts/themeContext";
 
-// Follows the app's own light / dark switch (contexts/themeContext.jsx), not the OS setting.
+// Follows the app's own light / dark switch (stores/themeStore.js), not the OS setting.
 const Toaster = ({
   ...props
 }) => {

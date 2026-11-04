@@ -104,8 +104,8 @@ Severity: **Critical** blocks a core task or loses data; **High** breaks feedbac
 
 | ID | Route / component | Current | Problem | Sev. | Recommendation | Effort |
 |---|---|---|---|---|---|---|
-| UX-301 | `contexts/appContext.jsx:15-28` | Sidebar state starts `false` on the server, then reads `localStorage` in an effect | On desktop the sidebar opens after hydration: visible layout shift on every full load. | Medium | Persist in a cookie read on the server (the shadcn sidebar convention) or render the stored state before paint. | 1 |
-| UX-302 | `appContext.jsx:21` (`>= 768`), `:31` (`<= 768`), `hooks/use-mobile.js:3` (`< 768`) | Three boundary rules | At exactly 768 px the sidebar state disagrees with the layout mode. | Low | One helper based on `use-mobile`. | 0.25 |
+| UX-301 | `contexts/appContext.jsx:15-28` (now `stores/uiStore.js`) | Sidebar state starts `false` on the server, then reads `localStorage` in an effect | On desktop the sidebar opens after hydration: visible layout shift on every full load. | Medium | Persist in a cookie read on the server (the shadcn sidebar convention) or render the stored state before paint. | 1 |
+| UX-302 | `appContext.jsx:21` (`>= 768`), `:31` (`<= 768`), `hooks/use-mobile.js:3` (`< 768`) | Three boundary rules | At exactly 768 px the sidebar state disagrees with the layout mode. | Low | One helper based on `use-mobile`. Fixed: `stores/uiStore.js` uses `MOBILE_BREAKPOINT` from `hooks/use-mobile.js`. | 0.25 |
 | UX-303 | `challenges/codeEditor.jsx`, `submissionHistory.jsx` | `xs` / `icon-xs` buttons (24 px) | Meets WCAG 2.5.8 minimum but is small on touch. | Low | 32-44 px on touch layouts (`max-sm:` sizes). | 0.5 |
 
 ### 3.4 Accessibility (remaining)

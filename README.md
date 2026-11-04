@@ -87,6 +87,7 @@ Key design points:
 | Framework | Next.js 16 (App Router, Turbopack), React 19 |
 | UI | Tailwind CSS 4, Radix UI, sonner, react-icons, react-syntax-highlighter |
 | Data fetching | TanStack Query, server actions |
+| Client state | Zustand (`stores/`, rules in [docs/state-management.md](docs/state-management.md)) |
 | Auth | NextAuth 4 (credentials, GitHub, Google), `jose` JWE sessions, bcryptjs |
 | Database | PostgreSQL 16+ (Neon serverless driver in production, `pg` locally) |
 | Cache | Redis (Upstash REST in production, ioredis locally) |
@@ -174,6 +175,7 @@ app/              Routes and API handlers (home, course, learning, roadmap, rank
                   settings, onboarding, checkout, orders, admin, studio, auth, api/*)
 components/       UI components (Tailwind 4, Radix)
 hooks/ contexts/  Client hooks and providers
+stores/           Zustand stores for shared client UI state
 actions/          Server actions            mutations/ queries/   React Query hooks
 services/         Business logic (auth, course, challenge, commerce, experience, ranking, ...)
 db/               Query modules, schema.sql, migrations/, generated schema files, tools/

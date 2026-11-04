@@ -9,7 +9,7 @@ import { SignedIn } from '@/components/auth/signedIn';
 import { SidebarInset, SidebarProvider } from '@/components/shadcn/sidebar';
 
 import { Suspense, useEffect, useState } from "react";
-import { useApp } from "@/contexts/appContext";
+import { useUiStore } from "@/stores/uiStore";
 
 // The feedback form (and the zod schemas it validates with) loads only once `?modal=feedback` is set,
 // so it stays out of every page's initial bundle.
@@ -31,15 +31,13 @@ function FeedbackGate() {
 }
 
 function LayoutContent({ children, footer }) {
-    const {
-        isDashboard,
-        setDashboard,
-    } = useApp();
+    const isSidebarOpen = useUiStore((s) => s.isSidebarOpen);
+    const setSidebarOpen = useUiStore((s) => s.setSidebarOpen);
 
     return (
         <SidebarProvider
-            open={isDashboard}
-            onOpenChange={setDashboard}
+            open={isSidebarOpen}
+            onOpenChange={setSidebarOpen}
             className="h-dvh min-h-0 overflow-hidden"
         >
             <a

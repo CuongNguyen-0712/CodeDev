@@ -5,8 +5,8 @@ import { Toaster } from "@/components/shadcn/sonner";
 import { userMessage } from "@/lib/userMessage";
 
 /**
- * App-wide toasts (Sonner). `notify` is what useApp().showAlert(status, message, callback, options)
- * calls; `AppToaster` renders the one toast region and is mounted once, in the root providers.
+ * App-wide toasts (Sonner). `notify` is what showAlert(status, message, callback, options), and so
+ * useApp().showAlert, calls; `AppToaster` renders the one toast region and is mounted once, in the root providers.
  *
  * It must not live in a page layout: Sonner keeps active toasts in a module-level store and
  * replays them to every Toaster that mounts, and each toast restarts its timer when mounted. A
@@ -34,6 +34,9 @@ export function notify(status, message, { callback, id } = {}) {
     if (status === 500) return toast.error(message, options);
     return toast.warning(message, options);
 }
+
+/** `useApp().showAlert` signature: a callback adds a "Continue" action to the toast. */
+export const showAlert = (status, message, callback, options) => notify(status, message, { callback, ...options });
 
 export default function AppToaster() {
     return <Toaster position="bottom-right" closeButton />;
