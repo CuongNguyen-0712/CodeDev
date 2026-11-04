@@ -5,6 +5,7 @@ import { cacheKeys } from "@/lib/cacheKeys";
 import { revalidateCoursePage } from "@/lib/pageCache";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
+import { notificationService } from "@/services/notification.service";
 
 /**
  * Course ratings in the admin (docs/admin-panel-plan.md 12.5): the summary with a 1-5 histogram,
@@ -42,6 +43,15 @@ export const adminRatingService = {
             return { changed: true };
         });
 
+        if (result.changed && hidden) {
+            await notificationService.notify(userId, {
+                kind: "content_hidden",
+                title: "Rating hidden",
+                message: "Your rating of this course was hidden because it breaks the community guidelines.",
+                link: `/course/${courseId}`,
+                dedupeKey: `rating:${courseId}`,
+            });
+        }
         if (result.changed) {
             revalidateCoursePage(courseId);
             try {

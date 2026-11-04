@@ -4,6 +4,7 @@ import { withTransaction } from "@/lib/dbTransaction";
 import { actorCan } from "@/lib/authz";
 import { ApiError } from "@/lib/error/apiError";
 import { authService } from "@/services/auth.service";
+import { notificationService } from "@/services/notification.service";
 
 /**
  * Admin user management (docs/admin-panel-plan.md 02 and 3.5). The caller passed
@@ -183,13 +184,23 @@ export const adminUserService = {
                 after: { roles: after },
                 ip,
             });
-            return { id: target.public_id, roles: after };
+            return { id: target.public_id, roles: after, roleName: role.name };
         });
+        const { roleName, ...changed } = result;
 
         // Permissions are read from the database per request; ending the sessions also drops the
         // permission list cached in old JWTs (page navigation guard).
         await authService.revokeAllSessions({ userId });
-        return result;
+        // Read after signing in again (the sessions were just ended).
+        if (add) {
+            await notificationService.notify(userId, {
+                kind: "role_granted",
+                title: "New role",
+                message: `You now have the ${roleName} role on CodeDev.`,
+                dedupeKey: `role:${roleCode}`,
+            });
+        }
+        return changed;
     },
 
     revokeSessions: async ({ actor, userId, reason, ip = null }) => {

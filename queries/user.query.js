@@ -50,6 +50,23 @@ export const userQueries = {
         };
     },
 
+    /** Inbox pages (useInfiniteQuery); page 1 also carries `unreadCount` for the bell. */
+    notifications(status, { unread = false } = {}) {
+        return {
+            queryKey: userKeys.notificationList(unread),
+            queryFn: ({ pageParam }) =>
+                userClient.getNotifications({
+                    ...(unread ? { unread: 1 } : {}),
+                    ...(pageParam ? { nextCursor: pageParam } : {}),
+                }),
+            initialPageParam: null,
+            getNextPageParam: (lastPage) => (lastPage?.hasMore ? lastPage.nextCursor : undefined),
+            enabled: status === 'authenticated',
+            ...QUERY_TIMES.personal,
+            refetchOnWindowFocus: true,
+        };
+    },
+
     /** Level table + EXP history pages (useInfiniteQuery). */
     experience(status) {
         return {

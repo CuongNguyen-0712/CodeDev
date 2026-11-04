@@ -52,3 +52,30 @@ export function useUpdatePrivacy() {
         },
     });
 }
+
+// Mark inbox items read ({ ids } or { all: true }); both list variants and the count refetch.
+export function useMarkNotificationsRead() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (body) => userClient.markNotificationsRead(body),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: userKeys.notifications() }),
+    });
+}
+
+// Remove inbox items ({ ids }); the rows leave both lists at once, then everything refetches.
+export function useDismissNotifications() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (ids) => userClient.markNotificationsRead({ ids, dismiss: true }),
+        onMutate: (ids) => {
+            const gone = new Set(ids);
+            queryClient.setQueriesData({ queryKey: userKeys.notifications() }, (old) => old?.pages ? {
+                ...old,
+                pages: old.pages.map((page) => ({ ...page, items: (page.items || []).filter((item) => !gone.has(item.id)) })),
+            } : old);
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: userKeys.notifications() }),
+    });
+}

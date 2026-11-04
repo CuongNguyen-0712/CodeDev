@@ -11,6 +11,7 @@ import { publish, publishToUser } from "@/lib/pusher";
 import { channels, events, progressReasons } from "@/lib/realtime";
 import { challengeService } from "@/services/challenge.service";
 import { ratePromptFor } from "@/services/courseRating.service";
+import { notificationService } from "@/services/notification.service";
 
 /** Cache + realtime side effects after a write that changes a user's learning state. */
 async function afterProgressChange({ userId, courseId, reason }) {
@@ -246,6 +247,8 @@ export const courseService = {
 
         // What this completion earned (0 when the lesson was already completed before).
         const awardedExp = Number(row.awardedExp) || 0;
+        if (row.courseCompleted) await notificationService.notifyCourse(data.userId, "course_completed", data.courseId);
+        if (awardedExp > 0) await notificationService.notifyRewards(data.userId, row);
         return {
             awardedPoints: Number(row.awardedPoints) || 0,
             awardedExp,

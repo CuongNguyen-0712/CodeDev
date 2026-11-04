@@ -54,7 +54,9 @@ export const adminFeedbackDb = {
     )).rows[0],
 
     lockComment: async (client, publicId) => (await client.query(
-        `SELECT m.id, m.is_hidden, c.public_id AS course_id FROM community.comment m JOIN catalog.course c ON c.id = m.reference_id
+        `SELECT m.id, m.is_hidden, c.public_id AS course_id, u.public_id AS author_id
+         FROM community.comment m JOIN catalog.course c ON c.id = m.reference_id
+         LEFT JOIN identity.users u ON u.id = m.user_id
          WHERE m.public_id = $1 AND m.is_deleted = false FOR UPDATE OF m`,
         [publicId]
     )).rows[0] || null,
@@ -92,7 +94,9 @@ export const adminFeedbackDb = {
     )).rows[0],
 
     lockFeedback: async (client, id) => (await client.query(
-        `SELECT id, handled_at FROM community.feedback WHERE id = $1 FOR UPDATE`, [id]
+        `SELECT f.id, f.handled_at, f.title, u.public_id AS user_id
+         FROM community.feedback f LEFT JOIN identity.users u ON u.id = f.user_id
+         WHERE f.id = $1 FOR UPDATE OF f`, [id]
     )).rows[0] || null,
 
     setFeedbackHandled: async (client, { id, handledBy }) => client.query(

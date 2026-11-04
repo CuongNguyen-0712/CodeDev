@@ -6,6 +6,7 @@ import { events, progressReasons } from "@/lib/realtime";
 import { getCheckoutProvider } from "@/services/payments";
 import { sha256Hex } from "@/services/payments/signature";
 import { emailVerificationService } from "@/services/emailVerification.service";
+import { notificationService } from "@/services/notification.service";
 
 /**
  * Buying (money) and redeeming (points) courses. Prices always come from commerce.offer inside
@@ -51,7 +52,10 @@ export const commerceService = {
         const row = rows[0];
         if (!row) throw new Error("Redeem returned no result");
 
-        if (!row.replayed) await afterOwnershipChange(userId, courseId);
+        if (!row.replayed) {
+            await afterOwnershipChange(userId, courseId);
+            await notificationService.notifyCourse(userId, "access_granted", courseId, row.order_id);
+        }
 
         return {
             orderId: row.order_id,
@@ -128,6 +132,18 @@ export const commerceService = {
 
         if (result.user_id && ["granted", "revoked", "closed"].includes(result.result)) {
             await afterOwnershipChange(result.user_id, null);
+        }
+        if (result.user_id && result.result === "granted") {
+            const order = (await commerceDb.getOrder({ userId: result.user_id, orderId: result.order_id })).rows[0];
+            if (order) await notificationService.notifyCourse(result.user_id, "access_granted", order.course_id, result.order_id);
+        } else if (result.user_id && result.result === "revoked") {
+            await notificationService.notify(result.user_id, {
+                kind: "access_revoked",
+                title: "Order refunded",
+                message: "Your course access was removed and the order refunded.",
+                link: `/orders/${result.order_id}`,
+                dedupeKey: result.order_id,
+            });
         }
 
         return { result: result.result, orderId: result.order_id || null };

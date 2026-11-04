@@ -2,7 +2,6 @@
 // ISO dates in tables, relative times for "last active", durations as "48 s" / "1 m 12 s".
 
 const number = new Intl.NumberFormat("en-US");
-const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
 export const formatNumber = (value) => (value == null || Number.isNaN(Number(value)) ? "—" : number.format(Number(value)));
 
@@ -19,18 +18,7 @@ export function formatDateTime(value) {
     return date.toLocaleString("en-GB", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-const STEPS = [["year", 31536000], ["month", 2592000], ["week", 604800], ["day", 86400], ["hour", 3600], ["minute", 60]];
-
-export function formatRelative(value, now = Date.now()) {
-    if (!value) return "—";
-    const seconds = Math.round((new Date(value).getTime() - now) / 1000);
-    if (Number.isNaN(seconds)) return "—";
-    for (const [unit, size] of STEPS) {
-        // Whole units only: 36 hours ago is "1 day ago", not a rounded-up "2 days ago".
-        if (Math.abs(seconds) >= size) return relative.format(Math.trunc(seconds / size), unit);
-    }
-    return "just now";
-}
+export { formatRelative } from "@/lib/format";
 
 export function formatDuration(seconds) {
     if (seconds == null || Number.isNaN(Number(seconds))) return "—";

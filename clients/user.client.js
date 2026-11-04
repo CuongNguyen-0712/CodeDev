@@ -21,6 +21,18 @@ export const userClient = {
         return res.data;
     },
 
+    // One inbox page: { items, hasMore, nextCursor, unreadCount }.
+    getNotifications: async (params) => {
+        const res = await apiClient.get('/user/notifications', { params });
+        return res.data;
+    },
+
+    // { all: true } or { ids: [...] } -> { updated }
+    markNotificationsRead: async (body) => {
+        const res = await apiClient.patch('/user/notifications', body);
+        return res.data;
+    },
+
     getLearningProgress: async (params) => {
         const res = await apiClient.get('/user/learning-progress', { params });
         return res.data;

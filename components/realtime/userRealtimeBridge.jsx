@@ -101,9 +101,24 @@ export function UserRealtimeBridge() {
             [events.PROFILE_UPDATED]: () => {
                 queryClient.invalidateQueries({ queryKey: userKeys.me() });
             },
+
+            [events.NOTIFICATION_CREATED]: () => {
+                // Bell count and both inbox lists; the payload is only { id, kind }.
+                queryClient.invalidateQueries({ queryKey: userKeys.notifications() }, { cancelRefetch: false });
+            },
         },
         { onReconnect: refreshUserData }
     );
+
+    // Admin announcements to many learners: one public ping, then each tab refetches its own inbox
+    // after a random 0-20 s, so thousands of open tabs do not hit the API in the same second.
+    usePusherChannel(userId ? channels.broadcast() : null, {
+        [events.ANNOUNCEMENT]: () => {
+            setTimeout(() => {
+                queryClient.invalidateQueries({ queryKey: userKeys.notifications() }, { cancelRefetch: false });
+            }, Math.random() * 20_000);
+        },
+    });
 
     return null;
 }

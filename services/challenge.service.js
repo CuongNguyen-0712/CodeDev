@@ -7,6 +7,7 @@ import { redis } from "@/lib/cache";
 import { cacheKeys, TTL, invalidateUserCache } from "@/lib/cacheKeys";
 import { publishToUser } from "@/lib/pusher";
 import { events } from "@/lib/realtime";
+import { notificationService } from "@/services/notification.service";
 import { ApiError } from "@/lib/error/apiError";
 import { parseJsonSafe } from "@/lib/challenges/compare";
 import { executeTests, sandboxKey, serverExecutionEnabled, totalSlots } from "@/lib/challenges/codeRunner";
@@ -128,6 +129,7 @@ async function afterSubmission({ userId, ctx, passed, rewards }) {
         passed: Boolean(passed),
         ...rewards,
     });
+    await notificationService.notifyRewards(userId, rewards);
 }
 
 // ------------------------------------------------------------------ quiz

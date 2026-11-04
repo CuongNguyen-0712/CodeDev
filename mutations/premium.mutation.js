@@ -107,3 +107,5 @@ export const useAdminUpdateChallenge = () => useAdminWrite((input) => adminClien
 export const useAdminSetRatingHidden = () => useAdminWrite((input) => adminClient.setRatingHidden(input));
 export const useAdminSetCommentHidden = () => useAdminWrite((input) => adminClient.setCommentHidden(input));
 export const useAdminSetFeedbackHandled = () => useAdminWrite((input) => adminClient.setFeedbackHandled(input));
+export const useAdminCreateAnnouncement = () => useAdminWrite((input) => adminClient.createAnnouncement(input));
+export const useAdminUpdateAnnouncement = () => useAdminWrite((input) => adminClient.updateAnnouncement(input));

@@ -12,4 +12,6 @@ export const userKeys = {
     ranks: () => [...userKeys.all, 'ranks'],
     ranking: (board, period) => [...userKeys.all, 'ranking', board, period],
     users: (search) => [...userKeys.all, 'users', search],
+    notifications: () => [...userKeys.all, 'notifications'],
+    notificationList: (unread) => [...userKeys.notifications(), { unread }],
 }

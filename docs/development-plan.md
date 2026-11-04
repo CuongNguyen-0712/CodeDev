@@ -83,7 +83,7 @@ Client: `hooks/usePusherChannel.js` (đếm tham chiếu kênh, tự refetch khi
 - **2FA (TOTP)** cho tài khoản dùng mật khẩu.
 
 ### 3.2 Realtime & cộng đồng
-- **Trung tâm thông báo**: bảng `profile.notification` đã có → API đọc/đánh dấu đã xem + đẩy qua `private-user-{id}` (sự kiện `notification-created`), badge trên navbar.
+- **Trung tâm thông báo**: đã làm (migration `20261104_017`): `GET/PATCH /api/user/notifications`, `services/notification.service.js` ghi một dòng mỗi sự kiện (mở khóa / thu hồi khóa học, lên cấp, thành tựu, hoàn thành khóa học, khóa trùng bằng `dedupe_key`), đẩy `notification-created` qua `private-user-{id}`, badge số trên navbar và trang `/notifications`. Còn lại: tùy chọn nhận thông báo, email / web push, chuông trong màn học.
 - **Bảng xếp hạng điểm** bằng Redis sorted set (`ZINCRBY` khi được cộng điểm), theo tuần / tháng / toàn thời gian.
 - **Presence trong thảo luận khóa học** (presence channel): ai đang học / đang gõ.
 - Bình luận: trả lời theo luồng, sửa/xóa, báo cáo vi phạm + kiểm duyệt (`comment-deleted` realtime).

@@ -7,6 +7,7 @@ import { revalidateCatalogStats, revalidateCoursePage } from "@/lib/pageCache";
 import { publishToUser } from "@/lib/pusher";
 import { events, progressReasons } from "@/lib/realtime";
 import { maskEmail } from "@/services/adminUser.service";
+import { notificationService } from "@/services/notification.service";
 
 /**
  * Admin / course manager operations. The caller has already passed `requirePermission`
@@ -15,6 +16,20 @@ import { maskEmail } from "@/services/adminUser.service";
  */
 
 const toNumber = (value) => (value === null || value === undefined ? null : Number(value));
+
+// The adjustment reason is an internal note (audit log): the learner sees the amount only.
+function notifyAdjustment(input, unit, link) {
+    const amount = Math.abs(input.amount).toLocaleString("en-US");
+    return notificationService.notify(input.userId, {
+        kind: "balance_adjusted",
+        title: unit === "points" ? "Points adjusted" : "EXP adjusted",
+        message: input.amount > 0
+            ? `The CodeDev team added ${amount} ${unit} to your account.`
+            : `The CodeDev team removed ${amount} ${unit} from your account.`,
+        link,
+        dedupeKey: `${unit}:${input.idempotencyKey}`,
+    });
+}
 
 function mapCourse(row) {
     return {
@@ -182,6 +197,7 @@ export const adminService = {
         });
 
         await invalidateUserCache(input.userId);
+        if (!result.replayed) await notifyAdjustment(input, "points", "/orders?tab=points");
         return result;
     },
 
@@ -222,6 +238,7 @@ export const adminService = {
         });
 
         await invalidateUserCache(input.userId);
+        if (!result.replayed) await notifyAdjustment(input, "EXP", "/profile");
         return result;
     },
 
@@ -270,6 +287,13 @@ export const adminService = {
 
         await invalidateUserCache(result.userId);
         publishToUser(result.userId, events.PROGRESS_UPDATED, { courseId: null, reason: progressReasons.OWNERSHIP_CHANGED });
+        await notificationService.notify(result.userId, {
+            kind: "access_revoked",
+            title: "Order refunded",
+            message: "Your points were returned and course access removed.",
+            link: `/orders/${result.orderId}`,
+            dedupeKey: result.orderId,
+        });
         return { orderId: result.orderId, balanceAfter: result.balanceAfter };
     },
 
@@ -303,6 +327,7 @@ export const adminService = {
 
         await invalidateUserCache(input.userId);
         publishToUser(input.userId, events.PROGRESS_UPDATED, { courseId: input.courseId, reason: progressReasons.OWNERSHIP_CHANGED });
+        await notificationService.notifyCourse(input.userId, "access_granted", input.courseId, result.entitlementId);
         return result;
     },
 
@@ -328,6 +353,7 @@ export const adminService = {
 
         await invalidateUserCache(result.userId);
         publishToUser(result.userId, events.PROGRESS_UPDATED, { courseId: result.courseId, reason: progressReasons.OWNERSHIP_CHANGED });
+        await notificationService.notifyCourse(result.userId, "access_revoked", result.courseId, input.entitlementId);
         return { revoked: true };
     },
 

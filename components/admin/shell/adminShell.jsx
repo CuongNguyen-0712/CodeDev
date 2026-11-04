@@ -74,7 +74,7 @@ function Crumbs({ pathname }) {
                     const href = `/admin/${segments.slice(0, index + 1).join("/")}`;
                     const label = index === 0 ? section?.label || segment
                         : segments[0] === "settings" ? SETTINGS_SECTIONS.find((item) => item.key === segment)?.label || segment
-                        : decodeURIComponent(segment);
+                        : segment === "new" ? "New" : decodeURIComponent(segment);
                     const last = index === segments.length - 1;
                     return [
                         <BreadcrumbSeparator key={`s-${href}`} className="shrink-0" />,

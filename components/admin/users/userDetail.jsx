@@ -237,9 +237,16 @@ export default function UserDetail({ userId }) {
     const mayChangeStatus = can("user.status") && user.permissions.canChangeStatus;
     const staff = user.roles.filter((role) => role.code !== "user" && role.code !== "student");
 
-    const actions = mayChangeStatus && (locked
+    const statusAction = mayChangeStatus && (locked
         ? <Button onClick={() => setDialog({ kind: "activate" })}>Activate</Button>
         : <Button onClick={() => setDialog({ kind: "suspend" })}>Suspend</Button>);
+    // A direct message is an announcement to this one user (docs/notification-plan.md 3.4).
+    const messageAction = can("announcement.send") && !locked && (
+        <Button variant="outline" asChild>
+            <Link href={`/admin/announcements/new?user=${encodeURIComponent(user.username)}`}>Send notification</Link>
+        </Button>
+    );
+    const actions = (statusAction || messageAction) && <>{messageAction}{statusAction}</>;
 
     return (
         <>

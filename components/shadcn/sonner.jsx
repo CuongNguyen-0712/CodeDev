@@ -3,14 +3,16 @@
 import { LuCircleCheck, LuInfo, LuLoaderCircle, LuOctagonX, LuTriangleAlert } from "react-icons/lu"
 import { Toaster as Sonner } from "sonner";
 
-// The app ships a single light theme, so the toaster is pinned to it rather
-// than following the OS colour scheme.
+import { useTheme } from "@/contexts/themeContext";
+
+// Follows the app's own light / dark switch (contexts/themeContext.jsx), not the OS setting.
 const Toaster = ({
   ...props
 }) => {
+  const { theme } = useTheme();
   return (
     <Sonner
-      theme="light"
+      theme={theme === "dark" ? "dark" : "light"}
       className="toaster group"
       icons={{
         success: <LuCircleCheck className="size-4 text-success" />,

@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
 
 import LearningLesson from "./lessons";
 import { LevelPointsChip } from "@/components/ui/level";
+import NotificationCenter from "@/components/ui/notificationCenter";
 import { SignedIn } from "@/components/auth/signedIn";
 
 import {
@@ -211,7 +212,7 @@ function SyllabusPanel({
                                                                     aria-current={isCurrent ? 'step' : undefined}
                                                                     title={isLocked ? 'Complete the previous lesson to unlock this one.' : lesson.title}
                                                                     className={cn(
-                                                                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:bg-transparent',
+                                                                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-transparent',
                                                                         isCurrent && 'bg-sidebar-accent font-medium text-sidebar-foreground'
                                                                     )}
                                                                 >
@@ -507,6 +508,7 @@ export default function StudyingPage({ params }) {
                 </div>
 
                 <SignedIn><LevelPointsChip /></SignedIn>
+                <NotificationCenter />
 
                 <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(true)} className="text-muted-foreground hover:text-foreground">
                     <LuInfo />

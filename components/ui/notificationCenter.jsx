@@ -3,130 +3,141 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useQuery } from "@tanstack/react-query";
-import { userQueries } from "@/queries/user.query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 
+import { userQueries } from "@/queries/user.query";
+import { useMarkNotificationsRead } from "@/mutations/user.mutation";
+import { formatRelative } from "@/lib/format";
+import { cn } from "@/lib/utils";
+
+import { ErrorReload } from "@/components/ui/error";
 import { Button } from "@/components/shadcn/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
-import { Badge } from "@/components/shadcn/badge";
-import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/shadcn/skeleton";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
 
-import { LuBell, LuCheck, LuCircleCheck, LuCoins, LuSparkles, LuTrophy } from "react-icons/lu";
+import { notificationKind } from "@/constants/notifications";
 
-// Read state is a per-browser convenience: losing it only shows the items as new again.
-const READ_KEY = 'codedev_notifications_read:';
+import { LuBell, LuCheck, LuX } from "react-icons/lu";
 
-function loadRead(userId) {
-    try {
-        return new Set(JSON.parse(localStorage.getItem(READ_KEY + userId) || '[]'));
-    } catch {
-        return new Set();
-    }
+/**
+ * One inbox row; shared by the bell, /notifications and the admin composer preview (`preview`:
+ * not a link). `onDismiss` adds a remove button beside the link (never inside it).
+ */
+export function NotificationItem({ item, onOpen, onDismiss, compact = false, preview = false }) {
+    const { icon: Icon, className, team } = notificationKind(item.kind);
+    const Row = preview ? 'div' : Link;
+    const rowProps = preview ? {} : { href: item.link || '/notifications', onClick: () => onOpen?.(item) };
+    // Unread is told by ink (foreground vs muted) and the dot, never by a background tint alone.
+    const ink = item.read ? "text-muted-foreground" : "text-foreground";
+
+    return (
+        <div className="group relative flex items-start transition-colors hover:bg-muted/50">
+            <Row
+                {...rowProps}
+                className={cn(
+                    "flex min-w-0 flex-1 items-start gap-3 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                    compact ? "p-3" : "px-4 py-4",
+                    onDismiss && "pr-12"
+                )}
+            >
+                <span className="flex w-5 shrink-0 justify-center pt-0.5">
+                    <Icon className={cn("size-4", className)} aria-hidden="true" />
+                </span>
+                <div className="min-w-0 flex-1 space-y-0.5">
+                    <p className={cn("truncate text-sm", item.read ? "font-medium" : "font-semibold", ink)}>
+                        {item.title}
+                    </p>
+                    <p className={cn("line-clamp-2 text-xs", ink)}>
+                        {item.message}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                        {team && <>CodeDev team · </>}
+                        <time dateTime={item.createdAt}>{formatRelative(item.createdAt)}</time>
+                    </p>
+                </div>
+                {!item.read && (
+                    <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary-ink">
+                        <span className="sr-only">Unread</span>
+                    </span>
+                )}
+            </Row>
+            {onDismiss && (
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size={compact ? "icon-xs" : "icon-sm"}
+                    onClick={() => onDismiss(item)}
+                    aria-label={`Remove notification: ${item.title}`}
+                    className="absolute top-3 right-2 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-foreground max-md:opacity-100"
+                >
+                    <LuX aria-hidden="true" />
+                </Button>
+            )}
+        </div>
+    );
 }
 
-function saveRead(userId, ids) {
-    try {
-        localStorage.setItem(READ_KEY + userId, JSON.stringify([...ids]));
-    } catch {
-        // Storage unavailable (private mode): read state lasts for this page only.
-    }
+export function NotificationSkeleton({ rows = 3, compact = false }) {
+    return Array.from({ length: rows }, (_, i) => (
+        <div key={i} className={cn("flex items-start gap-3", compact ? "p-3" : "px-4 py-4")} aria-hidden="true">
+            <Skeleton className="mt-0.5 size-4 rounded-full" />
+            <div className="flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-1/2" />
+                <Skeleton className="h-3 w-5/6" />
+                <Skeleton className="h-3 w-16" />
+            </div>
+        </div>
+    ));
+}
+
+/** The page's empty list: the frame stays, the copy says what will appear here. */
+export function NotificationEmpty({ unreadOnly = false, className }) {
+    return (
+        <Empty className={className}>
+            <EmptyHeader>
+                <EmptyMedia variant="icon"><LuBell aria-hidden="true" /></EmptyMedia>
+                <EmptyTitle>{unreadOnly ? "You're all caught up" : "Nothing here yet"}</EmptyTitle>
+                <EmptyDescription>
+                    {unreadOnly ? "New notifications land here until you read them." : "Course access, level-ups, achievements and messages from the team land here."}
+                </EmptyDescription>
+            </EmptyHeader>
+        </Empty>
+    );
 }
 
 export default function NotificationCenter() {
-    const { data: session, status } = useSession();
-    const { data: user } = useQuery(userQueries.me(status));
-    const { data: overview } = useQuery(userQueries.overview(status));
-
-    const userId = status === 'authenticated' ? session?.user?.id ?? null : null;
-    const [read, setRead] = useState({ userId: null, ids: new Set() });
+    const { status } = useSession();
+    const query = useInfiniteQuery(userQueries.notifications(status));
+    const markRead = useMarkNotificationsRead();
     const [open, setOpen] = useState(false);
+    // What the live region last announced; only a rise in the unread count is spoken.
+    const [live, setLive] = useState({ count: null, message: '' });
 
-    // Loaded when the signed-in user is known (only on the client: the server render has no session).
-    if (userId && read.userId !== userId) setRead({ userId, ids: loadRead(userId) });
-    const readIds = read.userId === userId ? read.ids : new Set();
+    const first = query.data?.pages?.[0];
+    const items = first?.items ?? [];
+    const unreadCount = first?.unreadCount ?? 0;
+
+    if (first && live.count !== unreadCount) {
+        const added = live.count === null ? 0 : unreadCount - live.count;
+        setLive({ count: unreadCount, message: added > 0 ? `${added} new notification${added > 1 ? 's' : ''}` : live.message });
+    }
 
     if (status !== 'authenticated') return null;
 
-    // Synthesize durable notification events from learner state
-    const inProgressCount = overview?.courses?.in_progress?.length || 0;
-    const completedCount = overview?.courses?.completed?.length || 0;
-    const exp = Number(user?.exp) || 0;
-    const points = Number(user?.points) || 0;
-
-    const notifications = [
-        {
-            id: 'welcome',
-            type: 'system',
-            icon: LuSparkles,
-            iconClass: 'text-primary-ink bg-primary-soft',
-            title: 'Welcome to CodeDev',
-            body: 'Solve interactive coding challenges, earn EXP, and climb the leaderboard.',
-            time: 'Platform',
-            href: '/home',
-        },
-        // Ids carry the value they report, so reaching a new level or finishing another course is new again.
-        ...(exp > 0 ? [{
-            id: `level-${user?.level || 1}`,
-            type: 'reward',
-            icon: LuTrophy,
-            iconClass: 'text-xp bg-xp-soft',
-            title: `${exp.toLocaleString()} EXP Accumulated`,
-            body: `You are currently Level ${user?.level || 1}. Keep solving challenges to reach the next tier.`,
-            time: 'Progress',
-            href: '/ranking',
-        }] : []),
-        ...(points > 0 ? [{
-            id: 'points-balance',
-            type: 'reward',
-            icon: LuCoins,
-            iconClass: 'text-warning bg-warning-soft',
-            title: `${points.toLocaleString()} Points Available`,
-            body: 'You can redeem your earned points for premium courses in the catalog.',
-            time: 'Balance',
-            href: '/orders',
-        }] : []),
-        ...(inProgressCount > 0 ? [{
-            id: 'course-in-progress',
-            type: 'learning',
-            icon: LuCircleCheck,
-            iconClass: 'text-info bg-info-soft',
-            title: 'Course in progress',
-            body: `You have ${inProgressCount} active course${inProgressCount > 1 ? 's' : ''}. Pick up where you left off.`,
-            time: 'Learning',
-            href: '/learning',
-        }] : []),
-        ...(completedCount > 0 ? [{
-            id: `course-completed-${completedCount}`,
-            type: 'achievement',
-            icon: LuCircleCheck,
-            iconClass: 'text-success bg-success-soft',
-            title: 'Course completed',
-            body: `Great job! You have completed ${completedCount} course${completedCount > 1 ? 's' : ''}.`,
-            time: 'Milestone',
-            href: '/learning',
-        }] : []),
-    ];
-
-    const unreadCount = notifications.filter(n => !readIds.has(n.id)).length;
-
-    // Only ids still shown are kept, so the stored list does not grow with every level reached.
-    const markRead = (ids) => {
-        const shown = new Set(notifications.map((n) => n.id));
-        const next = new Set([...readIds, ...ids].filter((id) => shown.has(id)));
-        setRead({ userId, ids: next });
-        saveRead(userId, next);
+    const markAllRead = () => {
+        if (unreadCount > 0) markRead.mutate({ all: true });
     };
 
-    const markAllRead = () => markRead(notifications.map((n) => n.id));
-
-    const handleItemClick = (id) => {
-        markRead([id]);
+    const handleOpen = (item) => {
+        if (!item.read) markRead.mutate({ ids: [item.id] });
         setOpen(false);
     };
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
+            <span className="sr-only" aria-live="polite" role="status">{live.message}</span>
             <Tooltip>
                 <TooltipTrigger asChild>
                     <PopoverTrigger asChild>
@@ -139,9 +150,11 @@ export default function NotificationCenter() {
                         >
                             <LuBell className="size-4" />
                             {unreadCount > 0 && (
-                                <span className="absolute top-1 right-1 flex size-2">
-                                    <span className="absolute inline-flex size-full motion-safe:animate-ping rounded-full bg-primary opacity-75" />
-                                    <span className="relative inline-flex size-2 rounded-full bg-primary" />
+                                <span
+                                    aria-hidden="true"
+                                    className="absolute -top-1 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-semibold leading-none text-primary-foreground tabular ring-2 ring-background"
+                                >
+                                    {unreadCount > 9 ? '9+' : unreadCount}
                                 </span>
                             )}
                         </Button>
@@ -151,73 +164,40 @@ export default function NotificationCenter() {
             </Tooltip>
 
             <PopoverContent align="end" className="w-80 p-0 shadow-lg sm:w-96">
-                <div className="flex items-center justify-between border-b px-4 py-3">
-                    <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+                    <p className="flex items-baseline gap-2">
                         <span className="text-sm font-semibold">Notifications</span>
-                        {unreadCount > 0 && (
-                            <Badge variant="primary" className="h-5 px-1.5 text-xs">
-                                {unreadCount} new
-                            </Badge>
-                        )}
-                    </div>
-                    {unreadCount > 0 && (
-                        <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={markAllRead}
-                            className="text-xs text-muted-foreground hover:text-foreground"
-                        >
-                            <LuCheck className="mr-1 size-3" />
-                            Mark all read
-                        </Button>
+                        {unreadCount > 0 && <span className="text-xs text-muted-foreground tabular">{unreadCount} unread</span>}
+                    </p>
+                    {/* Always mounted, so focus stays on it after "mark all read"; nothing to do reads as plain muted text, not faded. */}
+                    <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={markAllRead}
+                        aria-disabled={unreadCount === 0}
+                        className={cn("text-xs text-muted-foreground", unreadCount === 0 ? "cursor-default hover:bg-transparent" : "hover:text-foreground")}
+                    >
+                        <LuCheck className="mr-1 size-3" aria-hidden="true" />
+                        Mark all read
+                    </Button>
+                </div>
+
+                <div className="max-h-96 divide-y overflow-y-auto" aria-busy={query.isLoading}>
+                    {query.isLoading ? (
+                        <NotificationSkeleton compact />
+                    ) : query.isError && items.length === 0 ? (
+                        <ErrorReload data={query.error} refetch={() => query.refetch()} compact title="Could not load notifications" />
+                    ) : items.length === 0 ? (
+                        <p className="px-4 py-8 text-center text-sm text-muted-foreground">You&apos;re all caught up.</p>
+                    ) : (
+                        items.map((item) => <NotificationItem key={item.id} item={item} onOpen={handleOpen} compact />)
                     )}
                 </div>
 
-                <div className="max-h-96 divide-y overflow-y-auto">
-                    {notifications.length === 0 ? (
-                        <div className="p-6 text-center text-sm text-muted-foreground">
-                            No notifications yet
-                        </div>
-                    ) : (
-                        notifications.map((item) => {
-                            const isRead = readIds.has(item.id);
-                            const Icon = item.icon;
-
-                            return (
-                                <Link
-                                    key={item.id}
-                                    href={item.href}
-                                    onClick={() => handleItemClick(item.id)}
-                                    className={cn(
-                                        "flex items-start gap-3 p-3.5 transition-colors hover:bg-muted/50",
-                                        !isRead && "bg-primary-soft/15"
-                                    )}
-                                >
-                                    <span className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg", item.iconClass)}>
-                                        <Icon className="size-4" />
-                                    </span>
-                                    <div className="min-w-0 flex-1 space-y-0.5">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <p className={cn("truncate text-xs font-medium", !isRead ? "text-foreground font-semibold" : "text-muted-foreground")}>
-                                                {item.title}
-                                            </p>
-                                            <span className="shrink-0 text-xs text-muted-foreground">
-                                                {item.time}
-                                            </span>
-                                        </div>
-                                        <p className="line-clamp-2 text-xs text-muted-foreground">
-                                            {item.body}
-                                        </p>
-                                    </div>
-                                    {!isRead && (
-                                        <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary">
-                                            <span className="sr-only">Unread</span>
-                                        </span>
-                                    )}
-                                </Link>
-                            );
-                        })
-                    )}
+                <div className="border-t px-4 py-2 text-center">
+                    <Button asChild variant="link" size="xs">
+                        <Link href="/notifications" onClick={() => setOpen(false)}>View all</Link>
+                    </Button>
                 </div>
             </PopoverContent>
         </Popover>

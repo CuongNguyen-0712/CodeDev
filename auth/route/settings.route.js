@@ -9,4 +9,10 @@ export default [
         resource: RESOURCE.SETTINGS,
         access: ACCESS.PRIVATE
     },
+    {
+        path: "/notifications",
+        action: ACTION.LIST,
+        resource: RESOURCE.SETTINGS,
+        access: ACCESS.PRIVATE
+    },
 ]

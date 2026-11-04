@@ -160,8 +160,8 @@ flowchart LR
 |---|---|
 | Transient | Sonner toasts (`components/ui/alert.jsx`), one region, 4 s (8 s with an action). |
 | Realtime | Pusher user channel: session revoked (sign-out), progress updated (refetch), challenge submitted (toast only when the tab is hidden), profile updated (refetch). |
-| Persistent inbox | Not implemented. Planned in `docs/development-plan.md` §3.2; deferred in `docs/learning-rewards-redesign-plan.md` §3.4. |
-| Proposal (D-04) | Notification centre: navbar bell with unread count, list page with read / unread / dismissed states, each item deep-links to its resource, "Mark all read". Order completion, access granted and level-up are the first item types. Toasts stay for confirmations of the user's own actions. |
+| Persistent inbox | Implemented (migration `20261104_017`): `profile.notification` rows written by `services/notification.service.js` for course access granted / revoked, level-up, achievement and course completed, one row per fact (`dedupe_key`). Navbar bell (`components/ui/notificationCenter.jsx`) with a numeric unread badge and the latest page; `/notifications` lists All / Unread with "Load more" and "Mark all read". `notification-created` on the user channel refetches open tabs. Rows older than 90 days are purged by retention. Admins send announcements and direct messages from `/admin/announcements` (docs/notification-plan.md). |
+| D-04 (done) | Navbar bell with unread count, list page with read / unread states, each item deep-links to its resource, "Mark all read". Toasts stay for confirmations of the user's own actions. Deferred: a dismissed state, the bell inside the learning workspace, notification preferences, email / web push. |
 
 ## 4. URL and state conventions (current, keep)
 
