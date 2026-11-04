@@ -56,11 +56,14 @@ function LayoutContent({ children, footer }) {
 
                 {/* The page scroller: hooks/useInfiniteScroll observes it by id. The page is at least a
                     screen tall, so the footer starts below the fold: otherwise it shows at the bottom
-                    while a page loads its data and is pushed down when the data arrives (a layout shift). */}
+                    while a page loads its data and is pushed down when the data arrives (a layout shift).
+                    shrink-0 with it: min-h-dvh replaces the flex item's content-based minimum, and
+                    without shrink-0 a page taller than a screen is squeezed to one screen and spills
+                    out under the footer. */}
                 <section
                     id='container'
                     tabIndex={-1}
-                    className='page-enter [&>:not(footer)]:min-h-dvh outline-none flex min-h-0 w-full flex-1 flex-col items-center overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background [overflow-anchor:none] **:[overflow-anchor:none]'
+                    className='page-enter [&>:not(footer)]:min-h-dvh [&>:not(footer)]:shrink-0 outline-none flex min-h-0 w-full flex-1 flex-col items-center overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background [overflow-anchor:none] **:[overflow-anchor:none]'
                 >
                     {children}
                     {footer}
