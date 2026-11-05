@@ -1,0 +1,2 @@
+# @piece api-database-url: api: where to reach the database
+DATABASE_URL: postgres://rocket@localhost:5432/rocket

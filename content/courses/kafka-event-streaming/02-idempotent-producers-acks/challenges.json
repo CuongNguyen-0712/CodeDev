@@ -1,0 +1,230 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_kfk_121",
+      "name": "producer-acks-quiz",
+      "type": "quiz",
+      "title": "Read the lost and the doubled events",
+      "description": "Three statements about the two producer incidents Rice Rocket had with its first producer settings. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "reliable-producing"
+      ],
+      "points": 10,
+      "hints": [
+        "With acks=1 the leader answers as soon as it has the record. Where else is the record at that moment, and what does a broker do with records the new leader never had when it rejoins as a follower?",
+        "A producer that does not get an acknowledgement in time cannot know whether the write happened. What does it do when retries are on, and what lets a broker recognise a resend?",
+        "Read min.insync.replicas as a rule for writes with acks=all: how many replicas must be in sync, and what kind of error does the producer get when they are not?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The producer used `acks=1`. The leader of partition 7 went down, and one OrderPlaced is missing:\n\n```text\n[api] produced OrderPlaced o-2977 -> orders.v1 [7] offset 48120 (acks=1)\n[broker-2] partition orders.v1-7: leader shutting down\n[broker-3] partition orders.v1-7: elected leader, log end offset 48120\n[broker-2] partition orders.v1-7: became follower, truncating log to offset 48120\n$ kafka-console-consumer ... --partition 7 --offset 48119 --max-messages 2\n{\"type\":\"OrderAccepted\",\"orderId\":\"o-2971\"}\n{\"type\":\"OrderPlaced\",\"orderId\":\"o-2980\"}\n```\n\nStatement: \"With acks=1 the event reached the leader's disk, so when broker-2 came back it restored offset 48120 and nothing was lost.\"",
+          "explanation": "False. acks=1 means only the leader had the record when the producer was told it succeeded. broker-3 became leader without it, and broker-2, rejoining as a follower, truncated its log to match the new leader, discarding o-2977. The offset was then reused by o-2980. With acks=all the leader answers only after every in-sync replica has the record, so a leader change cannot drop an acknowledged event. The misconception is that \"on the leader's disk\" means durable.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After turning on retries (idempotence off), courier-matcher offered order o-3050 to two couriers:\n\n```text\n[api] OrderPlaced o-3050 (eventId evt-o-3050-1): request timed out after 30000 ms, retrying\n[api] OrderPlaced o-3050 (eventId evt-o-3050-1): delivered to orders.v1 [2] offset 77310\n$ kafka-console-consumer ... --partition 2 --offset 77309 --max-messages 2\n{\"eventId\":\"evt-o-3050-1\",\"type\":\"OrderPlaced\",\"orderId\":\"o-3050\"}\n{\"eventId\":\"evt-o-3050-1\",\"type\":\"OrderPlaced\",\"orderId\":\"o-3050\"}\n```\n\nStatement: \"The duplicate comes from courier-matcher reading offset 77309 twice; the producer settings play no part in it.\"",
+          "explanation": "False. The log itself holds the event twice, at offsets 77309 and 77310: the first request was written but its acknowledgement was lost, so the producer sent it again. With `enable.idempotence` the producer gets a producer id and numbers each record per partition; the broker sees the same sequence number again and acknowledges without writing a second copy. Consumers should still be idempotent (they can see an event again after a rebalance), but this duplicate was made by the producer.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "`orders.v1` has replication factor 3 and `min.insync.replicas=2`. Two brokers are down for maintenance:\n\n```text\n$ kafka-topics --bootstrap-server kafka:9092 --describe --topic orders.v1 | grep 'Partition: 4'\nTopic: orders.v1  Partition: 4  Leader: 1  Replicas: 1,2,3  Isr: 1\n[api] OrderPlaced o-3120 -> orders.v1 [4]: NotEnoughReplicas, retrying (acks=all)\n[analytics-importer] produced -> orders.v1 [4] offset 90211 (acks=1)\n```\n\nStatement: \"With acks=all the producer does not count a write as done while fewer than 2 replicas are in sync; the error is retriable, so the api's event is written once a follower is back in sync, while the acks=1 writes are held by one broker only.\"",
+          "explanation": "True. min.insync.replicas is the number of in-sync replicas a write with acks=all needs. With only the leader in the ISR, the broker rejects such writes with NotEnoughReplicas, a retriable error, and the producer keeps retrying within delivery.timeout.ms. Producers with acks=1 are not affected by the setting, so the analytics importer keeps writing records that exist on one broker only until the followers catch up. The misconception is that min.insync.replicas protects every producer of the topic.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_kfk_122",
+      "name": "producer-settings-fix",
+      "type": "fix_bug",
+      "title": "Fix the producer settings",
+      "description": "The api's producer ran with acks 1 and retries but no idempotence: a leader failure lost an OrderPlaced, and a timed-out acknowledgement wrote another one twice, so two couriers got the same order. The editor holds `main.ts` with `producerConfig()` missing its settings, each marked by a `// [ ]` line; some pieces are the old settings on purpose. Fill every line so that an event counts as sent only once enough in-sync replicas have it, a failed or timed-out send is retried for up to two minutes without ever storing the event twice, and events keep their order when an earlier request is retried. Run starts the producer (which rejects invalid combinations) and replays four failures against one partition with replication factor 3 and `min.insync.replicas` 2: a leader crash, a lost acknowledgement, a retried first request, and a follower falling out of sync.",
+      "difficulty": "medium",
+      "outcomes": [
+        "reliable-producing"
+      ],
+      "points": 30,
+      "hints": [
+        "Take each failure in turn: when the producer is told \"written\", how many brokers hold the event; and when it sends again, how does the broker know it already has that event?",
+        "Look at `acks` (0, 1 or -1 for all in-sync replicas), `idempotent`, the retry budget (`retries`, `deliveryTimeoutMs`) and `maxInFlight`. The client refuses some combinations at startup.",
+        "A payments producer with the same needs on a topic with min.insync.replicas 2 would use: `{ acks: -1, idempotent: true, retries: 2147483647, deliveryTimeoutMs: 180000, maxInFlight: 3 }`: every in-sync replica, broker-side deduplication, retries bounded by time, and at most 5 requests in flight."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The producer starts: the settings are a valid combination",
+          "input": {
+            "checks": [
+              "config"
+            ],
+            "events": [
+              "OrderPlaced:o-3101",
+              "OrderPlaced:o-3102",
+              "OrderPlaced:o-3103",
+              "OrderPlaced:o-3104"
+            ]
+          },
+          "expected": {
+            "config": "ok"
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "An event whose leader dies before replicating it is not lost",
+          "input": {
+            "checks": [
+              "leader-crash"
+            ],
+            "events": [
+              "OrderPlaced:o-3101",
+              "OrderPlaced:o-3102",
+              "OrderPlaced:o-3103",
+              "OrderPlaced:o-3104"
+            ],
+            "at": "OrderPlaced:o-3103"
+          },
+          "expected": {
+            "leader-crash": {
+              "stored": [
+                "OrderPlaced:o-3101",
+                "OrderPlaced:o-3102",
+                "OrderPlaced:o-3103",
+                "OrderPlaced:o-3104"
+              ],
+              "errors": []
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A lost acknowledgement does not store OrderPlaced twice",
+          "input": {
+            "checks": [
+              "lost-ack"
+            ],
+            "events": [
+              "OrderPlaced:o-3101",
+              "OrderPlaced:o-3102",
+              "OrderPlaced:o-3103",
+              "OrderPlaced:o-3104"
+            ],
+            "at": "OrderPlaced:o-3102"
+          },
+          "expected": {
+            "lost-ack": {
+              "stored": [
+                "OrderPlaced:o-3101",
+                "OrderPlaced:o-3102",
+                "OrderPlaced:o-3103",
+                "OrderPlaced:o-3104"
+              ],
+              "errors": []
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A retried first request still lands before the requests sent after it",
+          "input": {
+            "checks": [
+              "reorder"
+            ],
+            "events": [
+              "OrderPlaced:o-3101",
+              "OrderPlaced:o-3102",
+              "OrderPlaced:o-3103",
+              "OrderPlaced:o-3104"
+            ]
+          },
+          "expected": {
+            "reorder": {
+              "stored": [
+                "OrderPlaced:o-3101",
+                "OrderPlaced:o-3102",
+                "OrderPlaced:o-3103",
+                "OrderPlaced:o-3104"
+              ],
+              "errors": []
+            }
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "No event is acknowledged with fewer than 2 copies while a follower is out of sync",
+          "input": {
+            "checks": [
+              "isr-shrink"
+            ],
+            "events": [
+              "OrderPlaced:o-3101",
+              "OrderPlaced:o-3102",
+              "OrderPlaced:o-3103",
+              "OrderPlaced:o-3104"
+            ],
+            "at": "OrderPlaced:o-3102"
+          },
+          "expected": {
+            "isr-shrink": {
+              "stored": [
+                "OrderPlaced:o-3101",
+                "OrderPlaced:o-3102",
+                "OrderPlaced:o-3103",
+                "OrderPlaced:o-3104"
+              ],
+              "errors": [],
+              "min_copies_at_ack": 2
+            }
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

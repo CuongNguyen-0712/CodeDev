@@ -1,0 +1,40 @@
+[
+  {
+    "id": "with-timeout",
+    "label": "Give each check its time budget",
+    "code": "const withTimeout = (run) => Promise.race([\n    Promise.resolve().then(run),\n    opts.sleep(opts.timeoutMs).then(() => TIMEOUT),\n]);"
+  },
+  {
+    "id": "run-in-parallel",
+    "label": "Run both checks at the same time",
+    "code": "const results = await Promise.allSettled(names.map((name) => withTimeout(() => deps[name].ping())));"
+  },
+  {
+    "id": "map-results",
+    "label": "Report each check as up, down or timeout",
+    "code": "results.forEach((result, i) => {\n    checks[names[i]] = result.status === \"rejected\" ? \"down\" : result.value === TIMEOUT ? \"timeout\" : \"up\";\n});"
+  },
+  {
+    "id": "decide-status",
+    "label": "Decide the status: db is critical, the queue is not",
+    "code": "if (checks.db !== \"up\") return { status: 503, body: { status: \"down\", checks } };\nreturn { status: 200, body: { status: checks.queue === \"up\" ? \"ok\" : \"degraded\", checks } };"
+  },
+  {
+    "id": "decide-status-always-200",
+    "label": "Decide the status: db is critical, the queue is not",
+    "code": "return { status: 200, body: { status: checks.queue === \"up\" ? \"ok\" : \"degraded\", checks } };",
+    "distractor": true
+  },
+  {
+    "id": "run-sequential",
+    "label": "Run both checks at the same time",
+    "code": "const results = [];\nfor (const name of names) {\n    try {\n        results.push({ status: \"fulfilled\", value: await deps[name].ping() });\n    } catch (err) {\n        results.push({ status: \"rejected\", reason: err });\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "with-timeout-no-race",
+    "label": "Give each check its time budget",
+    "code": "const withTimeout = (run) => Promise.resolve().then(run);",
+    "distractor": true
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_dkn_122",
+      "key": "challenges/dockerfile/chal_coding_dkn_122/starter.Dockerfile",
+      "contentType": "text/plain; charset=utf-8",
+      "originalName": "Dockerfile",
+      "size": 585
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_dkn_122",
+      "key": "challenges/dockerfile/chal_coding_dkn_122/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 11225
+    }
+  ]
+}

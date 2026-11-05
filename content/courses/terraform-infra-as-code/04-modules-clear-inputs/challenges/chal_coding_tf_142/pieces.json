@@ -1,0 +1,50 @@
+[
+  {
+    "id": "name-validation",
+    "label": "The site name, refused unless S3 can use it",
+    "code": "variable \"name\" {\n  type        = string\n  description = \"Short site name, lowercase letters, digits and -, used in the bucket name.\"\n  validation {\n    condition     = length(var.name) > 0 && length(var.name) <= 20 && lower(var.name) == var.name && length(split(\" \", var.name)) == 1\n    error_message = \"name must be 1-20 lowercase characters without spaces.\"\n  }\n}"
+  },
+  {
+    "id": "site-options",
+    "label": "Typed options, each with a safe default",
+    "code": "variable \"options\" {\n  description = \"Site options. Anything not set keeps the safe default.\"\n  type = object({\n    versioning          = optional(bool, true)\n    block_public_access = optional(bool, true)\n  })\n  default = {}\n}"
+  },
+  {
+    "id": "bucket",
+    "label": "The site bucket, named from env and site name",
+    "code": "resource \"aws_s3_bucket\" \"this\" {\n  bucket = \"rice-rocket-${var.env}-${var.name}\"\n  tags   = merge(var.tags, { Site = var.name })\n}"
+  },
+  {
+    "id": "public-access-block",
+    "label": "Public access blocked unless a caller opts out",
+    "code": "resource \"aws_s3_bucket_public_access_block\" \"this\" {\n  count                   = var.options.block_public_access ? 1 : 0\n  bucket                  = aws_s3_bucket.this.id\n  block_public_acls       = true\n  block_public_policy     = true\n  ignore_public_acls      = true\n  restrict_public_buckets = true\n}"
+  },
+  {
+    "id": "versioning",
+    "label": "Versioning when the options ask for it",
+    "code": "resource \"aws_s3_bucket_versioning\" \"this\" {\n  count  = var.options.versioning ? 1 : 0\n  bucket = aws_s3_bucket.this.id\n  versioning_configuration {\n    status = \"Enabled\"\n  }\n}"
+  },
+  {
+    "id": "outputs",
+    "label": "What callers may use: the bucket name and ARN",
+    "code": "output \"bucket\" {\n  value = aws_s3_bucket.this.bucket\n}\n\noutput \"bucket_arn\" {\n  value = aws_s3_bucket.this.arn\n}"
+  },
+  {
+    "id": "bucket-with-provider",
+    "label": "The site bucket, named from env and site name",
+    "code": "provider \"aws\" {\n  region = \"ap-southeast-1\"\n}\n\nresource \"aws_s3_bucket\" \"this\" {\n  bucket = \"rice-rocket-${var.env}-${var.name}\"\n  tags   = merge(var.tags, { Site = var.name })\n}",
+    "distractor": true
+  },
+  {
+    "id": "outputs-whole-resource",
+    "label": "What callers may use: the bucket name and ARN",
+    "code": "output \"bucket\" {\n  value = aws_s3_bucket.this\n}\n\noutput \"bucket_arn\" {\n  value = aws_s3_bucket.this.arn\n}",
+    "distractor": true
+  },
+  {
+    "id": "site-options-any",
+    "label": "Typed options, each with a safe default",
+    "code": "variable \"options\" {\n  description = \"Site options.\"\n  type        = any\n  default     = {}\n}",
+    "distractor": true
+  }
+]

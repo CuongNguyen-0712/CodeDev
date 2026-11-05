@@ -101,6 +101,7 @@
     },
     {
       "publicId": "chal_fix_nhp_313",
+      "published": false,
       "name": "fix-cached-rejected-promise",
       "type": "fix_bug",
       "title": "Fix the cache that remembers a failure",

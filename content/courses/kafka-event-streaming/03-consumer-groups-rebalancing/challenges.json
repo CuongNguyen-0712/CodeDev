@@ -1,0 +1,438 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_kfk_131",
+      "name": "consumer-groups-quiz",
+      "type": "quiz",
+      "title": "Read the courier-matcher group",
+      "description": "Three statements about what Rice Rocket saw after the courier-matcher consumer group started to autoscale on Kubernetes. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "consuming"
+      ],
+      "points": 10,
+      "hints": [
+        "Inside one consumer group, how many members can read one partition at the same time? Count the partitions of orders.v1 and the pods.",
+        "Compare what each member gives up at the start of a rebalance under the eager protocol and under cooperative-sticky assignment.",
+        "Two timers can remove a member: one is fed by the background heartbeat, the other only by calling poll. Which one does a slow batch starve?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The HPA scaled courier-matcher from 6 to 9 pods during the dinner peak. Lag did not go down:\n\n```text\n$ kafka-consumer-groups.sh --bootstrap-server kafka:9092 --describe --group courier-matcher --members\nGROUP            CONSUMER-ID                 HOST         CLIENT-ID         #PARTITIONS\ncourier-matcher  courier-matcher-7f9c-0a1b   /10.8.1.14   courier-matcher   1\ncourier-matcher  courier-matcher-7f9c-1c2d   /10.8.2.9    courier-matcher   1\ncourier-matcher  courier-matcher-7f9c-2e3f   /10.8.0.22   courier-matcher   1\ncourier-matcher  courier-matcher-7f9c-3a4b   /10.8.1.31   courier-matcher   1\ncourier-matcher  courier-matcher-7f9c-4c5d   /10.8.2.17   courier-matcher   1\ncourier-matcher  courier-matcher-7f9c-5e6f   /10.8.0.40   courier-matcher   1\ncourier-matcher  courier-matcher-7f9c-6a7b   /10.8.1.52   courier-matcher   0\ncourier-matcher  courier-matcher-7f9c-7c8d   /10.8.2.23   courier-matcher   0\ncourier-matcher  courier-matcher-7f9c-8e9f   /10.8.0.61   courier-matcher   0\n```\n\nStatement: \"The three extra pods will start sharing the busiest partitions once the next rebalance finishes, so adding pods beyond 6 still adds read throughput.\"",
+          "explanation": "False. Within one consumer group a partition is read by at most one member at a time; that is how Kafka keeps the records of one key in order. orders.v1 has 6 partitions, so a 7th, 8th and 9th member get no partitions and sit idle, whatever the assignor does. To read faster with more pods, add partitions (which moves keys to new partitions, see lesson 1) or make each record cheaper to handle. Capping the HPA at the partition count avoids paying for idle pods.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Every scale event of the HPA stalls the whole group for a few seconds. The client log of a pod that kept its partitions:\n\n```text\n[courier-matcher-7f9c-0a1b] rebalance: revoking all assigned partitions: orders.v1 [0, 1]\n[courier-matcher-7f9c-0a1b] rebalance: assigned partitions: orders.v1 [0, 1]\n```\n\n```ts\n// consumer config\n{ \"group.id\": \"courier-matcher\", \"partition.assignment.strategy\": \"range\" }\n```\n\nStatement: \"With the eager protocol every member gives up all its partitions at the start of each rebalance, even the ones it gets back, so the whole group stops; cooperative-sticky assignment moves only the partitions that change owner.\"",
+          "explanation": "True. Under the eager protocol (the range and round-robin assignors) a rebalance starts with every member revoking everything, then a new assignment is handed out: nobody reads until the rebalance completes, which is the stall seen on each HPA event. The cooperative-sticky assignor rebalances incrementally: members keep the partitions they still own and only the moved ones are revoked and reassigned. Kafka 4 also brings a broker-driven consumer group protocol (KIP-848) that works incrementally; check that your client supports it before switching.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "One pod handles a batch of 500 orders that each call the courier-routing service. In the middle of the batch:\n\n```text\n[courier-matcher-7f9c-2e3f] Application maximum poll interval (300000ms) exceeded by 41230ms: leaving group\n[courier-matcher-7f9c-0a1b] rebalance: assigned partitions: orders.v1 [0, 1, 2]\n[courier-matcher-7f9c-0a1b] handled order-8812 (partition 2, offset 15022)\n```\n\n```text\nheartbeat.interval.ms=3000  session.timeout.ms=45000  max.poll.interval.ms=300000  max.poll.records=500\n```\n\nStatement: \"The pod was removed because the time between two polls went over max.poll.interval.ms, not because heartbeats stopped; its uncommitted records were handed again to another member, so smaller batches or faster handling fix it.\"",
+          "explanation": "True. Heartbeats come from a background thread and kept the session alive; max.poll.interval.ms is a separate limit on the gap between two poll calls, and 500 records at roughly 0.7 s each took longer than 5 minutes. The member left the group, its partitions moved, and the new owner started from the last committed offset, so orders the slow pod had already matched were matched again. Lower max.poll.records, make each record faster, or raise max.poll.interval.ms deliberately; raising session.timeout.ms changes nothing here.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_kfk_132",
+      "name": "rebalance-safe-worker",
+      "type": "mini_coding",
+      "title": "A worker that survives rebalances",
+      "description": "Rice Rocket's courier-matcher pods join and leave the consumer group whenever the HPA scales them, and the old worker matched some orders twice and skipped others on every scale event. The editor holds `createWorker` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a pod starts each newly assigned partition at the group's committed offset (the first time, at the start of the partition); it handles records in order and stops at once when `handle` returns false (a rebalance started mid-batch); when partitions are revoked it commits, for each one, the offset after the last record it handled, then stops reading them. Run produces orders to `orders.v1` and plays joins, clean leaves, a kicked pod, interrupted polls and a drain with eager rebalances, then reports duplicates, lost records and committed offsets.",
+      "difficulty": "medium",
+      "outcomes": [
+        "consuming"
+      ],
+      "points": 30,
+      "hints": [
+        "Follow one record across a rebalance: who handled it, what the old owner committed, and where the new owner starts. A duplicate means the commit was too low; a lost record means it was too high.",
+        "There are two offsets per partition in the worker: `position` (what has been fetched) and `done` (what has been handled). Which one is safe to commit, and when does `onRevoke` need to stop the worker from reading a partition?",
+        "A billing worker on topic invoices.v1 keeps `const paid = new Map<number, number>()`; in onAssign it sets `paid.set(p, broker.committedOffset(\"billing\", \"invoices.v1\", p) ?? 0)`, after each charged invoice `paid.set(p, invoice.offset + 1)`, and in onRevoke it commits `paid.get(p)` for each revoked partition before deleting it from its maps."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One pod handles every order once and commits the end of each partition",
+          "input": {
+            "records": 24,
+            "steps": [
+              {
+                "join": "pod-a"
+              },
+              {
+                "drain": true
+              }
+            ]
+          },
+          "expected": {
+            "assignment": {
+              "pod-a": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            },
+            "handled": 24,
+            "duplicates": [],
+            "lost": [],
+            "committed": {
+              "0": 4,
+              "1": 3,
+              "2": 3,
+              "3": 6,
+              "4": 4,
+              "5": 4
+            }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A second pod joins mid-stream: no order is handled twice or skipped",
+          "input": {
+            "records": 24,
+            "steps": [
+              {
+                "join": "pod-a"
+              },
+              {
+                "poll": "pod-a",
+                "max": 2
+              },
+              {
+                "join": "pod-b"
+              },
+              {
+                "drain": true
+              }
+            ]
+          },
+          "expected": {
+            "assignment": {
+              "pod-a": [
+                0,
+                1,
+                2
+              ],
+              "pod-b": [
+                3,
+                4,
+                5
+              ]
+            },
+            "handled": 24,
+            "duplicates": [],
+            "lost": [],
+            "committed": {
+              "0": 4,
+              "1": 3,
+              "2": 3,
+              "3": 6,
+              "4": 4,
+              "5": 4
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A rebalance interrupts a batch: the unhandled orders go to the next owner",
+          "input": {
+            "records": 24,
+            "steps": [
+              {
+                "join": "pod-a"
+              },
+              {
+                "poll": "pod-a",
+                "max": 4,
+                "stopAfter": 3
+              },
+              {
+                "join": "pod-b"
+              },
+              {
+                "drain": true
+              }
+            ]
+          },
+          "expected": {
+            "assignment": {
+              "pod-a": [
+                0,
+                1,
+                2
+              ],
+              "pod-b": [
+                3,
+                4,
+                5
+              ]
+            },
+            "handled": 24,
+            "duplicates": [],
+            "lost": [],
+            "committed": {
+              "0": 4,
+              "1": 3,
+              "2": 3,
+              "3": 6,
+              "4": 4,
+              "5": 4
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Nine pods for six partitions: three get nothing and every order is handled once",
+          "input": {
+            "records": 30,
+            "steps": [
+              {
+                "join": "pod-a"
+              },
+              {
+                "join": "pod-b"
+              },
+              {
+                "join": "pod-c"
+              },
+              {
+                "join": "pod-d"
+              },
+              {
+                "join": "pod-e"
+              },
+              {
+                "join": "pod-f"
+              },
+              {
+                "join": "pod-g"
+              },
+              {
+                "join": "pod-h"
+              },
+              {
+                "join": "pod-i"
+              },
+              {
+                "drain": true
+              }
+            ]
+          },
+          "expected": {
+            "assignment": {
+              "pod-a": [
+                0
+              ],
+              "pod-b": [
+                1
+              ],
+              "pod-c": [
+                2
+              ],
+              "pod-d": [
+                3
+              ],
+              "pod-e": [
+                4
+              ],
+              "pod-f": [
+                5
+              ],
+              "pod-g": [],
+              "pod-h": [],
+              "pod-i": []
+            },
+            "handled": 30,
+            "duplicates": [],
+            "lost": [],
+            "committed": {
+              "0": 5,
+              "1": 4,
+              "2": 4,
+              "3": 6,
+              "4": 5,
+              "5": 6
+            }
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A kicked pod: orders it handled but never committed run again, none is lost",
+          "input": {
+            "records": 24,
+            "steps": [
+              {
+                "join": "pod-a"
+              },
+              {
+                "join": "pod-b"
+              },
+              {
+                "poll": "pod-a",
+                "max": 3
+              },
+              {
+                "kick": "pod-a"
+              },
+              {
+                "drain": true
+              }
+            ]
+          },
+          "expected": {
+            "assignment": {
+              "pod-b": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            },
+            "handled": 33,
+            "duplicates": [
+              "0:0",
+              "0:1",
+              "0:2",
+              "1:0",
+              "1:1",
+              "1:2",
+              "2:0",
+              "2:1",
+              "2:2"
+            ],
+            "lost": [],
+            "committed": {
+              "0": 4,
+              "1": 3,
+              "2": 3,
+              "3": 6,
+              "4": 4,
+              "5": 4
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Scale from three pods down to one: progress carries over every rebalance",
+          "input": {
+            "records": 36,
+            "steps": [
+              {
+                "join": "pod-a"
+              },
+              {
+                "join": "pod-b"
+              },
+              {
+                "join": "pod-c"
+              },
+              {
+                "poll": "pod-a",
+                "max": 2
+              },
+              {
+                "poll": "pod-b",
+                "max": 3,
+                "stopAfter": 4
+              },
+              {
+                "poll": "pod-c",
+                "max": 1
+              },
+              {
+                "leave": "pod-c"
+              },
+              {
+                "poll": "pod-a",
+                "max": 2
+              },
+              {
+                "leave": "pod-b"
+              },
+              {
+                "drain": true
+              }
+            ]
+          },
+          "expected": {
+            "assignment": {
+              "pod-a": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            },
+            "handled": 36,
+            "duplicates": [],
+            "lost": [],
+            "committed": {
+              "0": 5,
+              "1": 7,
+              "2": 5,
+              "3": 6,
+              "4": 7,
+              "5": 6
+            }
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

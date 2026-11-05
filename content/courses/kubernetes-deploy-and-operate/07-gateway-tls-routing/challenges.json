@@ -1,0 +1,289 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_k8s_171",
+      "name": "gateway-routing-quiz",
+      "type": "quiz",
+      "title": "Read the Gateway API routes",
+      "description": "Three statements about what Rice Rocket saw while moving its routing from Ingress to the Gateway API. Decide whether each one is true.",
+      "difficulty": "easy",
+      "outcomes": [
+        "traffic"
+      ],
+      "points": 10,
+      "hints": [
+        "PathPrefix compares whole path segments split on `/`, not characters. Which segments does `/apiary-docs` have?",
+        "Look at who writes which object: the Gateway carries `allowedRoutes`, the HTTPRoute only asks to attach. Which side decides whether the request is accepted?",
+        "A Service has its own `port` and a `targetPort` that points at the container. Which of the two does a `backendRef` name?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The `site` route sends the web app's API calls to the api:\n\n```yaml\nrules:\n  - matches:\n      - path:\n          type: PathPrefix\n          value: /api\n    backendRefs:\n      - name: api\n        port: 80\n  - backendRefs:\n      - name: web\n        port: 80\n```\n\nThe marketing team publishes a page at `https://ricerocket.vn/apiary-docs`.\n\nStatement: \"The page is sent to the api, because `/apiary-docs` starts with the prefix `/api`.\"",
+          "explanation": "False. A PathPrefix match compares the path element by element, split on `/`: `/api` matches `/api`, `/api/` and `/api/orders`, but not `/apiary-docs`, whose first element is `apiary-docs`. The page falls through to the second rule and reaches the web app. The misconception comes from string prefixes in old proxy configs, where `location /api` in nginx does match `/apiary-docs`.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The app team applies an HTTPRoute in its namespace `rice-rocket`. The platform team's Gateway lives in `gateway-system`:\n\n```yaml\n# Gateway public (namespace gateway-system), listener https\nallowedRoutes:\n  namespaces:\n    from: Selector\n    selector:\n      matchLabels:\n        expose-public: \"true\"\n```\n\n```text\n$ kubectl -n rice-rocket get httproute site -o jsonpath='{.status.parents[0].conditions[0]}'\n{\"type\":\"Accepted\",\"status\":\"False\",\"reason\":\"NotAllowedByListeners\"}\n```\n\nStatement: \"No edit inside the HTTPRoute can fix this: the listener decides which namespaces may attach, so either `rice-rocket` gets the label `expose-public: \\\"true\\\"` or the platform team changes `allowedRoutes`.\"",
+          "explanation": "True. The Gateway API splits the roles on purpose: the platform owns the GatewayClass and the Gateway, including which namespaces may attach routes to each listener, and the app team owns its HTTPRoutes. A route only asks to attach through `parentRefs`; `NotAllowedByListeners` means the listener refused it. Labelling the namespace (a cluster-level action) or changing `allowedRoutes` fixes it. The misconception is that the route owner can grant itself access by pointing `parentRefs` at the Gateway.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Every request to `https://api.ricerocket.vn` answers 500 after a change to the `api` route:\n\n```yaml\n# Service api: port 80, targetPort http (containerPort 3000)\nrules:\n  - backendRefs:\n      - name: api\n        port: 3000\n```\n\n```text\n$ kubectl -n rice-rocket describe httproute api | grep -A2 ResolvedRefs\n    Reason:  BackendNotFound\n    Status:  False\n    Type:    ResolvedRefs\n```\n\nStatement: \"A `backendRef` names a port of the Service, not of the container: the Service `api` exposes 80, so the route must say `port: 80` and the Service forwards to the container's 3000.\"",
+          "explanation": "True. A backendRef points at a Service, and `port` is one of that Service's ports. The Service exposes 80 and maps it to its `targetPort` (the container port named `http`, 3000). The Service has no port 3000, so the reference does not resolve, and the spec has the gateway answer 500 for requests to an unresolved backend. The misconception is that the route talks to the pods directly.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_k8s_172",
+      "name": "gateway-tls-routes",
+      "type": "mini_coding",
+      "title": "Route ricerocket.vn through the Gateway API",
+      "description": "Rice Rocket's routing moves off the retired ingress-nginx controller to the Gateway API. The editor holds `k8s/routes.yaml` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: the Gateway `public` (GatewayClass `managed`) has an HTTPS listener on 443 that terminates TLS with the Secret `ricerocket-tls`, and an HTTP listener on 80 used only for redirects; every `http://` request gets a 301 to the same URL on `https://`; on `ricerocket.vn`, `/api` and every path below it reach the Service `api` with `/api` removed, and every other path reaches the Service `web`. Both Services expose port 80. Run grades the file with a simulator of Gateway API listener selection, route attachment, match precedence and filters.",
+      "difficulty": "medium",
+      "outcomes": [
+        "traffic"
+      ],
+      "points": 30,
+      "hints": [
+        "Follow one request at a time: which listener takes it (port, then TLS), which route is attached to that listener, which rule matches its path, and which filter or backend that rule applies.",
+        "Look at the listener fields `protocol`, `port` and `tls.certificateRefs`, the HTTPRoute `matches[].path` types `PathPrefix` and `Exact`, the filters `RequestRedirect` and `URLRewrite` (`ReplacePrefixMatch`), and `backendRefs[].port`.",
+        "A route that sends `/static` and everything below it to a Service `cdn` on port 8080 without the `/static` part: `matches: [{ path: { type: PathPrefix, value: /static } }]`, `filters: [{ type: URLRewrite, urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: / } } }]`, `backendRefs: [{ name: cdn, port: 8080 }]`."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": "k8s/routes.yaml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "HTTPS pages of ricerocket.vn reach the web app",
+          "input": {
+            "checks": [
+              "parse",
+              "requests"
+            ],
+            "requests": {
+              "home": {
+                "scheme": "https",
+                "host": "ricerocket.vn",
+                "path": "/"
+              },
+              "menu": {
+                "scheme": "https",
+                "host": "ricerocket.vn",
+                "path": "/menu/pho-bo"
+              }
+            }
+          },
+          "expected": {
+            "parse": "ok",
+            "requests": {
+              "home": {
+                "status": 200,
+                "backend": "web:80",
+                "path": "/"
+              },
+              "menu": {
+                "status": 200,
+                "backend": "web:80",
+                "path": "/menu/pho-bo"
+              }
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "/api and the paths below it reach the api without the /api prefix",
+          "input": {
+            "checks": [
+              "requests"
+            ],
+            "requests": {
+              "orders": {
+                "scheme": "https",
+                "host": "ricerocket.vn",
+                "path": "/api/orders"
+              },
+              "api-root": {
+                "scheme": "https",
+                "host": "ricerocket.vn",
+                "path": "/api"
+              }
+            }
+          },
+          "expected": {
+            "requests": {
+              "orders": {
+                "status": 200,
+                "backend": "api:80",
+                "path": "/orders"
+              },
+              "api-root": {
+                "status": 200,
+                "backend": "api:80",
+                "path": "/"
+              }
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Plain HTTP answers a 301 to the same URL on https",
+          "input": {
+            "checks": [
+              "requests"
+            ],
+            "requests": {
+              "plain-http": {
+                "scheme": "http",
+                "host": "ricerocket.vn",
+                "path": "/menu?city=hcm"
+              },
+              "plain-http-api": {
+                "scheme": "http",
+                "host": "api.ricerocket.vn",
+                "path": "/orders/42"
+              }
+            }
+          },
+          "expected": {
+            "requests": {
+              "plain-http": {
+                "status": 301,
+                "location": "https://ricerocket.vn/menu"
+              },
+              "plain-http-api": {
+                "status": 301,
+                "location": "https://api.ricerocket.vn/orders/42"
+              }
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "/apiary-docs stays on the web app; api.ricerocket.vn reaches the api",
+          "input": {
+            "checks": [
+              "requests"
+            ],
+            "requests": {
+              "apiary": {
+                "scheme": "https",
+                "host": "ricerocket.vn",
+                "path": "/apiary-docs"
+              },
+              "partner": {
+                "scheme": "https",
+                "host": "api.ricerocket.vn",
+                "path": "/orders/42"
+              }
+            }
+          },
+          "expected": {
+            "requests": {
+              "apiary": {
+                "status": 200,
+                "backend": "web:80",
+                "path": "/apiary-docs"
+              },
+              "partner": {
+                "status": 200,
+                "backend": "api:80",
+                "path": "/orders/42"
+              }
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Every route is accepted and both listeners are programmed",
+          "input": {
+            "checks": [
+              "routes",
+              "listeners"
+            ]
+          },
+          "expected": {
+            "routes": {
+              "api": "Accepted",
+              "redirect-to-https": "Accepted",
+              "site": "Accepted"
+            },
+            "listeners": {
+              "https": "Programmed",
+              "http": "Programmed"
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A host the certificate does not cover fails the TLS handshake",
+          "input": {
+            "checks": [
+              "requests"
+            ],
+            "requests": {
+              "unknown-host": {
+                "scheme": "https",
+                "host": "shop.example.com",
+                "path": "/"
+              }
+            }
+          },
+          "expected": {
+            "requests": {
+              "unknown-host": {
+                "status": "TLS handshake failure"
+              }
+            }
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+# @piece image-tag: The exact version this rollout ships
+image: ghcr.io/rice-rocket/api:latest

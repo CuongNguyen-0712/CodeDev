@@ -1,0 +1,14 @@
+# @piece api-rule: /api and every path below it, to the api without /api
+- matches:
+    - path:
+        type: PathPrefix
+        value: /api
+  filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
+  backendRefs:
+    - name: api
+      port: 3000

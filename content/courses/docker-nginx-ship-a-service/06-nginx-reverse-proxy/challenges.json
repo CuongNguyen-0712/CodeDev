@@ -1,0 +1,182 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dkn_161",
+      "name": "nginx-reverse-proxy-quiz",
+      "type": "quiz",
+      "title": "Read the proxy config",
+      "description": "Three statements about how Rice Rocket's nginx passes requests to the api: the path, the forwarded headers and the timeout. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": ["nginx-proxy"],
+      "points": 10,
+      "hints": [
+        "For each statement, ask which nginx level (http, server, location) actually decides the behaviour for that request.",
+        "Look at whether `proxy_pass` has anything after host:port, and at which levels `proxy_set_header` appears.",
+        "Same rule on a different path: with `location /static/ { proxy_pass http://cdn/files/; }`, a request for `/static/logo.png` reaches cdn as `/files/logo.png`."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The api serves its routes without an `/api` prefix. nginx has this location:\n\n```nginx\nlocation /api/ {\n    proxy_pass http://api:3000/;\n}\n```\n\nStatement: \"A request for `/api/orders?status=new` reaches the api as `/orders?status=new`.\"",
+          "explanation": "True. When proxy_pass has a URI part (here the trailing \"/\"), nginx replaces the part of the request URI that matched the location (\"/api/\") with that URI and keeps the query string. The common misconception is that the trailing slash is cosmetic: without it (`proxy_pass http://api:3000;`) the original URI is passed unchanged, so the api receives /api/orders and answers 404.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The forwarded headers are set at server level, and the reports location adds one header of its own:\n\n```nginx\nserver {\n    proxy_set_header Host              $host;\n    proxy_set_header X-Real-IP         $remote_addr;\n    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;\n    proxy_set_header X-Forwarded-Proto $scheme;\n\n    location /api/reports/ {\n        proxy_set_header Connection \"\";\n        proxy_read_timeout 300s;\n        proxy_pass http://api/reports/;\n    }\n}\n```\n\nStatement: \"Requests to `/api/reports/` still carry `X-Real-IP` and `X-Forwarded-Proto`, because the location only adds one more header.\"",
+          "explanation": "False. proxy_set_header directives are inherited from the outer level only if the current level defines none. The single `proxy_set_header Connection \"\"` in the location replaces the whole inherited set, so report requests reach the api with only the defaults (Host $proxy_host) plus Connection: the api sees nginx's IP and http again for exactly these requests. People read it as \"add one more\"; nginx reads it as \"this level has its own list\". Repeat the four headers in the location, or move the extra header to server level.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Monthly report exports fail; nginx logs this for each of them:\n\n```text\n2026/11/02 09:14:03 [error] 29#29: *8812 upstream timed out (110: Connection timed out) while reading response header from upstream, client: 203.0.113.7, server: ricerocket.vn, request: \"GET /api/reports/monthly?month=2026-10 HTTP/1.1\", upstream: \"http://172.18.0.4:3000/reports/monthly?month=2026-10\"\n203.0.113.7 - - [02/Nov/2026:09:14:03 +0700] \"GET /api/reports/monthly?month=2026-10 HTTP/1.1\" 504 167 rt=60.001\n```\n\nStatement: \"Raising `proxy_read_timeout` for the reports location fixes these 504s; `proxy_connect_timeout` is not involved, because the connection was open and nginx was waiting for the response.\"",
+          "explanation": "True. \"while reading response header from upstream\" after exactly 60 s is proxy_read_timeout (default 60s): nginx connected, sent the request, and the api sent nothing back within 60 s. proxy_read_timeout counts the time between two successive reads, not the whole response, so a report that takes 4 minutes before its first byte needs a larger value in its own location. A connect failure would log \"while connecting to upstream\" instead. Raising the timeout for every location is the common overreaction: it also lets a stuck request on any other endpoint hold a connection for minutes.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dkn_162",
+      "name": "nginx-reverse-proxy-default-conf",
+      "type": "mini_coding",
+      "title": "Fix the api proxying in default.conf",
+      "description": "Since nginx went in front, the api logs every client as 172.18.0.5, `/api/orders` reaches it as `/api/orders` (404, the api's routes have no /api prefix), redirects point to http:// and report exports fail with 504 after 60 s. Assemble the fixed default.conf: (1) `/api/...` reaches the api (api:3000, an `upstream api` block is recommended) without the `/api` prefix, query string kept; everything else stays with the static app; (2) every request to the api carries `Host` (the public host name), `X-Real-IP` (the client IP), `X-Forwarded-For` and `X-Forwarded-Proto` (the scheme the client used, http or https); (3) `/api/reports/` waits 300 s for the api (`proxy_read_timeout 300s`) while every other api request keeps the 60 s default. Run grades it with a routing simulator: for each request it reports where nginx sends it, the path the api receives, the forwarded headers and the read timeout. The editor starts from the finished file with key blocks missing (`[ ] label` lines): fill each one by clicking a piece, or drag it onto the line on desktop. Some pieces are wrong on purpose.",
+      "difficulty": "medium",
+      "outcomes": ["nginx-proxy"],
+      "points": 30,
+      "hints": [
+        "Which part of the request URI does nginx replace when `proxy_pass` ends in a URI, and at which level must `proxy_set_header` live so that two sibling locations both get it?",
+        "Compare the pieces that fill the same line: the text after the upstream name in each `proxy_pass`, and which headers each `proxy_set_header` block sends. Then check that the reports location keeps `/reports/` in the path it passes on.",
+        "A similar setup for a different service: `location /admin/ { proxy_pass http://backoffice/; }` sends `/admin/users?page=2` as `/users?page=2`, and `location /admin/exports/ { proxy_pass http://backoffice/exports/; proxy_read_timeout 120s; }` sends `/admin/exports/csv` as `/exports/csv` with a 120 s read timeout."
+      ],
+      "coding": {
+        "language": "nginx",
+        "filePath": "default.conf",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "/api/... reaches the api without the /api prefix; app routes stay static",
+          "input": {
+            "fields": ["to", "upstreamPath"],
+            "requests": [
+              { "path": "/api/orders?status=new", "clientIp": "203.0.113.7", "scheme": "https" },
+              { "path": "/api/orders/42/items", "clientIp": "203.0.113.7", "scheme": "https" },
+              { "path": "/orders/42", "clientIp": "203.0.113.7", "scheme": "https" }
+            ]
+          },
+          "expected": [
+            { "to": "api", "upstreamPath": "/orders?status=new" },
+            { "to": "api", "upstreamPath": "/orders/42/items" },
+            { "to": "static", "upstreamPath": null }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The api receives the public host, the client IP and the https scheme",
+          "input": {
+            "fields": ["headers"],
+            "requests": [
+              { "path": "/api/orders", "clientIp": "203.0.113.7", "scheme": "https" }
+            ]
+          },
+          "expected": [
+            { "headers": { "Host": "ricerocket.vn", "X-Real-IP": "203.0.113.7", "X-Forwarded-For": "203.0.113.7", "X-Forwarded-Proto": "https" } }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Report exports wait 300 s; other api requests keep the 60 s default",
+          "input": {
+            "fields": ["to", "upstreamPath", "readTimeoutSec"],
+            "requests": [
+              { "path": "/api/reports/monthly?month=2026-10", "clientIp": "203.0.113.7", "scheme": "https" },
+              { "path": "/api/orders", "clientIp": "203.0.113.7", "scheme": "https" }
+            ]
+          },
+          "expected": [
+            { "to": "api", "upstreamPath": "/reports/monthly?month=2026-10", "readTimeoutSec": 300 },
+            { "to": "api", "upstreamPath": "/orders", "readTimeoutSec": 60 }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Report requests carry the forwarded headers too, and an http client is reported as http",
+          "input": {
+            "fields": ["headers"],
+            "requests": [
+              { "path": "/api/reports/daily", "clientIp": "198.51.100.23", "scheme": "http" }
+            ]
+          },
+          "expected": [
+            { "headers": { "Host": "ricerocket.vn", "X-Real-IP": "198.51.100.23", "X-Forwarded-For": "198.51.100.23", "X-Forwarded-Proto": "http" } }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Paths that only start with the letters /api (e.g. /apiary) stay with the static app",
+          "input": {
+            "fields": ["to", "upstreamPath"],
+            "requests": [
+              { "path": "/apiary", "clientIp": "203.0.113.7", "scheme": "https" },
+              { "path": "/api-docs/index.html", "clientIp": "203.0.113.7", "scheme": "https" },
+              { "path": "/", "clientIp": "203.0.113.7", "scheme": "https" }
+            ]
+          },
+          "expected": [
+            { "to": "static", "upstreamPath": null },
+            { "to": "static", "upstreamPath": null },
+            { "to": "static", "upstreamPath": null }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Two clients, two schemes: path, headers and timeout follow each request",
+          "input": {
+            "requests": [
+              { "path": "/api/restaurants?near=district-1", "clientIp": "198.51.100.23", "scheme": "http" },
+              { "path": "/api/reports/export/csv", "clientIp": "203.0.113.99", "scheme": "https" }
+            ]
+          },
+          "expected": [
+            {
+              "to": "api",
+              "upstreamPath": "/restaurants?near=district-1",
+              "headers": { "Host": "ricerocket.vn", "X-Real-IP": "198.51.100.23", "X-Forwarded-For": "198.51.100.23", "X-Forwarded-Proto": "http" },
+              "readTimeoutSec": 60
+            },
+            {
+              "to": "api",
+              "upstreamPath": "/reports/export/csv",
+              "headers": { "Host": "ricerocket.vn", "X-Real-IP": "203.0.113.99", "X-Forwarded-For": "203.0.113.99", "X-Forwarded-Proto": "https" },
+              "readTimeoutSec": 300
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

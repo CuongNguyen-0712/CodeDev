@@ -1,0 +1,35 @@
+# Rice Rocket CI: the test job, with npm's download cache kept between runs.
+# The api lives in api/ (Node version in api/.nvmrc, dependencies locked in api/package-lock.json).
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: api
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: api/.nvmrc
+      - name: Restore the npm cache
+        id: npm-cache
+        uses: actions/cache@v4
+        with:
+          # [ ] What to keep between runs
+          # [ ] The key: runner OS and the exact lockfile
+          # [ ] Fallback after the lockfile changed
+      # [ ] Install the locked dependencies
+      - run: npm test

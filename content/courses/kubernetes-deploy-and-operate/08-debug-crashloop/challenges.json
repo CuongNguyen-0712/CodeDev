@@ -1,0 +1,418 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_k8s_181",
+      "name": "debug-crashloop-quiz",
+      "type": "quiz",
+      "title": "Read a pod that keeps restarting",
+      "description": "Three statements about how the on-call engineer read Rice Rocket's crash-looping api pods. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "operations"
+      ],
+      "points": 10,
+      "hints": [
+        "After a restart there are two containers in the story: the one running now and the one that died. Which one does `kubectl logs` read by default, and which flag reads the other?",
+        "Compare `state.waiting.reason` with `lastState.terminated.reason`. One tells you what the kubelet is doing now, the other what happened to the last run.",
+        "Some failures happen before the process starts at all. Would restarting the container change the Secret it reads?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The api pod has restarted four times. The engineer runs:\n\n```text\n$ kubectl get pod api-7b9c6d5f4-k2x8p -n rice-rocket\nNAME                  READY   STATUS             RESTARTS      AGE\napi-7b9c6d5f4-k2x8p   0/1     CrashLoopBackOff   4 (31s ago)   3m12s\n$ kubectl logs api-7b9c6d5f4-k2x8p -n rice-rocket\n{\"level\":30,\"msg\":\"loading config\"}\n```\n\nStatement: \"`kubectl logs` without flags shows the output of the container that crashed, so the crash happened right after `loading config` and printed nothing.\"",
+          "explanation": "False. `kubectl logs` reads the **current** container: the one the kubelet started after the last crash, which has only just begun (or is waiting in back-off). The run that died is read with `kubectl logs api-7b9c6d5f4-k2x8p --previous`. Its last lines usually hold the error. The misconception is that a pod has one log across restarts.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "`kubectl describe pod` for the same pod shows:\n\n```text\n    State:          Waiting\n      Reason:       CrashLoopBackOff\n    Last State:     Terminated\n      Reason:       Error\n      Exit Code:    1\n    Restart Count:  4\nEvents:\n  Normal   Pulled   2m   kubelet  Container image \"ghcr.io/rice-rocket/api:1.5.0\" already present on machine\n  Warning  BackOff  31s  kubelet  Back-off restarting failed container api in pod api-7b9c6d5f4-k2x8p\n```\n\nStatement: \"CrashLoopBackOff is not the cause. It means the kubelet is waiting longer and longer (up to 5 minutes) between restarts; the cause is in Last State (exit code 1: the app exited with an error) and in the previous container's log.\"",
+          "explanation": "True. `CrashLoopBackOff` is a waiting reason: the container keeps exiting, so the kubelet restarts it with an exponential back-off (10s, 20s, 40s, ... capped at 5 minutes). It says nothing about why. `Last State: Terminated` holds the exit code and reason of the run that died: 1 is an error from the app itself, 137 with `OOMKilled` is the memory limit, 137 or 143 after `failed liveness probe` events is the kubelet killing it. The misconception is to search the internet for \"CrashLoopBackOff\" as if it were an error message.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After a Secret was recreated by hand, a new rollout is stuck:\n\n```text\n$ kubectl get pods -n rice-rocket -l app=api\nNAME                  READY   STATUS                       RESTARTS   AGE\napi-6d8f7c9b5-zt4qw   0/1     CreateContainerConfigError   0          2m\n$ kubectl describe pod api-6d8f7c9b5-zt4qw -n rice-rocket | tail -2\n  Warning  Failed  12s (x9 over 2m)  kubelet  Error: couldn't find key db_password in Secret rice-rocket/api-secrets\n$ kubectl get secret api-secrets -n rice-rocket -o jsonpath='{.data}' | jq 'keys'\n[\"db-password\", \"jwt-secret\"]\n```\n\nStatement: \"The container never started: the Deployment asks for the key `db_password` but the recreated Secret has `db-password`. Deleting the pod or restarting the rollout will not help until the key name matches.\"",
+          "explanation": "True. `CreateContainerConfigError` happens before the process starts, while the kubelet builds the container's environment from `secretKeyRef`. There is no log and the restart count stays 0. A new pod reads the same Secret and fails the same way. Fix either the Secret (recreate it with the key `db_password`) or the Deployment's `key:`; the waiting pod then starts on the next retry. The misconception is that every not-ready pod is fixed by a restart.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_k8s_182",
+      "name": "pod-triage-script",
+      "type": "fix_bug",
+      "title": "Fix the pod triage script",
+      "description": "Rice Rocket's on-call bot runs `runbooks/triage.js` on every pod that is not ready and posts its answer in the incident channel. Last week it gave wrong advice four times: it quoted the log of the fresh container instead of the one that died, called an OOMKilled api an app crash, missed ImagePullBackOff and CreateContainerConfigError entirely, and never noticed that the kubelet was killing the api for failed liveness probes. The editor holds the fixed script with its key blocks missing, each marked by a `// [ ]` line; some pieces are last week's buggy versions. `triage(pod, events, logs)` gets `kubectl get pod -o json`, the pod's events (oldest first) and `{ current, previous }` logs, and must return `{ cause, evidence, next }` for the first container whose `ready` is false (`Healthy`, \"all containers ready\", \"nothing to do\" when there is none), checking in this order: `state.waiting.reason` `ImagePullBackOff` or `ErrImagePull` (cause `ImagePullBackOff`) and `CreateContainerConfigError`, both with the waiting message as evidence; `lastState.terminated.reason` `OOMKilled` (evidence `exit code <code> (OOMKilled) after <restartCount> restarts`); a `Killing` event whose message says `failed liveness probe` (cause `LivenessProbe`, evidence the last event message starting with `Liveness probe failed`); otherwise, if the container has a last state or restarts, `AppError` with the last non-empty line of the previous log (or `exit code <code>`); otherwise `Starting` with the waiting reason. `next` comes from the `NEXT` table. Run grades it on recorded pods.",
+      "difficulty": "medium",
+      "outcomes": [
+        "operations"
+      ],
+      "points": 30,
+      "hints": [
+        "For each recorded pod, write down which field holds the answer: `state.waiting`, `lastState.terminated` or the events. Which of them did last week's script never read?",
+        "The order matters: a container that was never created has no last state; an OOM kill and a liveness kill both end with a non-zero exit code, but only one of them has a `reason` that says so; the events tell the other one apart.",
+        "A triage for a node instead of a pod: `const pressure = node.status.conditions.find((c) => c.type === \"MemoryPressure\" && c.status === \"True\"); if (pressure) return { cause: \"MemoryPressure\", evidence: pressure.message };` and for the kubelet log it reads the last line of the **previous** boot (`journalctl -b -1`), not the current one."
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "runbooks/triage.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A tag that does not exist: ImagePullBackOff with the kubelet's message",
+          "input": {
+            "pod": {
+              "metadata": {
+                "name": "api-5f8b7c6d9-wq2lm",
+                "namespace": "rice-rocket"
+              },
+              "status": {
+                "phase": "Running",
+                "containerStatuses": [
+                  {
+                    "name": "api",
+                    "ready": false,
+                    "restartCount": 0,
+                    "state": {
+                      "waiting": {
+                        "reason": "ImagePullBackOff",
+                        "message": "Back-off pulling image \"ghcr.io/rice-rocket/api:1.5.1\""
+                      }
+                    },
+                    "lastState": {}
+                  }
+                ]
+              }
+            },
+            "events": [
+              {
+                "type": "Warning",
+                "reason": "Failed",
+                "message": "Failed to pull image \"ghcr.io/rice-rocket/api:1.5.1\": ghcr.io/rice-rocket/api:1.5.1: not found"
+              },
+              {
+                "type": "Normal",
+                "reason": "BackOff",
+                "message": "Back-off pulling image \"ghcr.io/rice-rocket/api:1.5.1\""
+              }
+            ],
+            "logs": {
+              "current": "",
+              "previous": ""
+            }
+          },
+          "expected": {
+            "cause": "ImagePullBackOff",
+            "evidence": "Back-off pulling image \"ghcr.io/rice-rocket/api:1.5.1\"",
+            "next": "fix the image name or tag, or the pull secret, then roll out again"
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Killed at the memory limit during the report export: OOMKilled, not an app crash",
+          "input": {
+            "pod": {
+              "metadata": {
+                "name": "api-7b9c6d5f4-k2x8p",
+                "namespace": "rice-rocket"
+              },
+              "status": {
+                "phase": "Running",
+                "containerStatuses": [
+                  {
+                    "name": "api",
+                    "ready": false,
+                    "restartCount": 4,
+                    "state": {
+                      "waiting": {
+                        "reason": "CrashLoopBackOff",
+                        "message": "back-off 1m20s restarting failed container=api"
+                      }
+                    },
+                    "lastState": {
+                      "terminated": {
+                        "exitCode": 137,
+                        "reason": "OOMKilled",
+                        "finishedAt": "2026-11-03T02:12:07Z"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "events": [
+              {
+                "type": "Warning",
+                "reason": "BackOff",
+                "message": "Back-off restarting failed container api in pod api-7b9c6d5f4-k2x8p"
+              }
+            ],
+            "logs": {
+              "current": "{\"level\":30,\"msg\":\"loading config\"}",
+              "previous": "{\"level\":30,\"msg\":\"export: 410000 rows\"}\n{\"level\":30,\"msg\":\"export: 820000 rows\"}"
+            }
+          },
+          "expected": {
+            "cause": "OOMKilled",
+            "evidence": "exit code 137 (OOMKilled) after 4 restarts",
+            "next": "raise limits.memory or fix the memory growth; compare with kubectl top pod"
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A Secret key that does not exist: CreateContainerConfigError, no restart helps",
+          "input": {
+            "pod": {
+              "metadata": {
+                "name": "api-6d8f7c9b5-zt4qw",
+                "namespace": "rice-rocket"
+              },
+              "status": {
+                "phase": "Running",
+                "containerStatuses": [
+                  {
+                    "name": "api",
+                    "ready": false,
+                    "restartCount": 0,
+                    "state": {
+                      "waiting": {
+                        "reason": "CreateContainerConfigError",
+                        "message": "couldn't find key db_password in Secret rice-rocket/api-secrets"
+                      }
+                    },
+                    "lastState": {}
+                  }
+                ]
+              }
+            },
+            "events": [
+              {
+                "type": "Warning",
+                "reason": "Failed",
+                "message": "Error: couldn't find key db_password in Secret rice-rocket/api-secrets"
+              }
+            ],
+            "logs": {
+              "current": "",
+              "previous": ""
+            }
+          },
+          "expected": {
+            "cause": "CreateContainerConfigError",
+            "evidence": "couldn't find key db_password in Secret rice-rocket/api-secrets",
+            "next": "fix the ConfigMap or Secret the pod refers to; a restart will not help"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "The kubelet kills api for failed liveness probes; the ready sidecar is skipped",
+          "input": {
+            "pod": {
+              "metadata": {
+                "name": "api-8c7d6e5f4-p9r2t",
+                "namespace": "rice-rocket"
+              },
+              "status": {
+                "phase": "Running",
+                "containerStatuses": [
+                  {
+                    "name": "log-shipper",
+                    "ready": true,
+                    "restartCount": 0,
+                    "state": {
+                      "running": {
+                        "startedAt": "2026-11-04T08:00:02Z"
+                      }
+                    },
+                    "lastState": {}
+                  },
+                  {
+                    "name": "api",
+                    "ready": false,
+                    "restartCount": 3,
+                    "state": {
+                      "waiting": {
+                        "reason": "CrashLoopBackOff",
+                        "message": "back-off 1m20s restarting failed container=api"
+                      }
+                    },
+                    "lastState": {
+                      "terminated": {
+                        "exitCode": 137,
+                        "reason": "Error",
+                        "finishedAt": "2026-11-04T08:03:40Z"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "events": [
+              {
+                "type": "Warning",
+                "reason": "Unhealthy",
+                "message": "Liveness probe failed: Get \"http://10.0.1.23:3000/ready\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)"
+              },
+              {
+                "type": "Warning",
+                "reason": "Unhealthy",
+                "message": "Liveness probe failed: HTTP probe failed with statuscode: 503"
+              },
+              {
+                "type": "Normal",
+                "reason": "Killing",
+                "message": "Container api failed liveness probe, will be restarted"
+              }
+            ],
+            "logs": {
+              "current": "{\"level\":30,\"msg\":\"listening on 3000\"}",
+              "previous": "{\"level\":30,\"msg\":\"listening on 3000\"}\n{\"level\":40,\"msg\":\"db pool exhausted, waiting\"}"
+            }
+          },
+          "expected": {
+            "cause": "LivenessProbe",
+            "evidence": "Liveness probe failed: HTTP probe failed with statuscode: 503",
+            "next": "check the liveness probe path, port and timing against the app's startup"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "An app error: the evidence is the last line of the container that died",
+          "input": {
+            "pod": {
+              "metadata": {
+                "name": "api-9d8e7f6a5-m3n4b",
+                "namespace": "rice-rocket"
+              },
+              "status": {
+                "phase": "Running",
+                "containerStatuses": [
+                  {
+                    "name": "api",
+                    "ready": false,
+                    "restartCount": 2,
+                    "state": {
+                      "waiting": {
+                        "reason": "CrashLoopBackOff",
+                        "message": "back-off 1m20s restarting failed container=api"
+                      }
+                    },
+                    "lastState": {
+                      "terminated": {
+                        "exitCode": 1,
+                        "reason": "Error",
+                        "finishedAt": "2026-11-05T10:15:02Z"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "events": [
+              {
+                "type": "Warning",
+                "reason": "BackOff",
+                "message": "Back-off restarting failed container api in pod api-9d8e7f6a5-m3n4b"
+              }
+            ],
+            "logs": {
+              "current": "",
+              "previous": "{\"level\":30,\"msg\":\"loading config\"}\nfatal: config: JWT_SECRET_FILE /run/secrets/jwt_secret is empty\n"
+            }
+          },
+          "expected": {
+            "cause": "AppError",
+            "evidence": "fatal: config: JWT_SECRET_FILE /run/secrets/jwt_secret is empty",
+            "next": "fix the error from the previous container's log"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A pod still creating its container is Starting, not an error",
+          "input": {
+            "pod": {
+              "metadata": {
+                "name": "web-5b6c7d8e9-h7j8k",
+                "namespace": "rice-rocket"
+              },
+              "status": {
+                "phase": "Running",
+                "containerStatuses": [
+                  {
+                    "name": "nginx",
+                    "ready": false,
+                    "restartCount": 0,
+                    "state": {
+                      "waiting": {
+                        "reason": "ContainerCreating"
+                      }
+                    },
+                    "lastState": {}
+                  }
+                ]
+              }
+            },
+            "events": [
+              {
+                "type": "Normal",
+                "reason": "Pulling",
+                "message": "Pulling image \"ghcr.io/rice-rocket/web:2.3.0\""
+              }
+            ],
+            "logs": {
+              "current": "",
+              "previous": ""
+            }
+          },
+          "expected": {
+            "cause": "Starting",
+            "evidence": "ContainerCreating",
+            "next": "wait for the readiness probe; describe the pod if it stays not ready"
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

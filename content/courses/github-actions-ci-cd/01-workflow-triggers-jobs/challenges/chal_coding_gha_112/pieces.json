@@ -1,0 +1,50 @@
+[
+  {
+    "id": "on-pull-request",
+    "label": "Pull requests into main, except docs-only changes",
+    "code": "pull_request:\n  branches: [main]\n  paths-ignore:\n    - \"docs/**\"\n    - \"**/*.md\""
+  },
+  {
+    "id": "on-push",
+    "label": "Pushes to main, except docs-only changes",
+    "code": "push:\n  branches: [main]\n  paths-ignore:\n    - \"docs/**\"\n    - \"**/*.md\""
+  },
+  {
+    "id": "token-permissions",
+    "label": "What the GITHUB_TOKEN of these jobs may do",
+    "code": "permissions:\n  contents: read"
+  },
+  {
+    "id": "lint-timeout",
+    "label": "lint: give up after 10 minutes",
+    "code": "timeout-minutes: 10"
+  },
+  {
+    "id": "lint-setup",
+    "label": "lint: the code, Node from .nvmrc and the locked dependencies",
+    "code": "- uses: actions/checkout@v5\n- uses: actions/setup-node@v5\n  with:\n    node-version-file: api/.nvmrc\n- run: npm ci"
+  },
+  {
+    "id": "test-after-lint",
+    "label": "test: start only once lint has passed",
+    "code": "needs: lint"
+  },
+  {
+    "id": "lint-setup-npm-install",
+    "label": "lint: the code, Node from .nvmrc and the locked dependencies",
+    "code": "- uses: actions/setup-node@v5\n  with:\n    node-version-file: api/.nvmrc\n- run: npm install",
+    "distractor": true
+  },
+  {
+    "id": "on-push-every-branch",
+    "label": "Pushes to main, except docs-only changes",
+    "code": "push:\n  paths-ignore:\n    - \"docs/**\"\n    - \"**/*.md\"",
+    "distractor": true
+  },
+  {
+    "id": "token-write-all",
+    "label": "What the GITHUB_TOKEN of these jobs may do",
+    "code": "permissions: write-all",
+    "distractor": true
+  }
+]

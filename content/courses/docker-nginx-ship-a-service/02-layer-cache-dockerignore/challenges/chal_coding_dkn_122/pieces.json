@@ -1,0 +1,34 @@
+[
+  {
+    "id": "copy-manifests-first",
+    "label": "Copy only the files npm ci reads",
+    "code": "COPY package.json package-lock.json ./"
+  },
+  {
+    "id": "install-deps",
+    "label": "Install dependencies from the lockfile",
+    "code": "RUN npm ci"
+  },
+  {
+    "id": "copy-source",
+    "label": "Copy the files the compiler needs",
+    "code": "COPY tsconfig.json ./\nCOPY src ./src"
+  },
+  {
+    "id": "build-and-prune",
+    "label": "Compile, then drop devDependencies",
+    "code": "RUN npm run build && npm prune --omit=dev"
+  },
+  {
+    "id": "copy-all-json",
+    "label": "Copy only the files npm ci reads",
+    "code": "COPY *.json ./",
+    "distractor": true
+  },
+  {
+    "id": "copy-everything-first",
+    "label": "Copy only the files npm ci reads",
+    "code": "COPY . .",
+    "distractor": true
+  }
+]

@@ -1,0 +1,5 @@
+# @piece call-outputs: Outputs: the test coverage, for the caller
+outputs:
+  coverage:
+    description: Line coverage of the tests, in percent
+    value: ${{ steps.cov.outputs.pct }}

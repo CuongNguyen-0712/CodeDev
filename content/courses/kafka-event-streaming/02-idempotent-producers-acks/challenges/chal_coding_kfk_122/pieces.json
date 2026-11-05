@@ -1,0 +1,40 @@
+[
+  {
+    "id": "acks",
+    "label": "How many replicas must have an event before it counts",
+    "code": "acks: -1,"
+  },
+  {
+    "id": "idempotence",
+    "label": "Let the broker drop an event that is sent twice",
+    "code": "idempotent: true,"
+  },
+  {
+    "id": "retry-budget",
+    "label": "How often and for how long a failed send is retried",
+    "code": "retries: 2147483647,\ndeliveryTimeoutMs: 120000,"
+  },
+  {
+    "id": "in-flight",
+    "label": "Unacknowledged requests per connection",
+    "code": "maxInFlight: 5,"
+  },
+  {
+    "id": "acks-leader-only",
+    "label": "How many replicas must have an event before it counts",
+    "code": "acks: 1,",
+    "distractor": true
+  },
+  {
+    "id": "idempotence-off",
+    "label": "Let the broker drop an event that is sent twice",
+    "code": "idempotent: false,",
+    "distractor": true
+  },
+  {
+    "id": "in-flight-ten",
+    "label": "Unacknowledged requests per connection",
+    "code": "maxInFlight: 10,",
+    "distractor": true
+  }
+]

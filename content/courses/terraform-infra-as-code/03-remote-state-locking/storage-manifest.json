@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_tf_132",
+      "key": "challenges/hcl/chal_coding_tf_132/starter.tf",
+      "contentType": "text/plain; charset=utf-8",
+      "originalName": "infra/backend.tf",
+      "size": 667
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_tf_132",
+      "key": "challenges/hcl/chal_coding_tf_132/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 55448
+    }
+  ]
+}

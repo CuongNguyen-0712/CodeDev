@@ -1,0 +1,42 @@
+# Rice Rocket deploys: every push to main goes to staging, then to production.
+# Settings > Environments already holds both environments: staging (secret STAGING_SSH_KEY) and
+# production (required reviewer, deployments from main only, secret PROD_SSH_KEY).
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - run: ./deploy/build-image.sh "${{ github.sha }}"
+
+  deploy-staging:
+    needs: build
+    # [ ] Deploy only what is on main
+    runs-on: ubuntu-24.04
+    # [ ] staging: the environment and its address
+    # [ ] staging: one deploy at a time, none cut short
+    steps:
+      - uses: actions/checkout@v5
+      - run: ./deploy/ship.sh staging "${{ github.sha }}"
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+
+  deploy-production:
+    # [ ] production: start only after staging succeeded
+    runs-on: ubuntu-24.04
+    # [ ] production: the protected environment and its address
+    # [ ] production: one deploy at a time, none cut short
+    steps:
+      - uses: actions/checkout@v5
+      - run: ./deploy/ship.sh production "${{ github.sha }}"
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}

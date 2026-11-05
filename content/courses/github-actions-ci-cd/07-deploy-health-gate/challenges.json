@@ -1,0 +1,397 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gha_171",
+      "name": "deploy-health-gate-quiz",
+      "type": "quiz",
+      "title": "Read the deploy that went green",
+      "description": "Three statements about the deploy job that reported success while Rice Rocket's api was down. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "safe-release"
+      ],
+      "points": 10,
+      "hints": [
+        "The runner decides pass or fail from one thing only: the exit code of the step's shell. What exit code does curl return when the server answers 502 and no `-f` flag is set?",
+        "Every step has an implicit `if: success()` unless it says otherwise. What does that do to a step placed after one that failed?",
+        "Step outputs live inside their job. Look at which map a later job reads through `needs.<job>.outputs`, and where that map is declared."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The deploy job checked the api after `docker compose up -d`:\n\n```yaml\n      - name: Check health\n        run: curl -s -o /dev/null -w '%{http_code}\\n' https://api.ricerocket.vn/health\n```\n\n```text\nCheck health\n  502\n  ✓ Check health (1s)\nJob deploy succeeded\n```\n\nStatement: \"The step passed because the runner retried the request and the 502 was transient; the api was healthy by the time the step finished.\"",
+          "explanation": "False. The runner does not retry steps, and a step passes whenever its shell exits 0. curl exits 0 on any HTTP answer, 502 included, unless it is told to treat HTTP errors as failures: `curl -fsS` (or `--fail-with-body`) exits 22 on a 4xx or 5xx, which fails the step. The log printed 502 and the step still went green; nothing in it shows a second request. The misconception is that a step fails when its output looks bad: only the exit code counts.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the health step failed, the rollback step did not run:\n\n```yaml\n      - name: Health gate\n        run: node deploy/gate.js\n      - name: Roll back\n        run: ssh deploy@vps 'cd /srv/rice-rocket && TAG=1.3.2 docker compose up -d'\n```\n\n```text\nX Health gate\n  Error: Process completed with exit code 1.\n- Roll back   (skipped)\n```\n\nStatement: \"A runner error skipped the rollback step; re-running the failed job will run it.\"",
+          "explanation": "False. Every step without an `if:` runs as `if: success()`, so once Health gate fails every later plain step is skipped: that is the documented behavior, not a runner error, and a re-run skips it again. A cleanup step that must run after a failure needs `if: failure()` (or `always()` for both cases). Better still, keep the rollback inside the gate script, where it runs right after the failed check and the step still exits non-zero.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The deploy job writes the version it shipped, and a later job posts it to the team chat:\n\n```yaml\njobs:\n  deploy:\n    runs-on: ubuntu-24.04\n    steps:\n      - id: gate\n        run: echo \"version=1.4.0\" >> \"$GITHUB_OUTPUT\"\n  announce:\n    needs: deploy\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo \"Shipped ${{ needs.deploy.outputs.version }}\"\n```\n\n```text\nannounce  Run echo \"Shipped \"\n  Shipped\n```\n\nStatement: \"`needs.deploy.outputs` holds only what the deploy job declares in its own `outputs:` map, so the job needs `outputs: { version: ${{ steps.gate.outputs.version }} }`.\"",
+          "explanation": "True. A step output (`$GITHUB_OUTPUT`) is visible to later steps of the same job as `steps.gate.outputs.version`. Other jobs see only the job-level `outputs:` map, which maps names to step outputs; without it `needs.deploy.outputs.version` is an empty string, and the expression does not fail, so the bug shows up only as a blank message.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_gha_172",
+      "name": "deploy-health-gate",
+      "type": "mini_coding",
+      "title": "Gate the deploy on health, roll back on failure",
+      "description": "Rice Rocket's deploy job ran `docker compose up -d` over SSH and went green at once, while image 1.4.0 crash-looped for ten minutes. The new step runs `deploy/gate.js` on the VPS. The editor holds the module with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. `gateDeploy({ release, previous, policy }, io)` must: roll `release` out; ask `io.health()` once per `policy.intervalMs` until `policy.okInARow` answers in a row have status 200 and report `version === release`, or until `policy.timeoutMs` has passed (a thrown error is a failed check and breaks the streak; do not sleep after the last good answer); when healthy, write the outputs `deployed=<release>` and `rolled_back=false`, add a summary line and return `{ status: \"deployed\", version: release, checks, exitCode: 0 }`; otherwise roll `previous` back out, write `deployed=<previous>` and `rolled_back=true`, add a summary line and return `{ status: \"rolled_back\", version: previous, checks, exitCode: 1 }`. On a first deploy (`previous` is null) there is nothing to restore: write `rolled_back=false` and a summary line, and return `{ status: \"failed\", version: release, checks, exitCode: 1 }`. Run grades it against a scripted server and a fake clock.",
+      "difficulty": "medium",
+      "outcomes": [
+        "safe-release"
+      ],
+      "points": 30,
+      "hints": [
+        "Walk through one failing deploy on paper: which answers come back from the server while the old container stops and the new one crash-loops, and which of them may count toward the streak?",
+        "Look at the loop: one piece asks for health and turns a thrown error into a failed check, the next one updates `streak`. After the loop, the order is: healthy, then no previous version, then roll back.",
+        "A queue consumer that waits for 5 good batches in a row from worker version 2.0: `if (batch && batch.ok && batch.workerVersion === \"2.0\") good++; else good = 0;`, and when time runs out it calls `scale(\"1.9\")`, logs the reason and returns `{ exitCode: 1 }` so the job fails."
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "deploy/gate.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Ships 1.4.0 after three good answers in a row from the new version",
+          "input": {
+            "release": "1.4.0",
+            "previous": "1.3.2",
+            "policy": {
+              "intervalMs": 5000,
+              "timeoutMs": 60000,
+              "okInARow": 3
+            },
+            "health": [
+              "refused",
+              {
+                "status": 200,
+                "version": "1.3.2"
+              },
+              {
+                "status": 200,
+                "version": "1.4.0"
+              }
+            ]
+          },
+          "expected": {
+            "result": {
+              "status": "deployed",
+              "version": "1.4.0",
+              "checks": 5,
+              "exitCode": 0
+            },
+            "rollouts": [
+              "1.4.0"
+            ],
+            "outputs": {
+              "deployed": "1.4.0",
+              "rolled_back": "false"
+            },
+            "checksAt": [
+              0,
+              5000,
+              10000,
+              15000,
+              20000
+            ],
+            "elapsedMs": 20000,
+            "summary": true
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Crash loop: rolls back to 1.3.2 at the deadline and fails the step",
+          "input": {
+            "release": "1.4.0",
+            "previous": "1.3.2",
+            "policy": {
+              "intervalMs": 5000,
+              "timeoutMs": 30000,
+              "okInARow": 3
+            },
+            "health": [
+              {
+                "status": 502,
+                "version": null
+              },
+              "refused"
+            ]
+          },
+          "expected": {
+            "result": {
+              "status": "rolled_back",
+              "version": "1.3.2",
+              "checks": 6,
+              "exitCode": 1
+            },
+            "rollouts": [
+              "1.4.0",
+              "1.3.2"
+            ],
+            "outputs": {
+              "deployed": "1.3.2",
+              "rolled_back": "true"
+            },
+            "checksAt": [
+              0,
+              5000,
+              10000,
+              15000,
+              20000,
+              25000
+            ],
+            "elapsedMs": 30000,
+            "summary": true
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The old container answering 200 does not count as the new version",
+          "input": {
+            "release": "1.4.0",
+            "previous": "1.3.2",
+            "policy": {
+              "intervalMs": 5000,
+              "timeoutMs": 20000,
+              "okInARow": 2
+            },
+            "health": [
+              {
+                "status": 200,
+                "version": "1.3.2"
+              }
+            ]
+          },
+          "expected": {
+            "result": {
+              "status": "rolled_back",
+              "version": "1.3.2",
+              "checks": 4,
+              "exitCode": 1
+            },
+            "rollouts": [
+              "1.4.0",
+              "1.3.2"
+            ],
+            "outputs": {
+              "deployed": "1.3.2",
+              "rolled_back": "true"
+            },
+            "checksAt": [
+              0,
+              5000,
+              10000,
+              15000
+            ],
+            "elapsedMs": 20000,
+            "summary": true
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A flapping container never reaches three good answers in a row",
+          "input": {
+            "release": "1.4.0",
+            "previous": "1.3.2",
+            "policy": {
+              "intervalMs": 5000,
+              "timeoutMs": 60000,
+              "okInARow": 3
+            },
+            "health": [
+              {
+                "status": 200,
+                "version": "1.4.0"
+              },
+              "refused",
+              {
+                "status": 200,
+                "version": "1.4.0"
+              },
+              "refused",
+              {
+                "status": 200,
+                "version": "1.4.0"
+              },
+              "refused",
+              {
+                "status": 200,
+                "version": "1.4.0"
+              },
+              "refused",
+              {
+                "status": 200,
+                "version": "1.4.0"
+              },
+              "refused",
+              {
+                "status": 200,
+                "version": "1.4.0"
+              },
+              "refused"
+            ]
+          },
+          "expected": {
+            "result": {
+              "status": "rolled_back",
+              "version": "1.3.2",
+              "checks": 12,
+              "exitCode": 1
+            },
+            "rollouts": [
+              "1.4.0",
+              "1.3.2"
+            ],
+            "outputs": {
+              "deployed": "1.3.2",
+              "rolled_back": "true"
+            },
+            "checksAt": [
+              0,
+              5000,
+              10000,
+              15000,
+              20000,
+              25000,
+              30000,
+              35000,
+              40000,
+              45000,
+              50000,
+              55000
+            ],
+            "elapsedMs": 60000,
+            "summary": true
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "First deploy without a previous version fails and rolls nothing back",
+          "input": {
+            "release": "1.4.0",
+            "previous": null,
+            "policy": {
+              "intervalMs": 5000,
+              "timeoutMs": 20000,
+              "okInARow": 3
+            },
+            "health": [
+              "refused"
+            ]
+          },
+          "expected": {
+            "result": {
+              "status": "failed",
+              "version": "1.4.0",
+              "checks": 4,
+              "exitCode": 1
+            },
+            "rollouts": [
+              "1.4.0"
+            ],
+            "outputs": {
+              "rolled_back": "false"
+            },
+            "checksAt": [
+              0,
+              5000,
+              10000,
+              15000
+            ],
+            "elapsedMs": 20000,
+            "summary": true
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Stops as soon as the streak is complete, without sleeping again",
+          "input": {
+            "release": "1.4.0",
+            "previous": "1.3.2",
+            "policy": {
+              "intervalMs": 10000,
+              "timeoutMs": 25000,
+              "okInARow": 2
+            },
+            "health": [
+              {
+                "status": 200,
+                "version": "1.4.0"
+              }
+            ]
+          },
+          "expected": {
+            "result": {
+              "status": "deployed",
+              "version": "1.4.0",
+              "checks": 2,
+              "exitCode": 0
+            },
+            "rollouts": [
+              "1.4.0"
+            ],
+            "outputs": {
+              "deployed": "1.4.0",
+              "rolled_back": "false"
+            },
+            "checksAt": [
+              0,
+              10000
+            ],
+            "elapsedMs": 10000,
+            "summary": true
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

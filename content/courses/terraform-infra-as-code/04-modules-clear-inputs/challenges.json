@@ -1,0 +1,212 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_tf_142",
+      "name": "static-site-module",
+      "type": "mini_coding",
+      "title": "Write the static-site module",
+      "description": "Rice Rocket's web and admin site buckets were two copy-pasted blocks of resources, and the first module that replaced them took `options` as `type = any`: a typo in one key silently left a bucket without its public access block. The editor holds `modules/static-site/main.tf` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: `name` accepts only 1-20 lowercase characters without spaces (error `name must be 1-20 lowercase characters without spaces.`); `options` is a typed object whose `versioning` and `block_public_access` default to `true`, so a call that sets nothing gets the safe settings and a call with a wrong type fails; the bucket is `rice-rocket-<env>-<name>` with the caller's tags plus `Site`; the public access block and versioning exist only when their option is on; the module configures no provider; and the outputs are the bucket name and ARN as plain values. Run plans a root module that calls yours for the web and admin sites.",
+      "difficulty": "medium",
+      "outcomes": [
+        "state-and-modules"
+      ],
+      "points": 30,
+      "hints": [
+        "Read the module from the caller's side: which arguments must a call give, which may it leave out, and what should happen when it leaves them out or passes the wrong type?",
+        "Look at `object({ ... })` with `optional(<type>, <default>)` attributes, a `validation` block in `variable`, `count = <condition> ? 1 : 0` on a resource, and `output` blocks that return one attribute each.",
+        "A module for a queue with optional settings looks like: `variable \"settings\" { type = object({ retention_days = optional(number, 4), fifo = optional(bool, false) })  default = {} }`, `resource \"aws_sqs_queue\" \"dlq\" { count = var.settings.fifo ? 0 : 1 ... }` and `output \"url\" { value = aws_sqs_queue.this.url }`, with no `provider` block inside the module."
+      ],
+      "coding": {
+        "language": "hcl",
+        "filePath": "modules/static-site/main.tf",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Web and admin calls plan a bucket, a public access block and versioning each",
+          "input": {
+            "checks": [
+              "parse",
+              "plan",
+              "actions"
+            ],
+            "env": "staging",
+            "calls": {
+              "web": {
+                "name": "web",
+                "options": {
+                  "versioning": true
+                }
+              },
+              "admin": {
+                "name": "admin",
+                "options": {}
+              }
+            }
+          },
+          "expected": {
+            "parse": "ok",
+            "plan": "Plan: 6 to add, 0 to change, 0 to destroy.",
+            "actions": {
+              "module.admin.aws_s3_bucket.this": "create",
+              "module.admin.aws_s3_bucket_public_access_block.this[0]": "create",
+              "module.admin.aws_s3_bucket_versioning.this[0]": "create",
+              "module.web.aws_s3_bucket.this": "create",
+              "module.web.aws_s3_bucket_public_access_block.this[0]": "create",
+              "module.web.aws_s3_bucket_versioning.this[0]": "create"
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Buckets are named per environment and site; outputs are the name and the ARN",
+          "input": {
+            "checks": [
+              "names",
+              "outputs"
+            ],
+            "env": "staging",
+            "calls": {
+              "web": {
+                "name": "web",
+                "options": {
+                  "versioning": true
+                }
+              },
+              "admin": {
+                "name": "admin",
+                "options": {}
+              }
+            }
+          },
+          "expected": {
+            "names": {
+              "module.web.aws_s3_bucket.this": "rice-rocket-staging-web",
+              "module.admin.aws_s3_bucket.this": "rice-rocket-staging-admin"
+            },
+            "outputs": {
+              "web_bucket": "rice-rocket-staging-web",
+              "web_bucket_arn": "(known after apply)",
+              "admin_bucket": "rice-rocket-staging-admin",
+              "admin_bucket_arn": "(known after apply)"
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The module takes env, name, options and tags, and configures no provider",
+          "input": {
+            "checks": [
+              "inputs",
+              "providers"
+            ],
+            "env": "staging",
+            "calls": {
+              "web": {
+                "name": "web",
+                "options": {
+                  "versioning": true
+                }
+              },
+              "admin": {
+                "name": "admin",
+                "options": {}
+              }
+            }
+          },
+          "expected": {
+            "inputs": [
+              "env",
+              "name",
+              "options",
+              "tags"
+            ],
+            "providers": []
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A call with a wrong option type fails the plan instead of building a bucket",
+          "input": {
+            "checks": [
+              "plan"
+            ],
+            "env": "production",
+            "calls": {
+              "web": {
+                "name": "web",
+                "options": {
+                  "versioning": "yes"
+                }
+              }
+            }
+          },
+          "expected": {
+            "plan": "Error: Invalid value for variable: var.options.versioning: bool required, got string"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A name with capitals or spaces is refused by the module's validation",
+          "input": {
+            "checks": [
+              "plan"
+            ],
+            "env": "production",
+            "calls": {
+              "admin": {
+                "name": "Admin Site"
+              }
+            }
+          },
+          "expected": {
+            "plan": "Error: Invalid value for variable: var.name: name must be 1-20 lowercase characters without spaces."
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Opting out of versioning drops only the versioning resource of that site",
+          "input": {
+            "checks": [
+              "plan",
+              "actions"
+            ],
+            "env": "production",
+            "calls": {
+              "web": {
+                "name": "web",
+                "options": {
+                  "versioning": false
+                }
+              },
+              "admin": {
+                "name": "admin"
+              }
+            }
+          },
+          "expected": {
+            "plan": "Plan: 5 to add, 0 to change, 0 to destroy.",
+            "actions": {
+              "module.admin.aws_s3_bucket.this": "create",
+              "module.admin.aws_s3_bucket_public_access_block.this[0]": "create",
+              "module.admin.aws_s3_bucket_versioning.this[0]": "create",
+              "module.web.aws_s3_bucket.this": "create",
+              "module.web.aws_s3_bucket_public_access_block.this[0]": "create"
+            }
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

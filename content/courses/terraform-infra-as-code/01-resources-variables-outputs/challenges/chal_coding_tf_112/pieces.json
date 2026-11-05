@@ -1,0 +1,50 @@
+[
+  {
+    "id": "env-variable",
+    "label": "The environment name, refused unless it is a known one",
+    "code": "variable \"env\" {\n  type        = string\n  description = \"Environment name: staging or production.\"\n  validation {\n    condition     = contains([\"staging\", \"production\"], var.env)\n    error_message = \"env must be staging or production.\"\n  }\n}"
+  },
+  {
+    "id": "name-and-tags",
+    "label": "One name prefix and one tag set for every resource",
+    "code": "locals {\n  name = \"rice-rocket-${var.env}\"\n  tags = {\n    Project     = \"rice-rocket\"\n    Environment = var.env\n    ManagedBy   = \"terraform\"\n  }\n}"
+  },
+  {
+    "id": "uploads-bucket",
+    "label": "The uploads bucket, named per environment",
+    "code": "resource \"aws_s3_bucket\" \"uploads\" {\n  bucket = \"${local.name}-uploads\"\n  tags   = local.tags\n}"
+  },
+  {
+    "id": "uploads-versioning",
+    "label": "Keep old versions of every uploaded object",
+    "code": "resource \"aws_s3_bucket_versioning\" \"uploads\" {\n  bucket = aws_s3_bucket.uploads.id\n  versioning_configuration {\n    status = \"Enabled\"\n  }\n}"
+  },
+  {
+    "id": "api-log-group",
+    "label": "api logs, kept longer in production",
+    "code": "resource \"aws_cloudwatch_log_group\" \"api\" {\n  name              = \"/${local.name}/api\"\n  retention_in_days = var.env == \"production\" ? 30 : 7\n  tags              = local.tags\n}"
+  },
+  {
+    "id": "outputs",
+    "label": "What the api deployment needs to know",
+    "code": "output \"uploads_bucket\" {\n  value = aws_s3_bucket.uploads.bucket\n}\n\noutput \"uploads_bucket_arn\" {\n  value = aws_s3_bucket.uploads.arn\n}"
+  },
+  {
+    "id": "env-variable-no-validation",
+    "label": "The environment name, refused unless it is a known one",
+    "code": "variable \"env\" {\n  type        = string\n  description = \"Environment name: staging or production.\"\n  default     = \"staging\"\n}",
+    "distractor": true
+  },
+  {
+    "id": "uploads-bucket-shared-name",
+    "label": "The uploads bucket, named per environment",
+    "code": "resource \"aws_s3_bucket\" \"uploads\" {\n  bucket = \"rice-rocket-uploads\"\n  tags   = local.tags\n}",
+    "distractor": true
+  },
+  {
+    "id": "versioning-hardcoded-bucket",
+    "label": "Keep old versions of every uploaded object",
+    "code": "resource \"aws_s3_bucket_versioning\" \"uploads\" {\n  bucket = \"rice-rocket-staging-uploads\"\n  versioning_configuration {\n    status = \"Enabled\"\n  }\n}",
+    "distractor": true
+  }
+]

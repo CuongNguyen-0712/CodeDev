@@ -1,0 +1,582 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_kfk_171",
+      "name": "schema-evolution-quiz",
+      "type": "quiz",
+      "title": "Read the schema change that broke analytics",
+      "description": "Three statements about Rice Rocket's OrderPlaced schema change and the compatibility modes of its schema registry. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "schema-evolution"
+      ],
+      "points": 10,
+      "hints": [
+        "Name the reader and the writer for each mode: which schema reads, and which schema wrote the data it reads? The answer tells you who must deploy first.",
+        "Look at the event from the consumer's side: which field name does its code read, and does the new event still carry a field with that name?",
+        "List the schema versions of the events still inside the topic's retention window. Which of them does a check against only the latest version never look at?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The `orders.v1-value` subject uses the registry's BACKWARD mode. The api team plans its release:\n\n```text\n$ curl -s $REGISTRY/config/orders.v1-value\n{\"compatibilityLevel\":\"BACKWARD\"}\n\nRelease plan, OrderPlaced v3 (adds optional field couponCode):\n  1. deploy the api (producer) with schema v3\n  2. next week: deploy analytics and courier-matcher (consumers) on v3\n```\n\nStatement: \"BACKWARD means consumers still on the old schema can read events written with the new one, so this order (producer first, consumers a week later) is exactly what BACKWARD protects.\"",
+          "explanation": "False. BACKWARD guarantees the opposite direction: the NEW schema can read data written with the OLD one, which is what you need when consumers upgrade first. Old consumers reading new events is FORWARD compatibility. Here adding an optional field happens to be safe both ways, but BACKWARD did not check it: a change that passes BACKWARD (for example dropping a field that the old consumers require) can break the old consumers in this plan. Producers-first releases need FORWARD or FULL. The misconception is reading \"backward\" as \"old consumers keep working\".",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the api release, the analytics consumer crashed on every new event:\n\n```ts\n// analytics consumer, deployed weekly\nconst order = JSON.parse(message.value) as { orderId: string; deliveryAddress: string; total: number };\nconst district = order.deliveryAddress.split(\",\").at(-1)!.trim();\n```\n\n```text\n# a new OrderPlaced event\n{\"orderId\":\"o-81231\",\"restaurantId\":\"r-17\",\"address\":\"12 Le Loi, District 1\",\"total\":185000,\"tip\":15000}\n\nTypeError: Cannot read properties of undefined (reading 'split')\n    at handleOrderPlaced (analytics/src/orders.ts:41:40)\n```\n\nStatement: \"For a reader, renaming `deliveryAddress` to `address` is a removed field plus a new one: the consumer still reads `deliveryAddress`, which the new events no longer carry.\"",
+          "explanation": "True. Schemas and readers match fields by name, so a rename is a remove plus an add. The consumer's type annotation is only a promise to the compiler; at run time `order.deliveryAddress` is `undefined`. A safe path adds `address` as an optional field next to `deliveryAddress`, writes both during a migration window, moves every consumer to `address`, and only then stops writing the old field. The misconception is that a rename is a small, compatible change because the data is the same.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The topic keeps 7 days of events, and three schema versions were registered this week. A consumer upgraded to v3 fails on old events:\n\n```text\n$ curl -s $REGISTRY/subjects/orders.v1-value/versions\n[1,2,3]\n$ curl -s $REGISTRY/config/orders.v1-value\n{\"compatibilityLevel\":\"BACKWARD\"}\n\n# v1: note is an optional integer, v2: note removed, v3: note is back as an optional string\ncourier-matcher (v3) partition 4 offset 18233 written with schema v1:\n  validation failed: /note must be string\n```\n\nStatement: \"BACKWARD checked v3 only against v2, which has no `note`; with v1 events still in the topic, BACKWARD_TRANSITIVE (v3 against every earlier version) is the mode that would have refused v3.\"",
+          "explanation": "True. The non-transitive modes compare a new schema with the latest registered version only. v2 has no `note`, so v3 passed, although v1 events with an integer `note` are still inside the 7-day retention window. The *_TRANSITIVE modes compare with every earlier version and would have reported the type change against v1. Use a transitive mode whenever old events can still be read: long retention, compacted topics or replays. The misconception is that each check also covers the versions before the last one.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_kfk_172",
+      "name": "schema-compatibility-check",
+      "type": "fix_bug",
+      "title": "Fix the compatibility check",
+      "description": "Rice Rocket's CI runs `checkCompatibility(history, candidate, mode)` before a new OrderPlaced schema is registered, and it let the rename of `deliveryAddress` and the newly required `tip` through. The comment at the top of the file states the rules and the exact problem strings. The editor holds the fixed checker with its key blocks missing, each marked by a `// [ ]` line; some pieces are last month's buggy versions. Fill every line so that: BACKWARD makes the candidate read data written with the earlier version, FORWARD makes the earlier version read data written with the candidate, FULL checks both; the *_TRANSITIVE modes compare with every earlier version, the others only with the latest; a field the reader requires is a problem unless the writer requires it too, default or not; and a field both schemas declare keeps its type. Run feeds schema histories and prints `{ compatible, problems }`.",
+      "difficulty": "medium",
+      "outcomes": [
+        "schema-evolution"
+      ],
+      "points": 30,
+      "hints": [
+        "For each mode write down who reads and who wrote the data: in BACKWARD the consumers move to the new schema first, so the new schema reads events the old schema wrote.",
+        "Look at three places: the list of versions the candidate is compared with, the two `canRead(reader, writer)` calls and their argument order, and the required-field loop (does a `default` change anything in JSON Schema validation?).",
+        "The same shape for an HTTP API: \"can a v2 server accept a request from a v1 client?\" is `canAccept(server = v2, client = v1)`, and every header the v2 server requires must be one the v1 client always sends: `for (const h of server.required) if (!client.alwaysSends.includes(h)) problems.push(...)`. A v2 server that relies on a default value it never applies still rejects the request."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "ci/schema-compat.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident under BACKWARD: the renamed address and the newly required tip are refused",
+          "input": {
+            "history": [
+              {
+                "properties": {
+                  "orderId": {
+                    "type": "string"
+                  },
+                  "restaurantId": {
+                    "type": "string"
+                  },
+                  "deliveryAddress": {
+                    "type": "string"
+                  },
+                  "total": {
+                    "type": "integer"
+                  },
+                  "tip": {
+                    "type": "integer",
+                    "default": 0
+                  }
+                },
+                "required": [
+                  "orderId",
+                  "restaurantId",
+                  "deliveryAddress",
+                  "total"
+                ]
+              }
+            ],
+            "candidate": {
+              "properties": {
+                "orderId": {
+                  "type": "string"
+                },
+                "restaurantId": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string"
+                },
+                "total": {
+                  "type": "integer"
+                },
+                "tip": {
+                  "type": "integer",
+                  "default": 0
+                }
+              },
+              "required": [
+                "orderId",
+                "restaurantId",
+                "address",
+                "total",
+                "tip"
+              ]
+            },
+            "mode": "BACKWARD"
+          },
+          "expected": {
+            "compatible": false,
+            "problems": [
+              "new reading v1: \"address\" is required but may be missing",
+              "new reading v1: \"tip\" is required but may be missing"
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A new optional field with a default passes BACKWARD",
+          "input": {
+            "history": [
+              {
+                "properties": {
+                  "orderId": {
+                    "type": "string"
+                  },
+                  "restaurantId": {
+                    "type": "string"
+                  },
+                  "deliveryAddress": {
+                    "type": "string"
+                  },
+                  "total": {
+                    "type": "integer"
+                  },
+                  "tip": {
+                    "type": "integer",
+                    "default": 0
+                  }
+                },
+                "required": [
+                  "orderId",
+                  "restaurantId",
+                  "deliveryAddress",
+                  "total"
+                ]
+              }
+            ],
+            "candidate": {
+              "properties": {
+                "orderId": {
+                  "type": "string"
+                },
+                "restaurantId": {
+                  "type": "string"
+                },
+                "deliveryAddress": {
+                  "type": "string"
+                },
+                "total": {
+                  "type": "integer"
+                },
+                "tip": {
+                  "type": "integer",
+                  "default": 0
+                },
+                "couponCode": {
+                  "type": "string",
+                  "default": ""
+                }
+              },
+              "required": [
+                "orderId",
+                "restaurantId",
+                "deliveryAddress",
+                "total"
+              ]
+            },
+            "mode": "BACKWARD"
+          },
+          "expected": {
+            "compatible": true,
+            "problems": []
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The incident under FORWARD: old consumers still require deliveryAddress",
+          "input": {
+            "history": [
+              {
+                "properties": {
+                  "orderId": {
+                    "type": "string"
+                  },
+                  "restaurantId": {
+                    "type": "string"
+                  },
+                  "deliveryAddress": {
+                    "type": "string"
+                  },
+                  "total": {
+                    "type": "integer"
+                  },
+                  "tip": {
+                    "type": "integer",
+                    "default": 0
+                  }
+                },
+                "required": [
+                  "orderId",
+                  "restaurantId",
+                  "deliveryAddress",
+                  "total"
+                ]
+              }
+            ],
+            "candidate": {
+              "properties": {
+                "orderId": {
+                  "type": "string"
+                },
+                "restaurantId": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string"
+                },
+                "total": {
+                  "type": "integer"
+                },
+                "tip": {
+                  "type": "integer",
+                  "default": 0
+                }
+              },
+              "required": [
+                "orderId",
+                "restaurantId",
+                "address",
+                "total",
+                "tip"
+              ]
+            },
+            "mode": "FORWARD"
+          },
+          "expected": {
+            "compatible": false,
+            "problems": [
+              "v1 reading new: \"deliveryAddress\" is required but may be missing"
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "FULL reports an optional field that changes type in both directions",
+          "input": {
+            "history": [
+              {
+                "properties": {
+                  "orderId": {
+                    "type": "string"
+                  },
+                  "restaurantId": {
+                    "type": "string"
+                  },
+                  "deliveryAddress": {
+                    "type": "string"
+                  },
+                  "total": {
+                    "type": "integer"
+                  },
+                  "tip": {
+                    "type": "integer",
+                    "default": 0
+                  }
+                },
+                "required": [
+                  "orderId",
+                  "restaurantId",
+                  "deliveryAddress",
+                  "total"
+                ]
+              }
+            ],
+            "candidate": {
+              "properties": {
+                "orderId": {
+                  "type": "string"
+                },
+                "restaurantId": {
+                  "type": "string"
+                },
+                "deliveryAddress": {
+                  "type": "string"
+                },
+                "total": {
+                  "type": "integer"
+                },
+                "tip": {
+                  "type": "string",
+                  "default": "0"
+                }
+              },
+              "required": [
+                "orderId",
+                "restaurantId",
+                "deliveryAddress",
+                "total"
+              ]
+            },
+            "mode": "FULL"
+          },
+          "expected": {
+            "compatible": false,
+            "problems": [
+              "new reading v1: \"tip\" changed from integer to string",
+              "v1 reading new: \"tip\" changed from string to integer"
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "BACKWARD_TRANSITIVE compares with v1 too; plain BACKWARD only sees v2",
+          "input": {
+            "history": [
+              {
+                "properties": {
+                  "orderId": {
+                    "type": "string"
+                  },
+                  "restaurantId": {
+                    "type": "string"
+                  },
+                  "deliveryAddress": {
+                    "type": "string"
+                  },
+                  "total": {
+                    "type": "integer"
+                  },
+                  "tip": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "note": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "orderId",
+                  "restaurantId",
+                  "deliveryAddress",
+                  "total"
+                ]
+              },
+              {
+                "properties": {
+                  "orderId": {
+                    "type": "string"
+                  },
+                  "restaurantId": {
+                    "type": "string"
+                  },
+                  "deliveryAddress": {
+                    "type": "string"
+                  },
+                  "total": {
+                    "type": "integer"
+                  },
+                  "tip": {
+                    "type": "integer",
+                    "default": 0
+                  }
+                },
+                "required": [
+                  "orderId",
+                  "restaurantId",
+                  "deliveryAddress",
+                  "total"
+                ]
+              }
+            ],
+            "candidate": {
+              "properties": {
+                "orderId": {
+                  "type": "string"
+                },
+                "restaurantId": {
+                  "type": "string"
+                },
+                "deliveryAddress": {
+                  "type": "string"
+                },
+                "total": {
+                  "type": "integer"
+                },
+                "tip": {
+                  "type": "integer",
+                  "default": 0
+                },
+                "note": {
+                  "type": "string",
+                  "default": ""
+                }
+              },
+              "required": [
+                "orderId",
+                "restaurantId",
+                "deliveryAddress",
+                "total"
+              ]
+            },
+            "mode": "BACKWARD_TRANSITIVE"
+          },
+          "expected": {
+            "compatible": false,
+            "problems": [
+              "new reading v1: \"note\" changed from integer to string"
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "FULL_TRANSITIVE accepts a safe change checked against every earlier version",
+          "input": {
+            "history": [
+              {
+                "properties": {
+                  "orderId": {
+                    "type": "string"
+                  },
+                  "restaurantId": {
+                    "type": "string"
+                  },
+                  "deliveryAddress": {
+                    "type": "string"
+                  },
+                  "total": {
+                    "type": "integer"
+                  },
+                  "tip": {
+                    "type": "integer",
+                    "default": 0
+                  }
+                },
+                "required": [
+                  "orderId",
+                  "restaurantId",
+                  "deliveryAddress",
+                  "total"
+                ]
+              },
+              {
+                "properties": {
+                  "orderId": {
+                    "type": "string"
+                  },
+                  "restaurantId": {
+                    "type": "string"
+                  },
+                  "deliveryAddress": {
+                    "type": "string"
+                  },
+                  "total": {
+                    "type": "integer"
+                  },
+                  "tip": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "couponCode": {
+                    "type": "string",
+                    "default": ""
+                  }
+                },
+                "required": [
+                  "orderId",
+                  "restaurantId",
+                  "deliveryAddress",
+                  "total"
+                ]
+              }
+            ],
+            "candidate": {
+              "properties": {
+                "orderId": {
+                  "type": "string"
+                },
+                "restaurantId": {
+                  "type": "string"
+                },
+                "deliveryAddress": {
+                  "type": "string"
+                },
+                "total": {
+                  "type": "integer"
+                },
+                "tip": {
+                  "type": "integer",
+                  "default": 0
+                },
+                "couponCode": {
+                  "type": "string",
+                  "default": ""
+                },
+                "courierNote": {
+                  "type": "string",
+                  "default": ""
+                }
+              },
+              "required": [
+                "orderId",
+                "restaurantId",
+                "deliveryAddress",
+                "total"
+              ]
+            },
+            "mode": "FULL_TRANSITIVE"
+          },
+          "expected": {
+            "compatible": true,
+            "problems": []
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

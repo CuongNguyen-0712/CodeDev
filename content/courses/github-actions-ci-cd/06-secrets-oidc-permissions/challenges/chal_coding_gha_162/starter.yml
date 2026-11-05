@@ -1,0 +1,32 @@
+# Rice Rocket web deploy: build web/ and publish web/dist to S3 behind CloudFront on every push
+# to main that changes web/. AWS trusts this repository through OIDC (IAM role
+# rice-rocket-web-deploy, see the trust policy in the lesson); no AWS key is stored in GitHub.
+name: deploy-web
+
+on:
+  push:
+    branches: [main]
+    paths: ["web/**"]
+
+# [ ] What the GITHUB_TOKEN may do unless a job says otherwise
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    # [ ] deploy: read the code and request an OIDC token
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run build
+      # [ ] Log the commit message without running it
+      # [ ] Short-lived AWS credentials for the deploy role
+      - run: aws s3 sync dist s3://rice-rocket-web --delete
+      - run: aws cloudfront create-invalidation --distribution-id E2RICEROCKET01 --paths "/*"

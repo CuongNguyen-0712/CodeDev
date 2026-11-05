@@ -1,0 +1,44 @@
+[
+  {
+    "id": "pick-colours",
+    "label": "Name the live colour and the candidate colour",
+    "code": "const live = state.active;\nconst next = live === \"blue\" ? \"green\" : \"blue\";"
+  },
+  {
+    "id": "health-gate",
+    "label": "Start the candidate and wait for its healthcheck",
+    "code": "actions.push(`start ${next} ${state.candidateImage}`, `wait healthy ${next}`);\nif (!results.healthy) {\n    actions.push(`stop ${next}`);\n    return { actions, active: live };\n}"
+  },
+  {
+    "id": "config-test",
+    "label": "Write the upstream file and test it",
+    "code": "actions.push(`write upstream ${next}`, \"nginx -t\");\nif (!results.configTest) {\n    actions.push(`write upstream ${live}`, `stop ${next}`);\n    return { actions, active: live };\n}"
+  },
+  {
+    "id": "reload",
+    "label": "Reload nginx onto the candidate",
+    "code": "actions.push(\"reload nginx\");\nif (!results.reload) {\n    actions.push(`write upstream ${live}`, `stop ${next}`);\n    return { actions, active: live };\n}"
+  },
+  {
+    "id": "smoke-test",
+    "label": "Smoke test through nginx, switch back on failure",
+    "code": "actions.push(`smoke test ${next}`);\nif (!results.smoke) {\n    actions.push(`write upstream ${live}`, \"nginx -t\", \"reload nginx\", `stop ${next}`);\n    return { actions, active: live };\n}"
+  },
+  {
+    "id": "retire-old",
+    "label": "Drain and stop the old colour",
+    "code": "actions.push(`drain ${live} ${state.drainSeconds ?? 30}s`, `stop ${live}`);\nreturn { actions, active: next };"
+  },
+  {
+    "id": "config-test-no-rollback",
+    "label": "Write the upstream file and test it",
+    "code": "actions.push(`write upstream ${next}`, \"nginx -t\");\nif (!results.configTest) {\n    actions.push(`stop ${next}`);\n    return { actions, active: live };\n}",
+    "distractor": true
+  },
+  {
+    "id": "smoke-test-no-reload",
+    "label": "Smoke test through nginx, switch back on failure",
+    "code": "actions.push(`smoke test ${next}`);\nif (!results.smoke) {\n    actions.push(`write upstream ${live}`, `stop ${next}`);\n    return { actions, active: live };\n}",
+    "distractor": true
+  }
+]

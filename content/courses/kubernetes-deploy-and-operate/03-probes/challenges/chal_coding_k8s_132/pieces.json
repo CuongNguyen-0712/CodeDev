@@ -1,0 +1,35 @@
+[
+  {
+    "id": "startup-probe",
+    "label": "Give a slow boot up to 60 s before other probes",
+    "code": "startupProbe:\n  httpGet:\n    path: /health\n    port: http\n  periodSeconds: 2\n  failureThreshold: 30"
+  },
+  {
+    "id": "readiness-probe",
+    "label": "Send traffic only while the api can serve it",
+    "code": "readinessProbe:\n  httpGet:\n    path: /ready\n    port: http\n  periodSeconds: 5\n  failureThreshold: 2"
+  },
+  {
+    "id": "liveness-probe",
+    "label": "Restart only a process that stopped answering",
+    "code": "livenessProbe:\n  httpGet:\n    path: /health\n    port: http\n  periodSeconds: 10\n  timeoutSeconds: 2\n  failureThreshold: 3"
+  },
+  {
+    "id": "liveness-on-ready",
+    "label": "Restart only a process that stopped answering",
+    "code": "livenessProbe:\n  httpGet:\n    path: /ready\n    port: http\n  periodSeconds: 10\n  timeoutSeconds: 2\n  failureThreshold: 3",
+    "distractor": true
+  },
+  {
+    "id": "readiness-tcp",
+    "label": "Send traffic only while the api can serve it",
+    "code": "readinessProbe:\n  tcpSocket:\n    port: http\n  periodSeconds: 5\n  failureThreshold: 2",
+    "distractor": true
+  },
+  {
+    "id": "startup-probe-too-short",
+    "label": "Give a slow boot up to 60 s before other probes",
+    "code": "startupProbe:\n  httpGet:\n    path: /health\n    port: http\n  initialDelaySeconds: 5\n  periodSeconds: 5\n  failureThreshold: 3",
+    "distractor": true
+  }
+]

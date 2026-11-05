@@ -1,0 +1,40 @@
+[
+  {
+    "id": "resume-from-committed",
+    "label": "Where each new partition starts reading",
+    "code": "for (const p of partitions) {\n    const start = broker.committedOffset(GROUP, TOPIC, p) ?? 0;\n    position.set(p, start);\n    done.set(p, start);\n}"
+  },
+  {
+    "id": "handle-batch",
+    "label": "Handle the batch in order, stop if a rebalance starts",
+    "code": "for (const record of batch) {\n    if (!handle(record)) return;\n    done.set(p, record.offset + 1);\n}"
+  },
+  {
+    "id": "commit-on-revoke",
+    "label": "Save the progress of the partitions being taken away",
+    "code": "for (const p of partitions) {\n    const next = done.get(p);\n    if (next !== undefined) broker.commit(GROUP, TOPIC, p, next);\n}"
+  },
+  {
+    "id": "forget-revoked",
+    "label": "Stop reading the partitions given away",
+    "code": "for (const p of partitions) {\n    position.delete(p);\n    done.delete(p);\n}"
+  },
+  {
+    "id": "commit-fetched-offset",
+    "label": "Save the progress of the partitions being taken away",
+    "code": "for (const p of partitions) {\n    const next = position.get(p);\n    if (next !== undefined) broker.commit(GROUP, TOPIC, p, next);\n}",
+    "distractor": true
+  },
+  {
+    "id": "commit-nothing",
+    "label": "Save the progress of the partitions being taken away",
+    "code": "for (const p of partitions) done.delete(p);",
+    "distractor": true
+  },
+  {
+    "id": "resume-from-zero",
+    "label": "Where each new partition starts reading",
+    "code": "for (const p of partitions) {\n    position.set(p, 0);\n    done.set(p, 0);\n}",
+    "distractor": true
+  }
+]

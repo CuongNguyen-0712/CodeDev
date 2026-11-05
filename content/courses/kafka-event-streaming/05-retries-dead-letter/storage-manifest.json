@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_kfk_152",
+      "key": "challenges/typescript/chal_coding_kfk_152/starter.ts",
+      "contentType": "application/typescript; charset=utf-8",
+      "originalName": "src/failures.ts",
+      "size": 10594
+    }
+  ]
+}

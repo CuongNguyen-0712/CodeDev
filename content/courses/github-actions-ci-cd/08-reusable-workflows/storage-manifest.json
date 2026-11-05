@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_gha_182",
+      "key": "challenges/yaml/chal_coding_gha_182/starter.yml",
+      "contentType": "application/yaml; charset=utf-8",
+      "originalName": ".github/workflows/node-ci.yml",
+      "size": 1137
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_gha_182",
+      "key": "challenges/yaml/chal_coding_gha_182/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 30556
+    }
+  ]
+}

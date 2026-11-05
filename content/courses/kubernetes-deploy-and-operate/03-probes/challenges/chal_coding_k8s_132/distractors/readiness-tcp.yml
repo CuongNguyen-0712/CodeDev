@@ -1,0 +1,6 @@
+# @piece readiness-probe: Send traffic only while the api can serve it
+readinessProbe:
+  tcpSocket:
+    port: http
+  periodSeconds: 5
+  failureThreshold: 2

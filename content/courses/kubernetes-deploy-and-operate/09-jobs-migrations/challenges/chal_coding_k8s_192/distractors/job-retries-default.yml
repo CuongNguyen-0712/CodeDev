@@ -1,0 +1,2 @@
+# @piece job-retries: Retry a failed migration once, and stop it after 5 minutes
+backoffLimit: 6

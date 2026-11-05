@@ -1,0 +1,40 @@
+[
+  {
+    "id": "effective-settings",
+    "label": "Autovacuum settings that apply to one table",
+    "code": "def table_settings(table, settings):\n    return {**settings, **table.get(\"options\", {})}"
+  },
+  {
+    "id": "vacuum-threshold",
+    "label": "Dead rows that make autovacuum start",
+    "code": "def vacuum_threshold(table, params):\n    return params[\"autovacuum_vacuum_threshold\"] + params[\"autovacuum_vacuum_scale_factor\"] * table[\"reltuples\"]"
+  },
+  {
+    "id": "find-blocker",
+    "label": "The session or slot that holds the xmin horizon back",
+    "code": "def find_blocker(sessions, slots, max_xmin_age):\n    holders = [(s[\"xmin_age\"], f\"pid {s['pid']}\") for s in sessions if s.get(\"xmin_age\") is not None]\n    holders += [(s[\"xmin_age\"], f\"slot {s['slot_name']}\") for s in slots if s.get(\"xmin_age\") is not None]\n    holders = [h for h in holders if h[0] > max_xmin_age]\n    return max(holders)[1] if holders else None"
+  },
+  {
+    "id": "classify-due",
+    "label": "Status of a table that needs vacuum",
+    "code": "elif blocker:\n    result[table[\"relname\"]] = f\"blocked by {blocker}\"\nelse:\n    result[table[\"relname\"]] = \"vacuum lagging\""
+  },
+  {
+    "id": "blocker-sessions-only",
+    "label": "The session or slot that holds the xmin horizon back",
+    "code": "def find_blocker(sessions, slots, max_xmin_age):\n    holders = [(s[\"xmin_age\"], f\"pid {s['pid']}\") for s in sessions if s.get(\"xmin_age\") is not None]\n    holders = [h for h in holders if h[0] > max_xmin_age]\n    return max(holders)[1] if holders else None",
+    "distractor": true
+  },
+  {
+    "id": "settings-ignore-table-options",
+    "label": "Autovacuum settings that apply to one table",
+    "code": "def table_settings(table, settings):\n    return settings",
+    "distractor": true
+  },
+  {
+    "id": "threshold-multiplied",
+    "label": "Dead rows that make autovacuum start",
+    "code": "def vacuum_threshold(table, params):\n    return params[\"autovacuum_vacuum_threshold\"] * params[\"autovacuum_vacuum_scale_factor\"] * table[\"reltuples\"]",
+    "distractor": true
+  }
+]

@@ -323,6 +323,7 @@
     },
     {
       "publicId": "chal_quiz_js_533",
+      "published": false,
       "name": "heap-snapshot-detached-dom-quiz",
       "type": "quiz",
       "title": "Reading a heap snapshot",

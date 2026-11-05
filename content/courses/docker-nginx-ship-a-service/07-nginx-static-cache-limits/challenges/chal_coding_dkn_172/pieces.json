@@ -1,0 +1,45 @@
+[
+  {
+    "id": "limit-zone",
+    "label": "Define the login rate: 10 a minute per client IP",
+    "code": "limit_req_zone $binary_remote_addr zone=login:10m rate=10r/m;"
+  },
+  {
+    "id": "spa-fallback",
+    "label": "Serve the file, else the app shell",
+    "code": "location / {\n    try_files $uri $uri/ /index.html;\n}"
+  },
+  {
+    "id": "index-no-cache",
+    "label": "Make index.html revalidate on every load",
+    "code": "location = /index.html {\n    expires -1;\n}"
+  },
+  {
+    "id": "assets-cache",
+    "label": "Cache hashed assets for a year, never as HTML",
+    "code": "location /assets/ {\n    try_files $uri =404;\n    expires 1y;\n}"
+  },
+  {
+    "id": "login-limit",
+    "label": "Proxy the api, rate-limit only the login",
+    "code": "location /api/ {\n    proxy_pass http://api/;\n}\n\nlocation = /api/login {\n    limit_req zone=login burst=5 nodelay;\n    limit_req_status 429;\n    proxy_pass http://api/login;\n}"
+  },
+  {
+    "id": "assets-own-add-header",
+    "label": "Cache hashed assets for a year, never as HTML",
+    "code": "location /assets/ {\n    try_files $uri =404;\n    add_header Cache-Control \"public, max-age=31536000, immutable\";\n}",
+    "distractor": true
+  },
+  {
+    "id": "limit-whole-api",
+    "label": "Proxy the api, rate-limit only the login",
+    "code": "location /api/ {\n    limit_req zone=login burst=5 nodelay;\n    limit_req_status 429;\n    proxy_pass http://api/;\n}",
+    "distractor": true
+  },
+  {
+    "id": "spa-fallback-404",
+    "label": "Serve the file, else the app shell",
+    "code": "location / {\n    try_files $uri =404;\n}",
+    "distractor": true
+  }
+]

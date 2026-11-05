@@ -1,0 +1,45 @@
+[
+  {
+    "id": "triggers",
+    "label": "Pull requests into main, pushes to main, release tags",
+    "code": "pull_request:\n  branches: [main]\npush:\n  branches: [main]\n  tags: [\"v*.*.*\"]"
+  },
+  {
+    "id": "packages-permission",
+    "label": "What the GITHUB_TOKEN of this job may do",
+    "code": "permissions:\n  contents: read\n  packages: write"
+  },
+  {
+    "id": "login-ghcr",
+    "label": "Sign in to ghcr.io, except on pull requests",
+    "code": "- uses: docker/login-action@v3\n  if: github.event_name != 'pull_request'\n  with:\n    registry: ghcr.io\n    username: ${{ github.actor }}\n    password: ${{ secrets.GITHUB_TOKEN }}"
+  },
+  {
+    "id": "meta-tags",
+    "label": "Tags naming the commit, branch, pull request and release",
+    "code": "- id: meta\n  uses: docker/metadata-action@v5\n  with:\n    images: ghcr.io/rice-rocket/api\n    tags: |\n      type=sha\n      type=ref,event=branch\n      type=ref,event=pr\n      type=semver,pattern={{version}}\n      type=semver,pattern={{major}}.{{minor}}"
+  },
+  {
+    "id": "build-push",
+    "label": "Build api/, push except on pull requests, reuse the cache",
+    "code": "- uses: docker/build-push-action@v6\n  with:\n    context: api\n    push: ${{ github.event_name != 'pull_request' }}\n    tags: ${{ steps.meta.outputs.tags }}\n    labels: ${{ steps.meta.outputs.labels }}\n    cache-from: type=gha\n    cache-to: type=gha,mode=max"
+  },
+  {
+    "id": "build-push-always",
+    "label": "Build api/, push except on pull requests, reuse the cache",
+    "code": "- uses: docker/build-push-action@v6\n  with:\n    context: api\n    push: true\n    tags: ${{ steps.meta.outputs.tags }}\n    labels: ${{ steps.meta.outputs.labels }}\n    cache-from: type=gha\n    cache-to: type=gha,mode=max",
+    "distractor": true
+  },
+  {
+    "id": "login-personal-token",
+    "label": "Sign in to ghcr.io, except on pull requests",
+    "code": "- uses: docker/login-action@v3\n  if: github.event_name != 'pull_request'\n  with:\n    registry: ghcr.io\n    username: ${{ github.actor }}\n    password: ${{ secrets.GHCR_PAT }}",
+    "distractor": true
+  },
+  {
+    "id": "meta-latest-only",
+    "label": "Tags naming the commit, branch, pull request and release",
+    "code": "- id: meta\n  uses: docker/metadata-action@v5\n  with:\n    images: ghcr.io/rice-rocket/api\n    tags: |\n      type=raw,value=latest",
+    "distractor": true
+  }
+]

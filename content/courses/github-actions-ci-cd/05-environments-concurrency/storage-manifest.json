@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_gha_152",
+      "key": "challenges/yaml/chal_coding_gha_152/starter.yml",
+      "contentType": "application/yaml; charset=utf-8",
+      "originalName": ".github/workflows/deploy.yml",
+      "size": 1268
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_gha_152",
+      "key": "challenges/yaml/chal_coding_gha_152/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 34066
+    }
+  ]
+}

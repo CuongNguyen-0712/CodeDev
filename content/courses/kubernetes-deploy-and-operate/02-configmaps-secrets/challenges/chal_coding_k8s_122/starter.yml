@@ -1,0 +1,37 @@
+# Rice Rocket api in namespace rice-rocket: settings in a ConfigMap, secrets from the Secret
+# api-secrets, which the team creates out of band and never commits:
+#   kubectl -n rice-rocket create secret generic api-secrets \
+#     --from-file=db-password=./db-password.txt --from-file=jwt-secret=./jwt-secret.txt
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  namespace: rice-rocket
+# [ ] The api's settings that are not secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: rice-rocket
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/rice-rocket/api:1.4.0
+          ports:
+            - name: http
+              containerPort: 3000
+          # [ ] Every ConfigMap key as an environment variable
+          env:
+            # [ ] DATABASE_PASSWORD from the out-of-band Secret
+          # [ ] Mount the JWT secret read-only under /run/secrets
+      # [ ] A volume holding only the JWT secret, as jwt_secret

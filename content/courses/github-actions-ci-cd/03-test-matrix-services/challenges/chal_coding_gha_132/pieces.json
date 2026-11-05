@@ -1,0 +1,50 @@
+[
+  {
+    "id": "fail-fast-off",
+    "label": "Let every combination finish when one fails",
+    "code": "fail-fast: false"
+  },
+  {
+    "id": "matrix-axes",
+    "label": "The Node and Postgres versions to support",
+    "code": "node: [22, 24]\npostgres: [16, 17]"
+  },
+  {
+    "id": "matrix-include-experimental",
+    "label": "One extra, experimental combination",
+    "code": "include:\n  - node: 25\n    postgres: 17\n    experimental: true"
+  },
+  {
+    "id": "continue-on-error",
+    "label": "A failure that must not fail the whole run",
+    "code": "continue-on-error: ${{ matrix.experimental == true }}"
+  },
+  {
+    "id": "postgres-service",
+    "label": "Postgres of the matrix version, ready before tests",
+    "code": "services:\n  postgres:\n    image: postgres:${{ matrix.postgres }}\n    env:\n      POSTGRES_PASSWORD: test\n    ports:\n      - 5432:5432\n    options: >-\n      --health-cmd \"pg_isready -U postgres\"\n      --health-interval 5s\n      --health-timeout 5s\n      --health-retries 10"
+  },
+  {
+    "id": "test-env",
+    "label": "Where the tests find the database",
+    "code": "env:\n  DATABASE_URL: postgres://postgres:test@localhost:5432/postgres"
+  },
+  {
+    "id": "continue-on-error-always",
+    "label": "A failure that must not fail the whole run",
+    "code": "continue-on-error: true",
+    "distractor": true
+  },
+  {
+    "id": "postgres-service-no-healthcheck",
+    "label": "Postgres of the matrix version, ready before tests",
+    "code": "services:\n  postgres:\n    image: postgres:${{ matrix.postgres }}\n    env:\n      POSTGRES_PASSWORD: test\n    ports:\n      - 5432:5432",
+    "distractor": true
+  },
+  {
+    "id": "test-env-service-name",
+    "label": "Where the tests find the database",
+    "code": "env:\n  DATABASE_URL: postgres://postgres:test@postgres:5432/postgres",
+    "distractor": true
+  }
+]

@@ -1,0 +1,871 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pgp_162",
+      "name": "keyset-pagination",
+      "type": "mini_coding",
+      "title": "Page the admin order list with a keyset cursor",
+      "description": "The admin order list pages through one restaurant's orders, newest first, with OFFSET: deep pages are slow, and while new orders arrive staff see some orders twice and miss others. The editor holds `admin/order_pages.py` with its key pieces missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that `fetch_page` orders by `created_at DESC, id DESC`, starts each next page strictly after the last row of the previous one with a row-value comparison, hands the browser an opaque cursor (URL-safe base64 of JSON `{\"created_at\", \"id\"}`), rejects any other cursor with `InvalidCursor(\"invalid cursor\")`, and has an index that serves both queries without a sort. Many orders share one second. Run pages through a restaurant on SQLite while new orders arrive between pages, and reports ids seen twice, ids never shown and the query plans.",
+      "difficulty": "medium",
+      "outcomes": [
+        "query-performance"
+      ],
+      "points": 30,
+      "hints": [
+        "Ask what identifies \"where the last page ended\" when three orders share the same second, and which rows the next query must return relative to that point, whatever was inserted in between.",
+        "Look at a unique ORDER BY (add the primary key as the last column), a row-value comparison `(a, b) < (:a, :b)`, an index whose columns are the filter column then the ORDER BY columns, and `base64.urlsafe_b64encode` / `binascii.Error`.",
+        "Paging a courier's delivery log by `(delivered_at, id)` oldest first: `WHERE courier_id = :c AND (delivered_at, id) > (:delivered_at, :id) ORDER BY delivered_at, id LIMIT :n`, with `CREATE INDEX deliveries_courier_time_id ON deliveries (courier_id, delivered_at, id)`, and a cursor built from the last row's `delivered_at` and `id`."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "admin/order_pages.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Pages of 4 cross three groups of orders that share a timestamp, with none skipped or repeated",
+          "input": {
+            "orders": [
+              [
+                101,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:00:00"
+              ],
+              [
+                102,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:00:00"
+              ],
+              [
+                103,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                104,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                105,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                106,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:10:00"
+              ],
+              [
+                107,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:10:00"
+              ],
+              [
+                108,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:20:00"
+              ],
+              [
+                109,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:30:00"
+              ],
+              [
+                110,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:30:00"
+              ],
+              [
+                111,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:30:00"
+              ],
+              [
+                201,
+                3,
+                "delivered",
+                85000,
+                "2026-11-05T11:20:00"
+              ],
+              [
+                202,
+                3,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                203,
+                3,
+                "delivered",
+                85000,
+                "2026-11-05T11:31:00"
+              ]
+            ],
+            "restaurant_id": 7,
+            "page_size": 4
+          },
+          "expected": {
+            "pages": [
+              [
+                111,
+                110,
+                109,
+                108
+              ],
+              [
+                107,
+                106,
+                105,
+                104
+              ],
+              [
+                103,
+                102,
+                101
+              ]
+            ],
+            "seen_twice": [],
+            "never_shown": [],
+            "plans": {
+              "first": {
+                "index": "orders_restaurant_created_id",
+                "temp_sort": false
+              },
+              "next": {
+                "index": "orders_restaurant_created_id",
+                "temp_sort": false
+              }
+            }
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "New orders arriving after page 1 do not shift or repeat the later pages",
+          "input": {
+            "orders": [
+              [
+                101,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:00:00"
+              ],
+              [
+                102,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:00:00"
+              ],
+              [
+                103,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                104,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                105,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                106,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:10:00"
+              ],
+              [
+                107,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:10:00"
+              ],
+              [
+                108,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:20:00"
+              ],
+              [
+                109,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:30:00"
+              ],
+              [
+                110,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:30:00"
+              ],
+              [
+                111,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:30:00"
+              ],
+              [
+                201,
+                3,
+                "delivered",
+                85000,
+                "2026-11-05T11:20:00"
+              ],
+              [
+                202,
+                3,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                203,
+                3,
+                "delivered",
+                85000,
+                "2026-11-05T11:31:00"
+              ]
+            ],
+            "restaurant_id": 7,
+            "page_size": 4,
+            "arrivals": {
+              "1": [
+                [
+                  112,
+                  7,
+                  "pending",
+                  85000,
+                  "2026-11-05T11:40:00"
+                ],
+                [
+                  113,
+                  7,
+                  "pending",
+                  85000,
+                  "2026-11-05T11:40:00"
+                ],
+                [
+                  204,
+                  3,
+                  "pending",
+                  85000,
+                  "2026-11-05T11:41:00"
+                ]
+              ]
+            }
+          },
+          "expected": {
+            "pages": [
+              [
+                111,
+                110,
+                109,
+                108
+              ],
+              [
+                107,
+                106,
+                105,
+                104
+              ],
+              [
+                103,
+                102,
+                101
+              ]
+            ],
+            "seen_twice": [],
+            "never_shown": [],
+            "plans": {
+              "first": {
+                "index": "orders_restaurant_created_id",
+                "temp_sort": false
+              },
+              "next": {
+                "index": "orders_restaurant_created_id",
+                "temp_sort": false
+              }
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A cursor that is not base64 JSON is rejected with InvalidCursor",
+          "input": {
+            "orders": [
+              [
+                101,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:00:00"
+              ],
+              [
+                102,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:00:00"
+              ],
+              [
+                103,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                104,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                105,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                106,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:10:00"
+              ],
+              [
+                107,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:10:00"
+              ],
+              [
+                108,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:20:00"
+              ],
+              [
+                109,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:30:00"
+              ],
+              [
+                110,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:30:00"
+              ],
+              [
+                111,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:30:00"
+              ],
+              [
+                201,
+                3,
+                "delivered",
+                85000,
+                "2026-11-05T11:20:00"
+              ],
+              [
+                202,
+                3,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                203,
+                3,
+                "delivered",
+                85000,
+                "2026-11-05T11:31:00"
+              ]
+            ],
+            "restaurant_id": 7,
+            "page_size": 4,
+            "bad_cursor": "page=2"
+          },
+          "expected": {
+            "bad_cursor": "InvalidCursor: invalid cursor"
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A cursor with the wrong shape (id as text, extra key) is rejected",
+          "input": {
+            "orders": [
+              [
+                101,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:00:00"
+              ],
+              [
+                102,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:00:00"
+              ],
+              [
+                103,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                104,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                105,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                106,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:10:00"
+              ],
+              [
+                107,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:10:00"
+              ],
+              [
+                108,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:20:00"
+              ],
+              [
+                109,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:30:00"
+              ],
+              [
+                110,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:30:00"
+              ],
+              [
+                111,
+                7,
+                "delivered",
+                85000,
+                "2026-11-05T11:30:00"
+              ],
+              [
+                201,
+                3,
+                "delivered",
+                85000,
+                "2026-11-05T11:20:00"
+              ],
+              [
+                202,
+                3,
+                "delivered",
+                85000,
+                "2026-11-05T11:05:00"
+              ],
+              [
+                203,
+                3,
+                "delivered",
+                85000,
+                "2026-11-05T11:31:00"
+              ]
+            ],
+            "restaurant_id": 7,
+            "page_size": 4,
+            "bad_cursor": "eyJjcmVhdGVkX2F0IjoiMjAyNi0xMS0wNVQxMTowNTowMCIsImlkIjoiMTA0IiwicGFnZSI6M30"
+          },
+          "expected": {
+            "bad_cursor": "InvalidCursor: invalid cursor"
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "26 orders, 3 per minute, pages of 5 while orders keep arriving: every order exactly once",
+          "input": {
+            "orders": [
+              [
+                300,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:00:00"
+              ],
+              [
+                307,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:00:00"
+              ],
+              [
+                314,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:00:00"
+              ],
+              [
+                321,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:01:00"
+              ],
+              [
+                302,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:01:00"
+              ],
+              [
+                309,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:01:00"
+              ],
+              [
+                316,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:02:00"
+              ],
+              [
+                323,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:02:00"
+              ],
+              [
+                304,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:02:00"
+              ],
+              [
+                311,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:03:00"
+              ],
+              [
+                318,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:03:00"
+              ],
+              [
+                325,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:03:00"
+              ],
+              [
+                306,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:04:00"
+              ],
+              [
+                313,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:04:00"
+              ],
+              [
+                320,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:04:00"
+              ],
+              [
+                301,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:05:00"
+              ],
+              [
+                308,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:05:00"
+              ],
+              [
+                315,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:05:00"
+              ],
+              [
+                322,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:06:00"
+              ],
+              [
+                303,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:06:00"
+              ],
+              [
+                310,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:06:00"
+              ],
+              [
+                317,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:07:00"
+              ],
+              [
+                324,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:07:00"
+              ],
+              [
+                305,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:07:00"
+              ],
+              [
+                312,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:08:00"
+              ],
+              [
+                319,
+                5,
+                "delivered",
+                85000,
+                "2026-11-05T12:08:00"
+              ],
+              [
+                400,
+                6,
+                "delivered",
+                85000,
+                "2026-11-05T12:03:00"
+              ],
+              [
+                401,
+                6,
+                "delivered",
+                85000,
+                "2026-11-05T12:04:00"
+              ]
+            ],
+            "restaurant_id": 5,
+            "page_size": 5,
+            "arrivals": {
+              "1": [
+                [
+                  330,
+                  5,
+                  "pending",
+                  85000,
+                  "2026-11-05T13:00:00"
+                ],
+                [
+                  331,
+                  5,
+                  "pending",
+                  85000,
+                  "2026-11-05T13:00:00"
+                ]
+              ],
+              "2": [
+                [
+                  332,
+                  5,
+                  "pending",
+                  85000,
+                  "2026-11-05T13:01:00"
+                ]
+              ],
+              "3": [
+                [
+                  333,
+                  5,
+                  "pending",
+                  85000,
+                  "2026-11-05T13:02:00"
+                ],
+                [
+                  334,
+                  5,
+                  "pending",
+                  85000,
+                  "2026-11-05T13:02:00"
+                ]
+              ]
+            }
+          },
+          "expected": {
+            "pages": [
+              [
+                319,
+                312,
+                324,
+                317,
+                305
+              ],
+              [
+                322,
+                310,
+                303,
+                315,
+                308
+              ],
+              [
+                301,
+                320,
+                313,
+                306,
+                325
+              ],
+              [
+                318,
+                311,
+                323,
+                316,
+                304
+              ],
+              [
+                321,
+                309,
+                302,
+                314,
+                307
+              ],
+              [
+                300
+              ]
+            ],
+            "seen_twice": [],
+            "never_shown": [],
+            "plans": {
+              "first": {
+                "index": "orders_restaurant_created_id",
+                "temp_sort": false
+              },
+              "next": {
+                "index": "orders_restaurant_created_id",
+                "temp_sort": false
+              }
+            }
+          },
+          "hidden": true,
+          "score": 8
+        }
+      ]
+    }
+  ]
+}

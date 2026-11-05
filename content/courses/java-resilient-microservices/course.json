@@ -45,7 +45,7 @@
     "logistics"
   ],
   "prerequisites": [
-    "java21-virtual-threads"
+    "java21-foundations"
   ],
   "modules": [],
   "outline": [

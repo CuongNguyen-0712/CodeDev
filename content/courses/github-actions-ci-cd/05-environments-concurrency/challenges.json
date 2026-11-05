@@ -1,0 +1,273 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gha_151",
+      "name": "environments-concurrency-quiz",
+      "type": "quiz",
+      "title": "Read the deploy queue",
+      "description": "Three statements about what Rice Rocket saw while adding concurrency groups and environments to its workflows. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "release-images"
+      ],
+      "points": 10,
+      "hints": [
+        "Count the slots of one concurrency group: how many runs can be in progress, and how many can wait? What happens to a waiting run when a newer one arrives?",
+        "A concurrency group is a string. Which runs share it when it is the constant `ci`, and which share it when it contains `github.ref`?",
+        "Look at where `PROD_SSH_KEY` was created (Settings > Environments > production) and at which job declares `environment: production`."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The deploy job got a concurrency group, then three pull requests were merged within two minutes:\n\n```yaml\njobs:\n  deploy:\n    concurrency:\n      group: deploy\n      cancel-in-progress: false\n```\n\n```text\ndeploy  #88  main  a1f3c2e  In progress\ndeploy  #89  main  b7d9e01  Cancelled\n  Canceling since a higher priority waiting request for deploy exists\ndeploy  #90  main  c4e2a9b  Pending\n```\n\nStatement: \"With `cancel-in-progress: false`, GitHub queues every run of the group, so #89 was cancelled by a bug and should have deployed after #88.\"",
+          "explanation": "False. A concurrency group holds at most one running and one pending job. When #90 arrived while #89 was pending, #89 was cancelled and #90 took the pending slot; that is the documented behaviour, not a bug. For deploys of `main` it is what you want: #90 contains every commit of #89, so deploying c4e2a9b right after a1f3c2e skips nothing. `cancel-in-progress: false` only protects the running deploy (#88) from being cut short. The misconception is that a group is a FIFO queue of unlimited length.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The CI workflow cancels outdated runs, but two developers keep losing their checks:\n\n```yaml\n# .github/workflows/ci.yml\nconcurrency:\n  group: ci\n  cancel-in-progress: true\n```\n\n```text\nci  #301  PR #41 feature/momo-pay   Cancelled  (higher priority request for ci)\nci  #302  PR #42 feature/zalo-login In progress\n```\n\nStatement: \"Setting `cancel-in-progress: false` is the fix: then each pull request gets its own CI run.\"",
+          "explanation": "False. The group name `ci` is the same for every run of the workflow, so all pull requests share one slot. With `cancel-in-progress: false` they would queue behind each other, and a waiting run would still be cancelled by the next one. The fix is a group per ref: `group: ci-${{ github.ref }}` (each pull request has its own `refs/pull/<n>/merge`), keeping `cancel-in-progress: true` so a new push to the same pull request cancels only that pull request's outdated run.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "`PROD_SSH_KEY` was created as a secret of the environment `production`. A smoke-test job added after the deploy fails:\n\n```yaml\n  smoke:\n    needs: deploy-production\n    runs-on: ubuntu-24.04\n    steps:\n      - run: ./deploy/smoke.sh\n        env:\n          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}\n```\n\n```text\nRun ./deploy/smoke.sh\n  SSH_KEY: \ndeploy@203.0.113.10: Permission denied (publickey).\n```\n\nStatement: \"Environment secrets reach only jobs that reference that environment; `smoke` has no `environment: production`, so `secrets.PROD_SSH_KEY` is an empty string there.\"",
+          "explanation": "True. Secrets stored on an environment are available only to a job that declares `environment:` with that name, and only after its protection rules pass (reviewer, allowed branch). Any other job gets an empty string, without an error, which is why the log shows `SSH_KEY:` with no value. Either add `environment: production` to `smoke` (it then also waits for its rules) or run the smoke test as steps of `deploy-production`. The misconception is that a secret defined anywhere in the repository settings reaches every job.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_gha_152",
+      "name": "staging-production-deploys",
+      "type": "mini_coding",
+      "title": "Deploy main to staging, then production, one deploy at a time",
+      "description": "Rice Rocket's deploy workflow shipped every push to main straight to the VPS. Two merges a minute apart deployed at the same time and the older, slower one finished last, so the old version went live; anyone who merged deployed to production without approval; and a first fix with `cancel-in-progress: true` killed a deploy halfway through its migration. The editor holds `.github/workflows/deploy.yml` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. The environments already exist in the repository settings: `staging` (secret `STAGING_SSH_KEY`) and `production` (a required reviewer, deployments from main only, secret `PROD_SSH_KEY`). Fill every line so that: `deploy-staging` uses the environment `staging` with the URL `https://staging.ricerocket.vn` and `deploy-production` the environment `production` with `https://ricerocket.vn`; each environment runs one deploy at a time and never cancels a running deploy, so the newest commit ends up live; production starts only after staging succeeded; a manual run from any branch other than main deploys nothing. Run grades the file with a simulator of jobs, environments and concurrency groups on one clock.",
+      "difficulty": "medium",
+      "outcomes": [
+        "release-images"
+      ],
+      "points": 30,
+      "hints": [
+        "Draw the three merges on a timeline: when does each staging deploy start and end with no group, with a shared group, and with `cancel-in-progress: true`? Which commit is live at the end of each?",
+        "Look at `environment:` with `name` and `url`, a job-level `concurrency:` with a constant `group` and `cancel-in-progress`, `needs:` between the two deploy jobs, and an `if:` on `github.ref`.",
+        "A worker deployed to `eu` then `us`: `deploy-us: { needs: deploy-eu, environment: { name: us, url: https://us.example.com }, concurrency: { group: deploy-us, cancel-in-progress: false } }`, and `if: github.ref == 'refs/heads/main'` on `deploy-eu`."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": ".github/workflows/deploy.yml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Three quick merges: one deploy at a time per environment, the newest commit ends up live",
+          "input": {
+            "checks": [
+              "parse",
+              "deploys"
+            ],
+            "pushes": [
+              {
+                "sha": "a1f3c2e",
+                "at": 0,
+                "deploy": 5
+              },
+              {
+                "sha": "b7d9e01",
+                "at": 1,
+                "deploy": 1
+              },
+              {
+                "sha": "c4e2a9b",
+                "at": 2,
+                "deploy": 1
+              }
+            ]
+          },
+          "expected": {
+            "parse": "ok",
+            "deploys": {
+              "staging": {
+                "live": "c4e2a9b",
+                "finished": [
+                  "a1f3c2e",
+                  "c4e2a9b"
+                ],
+                "cancelledPending": [
+                  "b7d9e01"
+                ],
+                "cancelledMidDeploy": []
+              },
+              "production": {
+                "live": "c4e2a9b",
+                "finished": [
+                  "a1f3c2e",
+                  "c4e2a9b"
+                ],
+                "cancelledPending": [],
+                "cancelledMidDeploy": []
+              }
+            }
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Each deploy job uses its environment and URL, and its SSH key secret reaches it",
+          "input": {
+            "checks": [
+              "environments",
+              "secrets"
+            ]
+          },
+          "expected": {
+            "environments": {
+              "deploy-staging": {
+                "name": "staging",
+                "url": "https://staging.ricerocket.vn"
+              },
+              "deploy-production": {
+                "name": "production",
+                "url": "https://ricerocket.vn"
+              }
+            },
+            "secrets": {
+              "deploy-staging": true,
+              "deploy-production": true
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A failed staging deploy never reaches production",
+          "input": {
+            "checks": [
+              "deploys"
+            ],
+            "pushes": [
+              {
+                "sha": "d5a0b4f",
+                "at": 0,
+                "fail": [
+                  "deploy-staging"
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "deploys": {
+              "staging": {
+                "live": null,
+                "finished": [],
+                "cancelledPending": [],
+                "cancelledMidDeploy": []
+              },
+              "production": {
+                "live": null,
+                "finished": [],
+                "cancelledPending": [],
+                "cancelledMidDeploy": []
+              }
+            }
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A manual run from a feature branch deploys nothing",
+          "input": {
+            "checks": [
+              "runs"
+            ],
+            "pushes": [
+              {
+                "sha": "e9c1d27",
+                "at": 0,
+                "event": "workflow_dispatch",
+                "ref": "refs/heads/feature/momo-pay"
+              }
+            ]
+          },
+          "expected": {
+            "runs": {
+              "e9c1d27": {
+                "build": "success",
+                "deploy-staging": "skipped",
+                "deploy-production": "skipped"
+              }
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Production follows staging; both groups are shared by every commit and never cancel",
+          "input": {
+            "checks": [
+              "needs",
+              "concurrency"
+            ]
+          },
+          "expected": {
+            "needs": {
+              "build": [],
+              "deploy-staging": [
+                "build"
+              ],
+              "deploy-production": [
+                "deploy-staging"
+              ]
+            },
+            "concurrency": {
+              "deploy-staging": {
+                "serialized": true,
+                "cancelInProgress": false
+              },
+              "deploy-production": {
+                "serialized": true,
+                "cancelInProgress": false
+              }
+            }
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

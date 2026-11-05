@@ -1,0 +1,51 @@
+# Rice Rocket release 1.5.0. CI applies the Job, waits for it, then updates the api image:
+#   kubectl apply -f k8s/jobs.yaml
+#   kubectl wait --for=condition=complete job/migrate-1-5-0 --timeout=300s
+#   kubectl set image deployment/api api=ghcr.io/rice-rocket/api:1.5.0
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-1-5-0
+  namespace: rice-rocket
+spec:
+  # [ ] Retry a failed migration once, and stop it after 5 minutes
+  # [ ] Delete the finished Job and its pods a day later
+  template:
+    metadata:
+      labels:
+        app: migrate
+    spec:
+      # [ ] A failed attempt gets a new pod, its logs stay readable
+      containers:
+        - name: migrate
+          image: ghcr.io/rice-rocket/api:1.5.0
+          command: ["node", "dist/migrate.js"]
+          envFrom:
+            - secretRef:
+                name: api-secrets
+---
+# Nightly cleanup of abandoned carts, while almost nobody orders.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: expire-carts
+  namespace: rice-rocket
+spec:
+  # [ ] Every night at 03:00 Ho Chi Minh City time
+  # [ ] One run at a time; skip a run more than 10 minutes late
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      # [ ] Stop a nightly run that takes longer than one hour
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: expire-carts
+              image: ghcr.io/rice-rocket/api:1.5.0
+              command: ["node", "dist/jobs/expire-carts.js"]
+              envFrom:
+                - secretRef:
+                    name: api-secrets

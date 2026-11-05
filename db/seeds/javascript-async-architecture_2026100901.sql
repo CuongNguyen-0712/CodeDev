@@ -68,7 +68,9 @@ VALUES ('chal_quiz_101', (SELECT id FROM catalog.course WHERE public_id = 'javas
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_101');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_101');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_101'), 'This runs inside a click handler:
@@ -117,12 +119,13 @@ VALUES ('chal_coding_js_112', (SELECT id FROM catalog.course WHERE public_id = '
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_112'), 'The top-up incident: the modal (microtask) runs before the deferred render (task)', '{"main":[{"log":"store.set"},{"timeout":0,"do":[{"log":"renderBalance"}]},{"micro":[{"log":"showModal"}]},{"log":"handler end"}]}', '["store.set@0","handler end@0","showModal@0","renderBalance@0"]', 6, true, false, 1),
@@ -155,7 +158,9 @@ VALUES ('chal_quiz_js_121', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_121');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_121');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_121'), 'Auditing 500,000 log lines takes 7 s of synchronous work. The pull request changes the loop to:
@@ -203,12 +208,13 @@ VALUES ('chal_fix_102', (SELECT id FROM catalog.course WHERE public_id = 'javasc
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_102'), '5 entries in chunks of 2: keystrokes are handled between chunks', '{"chunkSize":2,"keystrokes":2,"entries":[["info",12],["error",340],["warn",88],["info",19],["error",1204]]}', '{"timeline":["progress 2/5","key","progress 4/5","key","progress 5/5","done"],"summary":{"total":5,"errors":2,"warnings":1,"slowestMs":1204}}', 4, true, false, 1),
@@ -241,7 +247,9 @@ VALUES ('chal_quiz_js_131', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_131');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_131');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_131'), 'const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -288,12 +296,13 @@ VALUES ('chal_coding_103', (SELECT id FROM catalog.course WHERE public_id = 'jav
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_103'), 'Resolves after ms and leaves nothing behind', '{"sleeps":[200]}', '{"outcome":[{"resolvedAt":200}],"timersCreated":1,"pendingTimers":0,"listenersAtEnd":0,"maxListeners":1}', 6, true, false, 1),
@@ -332,7 +341,9 @@ VALUES ('chal_quiz_201', (SELECT id FROM catalog.course WHERE public_id = 'javas
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_201');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_201');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_201'), 'The dashboard runs:
@@ -377,12 +388,13 @@ VALUES ('chal_coding_js_212', (SELECT id FROM catalog.course WHERE public_id = '
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_212'), 'All four services healthy: the dashboard renders when the slowest one answers', '{"sources":[{"name":"profile","required":true,"timeoutMs":2000,"after":120,"value":{"name":"Lan","tier":"gold"}},{"name":"loyalty","timeoutMs":2000,"fallback":{"points":null},"after":300,"value":{"points":1840}},{"name":"activity","timeoutMs":2000,"after":450,"value":["login","transfer"]},{"name":"offers","timeoutMs":2000,"fallback":[],"after":200,"value":["2x points weekend"]}]}', '{"outcome":"resolved","at":450,"data":{"profile":{"name":"Lan","tier":"gold"},"loyalty":{"points":1840},"activity":["login","transfer"],"offers":["2x points weekend"]},"errors":{},"pendingTimers":0}', 6, true, false, 1),
@@ -415,7 +427,9 @@ VALUES ('chal_quiz_js_221', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_221');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_221');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_221'), 'A "Save all" button runs:
@@ -465,12 +479,13 @@ VALUES ('chal_fix_202', (SELECT id FROM catalog.course WHERE public_id = 'javasc
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202'), 'browser', 3000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202'), 'browser', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_202'), 'Happy path: the order is confirmed only after every reservation', '{"items":["sku-1","sku-2","sku-3"]}', '{"outcome":"confirmed","value":{"orderId":"ord-1001","template":"receipt-v2"},"at":400,"reservedBeforeConfirm":3,"spinner":"hidden","unhandledRejections":0}', 4, true, false, 1),
@@ -503,7 +518,9 @@ VALUES ('chal_quiz_js_231', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_231');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_231');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_231'), 'A teammate adds a limiter to the bulk photo uploader:
@@ -545,12 +562,13 @@ VALUES ('chal_coding_203', (SELECT id FROM catalog.course WHERE public_id = 'jav
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_203'), 'Six uploads, limit 2: free slots are refilled at once, results in input order', '{"limit":2,"tasks":[{"ms":300,"value":"cdn/0"},{"ms":100,"value":"cdn/1"},{"ms":200,"value":"cdn/2"},{"ms":100,"value":"cdn/3"},{"ms":400,"value":"cdn/4"},{"ms":100,"value":"cdn/5"}]}', '{"outcome":"resolved","at":700,"value":["cdn/0","cdn/1","cdn/2","cdn/3","cdn/4","cdn/5"],"maxInFlight":2,"startedAt":[0,0,100,300,300,400]}', 6, true, false, 1),
@@ -589,7 +607,9 @@ VALUES ('chal_quiz_301', (SELECT id FROM catalog.course WHERE public_id = 'javas
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_301');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_301');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_301'), 'fetchProfile(id) returns a promise that rejects with an Error(''503'') after 300 ms.
@@ -641,12 +661,13 @@ VALUES ('chal_fix_js_312', (SELECT id FROM catalog.course WHERE public_id = 'jav
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_312'), 'A single caller gets the connected client', '{"steps":[{"op":"call"},{"op":"resolve","connect":0,"value":"client#1"},{"op":"call"}]}', '{"connectCalls":1,"results":[{"ok":true,"value":"client#1"},{"ok":true,"value":"client#1"}]}', 4, true, false, 1),
@@ -679,7 +700,9 @@ VALUES ('chal_quiz_js_321', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_321');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_321');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_321'), 'With the search handler above, the user types "reac" and, 150 ms later, "react". The request for "reac" takes 900 ms, the one for "react" takes 200 ms. Both succeed. What does the page show one second after the first keystroke?', 'single_choice'::question_type, 'Each handler renders whatever it receives, as soon as it receives it. "react" answers at 350 ms and renders correctly; "reac" answers at 900 ms and renders on top of it. The input says "react", the list belongs to "reac". The order in which requests were sent says nothing about the order in which they finish - the last response wins, not the last request.', 1, 5
@@ -715,12 +738,13 @@ VALUES ('chal_fix_302', (SELECT id FROM catalog.course WHERE public_id = 'javasc
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_302'), 'Searches that do not overlap render results and real errors', '{"steps":[{"op":"input","query":"react"},{"op":"resolve","call":0,"results":["react","react-dom"]},{"op":"input","query":"react-q"},{"op":"reject","call":1,"message":"HTTP 500"}]}', '{"log":["results:react:react,react-dom","error:react-q:HTTP 500"],"aborted":[]}', 4, true, false, 1),
@@ -753,7 +777,9 @@ VALUES ('chal_quiz_js_331', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_331');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_331');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_331'), '120,000 open checkout tabs call confirmPayment() at roughly the same moment, 10:02:00, and the gateway answers 503 to all of them for 40 seconds. Each tab runs the retry loop above (wait 1000 ms after every failure, retry forever). What does the gateway receive when it starts up again?', 'single_choice'::question_type, 'The clients failed together, and they all wait exactly the same time, so they retry together: the gateway sees about 120,000 requests in the same few milliseconds, every second. A server that is warming up its connection pools and caches cannot absorb that wave, fails again, and the next wave arrives one second later. Fixed delays keep the herd in formation; only randomness (jitter) spreads it out. Exponential backoff alone would make the waves rarer but just as tall.', 1, 5
@@ -790,12 +816,13 @@ VALUES ('chal_coding_303', (SELECT id FROM catalog.course WHERE public_id = 'jav
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_303'), 'Honours Retry-After, then backs off with full jitter', '{"options":{"baseMs":100},"random":[0.5],"outcomes":[{"error":{"status":429,"retryAfterMs":2000}},{"error":{"status":503}},{"value":"confirmed"}]}', '{"outcome":"resolved:confirmed","calls":[0,2000,2100],"settledAt":2100,"timersLeft":0}', 6, true, false, 1),
@@ -834,7 +861,9 @@ VALUES ('chal_quiz_js_411', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_411');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_411');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_411'), 'Each page holds 100 orders and the first flagged order is o-130 (on page 2):
@@ -888,12 +917,13 @@ VALUES ('chal_coding_js_412', (SELECT id FROM catalog.course WHERE public_id = '
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_412'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_412');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_412'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_412');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_412'), 'paginate walks every page in order until nextCursor is null', '{"mode":"paginate","pages":[{"items":["o1","o2","o3"],"nextCursor":"c2"},{"items":["o4","o5","o6"],"nextCursor":"c3"},{"items":["o7"],"nextCursor":null}]}', '{"items":["o1","o2","o3","o4","o5","o6","o7"],"requests":[null,"c2","c3"],"fetchedBeforeFirstNext":0}', 6, true, false, 1),
@@ -926,7 +956,9 @@ VALUES ('chal_quiz_js_421', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_421');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_421');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_421'), '"Café au lait" is sent as UTF-8. The "é" is two bytes (0xC3 0xA9), and the network delivers chunk 1 = "Caf" + 0xC3 and chunk 2 = 0xA9 + " au lait". The client runs:
@@ -968,12 +1000,13 @@ VALUES ('chal_fix_js_422', (SELECT id FROM catalog.course WHERE public_id = 'jav
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_422'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_422');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_422'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_422');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_422'), 'ASCII CSV in three chunks', '{"text":"id,name\n1,Ann\n2,Bob\n","splitAt":[5,12]}', '{"text":"id,name\n1,Ann\n2,Bob\n","chunks":3,"locked":false}', 4, true, false, 1),
@@ -996,16 +1029,17 @@ ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDE
 
 -- challenge chal_coding_js_423 (mini_coding)
 INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
-VALUES ('chal_coding_js_423', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-4-2' AND is_deleted = false LIMIT 1), 'incremental-ndjson-parser', 'Write an incremental NDJSON parser', 'Write createNdjsonParser() returning { push(chunk), flush() }. push() returns the rows completed by this chunk and keeps an unfinished line for later; flush() returns the last row when the stream does not end with a newline. Skip blank lines, accept CRLF, and report malformed rows as { error: "INVALID_JSON", line } without stopping. The harness records which push() call emitted each row, so buffering everything until flush() does not count as streaming.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+VALUES ('chal_coding_js_423', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 4 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-4-2' AND is_deleted = false LIMIT 1), 'incremental-ndjson-parser', 'Write an incremental NDJSON parser', 'Write createNdjsonParser() returning { push(chunk), flush() }. push() returns the rows completed by this chunk and keeps an unfinished line for later; flush() returns the last row when the stream does not end with a newline. Skip blank lines, accept CRLF, and report malformed rows as { error: "INVALID_JSON", line } without stopping. The harness records which push() call emitted each row, so buffering everything until flush() does not count as streaming.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, false, false)
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_423'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_423');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_423'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_423');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_423'), 'A row split across two chunks is joined', '{"chunks":["{\"id\":1}\n{\"id\"",":2}\n{\"id\":3}\n"]}', '{"entries":[{"id":1},{"id":2},{"id":3}],"emittedBy":[0,1,1]}', 6, true, false, 1),
@@ -1038,7 +1072,9 @@ VALUES ('chal_quiz_js_431', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_431');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_431');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_431'), 'The thumbnail step and the uploader are decoupled with a bounded queue. No consumer has started yet:
@@ -1083,12 +1119,13 @@ VALUES ('chal_coding_js_432', (SELECT id FROM catalog.course WHERE public_id = '
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_432'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_432');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_432'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_432');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_432'), 'push resolves at once while there is room; pull returns items in FIFO order', '{"capacity":2,"steps":[{"op":"push","value":"a"},{"op":"push","value":"b"},{"op":"pull"},{"op":"pull"}]}', '["push a","push a -> ok","push b","push b -> ok","pull#1","pull#1 -> a","pull#2","pull#2 -> b"]', 6, true, false, 1),
@@ -1127,7 +1164,9 @@ VALUES ('chal_quiz_js_511', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_511');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_511');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_511'), 'The product editor autosaves the description while the merchant types. Saving on every keystroke sends 300 PUT requests per paragraph. Product wants: save once the merchant pauses, and never lose more than 5 seconds of typing if they type non-stop for minutes. Which setup fits?', 'single_choice'::question_type, 'A trailing debounce waits for the pause and then saves the latest text, which is exactly what an autosave needs. On its own it would never fire for a user who never pauses, so maxWait bounds how long unsaved text can pile up. A throttle would save mid-word on a fixed rhythm and could miss the final keystrokes unless it has a trailing call; a leading debounce saves the first keystroke of a burst, which is the least useful version of the text.', 1, 5
@@ -1163,12 +1202,13 @@ VALUES ('chal_coding_js_512', (SELECT id FROM catalog.course WHERE public_id = '
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_512'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_512');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_512'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_512');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_512'), 'Trailing debounce saves the latest text once the user pauses', '{"waitMs":300,"timeline":[{"call":"h"},{"advance":50},{"call":"he"},{"advance":50},{"call":"hel"},{"advance":900},{"call":"hello"}]}', '[{"at":400,"args":["hel"]},{"at":1300,"args":["hello"]}]', 6, true, false, 1),
@@ -1191,11 +1231,13 @@ ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDE
 
 -- challenge chal_quiz_js_513 (quiz)
 INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
-VALUES ('chal_quiz_js_513', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 5 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-5-1' AND is_deleted = false LIMIT 1), 'debounced-typeahead-stale-results-quiz', 'Is a debounce enough for typeahead?', 'The search box is debounced now. Support still reports wrong results. Find out why.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+VALUES ('chal_quiz_js_513', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 5 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-5-1' AND is_deleted = false LIMIT 1), 'debounced-typeahead-stale-results-quiz', 'Is a debounce enough for typeahead?', 'The search box is debounced now. Support still reports wrong results. Find out why.', 'open', 'medium'::difficulty_question, 'quiz', 10, false, false)
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_513');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_513');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_513'), 'A store search box calls search(query) through a 250 ms trailing debounce. A user types "lap", pauses 300 ms, then types "laptop". The request for "lap" takes 900 ms, the one for "laptop" 200 ms. Both render results when they resolve. What does the user see, and what is the fix?', 'single_choice'::question_type, 'Debounce reduces how many requests start, but once two requests are in flight nothing orders their responses. "laptop" resolves first and renders, then the slow "lap" response arrives and overwrites it with stale results. Rate shaping and cancellation solve different problems: keep the debounce, and also abort the previous request (or ignore any response that is not for the latest query) - the latest-request-wins pattern from the AbortController lesson.', 1, 10
@@ -1223,12 +1265,13 @@ VALUES ('chal_fix_js_521', (SELECT id FROM catalog.course WHERE public_id = 'jav
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_521'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_521');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_521'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_521');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_521'), '6 items of 4 ms with a 10 ms budget: two slices', '{"items":[1,2,3,4,5,6],"costMs":4,"budgetMs":10}', '{"slices":[[1,2,3],[4,5,6]],"results":[10,20,30,40,50,60]}', 4, true, false, 1),
@@ -1255,7 +1298,9 @@ VALUES ('chal_quiz_js_522', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_522');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_522');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_522'), 'The "Apply filter" handler does this:
@@ -1296,16 +1341,17 @@ FROM q, (VALUES
 
 -- challenge chal_coding_js_523 (mini_coding)
 INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
-VALUES ('chal_coding_js_523', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 5 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-5-2' AND is_deleted = false LIMIT 1), 'priority-time-slicing-scheduler', 'Build a priority scheduler with time slicing', 'Write createScheduler({ sliceMs }, { now, yieldToHost }) returning schedule(task, priority). Run units of work highest priority first (FIFO within a priority, continuations keep their place), re-pick before every unit, and hand the main thread back to the host whenever a turn has used up sliceMs. The harness is the host: it runs one turn at a time on a fake clock, injects input between turns and compares the units run in each turn.', 'open', 'hard'::difficulty_question, 'mini_coding', 30, true, false)
+VALUES ('chal_coding_js_523', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 5 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-5-2' AND is_deleted = false LIMIT 1), 'priority-time-slicing-scheduler', 'Build a priority scheduler with time slicing', 'Write createScheduler({ sliceMs }, { now, yieldToHost }) returning schedule(task, priority). Run units of work highest priority first (FIFO within a priority, continuations keep their place), re-pick before every unit, and hand the main thread back to the host whenever a turn has used up sliceMs. The harness is the host: it runs one turn at a time on a fake clock, injects input between turns and compares the units run in each turn.', 'open', 'hard'::difficulty_question, 'mini_coding', 30, false, false)
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_523'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_523');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_523'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_523');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_523'), 'A long background job is split into slices', '{"sliceMs":10,"tasks":[{"name":"index","units":6,"cost":4,"priority":"background"}]}', '[["index:1","index:2","index:3"],["index:4","index:5","index:6"]]', 6, true, false, 1),
@@ -1338,7 +1384,9 @@ VALUES ('chal_quiz_js_531', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_531');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_531');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_531'), 'A chat panel registers and later cleans up a resize handler like this:
@@ -1366,12 +1414,13 @@ VALUES ('chal_fix_js_532', (SELECT id FROM catalog.course WHERE public_id = 'jav
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_532'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_532');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_532'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_532');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_532'), 'One mount/unmount cycle leaves nothing behind', '{"steps":[{"op":"mount","as":"A"},{"op":"interact"},{"op":"report"},{"op":"unmount","as":"A"},{"op":"report"}]}', '[{"listeners":2,"subscriptions":1,"intervals":1,"views":{"A":{"clicks":1,"closed":true,"price":100,"polls":1}}},{"listeners":0,"subscriptions":0,"intervals":0,"views":{"A":{"clicks":1,"closed":true,"price":100,"polls":1}}}]', 6, true, false, 1),
@@ -1393,11 +1442,13 @@ ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDE
 
 -- challenge chal_quiz_js_533 (quiz)
 INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
-VALUES ('chal_quiz_js_533', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 5 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-5-3' AND is_deleted = false LIMIT 1), 'heap-snapshot-detached-dom-quiz', 'Reading a heap snapshot', 'You have taken heap snapshots before and after navigating away from the chat view. Interpret what DevTools shows.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+VALUES ('chal_quiz_js_533', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 5 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-5-3' AND is_deleted = false LIMIT 1), 'heap-snapshot-detached-dom-quiz', 'Reading a heap snapshot', 'You have taken heap snapshots before and after navigating away from the chat view. Interpret what DevTools shows.', 'open', 'medium'::difficulty_question, 'quiz', 10, false, false)
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_533');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_533');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_533'), 'In the chat app you open a conversation, go back to the inbox, and repeat 10 times. A heap snapshot filtered by "Detached" shows 10 "Detached <div class=conversation>" trees. The retainers panel for one of them shows: Window -> socket (WebSocket) -> listeners -> onMessage (closure) -> context -> listEl. Which statements are correct? (Select all that apply.)', 'multiple_choice'::question_type, 'A detached tree is a DOM subtree removed from the document but still reachable from JavaScript, so the garbage collector cannot free it. The retainer path is read from the GC root toward the object: the long-lived WebSocket holds a message listener whose closure captured listEl, which pins the whole conversation subtree - ten opens, ten copies. Forcing GC does not help while that path exists. The fix is to remove that listener (or unsubscribe) when the conversation view is torn down; removing the div from the DOM is exactly what already happened, and is not enough on its own.', 1, 10
@@ -1431,7 +1482,9 @@ VALUES ('chal_quiz_js_611', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_611');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_611');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_611'), 'fetchWithRetry(api, { delayMs: 1000 }) calls api(); on failure it waits with setTimeout(delayMs) and calls api() again. This Vitest test times out after 5 seconds:
@@ -1467,12 +1520,13 @@ VALUES ('chal_coding_js_612', (SELECT id FROM catalog.course WHERE public_id = '
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_612'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_612');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_612'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_612');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_612'), 'Timers fire in due-time order, ties in creation order', '{"steps":[{"op":"timeout","name":"a","ms":30},{"op":"timeout","name":"b","ms":10},{"op":"timeout","name":"c","ms":10},{"op":"timeout","name":"d"},{"op":"tick","ms":30}]}', '["d@0","b@10","c@10","a@30","now=30"]', 6, true, false, 1),
@@ -1495,11 +1549,13 @@ ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDE
 
 -- challenge chal_quiz_js_613 (quiz)
 INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
-VALUES ('chal_quiz_js_613', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 6 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-6-1' AND is_deleted = false LIMIT 1), 'advance-sync-vs-async-quiz', 'Three seconds passed, but only one poll ran', 'The fake clock moved forward, yet the code under test barely moved. Explain the gap between timers and promise callbacks.', 'open', 'hard'::difficulty_question, 'quiz', 10, true, false)
+VALUES ('chal_quiz_js_613', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 6 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-6-1' AND is_deleted = false LIMIT 1), 'advance-sync-vs-async-quiz', 'Three seconds passed, but only one poll ran', 'The fake clock moved forward, yet the code under test barely moved. Explain the gap between timers and promise callbacks.', 'open', 'hard'::difficulty_question, 'quiz', 10, false, false)
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_613');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_613');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_613'), 'pollJob(getStatus) calls the async function getStatus(); when it resolves with ''pending'', it schedules the next poll with setTimeout(poll, 1000). The test:
@@ -1535,7 +1591,9 @@ VALUES ('chal_quiz_js_621', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_621');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_621');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_621'), 'A job-search panel keeps its request state in three variables and renders with:
@@ -1576,12 +1634,13 @@ VALUES ('chal_coding_js_622', (SELECT id FROM catalog.course WHERE public_id = '
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_622'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_622');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_622'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_622');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_622'), 'FETCH then RESOLVE reaches success', '{"events":[{"type":"FETCH"},{"type":"RESOLVE","requestId":1,"data":["job-1","job-2"]}]}', '{"statuses":["loading","success"],"ignored":0,"mutated":false,"final":{"status":"success","requestId":1,"data":["job-1","job-2"]}}', 6, true, false, 1),
@@ -1604,16 +1663,17 @@ ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDE
 
 -- challenge chal_fix_js_623 (fix_bug)
 INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
-VALUES ('chal_fix_js_623', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 6 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-6-2' AND is_deleted = false LIMIT 1), 'fix-stale-response-controller', 'Fix the controller that lets a stale response win', 'The request machine ignores stale events, yet users on slow networks still see results - or an error - for the query they typed before the current one. The bug is in the controller that feeds events into the machine. Fix createRequestController so every response is reported for the request that produced it.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, true, false)
+VALUES ('chal_fix_js_623', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 6 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-6-2' AND is_deleted = false LIMIT 1), 'fix-stale-response-controller', 'Fix the controller that lets a stale response win', 'The request machine ignores stale events, yet users on slow networks still see results - or an error - for the query they typed before the current one. The bug is in the controller that feeds events into the machine. Fix createRequestController so every response is reported for the request that produced it.', 'open', 'medium'::difficulty_question, 'fix_bug', 20, false, false)
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_623'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_623');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_623'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_623');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_js_623'), 'A single search shows its results', '{"steps":[{"op":"load","params":"hanoi"},{"op":"resolve","call":0,"data":["Hanoi"]}]}', '{"renders":["loading#1","success#1"],"final":{"status":"success","requestId":1,"data":["Hanoi"]}}', 5, true, false, 1),
@@ -1645,7 +1705,9 @@ VALUES ('chal_quiz_js_631', (SELECT id FROM catalog.course WHERE public_id = 'ja
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_631');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_631');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_631'), 'The field-service app flushes its outbox and send() fails. Which of these failures should keep the mutation in the outbox so a later flush sends it again? Select all that apply.', 'multiple_choice'::question_type, 'A 503 and a network TypeError say nothing about the mutation itself - the same request can succeed later, so the edit must stay queued. A TypeError from fetch carries no status code at all; treating unknown errors as transient protects the user''s data, and the worst case is one more attempt. A 422 (invalid data) and a 403 (no longer allowed to edit the job) will fail identically on every retry: keeping them would block every later edit of that record. Report them, park them where the user or support can see them, and move on.', 1, 10
@@ -1667,12 +1729,13 @@ VALUES ('chal_coding_js_632', (SELECT id FROM catalog.course WHERE public_id = '
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_632'), 'browser', 2000, 128, NULL, 'all_or_nothing')
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_632');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_632'), 'browser', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_632');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_js_632'), 'Unsent edits of the same record are merged into one mutation', '{"maxInFlight":2,"steps":[{"op":"enqueue","id":"m1","recordId":"job-17","patch":{"status":"en-route"}},{"op":"enqueue","id":"m2","recordId":"job-18","patch":{"notes":"Gate code 4411"}},{"op":"enqueue","id":"m3","recordId":"job-17","patch":{"status":"on-site","arrivedAt":"09:40"}},{"op":"flush"},{"op":"flush"}]}', '{"calls":["m1 job-17 {\"status\":\"on-site\",\"arrivedAt\":\"09:40\"}","m2 job-18 {\"notes\":\"Gate code 4411\"}"],"maxConcurrent":2,"sameRecordOverlap":false,"flushes":[{"sent":["m1","m2"],"failed":[],"pending":[]},{"sent":[],"failed":[],"pending":[]}]}', 6, true, false, 1),
@@ -1695,11 +1758,13 @@ ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDE
 
 -- challenge chal_quiz_js_633 (quiz)
 INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
-VALUES ('chal_quiz_js_633', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 6 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-6-3' AND is_deleted = false LIMIT 1), 'idempotent-mutation-id-quiz', 'The edit that vanished on retry', 'Mutation ids let the server ignore duplicates. Combine that with a well-meant optimisation and see what happens.', 'open', 'hard'::difficulty_question, 'quiz', 10, true, false)
+VALUES ('chal_quiz_js_633', (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'javascript-async-architecture_2026100901') AND order_index = 6 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-js-6-3' AND is_deleted = false LIMIT 1), 'idempotent-mutation-id-quiz', 'The edit that vanished on retry', 'Mutation ids let the server ignore duplicates. Combine that with a well-meant optimisation and see what happens.', 'open', 'hard'::difficulty_question, 'quiz', 10, false, false)
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_633');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_633');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_js_633'), 'The server stores every processed mutation id and, when it sees an id again, returns the stored result without applying anything. The client sends m-41 { status: ''done'' } for job-42. The server applies it, but the response is lost in a tunnel, so the client keeps m-41 in the outbox. The technician then captures the customer''s signature, and the client merges { signature: ''sig-9'' } into m-41 because ''it was never confirmed anyway''. On the next flush m-41 is sent again. What is the result?', 'single_choice'::question_type, 'To the server, m-41 is a duplicate: it was processed once, so the stored result is returned and the new payload is never applied. The client removes m-41 as ''sent'' and the signature is lost silently. (A stricter server may reject the reused id because the payload changed - the edit still does not land.) Once a mutation has been sent, its id and content are frozen: new edits must go into a new mutation with a new id, queued behind it. That is also why PATCH being ''usually safe to retry'' is not a guarantee - HTTP does not define PATCH as idempotent; the mutation id is what makes retries safe.', 1, 10

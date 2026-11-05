@@ -1,0 +1,6 @@
+# @piece setup-node-inputs: test: the caller's Node version, with the npm cache
+- uses: actions/setup-node@v5
+  with:
+    node-version: ${{ github.event.inputs.node-version }}
+    cache: npm
+    cache-dependency-path: ${{ github.event.inputs.working-directory }}/package-lock.json

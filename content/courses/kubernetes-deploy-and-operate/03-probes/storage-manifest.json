@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_k8s_132",
+      "key": "challenges/yaml/chal_coding_k8s_132/starter.yml",
+      "contentType": "application/yaml; charset=utf-8",
+      "originalName": "k8s/api-deployment.yaml",
+      "size": 818
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_k8s_132",
+      "key": "challenges/yaml/chal_coding_k8s_132/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 28910
+    }
+  ]
+}

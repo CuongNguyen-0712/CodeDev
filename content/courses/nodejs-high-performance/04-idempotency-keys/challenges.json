@@ -106,6 +106,7 @@
     },
     {
       "publicId": "chal_quiz_nhp_203",
+      "published": false,
       "name": "idempotency-storage-quiz",
       "type": "quiz",
       "title": "Storing idempotency keys safely",

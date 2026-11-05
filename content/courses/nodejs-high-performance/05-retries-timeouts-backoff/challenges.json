@@ -209,6 +209,7 @@
     },
     {
       "publicId": "chal_coding_nhp_213",
+      "published": false,
       "name": "circuit-breaker-states",
       "type": "mini_coding",
       "title": "Build a circuit breaker for the fraud-scoring client",

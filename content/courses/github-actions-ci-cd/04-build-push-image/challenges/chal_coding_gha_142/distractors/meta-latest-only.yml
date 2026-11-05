@@ -1,0 +1,7 @@
+# @piece meta-tags: Tags naming the commit, branch, pull request and release
+- id: meta
+  uses: docker/metadata-action@v5
+  with:
+    images: ghcr.io/rice-rocket/api
+    tags: |
+      type=raw,value=latest

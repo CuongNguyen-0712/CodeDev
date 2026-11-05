@@ -80,6 +80,7 @@
     },
     {
       "publicId": "chal_coding_nhp_123",
+      "published": false,
       "name": "etag-if-match-update",
       "type": "mini_coding",
       "title": "Implement PUT with ETag and If-Match",
@@ -151,6 +152,7 @@
     },
     {
       "publicId": "chal_quiz_nhp_124",
+      "published": false,
       "name": "optimistic-vs-pessimistic-quiz",
       "type": "quiz",
       "title": "Optimistic or pessimistic?",

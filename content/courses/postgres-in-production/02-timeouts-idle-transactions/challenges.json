@@ -1,0 +1,362 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pgp_121",
+      "name": "timeouts-quiz",
+      "type": "quiz",
+      "title": "Read the stuck checkout",
+      "description": "Three statements about the checkout that held its locks for three minutes, and the timeouts the team set afterwards. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "connections"
+      ],
+      "points": 10,
+      "hints": [
+        "Look at the `state` column: what is the session doing right now? `pg_cancel_backend` cancels the current query; what does that do to a session that has none?",
+        "When does a backend read the settings attached to its role: on every statement, or once when the session starts? How long do pooled connections live?",
+        "Read the error text: which timeout fired, and what was the statement waiting for? Without that timeout, what limit (if any) would have stopped the wait?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The on-call engineer finds the session behind the checkout queue:\n\n```text\nrocket=# SELECT pid, state, now() - state_change AS idle_for, left(query, 60) AS last_query\n         FROM pg_stat_activity WHERE pid = 31337;\n  pid  |        state        | idle_for |                       last_query\n-------+---------------------+----------+--------------------------------------------------------\n 31337 | idle in transaction | 00:03:02 | SELECT * FROM orders WHERE id = $1 FOR UPDATE\n```\n\nStatement: \"`SELECT pg_cancel_backend(31337);` releases the row lock: it cancels the session's transaction.\"",
+          "explanation": "False. `pg_cancel_backend` cancels the query that is running; an idle-in-transaction session runs none, so nothing happens and the lock stays. `pg_terminate_backend(31337)` ends the session, which rolls the transaction back and frees the lock. `idle_in_transaction_session_timeout` does the same automatically. The real bug is in the app: it called the payment provider while holding the transaction open.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the incident the DBA runs, and checks right away:\n\n```sql\nALTER ROLE api SET statement_timeout = '5s';\n```\n\n```text\nrocket=# SELECT pid, now() - query_start AS running, left(query, 40)\n         FROM pg_stat_activity WHERE usename = 'api' AND state = 'active';\n  pid  | running  |                  left\n-------+----------+------------------------------------------\n 31412 | 00:00:41 | SELECT o.*, r.name FROM orders o JOIN re\n```\n\nStatement: \"The new setting applies to every session of the role at once, so this 41-second query proves the setting is ignored.\"",
+          "explanation": "False. A role's settings are applied when a session starts. Connections that PgBouncer or the pods' pools already hold keep the old value until they reconnect (PgBouncer's `server_lifetime`, a pod restart, or `RECONNECT` in the PgBouncer console). New sessions get 5s. `SHOW statement_timeout` on a fresh connection confirms it. The misconception is that ALTER ROLE changes live sessions.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The checkout now sets a lock timeout for its row lock:\n\n```sql\nBEGIN;\nSET LOCAL lock_timeout = '2s';\nSELECT * FROM orders WHERE id = 81723 FOR UPDATE;\n```\n\n```text\nERROR:  canceling statement due to lock timeout\nCONTEXT:  while locking tuple (1404,7) in relation \"orders\"\n```\n\nStatement: \"The SELECT waited 2 seconds for a lock another transaction held on that row and then gave up with an error; without `lock_timeout` it would have waited until `statement_timeout` fired, or with no statement_timeout for as long as the other transaction kept the lock.\"",
+          "explanation": "True. `lock_timeout` limits how long one statement waits to acquire a lock; it does not limit the statement's own work. Without it, the wait counts against `statement_timeout`, and with neither set the statement waits until the lock holder commits or rolls back. Failing fast lets the api answer \"order is being updated, try again\" instead of piling up blocked requests.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pgp_122",
+      "name": "session-watchdog",
+      "type": "fix_bug",
+      "title": "Fix the session watchdog",
+      "description": "After the stuck checkout, a teammate wrote a watchdog that reads `pg_stat_activity` every 30 seconds. In its first week it killed the replication connection, cut off pooled sessions that were only waiting for work, and left the next stuck checkout alone. The editor holds `watchdog.py` with its decision blocks missing, each marked by a `# [ ]` line; some pieces are last week's buggy versions. Fill every line so that the watchdog: never touches its own session, non-client backends or plain `idle` sessions; terminates sessions idle in a transaction longer than the limit, counted from when they went idle (`state_change`); cancels active queries running longer than the limit, counted from `query_start`; and recommends the `ALTER ROLE` settings that make PostgreSQL do this itself. The docstring is the exact contract.",
+      "difficulty": "medium",
+      "outcomes": [
+        "connections"
+      ],
+      "points": 30,
+      "hints": [
+        "For each row ask three questions in order: may I touch it at all, what state is it in, and since when has it been in that state?",
+        "`xact_start` is when the transaction began, `query_start` when the last query began, `state_change` when the state last changed. Which one says how long a session has been idle? And which function ends a session that runs no query?",
+        "A watchdog for the nightly jobs of role `etl`: skip rows whose `backend_type` is not `client backend`; for `active` rows compute `now - query_start` and cancel above 600; for `idle in transaction` rows compute `now - state_change` and terminate above 60; then emit `ALTER ROLE etl SET statement_timeout = '600s'`."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "watchdog.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: terminate the stuck checkout, cancel the blocked one, leave pooled idle sessions",
+          "input": {
+            "now": 1000000,
+            "my_pid": 4242,
+            "limits": {
+              "idle_in_transaction_s": 30,
+              "statement_s": 60
+            },
+            "rows": [
+              {
+                "pid": 31337,
+                "usename": "api",
+                "backend_type": "client backend",
+                "state": "idle in transaction",
+                "xact_start": 999815,
+                "query_start": 999818,
+                "state_change": 999820,
+                "wait_event_type": null,
+                "query": "SELECT * FROM orders WHERE id = $1 FOR UPDATE"
+              },
+              {
+                "pid": 31400,
+                "usename": "api",
+                "backend_type": "client backend",
+                "state": "active",
+                "xact_start": 999998,
+                "query_start": 999998,
+                "state_change": 999998,
+                "wait_event_type": null,
+                "query": "SELECT * FROM restaurants WHERE id = $1"
+              },
+              {
+                "pid": 31401,
+                "usename": "api",
+                "backend_type": "client backend",
+                "state": "active",
+                "xact_start": 999829,
+                "query_start": 999830,
+                "state_change": 999830,
+                "wait_event_type": "Lock",
+                "query": "SELECT * FROM orders WHERE id = $1 FOR UPDATE"
+              },
+              {
+                "pid": 31600,
+                "usename": "api",
+                "backend_type": "client backend",
+                "state": "idle",
+                "xact_start": null,
+                "query_start": 999100,
+                "state_change": 999101,
+                "wait_event_type": null,
+                "query": "COMMIT"
+              }
+            ]
+          },
+          "expected": {
+            "terminate": [
+              [
+                31337,
+                "idle in transaction for 180s"
+              ]
+            ],
+            "cancel": [
+              [
+                31401,
+                "query running for 170s"
+              ]
+            ],
+            "alter_role": [
+              "ALTER ROLE api SET idle_in_transaction_session_timeout = '30s'",
+              "ALTER ROLE api SET statement_timeout = '60s'"
+            ]
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "The 40-minute analytics query is cancelled; replication, autovacuum and the watchdog are not",
+          "input": {
+            "now": 1000000,
+            "my_pid": 4242,
+            "limits": {
+              "idle_in_transaction_s": 30,
+              "statement_s": 60
+            },
+            "rows": [
+              {
+                "pid": 4242,
+                "usename": "watchdog",
+                "backend_type": "client backend",
+                "state": "active",
+                "xact_start": 1000000,
+                "query_start": 1000000,
+                "state_change": 1000000,
+                "wait_event_type": null,
+                "query": "SELECT * FROM pg_stat_activity"
+              },
+              {
+                "pid": 9001,
+                "usename": "replicator",
+                "backend_type": "walsender",
+                "state": "active",
+                "xact_start": null,
+                "query_start": 913600,
+                "state_change": 913600,
+                "wait_event_type": null,
+                "query": "START_REPLICATION SLOT standby_1"
+              },
+              {
+                "pid": 9002,
+                "usename": null,
+                "backend_type": "autovacuum worker",
+                "state": "active",
+                "xact_start": 999100,
+                "query_start": 999100,
+                "state_change": 999100,
+                "wait_event_type": null,
+                "query": "autovacuum: VACUUM public.order_events"
+              },
+              {
+                "pid": 31500,
+                "usename": "analytics",
+                "backend_type": "client backend",
+                "state": "active",
+                "xact_start": 997600,
+                "query_start": 997600,
+                "state_change": 997600,
+                "wait_event_type": null,
+                "query": "SELECT date_trunc('hour', created_at), count(*) FROM orders GROUP BY 1"
+              }
+            ]
+          },
+          "expected": {
+            "terminate": [],
+            "cancel": [
+              [
+                31500,
+                "query running for 2400s"
+              ]
+            ],
+            "alter_role": [
+              "ALTER ROLE analytics SET idle_in_transaction_session_timeout = '30s'",
+              "ALTER ROLE analytics SET statement_timeout = '60s'"
+            ]
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "A long transaction idle for only 10s is left alone; an aborted one idle for 45s is terminated",
+          "input": {
+            "now": 1000000,
+            "my_pid": 4242,
+            "limits": {
+              "idle_in_transaction_s": 30,
+              "statement_s": 60
+            },
+            "rows": [
+              {
+                "pid": 31700,
+                "usename": "api",
+                "backend_type": "client backend",
+                "state": "idle in transaction",
+                "xact_start": 999600,
+                "query_start": 999940,
+                "state_change": 999990,
+                "wait_event_type": null,
+                "query": "UPDATE orders SET status = 'archived' WHERE created_at < $1"
+              },
+              {
+                "pid": 31701,
+                "usename": "courier",
+                "backend_type": "client backend",
+                "state": "idle in transaction (aborted)",
+                "xact_start": 999950,
+                "query_start": 999954,
+                "state_change": 999955,
+                "wait_event_type": null,
+                "query": "INSERT INTO courier_pings VALUES ($1, $2, $3)"
+              }
+            ]
+          },
+          "expected": {
+            "terminate": [
+              [
+                31701,
+                "idle in transaction for 45s"
+              ]
+            ],
+            "cancel": [],
+            "alter_role": [
+              "ALTER ROLE courier SET idle_in_transaction_session_timeout = '30s'",
+              "ALTER ROLE courier SET statement_timeout = '60s'"
+            ]
+          },
+          "hidden": true,
+          "score": 7
+        },
+        {
+          "name": "A quiet database: old idle pooled sessions and short queries give an empty decision",
+          "input": {
+            "now": 1000000,
+            "my_pid": 4242,
+            "limits": {
+              "idle_in_transaction_s": 30,
+              "statement_s": 60
+            },
+            "rows": [
+              {
+                "pid": 31800,
+                "usename": "api",
+                "backend_type": "client backend",
+                "state": "idle",
+                "xact_start": null,
+                "query_start": 996400,
+                "state_change": 996400,
+                "wait_event_type": null,
+                "query": "SELECT 1"
+              },
+              {
+                "pid": 31801,
+                "usename": "api",
+                "backend_type": "client backend",
+                "state": "idle",
+                "xact_start": null,
+                "query_start": 999880,
+                "state_change": 999881,
+                "wait_event_type": null,
+                "query": "COMMIT"
+              },
+              {
+                "pid": 31802,
+                "usename": "api",
+                "backend_type": "client backend",
+                "state": "active",
+                "xact_start": 999999,
+                "query_start": 999999,
+                "state_change": 999999,
+                "wait_event_type": null,
+                "query": "SELECT * FROM couriers WHERE zone = $1"
+              },
+              {
+                "pid": 31803,
+                "usename": "api",
+                "backend_type": "client backend",
+                "state": "idle in transaction",
+                "xact_start": 999997,
+                "query_start": 999998,
+                "state_change": 999998,
+                "wait_event_type": null,
+                "query": "SELECT * FROM carts WHERE id = $1"
+              }
+            ]
+          },
+          "expected": {
+            "terminate": [],
+            "cancel": [],
+            "alter_role": []
+          },
+          "hidden": true,
+          "score": 7
+        }
+      ]
+    }
+  ]
+}

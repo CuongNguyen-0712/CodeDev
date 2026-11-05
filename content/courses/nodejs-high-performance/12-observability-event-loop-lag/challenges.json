@@ -92,6 +92,7 @@
     },
     {
       "publicId": "chal_coding_nhp_423",
+      "published": false,
       "name": "load-shedder",
       "type": "mini_coding",
       "title": "Fail fast with a load shedder",

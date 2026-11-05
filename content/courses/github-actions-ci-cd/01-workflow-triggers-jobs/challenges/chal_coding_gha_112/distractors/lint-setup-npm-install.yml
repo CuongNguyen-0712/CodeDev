@@ -1,0 +1,5 @@
+# @piece lint-setup: lint: the code, Node from .nvmrc and the locked dependencies
+- uses: actions/setup-node@v5
+  with:
+    node-version-file: api/.nvmrc
+- run: npm install

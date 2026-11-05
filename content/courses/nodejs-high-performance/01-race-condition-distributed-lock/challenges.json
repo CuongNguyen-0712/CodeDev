@@ -49,6 +49,7 @@
     },
     {
       "publicId": "chal_quiz_nhp_103",
+      "published": false,
       "name": "lock-ttl-expiry-quiz",
       "type": "quiz",
       "title": "What if the lock expires mid-payment?",
@@ -72,6 +73,7 @@
     },
     {
       "publicId": "chal_coding_nhp_104",
+      "published": false,
       "name": "redis-lock-acquire-release",
       "type": "mini_coding",
       "title": "Implement acquire/release for a Redis lock",

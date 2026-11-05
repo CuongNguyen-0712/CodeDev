@@ -1,0 +1,2 @@
+# @piece continue-on-error: A failure that must not fail the whole run
+continue-on-error: true

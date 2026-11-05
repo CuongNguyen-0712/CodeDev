@@ -1,0 +1,49 @@
+"""
+Vacuum health check for Rice Rocket's database, run every 5 minutes by the monitoring job.
+Last month it reported "ok" while courier_locations grew from 200 MB to 9 GB. Fix it.
+
+Input (rows as the monitoring job reads them):
+  settings   {"autovacuum_vacuum_threshold": 50, "autovacuum_vacuum_scale_factor": 0.2}  (server defaults)
+  tables     [{"relname", "reltuples", "n_live_tup", "n_dead_tup", "options": {...}}]
+             reltuples comes from pg_class, the counters from pg_stat_user_tables, options are the
+             table's storage parameters (ALTER TABLE ... SET (autovacuum_vacuum_scale_factor = ...))
+  sessions   [{"pid", "state", "xmin_age"}]       pg_stat_activity, xmin_age = age(backend_xmin)
+  slots      [{"slot_name", "active", "xmin_age"}] pg_replication_slots, xmin_age = age(xmin)
+  max_xmin_age  a session or slot holding the xmin horizon longer than this blocks cleanup
+
+Output:
+  {"tables": {relname: "ok" | "vacuum lagging" | "blocked by pid <pid>" | "blocked by slot <name>"},
+   "blocker": "pid <pid>" | "slot <name>" | null}
+  A table needs vacuum when n_dead_tup > threshold + scale_factor * reltuples (the autovacuum trigger,
+  with the table's own storage parameters over the server settings). It is "blocked" when a blocker
+  exists: dead rows newer than the blocker's xmin cannot be removed by any vacuum.
+"""
+import json
+import sys
+
+
+# [ ] Autovacuum settings that apply to one table
+
+
+# [ ] Dead rows that make autovacuum start
+
+
+# [ ] The session or slot that holds the xmin horizon back
+
+
+def check(settings, tables, sessions, slots, max_xmin_age):
+    blocker = find_blocker(sessions, slots, max_xmin_age)
+    result = {}
+    for table in tables:
+        params = table_settings(table, settings)
+        if table["n_dead_tup"] <= vacuum_threshold(table, params):
+            result[table["relname"]] = "ok"
+        # [ ] Status of a table that needs vacuum
+    return {"tables": result, "blocker": blocker}
+
+
+# ---------------------------------------------------------------- test runner (do not change)
+# Reads one case {"settings", "tables", "sessions", "slots", "max_xmin_age"} from stdin, prints the result.
+if __name__ == "__main__":
+    case = json.load(sys.stdin)
+    print(json.dumps(check(case["settings"], case["tables"], case["sessions"], case["slots"], case["max_xmin_age"])))

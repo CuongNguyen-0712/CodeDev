@@ -1,0 +1,29 @@
+# Rice Rocket api. GET /health answers once the process is up (about 20 s to load the price
+# cache, up to 50 s on a cold node); GET /ready also checks that Postgres answers.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: rice-rocket
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/rice-rocket/api:1.4.0
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: api-config
+          # [ ] Give a slow boot up to 60 s before other probes
+          # [ ] Send traffic only while the api can serve it
+          # [ ] Restart only a process that stopped answering

@@ -1,0 +1,743 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_k8s_151",
+      "name": "requests-limits-quiz",
+      "type": "quiz",
+      "title": "Read the night the api ran out of memory",
+      "description": "Three statements about what happened on Rice Rocket's nodes during the monthly report export. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "capacity"
+      ],
+      "points": 10,
+      "hints": [
+        "The scheduler never looks at `kubectl top`. Which numbers in the pod spec does it add up against the node's allocatable, and when does it look at them?",
+        "Memory and CPU are enforced differently by the kernel. One can be taken back slowly from a process, the other cannot. Which one is which?",
+        "Read `lastState.terminated` of the restarted container: the reason and the exit code. 137 is 128 + 9: which signal is 9, and who sends it when a cgroup's memory is full?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Five api pods without any `resources:` ran on one node while the other node was nearly empty:\n\n```text\n$ kubectl get pods -o wide -n rice-rocket\nNAME                   READY   STATUS    NODE\napi-5c9d7f6b8-2xkqz    1/1     Running   pool-a-1\napi-5c9d7f6b8-7hd2m    1/1     Running   pool-a-1\napi-5c9d7f6b8-9pq4r    1/1     Running   pool-a-1\napi-5c9d7f6b8-kd8w1    1/1     Running   pool-a-1\napi-5c9d7f6b8-x7v3n    1/1     Running   pool-a-1\n$ kubectl top nodes\nNAME       CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%\npool-a-1   1810m        93%    3021Mi          89%\npool-a-2   95m          4%     610Mi           18%\n```\n\nStatement: \"The scheduler will move some of these pods to pool-a-2 on its own once it sees pool-a-1 at 93% CPU.\"",
+          "explanation": "False. The scheduler places a pod once, when it is created, by adding up the pods' **requests** against each node's allocatable; it never reads live usage and never moves a running pod. Pods with no requests count as zero, so all five fit on pool-a-1. They stay there until they are deleted (or evicted). Setting requests (`cpu: 250m`, `memory: 256Mi`) makes the scheduler spread new pods; a rollout (`kubectl rollout restart deployment/api`) then places them again. The misconception is that Kubernetes balances running load by itself.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The api container has `limits: { cpu: 500m, memory: 768Mi }`. During a burst of orders:\n\n```text\n$ kubectl top pod api-5c9d7f6b8-2xkqz --containers\nPOD                   NAME   CPU(cores)   MEMORY(bytes)\napi-5c9d7f6b8-2xkqz   api    500m         402Mi\n\n# container_cpu_cfs_throttled_periods_total / container_cpu_cfs_periods_total\napi   0.71\n```\n\nStatement: \"If the burst keeps the api above 500m for long enough, the kubelet restarts the container with OOMKilled, the same way it does for memory.\"",
+          "explanation": "False. CPU is a compressible resource: at its limit the kernel's CFS quota **throttles** the container (71% of periods were throttled here) and requests take longer, but the container is never killed or restarted for using CPU. Memory cannot be taken back, so a container over its memory limit is killed (OOMKilled). The fix for this p99 spike is a higher CPU limit or none (keep the request), not more memory. The misconception is that both limits end the same way.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "During the report export the api restarted three times:\n\n```text\n$ kubectl get pod api-5c9d7f6b8-7hd2m -o jsonpath='{.status.containerStatuses[0].lastState}'\n{\"terminated\":{\"exitCode\":137,\"reason\":\"OOMKilled\",\"startedAt\":\"2026-11-03T02:10:41Z\",\"finishedAt\":\"2026-11-03T02:12:07Z\"}}\n$ kubectl get pod api-5c9d7f6b8-7hd2m -o jsonpath='{.spec.containers[0].resources}'\n{\"limits\":{\"memory\":\"768Mi\"},\"requests\":{\"cpu\":\"700m\",\"memory\":\"512Mi\"}}\n```\n\nStatement: \"The container went over its own 768Mi memory limit and the kernel killed it (137 = SIGKILL); the fix is a higher limit or a report export that streams instead of holding every row in memory.\"",
+          "explanation": "True. Reason `OOMKilled` with exit code 137 (128 + 9, SIGKILL) means the cgroup of this container hit its memory limit and the kernel's OOM killer ended the process; the kubelet then restarted it. It is not a node problem (that would show as an eviction, `reason: Evicted`). Either the limit is too low for the real peak, or the code holds too much (here: building the whole export in memory). The misconception is to look for an app bug in the logs: an OOM-killed process usually logs nothing at all.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_k8s_152",
+      "name": "node-capacity-planner",
+      "type": "mini_coding",
+      "title": "Plan a node: requests, QoS, OOMKilled and eviction",
+      "description": "Before setting `resources:` on every Rice Rocket workload, the team wants a small tool that shows what one node does with a list of pods. The editor holds `plan-node.js` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. `planNode(node, pods)` must: read quantities (`250m` and `1` for CPU; `Ki/Mi/Gi` are powers of 1024, `k/M/G` powers of 1000, a bare number is bytes); bind pods in arrival order while the sum of their **requests** fits the node's allocatable (a container with only a limit requests its limit; check CPU first, then memory; a pod that does not fit is pending with reason `Insufficient cpu` or `Insufficient memory`); give every pod a QoS class (`BestEffort` when no container sets any request or limit; `Guaranteed` when every container has CPU and memory limits and its requests equal them; otherwise `Burstable`); for each bound container report `OOMKilled` when its memory usage is above its memory limit, else `Throttled` when its CPU usage is above its CPU limit, else `Running`; and rank the bound pods for eviction under memory pressure: pods using more memory than they request first, then lower `priority` first, then the largest usage minus requests first, then arrival order. Run grades it on scripted nodes and pods.",
+      "difficulty": "medium",
+      "outcomes": [
+        "capacity"
+      ],
+      "points": 30,
+      "hints": [
+        "Take the first test on paper: add up what each api pod asks for, not what it uses, and stop when the next pod does not fit into 1930m.",
+        "Each helper answers one question: what is this quantity in millicores or bytes, how much does the pod request, which QoS class is it, what happens to a container over a limit, who goes first when memory runs out. The loop only calls them.",
+        "A disk planner that binds volumes in order while their requested size fits the free space: `if (want > free) { pending.push({ name, reason: \"Insufficient storage\" }); continue; } free -= want;`, where `want` is `request ?? limit`, and `\"10G\"` is `10 * 1e9` bytes while `\"10Gi\"` is `10 * 1024 ** 3`."
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "tools/capacity/plan-node.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Binds by requests, not by usage: the third api replica stays Pending on cpu",
+          "input": {
+            "node": {
+              "name": "pool-a-1",
+              "allocatable": {
+                "cpu": "1930m",
+                "memory": "3.3Gi"
+              }
+            },
+            "pods": [
+              {
+                "name": "api-a",
+                "containers": [
+                  {
+                    "name": "api",
+                    "resources": {
+                      "requests": {
+                        "cpu": "700m",
+                        "memory": "512Mi"
+                      },
+                      "limits": {
+                        "memory": "768Mi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "100m",
+                      "memory": "300Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "api-b",
+                "containers": [
+                  {
+                    "name": "api",
+                    "resources": {
+                      "requests": {
+                        "cpu": "700m",
+                        "memory": "512Mi"
+                      },
+                      "limits": {
+                        "memory": "768Mi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "100m",
+                      "memory": "300Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "api-c",
+                "containers": [
+                  {
+                    "name": "api",
+                    "resources": {
+                      "requests": {
+                        "cpu": "700m",
+                        "memory": "512Mi"
+                      },
+                      "limits": {
+                        "memory": "768Mi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "100m",
+                      "memory": "300Mi"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "scheduled": [
+              "api-a",
+              "api-b"
+            ],
+            "pending": [
+              {
+                "name": "api-c",
+                "reason": "Insufficient cpu"
+              }
+            ],
+            "qos": {
+              "api-a": "Burstable",
+              "api-b": "Burstable",
+              "api-c": "Burstable"
+            },
+            "containers": {
+              "api-a/api": "Running",
+              "api-b/api": "Running"
+            },
+            "evictionOrder": [
+              "api-a",
+              "api-b"
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Memory over its limit is OOMKilled; CPU over its limit is only throttled",
+          "input": {
+            "node": {
+              "name": "pool-a-1",
+              "allocatable": {
+                "cpu": "1930m",
+                "memory": "3.3Gi"
+              }
+            },
+            "pods": [
+              {
+                "name": "api-a",
+                "containers": [
+                  {
+                    "name": "api",
+                    "resources": {
+                      "requests": {
+                        "cpu": "250m",
+                        "memory": "256Mi"
+                      },
+                      "limits": {
+                        "cpu": "500m",
+                        "memory": "512Mi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "900m",
+                      "memory": "700Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "api-b",
+                "containers": [
+                  {
+                    "name": "api",
+                    "resources": {
+                      "requests": {
+                        "cpu": "250m",
+                        "memory": "256Mi"
+                      },
+                      "limits": {
+                        "cpu": "500m",
+                        "memory": "512Mi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "900m",
+                      "memory": "300Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "api-c",
+                "containers": [
+                  {
+                    "name": "api",
+                    "resources": {
+                      "requests": {
+                        "cpu": "250m",
+                        "memory": "256Mi"
+                      },
+                      "limits": {
+                        "cpu": "500m",
+                        "memory": "512Mi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "200m",
+                      "memory": "300Mi"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "scheduled": [
+              "api-a",
+              "api-b",
+              "api-c"
+            ],
+            "pending": [],
+            "qos": {
+              "api-a": "Burstable",
+              "api-b": "Burstable",
+              "api-c": "Burstable"
+            },
+            "containers": {
+              "api-a/api": "OOMKilled",
+              "api-b/api": "Throttled",
+              "api-c/api": "Running"
+            },
+            "evictionOrder": [
+              "api-a",
+              "api-b",
+              "api-c"
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "QoS: Guaranteed needs CPU and memory requests equal to limits in every container",
+          "input": {
+            "node": {
+              "name": "pool-a-1",
+              "allocatable": {
+                "cpu": "1930m",
+                "memory": "3.3Gi"
+              }
+            },
+            "pods": [
+              {
+                "name": "matcher",
+                "containers": [
+                  {
+                    "name": "matcher",
+                    "resources": {
+                      "limits": {
+                        "cpu": "500m",
+                        "memory": "512Mi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "300m",
+                      "memory": "400Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "api",
+                "containers": [
+                  {
+                    "name": "api",
+                    "resources": {
+                      "requests": {
+                        "cpu": "250m",
+                        "memory": "512Mi"
+                      },
+                      "limits": {
+                        "memory": "512Mi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "200m",
+                      "memory": "400Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "debug",
+                "containers": [
+                  {
+                    "name": "shell",
+                    "resources": {},
+                    "usage": {
+                      "cpu": "10m",
+                      "memory": "20Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "web",
+                "containers": [
+                  {
+                    "name": "nginx",
+                    "resources": {
+                      "requests": {
+                        "cpu": "100m",
+                        "memory": "64Mi"
+                      },
+                      "limits": {
+                        "cpu": "100m",
+                        "memory": "64Mi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "50m",
+                      "memory": "40Mi"
+                    }
+                  },
+                  {
+                    "name": "log-shipper",
+                    "resources": {},
+                    "usage": {
+                      "cpu": "5m",
+                      "memory": "30Mi"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "scheduled": [
+              "matcher",
+              "api",
+              "debug",
+              "web"
+            ],
+            "pending": [],
+            "qos": {
+              "matcher": "Guaranteed",
+              "api": "Burstable",
+              "debug": "BestEffort",
+              "web": "Burstable"
+            },
+            "containers": {
+              "matcher/matcher": "Running",
+              "api/api": "Running",
+              "debug/shell": "Running",
+              "web/nginx": "Running",
+              "web/log-shipper": "Running"
+            },
+            "evictionOrder": [
+              "debug",
+              "web",
+              "matcher",
+              "api"
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Eviction: pods over their memory requests go first, then low priority, then the largest excess",
+          "input": {
+            "node": {
+              "name": "pool-a-1",
+              "allocatable": {
+                "cpu": "1930m",
+                "memory": "3.3Gi"
+              }
+            },
+            "pods": [
+              {
+                "name": "api",
+                "priority": 1000,
+                "containers": [
+                  {
+                    "name": "api",
+                    "resources": {
+                      "limits": {
+                        "cpu": "250m",
+                        "memory": "512Mi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "200m",
+                      "memory": "400Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "courier-matcher",
+                "containers": [
+                  {
+                    "name": "matcher",
+                    "resources": {
+                      "requests": {
+                        "cpu": "200m",
+                        "memory": "256Mi"
+                      },
+                      "limits": {
+                        "memory": "1Gi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "150m",
+                      "memory": "600Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "debug",
+                "containers": [
+                  {
+                    "name": "shell",
+                    "resources": {},
+                    "usage": {
+                      "cpu": "10m",
+                      "memory": "50Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "report-export",
+                "containers": [
+                  {
+                    "name": "export",
+                    "resources": {
+                      "requests": {
+                        "cpu": "500m",
+                        "memory": "1Gi"
+                      },
+                      "limits": {
+                        "memory": "1536Mi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "400m",
+                      "memory": "900Mi"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "scheduled": [
+              "api",
+              "courier-matcher",
+              "debug",
+              "report-export"
+            ],
+            "pending": [],
+            "qos": {
+              "api": "Guaranteed",
+              "courier-matcher": "Burstable",
+              "debug": "BestEffort",
+              "report-export": "Burstable"
+            },
+            "containers": {
+              "api/api": "Running",
+              "courier-matcher/matcher": "Running",
+              "debug/shell": "Running",
+              "report-export/export": "Running"
+            },
+            "evictionOrder": [
+              "courier-matcher",
+              "debug",
+              "report-export",
+              "api"
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Units: 512M is 512,000,000 bytes and 512Mi is 536,870,912",
+          "input": {
+            "node": {
+              "name": "pool-small-1",
+              "allocatable": {
+                "cpu": "2",
+                "memory": "1060M"
+              }
+            },
+            "pods": [
+              {
+                "name": "api",
+                "containers": [
+                  {
+                    "name": "api",
+                    "resources": {
+                      "requests": {
+                        "cpu": "250m",
+                        "memory": "512Mi"
+                      },
+                      "limits": {
+                        "memory": "600M"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "100m",
+                      "memory": "590Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "courier-matcher",
+                "containers": [
+                  {
+                    "name": "matcher",
+                    "resources": {
+                      "requests": {
+                        "cpu": "250m",
+                        "memory": "512M"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "100m",
+                      "memory": "300Mi"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "scheduled": [
+              "api",
+              "courier-matcher"
+            ],
+            "pending": [],
+            "qos": {
+              "api": "Burstable",
+              "courier-matcher": "Burstable"
+            },
+            "containers": {
+              "api/api": "OOMKilled",
+              "courier-matcher/matcher": "Running"
+            },
+            "evictionOrder": [
+              "api",
+              "courier-matcher"
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A limit alone is also the request; arrival order decides who stays Pending",
+          "input": {
+            "node": {
+              "name": "pool-a-1",
+              "allocatable": {
+                "cpu": "1930m",
+                "memory": "3.3Gi"
+              }
+            },
+            "pods": [
+              {
+                "name": "report-export",
+                "containers": [
+                  {
+                    "name": "export",
+                    "resources": {
+                      "limits": {
+                        "cpu": "1500m",
+                        "memory": "1Gi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "900m",
+                      "memory": "700Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "api",
+                "containers": [
+                  {
+                    "name": "api",
+                    "resources": {
+                      "requests": {
+                        "cpu": "250m",
+                        "memory": "256Mi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "100m",
+                      "memory": "200Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "web",
+                "containers": [
+                  {
+                    "name": "nginx",
+                    "resources": {
+                      "requests": {
+                        "cpu": "100m",
+                        "memory": "3Gi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "10m",
+                      "memory": "50Mi"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "courier-matcher",
+                "containers": [
+                  {
+                    "name": "matcher",
+                    "resources": {
+                      "requests": {
+                        "cpu": "200m",
+                        "memory": "64Mi"
+                      }
+                    },
+                    "usage": {
+                      "cpu": "50m",
+                      "memory": "40Mi"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "scheduled": [
+              "report-export",
+              "api"
+            ],
+            "pending": [
+              {
+                "name": "web",
+                "reason": "Insufficient memory"
+              },
+              {
+                "name": "courier-matcher",
+                "reason": "Insufficient cpu"
+              }
+            ],
+            "qos": {
+              "report-export": "Guaranteed",
+              "api": "Burstable",
+              "web": "Burstable",
+              "courier-matcher": "Burstable"
+            },
+            "containers": {
+              "report-export/export": "Running",
+              "api/api": "Running"
+            },
+            "evictionOrder": [
+              "api",
+              "report-export"
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

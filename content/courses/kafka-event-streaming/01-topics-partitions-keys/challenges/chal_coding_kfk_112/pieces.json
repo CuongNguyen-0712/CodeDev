@@ -1,0 +1,35 @@
+[
+  {
+    "id": "topic-config",
+    "label": "Name, partitions and replication of the orders topic",
+    "code": "const ORDERS_TOPIC: TopicSpec = {\n    topic: \"orders.v1\",\n    numPartitions: 12,\n    replicationFactor: 3,\n    configEntries: [{ name: \"min.insync.replicas\", value: \"2\" }],\n};"
+  },
+  {
+    "id": "pick-key",
+    "label": "The key that keeps one order's events in order",
+    "code": "const key = event.orderId;"
+  },
+  {
+    "id": "event-headers",
+    "label": "Headers a consumer reads before parsing the value",
+    "code": "const headers = { \"event-type\": event.type, \"schema-version\": \"1\" };"
+  },
+  {
+    "id": "pick-key-event-id",
+    "label": "The key that keeps one order's events in order",
+    "code": "const key = event.eventId;",
+    "distractor": true
+  },
+  {
+    "id": "pick-key-none",
+    "label": "The key that keeps one order's events in order",
+    "code": "const key = null;",
+    "distractor": true
+  },
+  {
+    "id": "pick-key-restaurant",
+    "label": "The key that keeps one order's events in order",
+    "code": "const key = event.restaurantId;",
+    "distractor": true
+  }
+]

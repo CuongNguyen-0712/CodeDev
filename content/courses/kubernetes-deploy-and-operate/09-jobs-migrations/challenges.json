@@ -1,0 +1,226 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_k8s_192",
+      "name": "migration-job-nightly-cronjob",
+      "type": "mini_coding",
+      "title": "Run the migration as a Job and the cleanup as a CronJob",
+      "description": "Rice Rocket's migrations used to run in the api's start command, so six replicas raced on the same migration. Release 1.5.0 moves them into a Job that CI applies and waits for before it changes the api image, and moves the cart cleanup into a nightly CronJob. The editor holds `k8s/jobs.yaml` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: a failed migration is retried once in a new pod (so the failed pod's logs stay readable) and the Job gives up after 5 minutes in any case; the finished Job and its pods are deleted a day later; the cleanup runs every night at 03:00 Ho Chi Minh City time (the cluster's controllers run in UTC), never twice at the same time, never more than 10 minutes late, and is stopped after one hour. Run grades the file with a simulator of the Job and CronJob controllers.",
+      "difficulty": "hard",
+      "outcomes": [
+        "operations"
+      ],
+      "points": 40,
+      "hints": [
+        "Work through the timelines in the tests: for the Job, count pods and seconds until it is Complete or Failed; for the CronJob, write down the local time of each run and what happens when one hangs or the controller is down at 03:00.",
+        "Look at the Job fields `backoffLimit`, `activeDeadlineSeconds`, `ttlSecondsAfterFinished` and the pod's `restartPolicy`, and at the CronJob fields `schedule`, `timeZone`, `concurrencyPolicy`, `startingDeadlineSeconds` and the `activeDeadlineSeconds` inside `jobTemplate.spec`.",
+        "A weekly report for a team in Berlin, Mondays at 07:30 local time, never overlapping, skipped when it is more than 5 minutes late, a run stopped after 20 minutes: `schedule: \"30 7 * * 1\"`, `timeZone: Europe/Berlin`, `concurrencyPolicy: Forbid`, `startingDeadlineSeconds: 300`, and `activeDeadlineSeconds: 1200` under `jobTemplate.spec`."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": "k8s/jobs.yaml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A broken migration fails after one retry in a new pod, not after half an hour",
+          "input": {
+            "checks": [
+              "parse",
+              "job"
+            ],
+            "attempts": [
+              {
+                "result": "fail",
+                "seconds": 120
+              }
+            ]
+          },
+          "expected": {
+            "parse": "ok",
+            "job": {
+              "pods": 2,
+              "condition": "Failed",
+              "reason": "BackoffLimitExceeded",
+              "finishedAfter": 250,
+              "deletedAfter": 86650
+            }
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "The cleanup runs at 03:00 Ho Chi Minh City time every night",
+          "input": {
+            "checks": [
+              "cron"
+            ],
+            "window": {
+              "from": "11-02 00:00",
+              "hours": 48
+            },
+            "durations": [
+              600,
+              600
+            ]
+          },
+          "expected": {
+            "cron": [
+              {
+                "scheduled": "11-02 03:00",
+                "started": "11-02 03:00",
+                "ended": "11-02 03:10",
+                "result": "Complete"
+              },
+              {
+                "scheduled": "11-03 03:00",
+                "started": "11-03 03:00",
+                "ended": "11-03 03:10",
+                "result": "Complete"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "A migration that fails once (a lock timeout) completes on its retry",
+          "input": {
+            "checks": [
+              "job"
+            ],
+            "attempts": [
+              {
+                "result": "fail",
+                "seconds": 40
+              },
+              {
+                "result": "ok",
+                "seconds": 60
+              }
+            ]
+          },
+          "expected": {
+            "job": {
+              "pods": 2,
+              "condition": "Complete",
+              "reason": null,
+              "finishedAfter": 110,
+              "deletedAfter": 86510
+            }
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A migration stuck on a lock is stopped after 5 minutes",
+          "input": {
+            "checks": [
+              "job"
+            ],
+            "attempts": [
+              {
+                "result": "ok",
+                "seconds": 900
+              }
+            ]
+          },
+          "expected": {
+            "job": {
+              "pods": 1,
+              "condition": "Failed",
+              "reason": "DeadlineExceeded",
+              "finishedAfter": 300,
+              "deletedAfter": 86700
+            }
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A hung run is stopped after an hour, and the next nights run as usual",
+          "input": {
+            "checks": [
+              "cron"
+            ],
+            "window": {
+              "from": "11-02 00:00",
+              "hours": 72
+            },
+            "durations": [
+              108000,
+              600,
+              600
+            ]
+          },
+          "expected": {
+            "cron": [
+              {
+                "scheduled": "11-02 03:00",
+                "started": "11-02 03:00",
+                "ended": "11-02 04:00",
+                "result": "DeadlineExceeded"
+              },
+              {
+                "scheduled": "11-03 03:00",
+                "started": "11-03 03:00",
+                "ended": "11-03 03:10",
+                "result": "Complete"
+              },
+              {
+                "scheduled": "11-04 03:00",
+                "started": "11-04 03:00",
+                "ended": "11-04 03:10",
+                "result": "Complete"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A run missed while the controller was down is skipped, not started at 09:55",
+          "input": {
+            "checks": [
+              "cron"
+            ],
+            "window": {
+              "from": "11-02 00:00",
+              "hours": 48
+            },
+            "durations": [
+              600,
+              600
+            ],
+            "controllerDown": [
+              [
+                "11-02 02:50",
+                "11-02 09:55"
+              ]
+            ]
+          },
+          "expected": {
+            "cron": [
+              {
+                "scheduled": "11-02 03:00",
+                "result": "skipped: missed the starting deadline"
+              },
+              {
+                "scheduled": "11-03 03:00",
+                "started": "11-03 03:00",
+                "ended": "11-03 03:10",
+                "result": "Complete"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

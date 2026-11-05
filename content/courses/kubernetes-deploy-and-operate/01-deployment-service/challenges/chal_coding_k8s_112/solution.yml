@@ -1,0 +1,51 @@
+# Rice Rocket api on Kubernetes: three replicas behind one Service, namespace rice-rocket.
+# The image listens on port 3000 (GET /health). Other teams' pods (web, courier-matcher) carry
+# app.kubernetes.io/part-of: rice-rocket too.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: rice-rocket
+spec:
+  # @piece replicas: How many copies of the api run at once
+  replicas: 3
+  # @end
+  # @piece deployment-selector: Which pods this Deployment owns
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  # @end
+  template:
+    metadata:
+      # @piece template-labels: Labels every api pod carries
+      labels:
+        app.kubernetes.io/name: api
+        app.kubernetes.io/part-of: rice-rocket
+      # @end
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/rice-rocket/api:1.4.0
+          # @piece container-port: The port the api listens on, with a name
+          ports:
+            - name: http
+              containerPort: 3000
+          # @end
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: rice-rocket
+spec:
+  type: ClusterIP
+  # @piece service-selector: Which pods receive the Service's traffic
+  selector:
+    app.kubernetes.io/name: api
+  # @end
+  # @piece service-ports: Service port 80 to the api's port
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  # @end

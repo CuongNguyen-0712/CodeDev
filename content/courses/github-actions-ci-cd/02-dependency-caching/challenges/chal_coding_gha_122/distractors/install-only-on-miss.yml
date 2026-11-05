@@ -1,0 +1,3 @@
+# @piece install-always: Install the locked dependencies
+- run: npm ci
+  if: steps.npm-cache.outputs.cache-hit != 'true'

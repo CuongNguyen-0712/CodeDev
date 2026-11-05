@@ -1,0 +1,277 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_tf_111",
+      "name": "resources-variables-outputs-quiz",
+      "type": "quiz",
+      "title": "Read the first plans",
+      "description": "Three statements about what Rice Rocket saw the first time it ran `terraform plan` on infrastructure that used to be clicked together in the AWS console. Decide whether each one is true.",
+      "difficulty": "easy",
+      "outcomes": [
+        "config-basics"
+      ],
+      "points": 10,
+      "hints": [
+        "Ask who decides an `arn` or an `id`: you in the configuration, or the cloud provider when the object is created?",
+        "Run the plan in your head with `-input=false`, as CI does: where could a value for a variable with no default come from?",
+        "Terraform's state maps each resource address (`aws_s3_bucket.uploads`) to one real object. What does a new address look like to it?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The first plan for the uploads bucket shows:\n\n```text\n  # aws_s3_bucket.uploads will be created\n  + resource \"aws_s3_bucket\" \"uploads\" {\n      + arn                         = (known after apply)\n      + bucket                      = \"rice-rocket-staging-uploads\"\n      + bucket_domain_name          = (known after apply)\n      + id                          = (known after apply)\n      + tags                        = {\n          + \"Environment\" = \"staging\"\n          + \"Project\"     = \"rice-rocket\"\n        }\n    }\n\nPlan: 1 to add, 0 to change, 0 to destroy.\n```\n\nStatement: \"`arn` and `id` are set by AWS when the bucket is created, so the plan cannot know them yet; any value built from them is also `(known after apply)`.\"",
+          "explanation": "True. Attributes you set (`bucket`, `tags`) are known at plan time. Computed attributes are filled in by the provider from the API's answer after the object exists, so the plan shows `(known after apply)`. An expression that uses them, like `aws_s3_bucket.uploads.arn` in an output or another resource, is unknown in the same plan. The misconception is that a plan has asked AWS for those values.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The CI job runs the plan without a value for `env`:\n\n```hcl\nvariable \"env\" {\n  type = string\n}\n```\n\n```text\n$ terraform plan -input=false\n```\n\nStatement: \"Terraform treats a variable with no default and no value as an empty string, so the plan names the bucket `rice-rocket--uploads` and carries on.\"",
+          "explanation": "False. A variable without a default is required. Interactively Terraform asks for it; with `-input=false` (as in CI) the plan stops with an error saying no value was given for the required variable `env`. Values come from `-var`, `-var-file`, `*.auto.tfvars` files or `TF_VAR_env`. The misconception is that missing variables default to empty, which would silently create wrongly named resources.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A teammate renamed the resource label to read better and planned again:\n\n```diff\n- resource \"aws_s3_bucket\" \"uploads\" {\n+ resource \"aws_s3_bucket\" \"user_uploads\" {\n    bucket = \"rice-rocket-staging-uploads\"\n  }\n```\n\n```text\n  # aws_s3_bucket.uploads will be destroyed\n  # aws_s3_bucket.user_uploads will be created\nPlan: 1 to add, 0 to change, 1 to destroy.\n```\n\nStatement: \"State maps each resource address to one real object, so a renamed label looks like a new resource and the old one gets destroyed, unless a `moved` block says the two addresses are the same object.\"",
+          "explanation": "True. Terraform does not compare bucket names to guess that two resources are the same: state stores `aws_s3_bucket.uploads` -> the real bucket, and `aws_s3_bucket.user_uploads` has no entry, so it plans a create and a destroy (which would fail anyway on a bucket that still holds objects, or worse succeed on an empty one). A `moved { from = aws_s3_bucket.uploads  to = aws_s3_bucket.user_uploads }` block turns the change into a rename in state; lesson 5 covers it. Resource labels are part of the identity, not cosmetics.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_tf_112",
+      "name": "uploads-bucket-and-logs",
+      "type": "mini_coding",
+      "title": "Describe the uploads bucket and the api logs",
+      "description": "Until now Rice Rocket's uploads bucket and the api's log group were clicked together in the AWS console, once per environment, with small differences nobody could explain. The editor holds `infra/main.tf` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: `env` accepts only `staging` or `production` (error message `env must be staging or production.`); every name starts with `rice-rocket-<env>` and every resource that takes tags gets `Project`, `Environment` and `ManagedBy`; the bucket `rice-rocket-<env>-uploads` keeps old versions and blocks public access; the versioning and public access settings follow whichever bucket the environment creates; the api log group `/rice-rocket-<env>/api` keeps logs 30 days in production and 7 elsewhere; and the outputs give the bucket's name and ARN. Run plans the file for staging and production with a plan simulator.",
+      "difficulty": "easy",
+      "outcomes": [
+        "config-basics"
+      ],
+      "points": 20,
+      "hints": [
+        "Plan it for two environments in your head: which values must change with `env`, and which resources must point at the bucket instead of at its name written out?",
+        "Look at a `validation` block inside `variable`, a `locals` block, string templates `\"${local.name}-uploads\"`, references like `aws_s3_bucket.uploads.id`, a conditional `a ? b : c`, and `output` blocks.",
+        "A queue per environment with a dead-letter queue looks like: `locals { name = \"shop-${var.stage}\" }`, `resource \"aws_sqs_queue\" \"dlq\" { name = \"${local.name}-dlq\" }`, `resource \"aws_sqs_queue\" \"jobs\" { name = \"${local.name}-jobs\"  message_retention_seconds = var.stage == \"prod\" ? 1209600 : 345600  redrive_policy = jsonencode({ deadLetterTargetArn = aws_sqs_queue.dlq.arn, maxReceiveCount = 5 }) }`, and `output \"jobs_url\" { value = aws_sqs_queue.jobs.url }`."
+      ],
+      "coding": {
+        "language": "hcl",
+        "filePath": "infra/main.tf",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A staging plan creates the bucket, its two settings and the log group",
+          "input": {
+            "checks": [
+              "parse",
+              "plan",
+              "actions"
+            ],
+            "vars": {
+              "env": "staging"
+            }
+          },
+          "expected": {
+            "parse": "ok",
+            "plan": "Plan: 4 to add, 0 to change, 0 to destroy.",
+            "actions": {
+              "aws_cloudwatch_log_group.api": "create",
+              "aws_s3_bucket.uploads": "create",
+              "aws_s3_bucket_public_access_block.uploads": "create",
+              "aws_s3_bucket_versioning.uploads": "create"
+            }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Staging: names, versioning, public access, 7-day logs and tags",
+          "input": {
+            "checks": [
+              "names",
+              "settings"
+            ],
+            "vars": {
+              "env": "staging"
+            }
+          },
+          "expected": {
+            "names": {
+              "bucket": "rice-rocket-staging-uploads",
+              "versioning": "follows the bucket",
+              "publicAccessBlock": "follows the bucket",
+              "logGroup": "/rice-rocket-staging/api"
+            },
+            "settings": {
+              "versioning": "Enabled",
+              "publicBlocked": true,
+              "logRetentionDays": 7,
+              "tags": {
+                "Project": "rice-rocket",
+                "Environment": "staging",
+                "ManagedBy": "terraform"
+              }
+            }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "An unknown environment name is refused before anything is planned",
+          "input": {
+            "checks": [
+              "plan"
+            ],
+            "vars": {
+              "env": "prod"
+            }
+          },
+          "expected": {
+            "plan": "Error: Invalid value for variable: var.env: env must be staging or production."
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Production gets its own bucket, settings that follow it and 30-day logs",
+          "input": {
+            "checks": [
+              "names",
+              "settings"
+            ],
+            "vars": {
+              "env": "production"
+            }
+          },
+          "expected": {
+            "names": {
+              "bucket": "rice-rocket-production-uploads",
+              "versioning": "follows the bucket",
+              "publicAccessBlock": "follows the bucket",
+              "logGroup": "/rice-rocket-production/api"
+            },
+            "settings": {
+              "versioning": "Enabled",
+              "publicBlocked": true,
+              "logRetentionDays": 30,
+              "tags": {
+                "Project": "rice-rocket",
+                "Environment": "production",
+                "ManagedBy": "terraform"
+              }
+            }
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Planned again over the staging state: no changes, and the outputs name the bucket",
+          "input": {
+            "checks": [
+              "plan",
+              "outputs"
+            ],
+            "vars": {
+              "env": "staging"
+            },
+            "state": {
+              "aws_s3_bucket.uploads": {
+                "type": "aws_s3_bucket",
+                "attrs": {
+                  "bucket": "rice-rocket-staging-uploads",
+                  "tags": {
+                    "Project": "rice-rocket",
+                    "Environment": "staging",
+                    "ManagedBy": "terraform"
+                  },
+                  "id": "rice-rocket-staging-uploads",
+                  "arn": "arn:aws:s3:::rice-rocket-staging-uploads"
+                }
+              },
+              "aws_s3_bucket_versioning.uploads": {
+                "type": "aws_s3_bucket_versioning",
+                "attrs": {
+                  "bucket": "rice-rocket-staging-uploads",
+                  "versioning_configuration": [
+                    {
+                      "status": "Enabled"
+                    }
+                  ],
+                  "id": "rice-rocket-staging-uploads"
+                }
+              },
+              "aws_s3_bucket_public_access_block.uploads": {
+                "type": "aws_s3_bucket_public_access_block",
+                "attrs": {
+                  "bucket": "rice-rocket-staging-uploads",
+                  "block_public_acls": true,
+                  "block_public_policy": true,
+                  "ignore_public_acls": true,
+                  "restrict_public_buckets": true,
+                  "id": "rice-rocket-staging-uploads"
+                }
+              },
+              "aws_cloudwatch_log_group.api": {
+                "type": "aws_cloudwatch_log_group",
+                "attrs": {
+                  "name": "/rice-rocket-staging/api",
+                  "retention_in_days": 7,
+                  "tags": {
+                    "Project": "rice-rocket",
+                    "Environment": "staging",
+                    "ManagedBy": "terraform"
+                  },
+                  "id": "/rice-rocket-staging/api",
+                  "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-staging/api"
+                }
+              }
+            }
+          },
+          "expected": {
+            "plan": "No changes. Your infrastructure matches the configuration.",
+            "outputs": {
+              "uploads_bucket": "rice-rocket-staging-uploads",
+              "uploads_bucket_arn": "arn:aws:s3:::rice-rocket-staging-uploads"
+            }
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

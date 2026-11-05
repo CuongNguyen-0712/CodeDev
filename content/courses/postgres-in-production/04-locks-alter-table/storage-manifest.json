@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_pgp_142",
+      "key": "challenges/python/chal_coding_pgp_142/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "tools/lint_migrations.py",
+      "size": 5073
+    }
+  ]
+}

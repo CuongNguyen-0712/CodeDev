@@ -1,0 +1,4 @@
+# @piece production-concurrency: production: one deploy at a time, none cut short
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true

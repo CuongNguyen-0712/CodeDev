@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Kubernetes in practice (a Deployment of three pods mid rollout, an old pod replaced by a new one, and a readiness probe passing). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0D1428"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#326CE5" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#326CE5" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8AB0F5"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#326CE5"/>
+    <path d="M158.0 166.0 L185.7 182.0 L185.7 214.0 L158.0 230.0 L130.3 214.0 L130.3 182.0 Z" fill="none" stroke="#F4F2F8" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M158.0 184.0 L170.1 191.0 L170.1 205.0 L158.0 212.0 L145.9 205.0 L145.9 191.0 Z" fill="#F4F2F8"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#8AB0F5">DEVOPS · KUBERNETES</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Kubernetes</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">in Practice</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Pods · Probes · Rollouts · Autoscaling</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#D3E1FB">
+      <rect x="110" y="660" width="144" height="52" rx="26" fill="#121C36" stroke="#326CE5"/>
+      <text x="182" y="695" text-anchor="middle">kubectl</text>
+      <rect x="270" y="660" width="244" height="52" rx="26" fill="#121C36" stroke="#326CE5"/>
+      <text x="392" y="695" text-anchor="middle">readinessProbe</text>
+      <rect x="530" y="660" width="87" height="52" rx="26" fill="#121C36" stroke="#326CE5"/>
+      <text x="573.5" y="695" text-anchor="middle">HPA</text>
+    </g>
+  </g>
+
+  <!-- Deployment with three pods, a rolling update from v1 to v2 and a readiness probe -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="904" y="196" font-size="20" letter-spacing="3" fill="#8AB0F5">DEPLOYMENT · replicas: 3</text>
+    <rect x="896" y="216" width="630" height="284" rx="18" fill="#111A2E" stroke="#326CE5" stroke-width="2"/>
+    <path d="M1010.0 278.0 L1063.7 309.0 L1063.7 371.0 L1010.0 402.0 L956.3 371.0 L956.3 309.0 Z" fill="#326CE5" stroke="#8AB0F5" stroke-width="2"/>
+    <text x="1010" y="349" font-size="26" font-weight="700" fill="#0D1428" text-anchor="middle">v2</text>
+    <text x="1010" y="452" font-size="20" fill="#B8B2C8" text-anchor="middle">api-7f2k</text>
+    <path d="M1210.0 278.0 L1263.7 309.0 L1263.7 371.0 L1210.0 402.0 L1156.3 371.0 L1156.3 309.0 Z" fill="#326CE5" stroke="#8AB0F5" stroke-width="2"/>
+    <text x="1210" y="349" font-size="26" font-weight="700" fill="#0D1428" text-anchor="middle">v2</text>
+    <text x="1210" y="452" font-size="20" fill="#B8B2C8" text-anchor="middle">api-9xq4</text>
+    <path d="M1410.0 278.0 L1463.7 309.0 L1463.7 371.0 L1410.0 402.0 L1356.3 371.0 L1356.3 309.0 Z" fill="#326CE5" fill-opacity="0.15" stroke="#6F6A80" stroke-width="2" stroke-dasharray="8 6"/>
+    <text x="1410" y="349" font-size="26" font-weight="700" fill="#6F6A80" text-anchor="middle">v1</text>
+    <text x="1410" y="452" font-size="20" fill="#8C8399" text-anchor="middle">terminating</text>
+    <text x="904" y="572" font-size="20" letter-spacing="3" fill="#8AB0F5">ROLLING UPDATE · maxSurge 1</text>
+    <path d="M1000.0 626.0 L1046.8 653.0 L1046.8 707.0 L1000.0 734.0 L953.2 707.0 L953.2 653.0 Z" fill="#326CE5" fill-opacity="0.12" stroke="#6F6A80" stroke-width="2" stroke-dasharray="8 6"/>
+    <text x="1000" y="689" font-size="24" font-weight="700" fill="#6F6A80" text-anchor="middle">v1</text>
+    <text x="1000" y="770" font-size="20" fill="#8C8399" text-anchor="middle">old</text>
+    <path d="M1068 680 H1176" stroke="#8AB0F5" stroke-width="4" marker-end="url(#arrow)"/>
+    <path d="M1240.0 626.0 L1286.8 653.0 L1286.8 707.0 L1240.0 734.0 L1193.2 707.0 L1193.2 653.0 Z" fill="#326CE5" stroke="#8AB0F5" stroke-width="2"/>
+    <text x="1240" y="689" font-size="24" font-weight="700" fill="#0D1428" text-anchor="middle">v2</text>
+    <text x="1240" y="770" font-size="20" fill="#B8B2C8" text-anchor="middle">new</text>
+    <path d="M1300 680 H1382" stroke="#6F6A80" stroke-width="3" stroke-dasharray="6 6"/>
+    <circle cx="1430" cy="680" r="42" fill="#3DBE7B"/>
+    <path d="M1413 682 L1424.9 694.75 L1447 668.4" fill="none" stroke="#0D1428" stroke-width="7.1" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="1430" y="770" font-size="20" fill="#9BE7BD" text-anchor="middle">/ready 200</text>
+  </g>
+</svg>

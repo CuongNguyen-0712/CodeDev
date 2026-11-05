@@ -1,0 +1,8 @@
+# @piece configmap-data: The api's settings that are not secret
+data:
+  NODE_ENV: production
+  PORT: 3000
+  DATABASE_HOST: db.internal.ricerocket.vn
+  DATABASE_USER: rocket
+  DATABASE_NAME: rocket
+  JWT_SECRET_FILE: /run/secrets/jwt_secret

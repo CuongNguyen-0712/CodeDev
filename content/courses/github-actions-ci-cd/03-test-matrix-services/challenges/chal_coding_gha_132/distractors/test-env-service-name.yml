@@ -1,0 +1,3 @@
+# @piece test-env: Where the tests find the database
+env:
+  DATABASE_URL: postgres://postgres:test@postgres:5432/postgres

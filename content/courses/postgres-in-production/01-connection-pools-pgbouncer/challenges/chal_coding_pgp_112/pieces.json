@@ -1,0 +1,45 @@
+[
+  {
+    "id": "mode-rules",
+    "label": "What each PgBouncer pool mode breaks",
+    "code": "# State that lives in a server session: a later transaction may run on another connection.\nSESSION_STATE = {\"session_set\", \"listen_notify\", \"session_advisory_lock\", \"temp_table\", \"with_hold_cursor\"}\nBROKEN = {\n    \"session\": set(),\n    \"transaction\": SESSION_STATE,\n    \"statement\": SESSION_STATE | {\"multi_statement_transaction\"},\n}"
+  },
+  {
+    "id": "available-connections",
+    "label": "Server connections the api may use",
+    "code": "available = server[\"max_connections\"] - server[\"superuser_reserved_connections\"] - server[\"other_clients\"]"
+  },
+  {
+    "id": "client-connections",
+    "label": "Connections the api opens at the worst moment",
+    "code": "clients = app[\"max_pods\"] * app[\"pool_max\"]"
+  },
+  {
+    "id": "server-demand",
+    "label": "Server connections the pool mode needs at peak",
+    "code": "needed = clients if mode == \"session\" else peak_active"
+  },
+  {
+    "id": "pool-cap",
+    "label": "What default_pool_size lets through, and who waits",
+    "code": "server_connections = min(needed, bouncer[\"default_pool_size\"])\nwaiting = needed - server_connections"
+  },
+  {
+    "id": "available-no-reserved",
+    "label": "Server connections the api may use",
+    "code": "available = server[\"max_connections\"] - server[\"other_clients\"]",
+    "distractor": true
+  },
+  {
+    "id": "clients-min-pods",
+    "label": "Connections the api opens at the worst moment",
+    "code": "clients = app[\"min_pods\"] * app[\"pool_max\"]",
+    "distractor": true
+  },
+  {
+    "id": "mode-rules-set-local",
+    "label": "What each PgBouncer pool mode breaks",
+    "code": "# State that lives in a server session: a later transaction may run on another connection.\nSESSION_STATE = {\"set_local\", \"listen_notify\", \"session_advisory_lock\", \"xact_advisory_lock\", \"temp_table\"}\nBROKEN = {\n    \"session\": set(),\n    \"transaction\": SESSION_STATE,\n    \"statement\": SESSION_STATE | {\"multi_statement_transaction\"},\n}",
+    "distractor": true
+  }
+]

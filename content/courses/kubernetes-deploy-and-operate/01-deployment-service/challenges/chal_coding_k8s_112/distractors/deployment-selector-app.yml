@@ -1,0 +1,4 @@
+# @piece deployment-selector: Which pods this Deployment owns
+selector:
+  matchLabels:
+    app: api

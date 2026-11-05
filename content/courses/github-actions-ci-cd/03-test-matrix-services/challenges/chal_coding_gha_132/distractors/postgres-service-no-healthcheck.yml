@@ -1,0 +1,8 @@
+# @piece postgres-service: Postgres of the matrix version, ready before tests
+services:
+  postgres:
+    image: postgres:${{ matrix.postgres }}
+    env:
+      POSTGRES_PASSWORD: test
+    ports:
+      - 5432:5432

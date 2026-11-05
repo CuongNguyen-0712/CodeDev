@@ -1,0 +1,160 @@
+{
+  "publicId": "postgres-in-production",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793806723/codedev/courses/postgres-in-production/cover",
+  "title": "PostgreSQL in Production: Pools, Migrations, Indexes and Backups",
+  "concept": "Run PostgreSQL behind a real API: connection pooling and PgBouncer, zero-downtime migrations, indexes picked from the queries you have, locks and long transactions, backups you have restored, and the metrics that warn you first. Challenges run SQL on SQLite and Python tools a backend engineer writes.",
+  "description": "Run PostgreSQL behind a real API: connection pooling and PgBouncer, zero-downtime migrations, indexes picked from the queries you have, locks and long transactions, backups you have restored, and the metrics that warn you first. Challenges run SQL on SQLite and Python tools a backend engineer writes. 8 lessons, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.",
+  "level": "advanced",
+  "durationMinutes": 150,
+  "instructor": "CodeDev Engineering Team",
+  "language": "Python",
+  "category": "Database",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "template": "core-first",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "backend_developer",
+    "data_engineer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "sql": 5,
+    "performance": 4,
+    "system_design": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "sql-data-modeling"
+  ],
+  "completionRules": {},
+  "domain": "data",
+  "learningOutcomes": [
+    {
+      "code": "connections",
+      "text": "Size connection pools, choose a PgBouncer mode and stop idle transactions and runaway queries with timeouts."
+    },
+    {
+      "code": "safe-migrations",
+      "text": "Change a live schema with expand and contract steps and lock-aware DDL that never blocks writes for long."
+    },
+    {
+      "code": "query-performance",
+      "text": "Pick indexes from the slow queries you have and page through large tables with keyset pagination."
+    },
+    {
+      "code": "operations",
+      "text": "Take backups you have restored, and read vacuum, bloat and the metrics that warn before an outage."
+    }
+  ],
+  "testedVersions": {
+    "PostgreSQL": "17 and 18 (to verify)",
+    "PgBouncer": "1.24 (to verify)",
+    "Python": "3.13",
+    "SQLite": "3.45+ (challenge runtime)"
+  },
+  "lastReviewedAt": "2026-11-05",
+  "sourceLinks": [
+    "https://www.postgresql.org/docs/current/runtime-config-client.html",
+    "https://www.pgbouncer.org/features.html",
+    "https://www.postgresql.org/docs/current/explicit-locking.html",
+    "https://www.postgresql.org/docs/current/indexes.html",
+    "https://www.postgresql.org/docs/current/continuous-archiving.html",
+    "https://www.postgresql.org/docs/current/routine-vacuuming.html"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges run on SQLite and on Python simulators of PostgreSQL behaviour (pools, locks, vacuum); the lessons show the real PostgreSQL commands and output.",
+    "testedVersions are not yet re-checked on a live server."
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Connections",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-connection-pools-pgbouncer",
+          "title": "Connection pools and PgBouncer modes",
+          "sanityId": "lesson-pgp-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-timeouts-idle-transactions",
+          "title": "Statement timeouts and idle transactions",
+          "sanityId": "lesson-pgp-1-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Schema changes",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "03-expand-contract-migrations",
+          "title": "Expand and contract migrations without downtime",
+          "sanityId": "lesson-pgp-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "04-locks-alter-table",
+          "title": "Locks that block writes: ALTER TABLE in production",
+          "sanityId": "lesson-pgp-2-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Queries",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "05-indexes-slow-queries",
+          "title": "Indexes chosen from the slow query log",
+          "sanityId": "lesson-pgp-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "06-keyset-pagination",
+          "title": "Keyset pagination for large tables",
+          "sanityId": "lesson-pgp-3-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Operations",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-backups-restore",
+          "title": "Backups and a restore you have tested",
+          "sanityId": "lesson-pgp-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-vacuum-bloat-metrics",
+          "title": "Vacuum, bloat and the metrics to watch",
+          "sanityId": "lesson-pgp-4-2"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+# @piece api-rule: /api and every path below it, to the api without /api
+- matches:
+    - path:
+        type: Exact
+        value: /api
+  backendRefs:
+    - name: api
+      port: 80

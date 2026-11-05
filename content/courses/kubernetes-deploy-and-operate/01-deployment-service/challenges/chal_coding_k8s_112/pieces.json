@@ -1,0 +1,50 @@
+[
+  {
+    "id": "replicas",
+    "label": "How many copies of the api run at once",
+    "code": "replicas: 3"
+  },
+  {
+    "id": "deployment-selector",
+    "label": "Which pods this Deployment owns",
+    "code": "selector:\n  matchLabels:\n    app.kubernetes.io/name: api"
+  },
+  {
+    "id": "template-labels",
+    "label": "Labels every api pod carries",
+    "code": "labels:\n  app.kubernetes.io/name: api\n  app.kubernetes.io/part-of: rice-rocket"
+  },
+  {
+    "id": "container-port",
+    "label": "The port the api listens on, with a name",
+    "code": "ports:\n  - name: http\n    containerPort: 3000"
+  },
+  {
+    "id": "service-selector",
+    "label": "Which pods receive the Service's traffic",
+    "code": "selector:\n  app.kubernetes.io/name: api"
+  },
+  {
+    "id": "service-ports",
+    "label": "Service port 80 to the api's port",
+    "code": "ports:\n  - name: http\n    port: 80\n    targetPort: http"
+  },
+  {
+    "id": "deployment-selector-app",
+    "label": "Which pods this Deployment owns",
+    "code": "selector:\n  matchLabels:\n    app: api",
+    "distractor": true
+  },
+  {
+    "id": "service-selector-part-of",
+    "label": "Which pods receive the Service's traffic",
+    "code": "selector:\n  app.kubernetes.io/part-of: rice-rocket",
+    "distractor": true
+  },
+  {
+    "id": "service-target-port-80",
+    "label": "Service port 80 to the api's port",
+    "code": "ports:\n  - name: http\n    port: 80\n    targetPort: 80",
+    "distractor": true
+  }
+]

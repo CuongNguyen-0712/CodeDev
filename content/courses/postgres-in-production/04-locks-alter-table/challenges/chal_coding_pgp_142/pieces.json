@@ -1,0 +1,45 @@
+[
+  {
+    "id": "column-default",
+    "label": "ADD COLUMN: when its default rewrites the table",
+    "code": "def default_rewrites(default, pg_version):\n    if default is None:\n        return False\n    if pg_version < 11:\n        return True\n    return any(f in default.lower().replace(\" \", \"\") for f in VOLATILE)"
+  },
+  {
+    "id": "concurrent-index",
+    "label": "CREATE INDEX with and without CONCURRENTLY",
+    "code": "if re.match(r\"create\\s+(unique\\s+)?index\\s+concurrently\\b\", low):\n    return finding(s, \"SHARE UPDATE EXCLUSIVE\", \"builds an index\", \"safe\", [s])\nif re.match(r\"create\\s+(unique\\s+)?index\\b\", low):\n    fixed = re.sub(r\"(?i)^create(\\s+unique)?\\s+index\\s+\", lambda m: f\"CREATE{m.group(1) or ''} INDEX CONCURRENTLY \", s)\n    return finding(s, \"SHARE\", \"builds an index\", \"unsafe\", [fixed])"
+  },
+  {
+    "id": "add-constraint",
+    "label": "ADD CONSTRAINT: NOT VALID now, VALIDATE afterwards",
+    "code": "if con:\n    lock = \"SHARE ROW EXCLUSIVE\" if con.group(2).lower().startswith(\"foreign\") else \"ACCESS EXCLUSIVE\"\n    if re.search(r\"\\bnot\\s+valid\\s*$\", act):\n        return finding(s, lock, \"catalog only\", \"needs lock_timeout\", [TIMEOUT, s])\n    return finding(s, lock, \"scans the table\", \"unsafe\", [\n        TIMEOUT,\n        f\"{s} NOT VALID\",\n        f\"ALTER TABLE {table} VALIDATE CONSTRAINT {con.group(1)}\",\n    ])"
+  },
+  {
+    "id": "validate-constraint",
+    "label": "VALIDATE CONSTRAINT: its lock and verdict",
+    "code": "if re.match(r\"validate\\s+constraint\\s+\\S+$\", act):\n    return finding(s, \"SHARE UPDATE EXCLUSIVE\", \"scans the table\", \"safe\", [s])"
+  },
+  {
+    "id": "set-not-null",
+    "label": "SET NOT NULL through a validated CHECK constraint",
+    "code": "if nn:\n    c = nn.group(1)\n    if pg_version < 12:\n        return finding(s, \"ACCESS EXCLUSIVE\", \"scans the table\", \"unsafe\", [TIMEOUT, s])\n    check_name = f\"{table}_{c}_not_null\"\n    return finding(s, \"ACCESS EXCLUSIVE\", \"scans the table\", \"unsafe\", [\n        TIMEOUT,\n        f\"ALTER TABLE {table} ADD CONSTRAINT {check_name} CHECK ({c} IS NOT NULL) NOT VALID\",\n        f\"ALTER TABLE {table} VALIDATE CONSTRAINT {check_name}\",\n        f\"ALTER TABLE {table} ALTER COLUMN {c} SET NOT NULL\",\n        f\"ALTER TABLE {table} DROP CONSTRAINT {check_name}\",\n    ])"
+  },
+  {
+    "id": "column-default-version-only",
+    "label": "ADD COLUMN: when its default rewrites the table",
+    "code": "def default_rewrites(default, pg_version):\n    return default is not None and pg_version < 11",
+    "distractor": true
+  },
+  {
+    "id": "concurrent-index-in-transaction",
+    "label": "CREATE INDEX with and without CONCURRENTLY",
+    "code": "if re.match(r\"create\\s+(unique\\s+)?index\\s+concurrently\\b\", low):\n    return finding(s, \"SHARE UPDATE EXCLUSIVE\", \"builds an index\", \"safe\", [s])\nif re.match(r\"create\\s+(unique\\s+)?index\\b\", low):\n    fixed = re.sub(r\"(?i)^create(\\s+unique)?\\s+index\\s+\", lambda m: f\"CREATE{m.group(1) or ''} INDEX CONCURRENTLY \", s)\n    return finding(s, \"SHARE\", \"builds an index\", \"unsafe\", [\"BEGIN\", fixed, \"COMMIT\"])",
+    "distractor": true
+  },
+  {
+    "id": "validate-constraint-access-exclusive",
+    "label": "VALIDATE CONSTRAINT: its lock and verdict",
+    "code": "if re.match(r\"validate\\s+constraint\\s+\\S+$\", act):\n    return finding(s, \"ACCESS EXCLUSIVE\", \"scans the table\", \"unsafe\", [s])",
+    "distractor": true
+  }
+]

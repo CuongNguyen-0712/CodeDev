@@ -1,0 +1,59 @@
+# Everything fixed except the host: localhost is the api container itself.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: rocket
+      POSTGRES_DB: rocket
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rocket -d rocket"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  migrate:
+    image: rice-rocket/api:1.0.0
+    command: ["node", "dist/migrate.js"]
+    environment:
+      DATABASE_URL: postgres://rocket@localhost:5432/rocket
+      DATABASE_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: rice-rocket/api:1.0.0
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://rocket@localhost:5432/rocket
+      DATABASE_PASSWORD_FILE: /run/secrets/db_password
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+    secrets:
+      - db_password
+      - jwt_secret
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt

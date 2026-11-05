@@ -1,0 +1,51 @@
+[
+  {
+    "id": "configmap-data",
+    "label": "The api's settings that are not secret",
+    "code": "data:\n  NODE_ENV: production\n  PORT: \"3000\"\n  DATABASE_HOST: db.internal.ricerocket.vn\n  DATABASE_USER: rocket\n  DATABASE_NAME: rocket\n  JWT_SECRET_FILE: /run/secrets/jwt_secret"
+  },
+  {
+    "id": "env-from-config",
+    "label": "Every ConfigMap key as an environment variable",
+    "code": "envFrom:\n  - configMapRef:\n      name: api-config"
+  },
+  {
+    "id": "db-password-ref",
+    "label": "DATABASE_PASSWORD from the out-of-band Secret",
+    "code": "- name: DATABASE_PASSWORD\n  valueFrom:\n    secretKeyRef:\n      name: api-secrets\n      key: db-password"
+  },
+  {
+    "id": "jwt-mount",
+    "label": "Mount the JWT secret read-only under /run/secrets",
+    "code": "volumeMounts:\n  - name: jwt\n    mountPath: /run/secrets\n    readOnly: true"
+  },
+  {
+    "id": "jwt-volume",
+    "label": "A volume holding only the JWT secret, as jwt_secret",
+    "code": "volumes:\n  - name: jwt\n    secret:\n      secretName: api-secrets\n      items:\n        - key: jwt-secret\n          path: jwt_secret"
+  },
+  {
+    "id": "configmap-port-number",
+    "label": "The api's settings that are not secret",
+    "code": "data:\n  NODE_ENV: production\n  PORT: 3000\n  DATABASE_HOST: db.internal.ricerocket.vn\n  DATABASE_USER: rocket\n  DATABASE_NAME: rocket\n  JWT_SECRET_FILE: /run/secrets/jwt_secret",
+    "distractor": true
+  },
+  {
+    "id": "db-password-plain",
+    "label": "DATABASE_PASSWORD from the out-of-band Secret",
+    "code": "- name: DATABASE_PASSWORD\n  value: \"Rr-prod-2026!\"",
+    "distractor": true
+  },
+  {
+    "id": "db-password-wrong-key",
+    "label": "DATABASE_PASSWORD from the out-of-band Secret",
+    "code": "- name: DATABASE_PASSWORD\n  valueFrom:\n    secretKeyRef:\n      name: api-secrets\n      key: dbPassword",
+    "distractor": true
+  },
+  {
+    "id": "jwt-mount-subpath",
+    "label": "Mount the JWT secret read-only under /run/secrets",
+    "code": "volumeMounts:\n  - name: jwt\n    mountPath: /run/secrets/jwt_secret\n    subPath: jwt_secret\n    readOnly: true",
+    "distractor": true
+  }
+]

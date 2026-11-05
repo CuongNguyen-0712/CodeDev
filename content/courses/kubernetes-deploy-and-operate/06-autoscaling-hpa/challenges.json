@@ -1,0 +1,261 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_k8s_162",
+      "name": "api-autoscaler",
+      "type": "mini_coding",
+      "title": "Autoscale the api for the lunch and dinner peaks",
+      "description": "Rice Rocket's api needs 3 pods at night and up to 3 times more at 11:00 and 18:00. The first autoscaler showed `<unknown>/70%` and never scaled, a release applied during the peak cut 9 pods back to 3, and after the peak the pod count went up and down every minute. The editor holds `k8s/api.yaml` (the api Deployment and its HorizontalPodAutoscaler) with key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: each api pod reserves 250m CPU and 256Mi memory (512Mi memory limit); the HPA resizes the api Deployment between 3 and 12 pods, aiming at 70% of the reserved CPU; it may double the pods each minute but removes pods only after 5 calm minutes; and applying the file during a peak never changes the pod count. Run grades the file with a simulator of the autoscaler's documented algorithm on a recorded day of load.",
+      "difficulty": "medium",
+      "outcomes": [
+        "capacity"
+      ],
+      "points": 30,
+      "hints": [
+        "Walk through the three incidents: what does the autoscaler divide the CPU use by, which field of the Deployment does `kubectl apply` write back, and what makes the autoscaler wait before it removes pods?",
+        "Look at `resources.requests` of the container, `spec.replicas` of the Deployment (and what happens when it is absent), and in the HPA: `scaleTargetRef`, `minReplicas` / `maxReplicas`, `metrics[].resource.target` (`type: Utilization` with `averageUtilization`), and `behavior.scaleUp` / `behavior.scaleDown`.",
+        "A worker that should stay between 2 and 8 pods at 60% of a 500m request, grow by at most 4 pods a minute and shrink after 10 calm minutes: `resources: { requests: { cpu: 500m } }` on its container, no `replicas:` in its Deployment, and an HPA with `minReplicas: 2`, `maxReplicas: 8`, `metrics: [{ type: Resource, resource: { name: cpu, target: { type: Utilization, averageUtilization: 60 } } }]`, `behavior: { scaleUp: { policies: [{ type: Pods, value: 4, periodSeconds: 60 }] }, scaleDown: { stabilizationWindowSeconds: 600 } }`."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": "k8s/api.yaml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The HPA scales the api Deployment on 70% of a 250m CPU request",
+          "input": {
+            "checks": [
+              "parse",
+              "target"
+            ]
+          },
+          "expected": {
+            "parse": "ok",
+            "target": {
+              "kind": "Utilization",
+              "value": 70,
+              "request": "250m"
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A lunch peak: 3 pods at night, up to 11 at the peak, back to 3 five calm minutes later",
+          "input": {
+            "checks": [
+              "autoscale"
+            ],
+            "load": {
+              "start": 3,
+              "cpu": [
+                450,
+                450,
+                450,
+                450,
+                450,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                450,
+                450,
+                450,
+                450,
+                450,
+                450,
+                450,
+                450,
+                450,
+                450
+              ]
+            }
+          },
+          "expected": {
+            "autoscale": {
+              "metric": "cpu: 60%/70%",
+              "max": 11,
+              "min": 3,
+              "scaleDowns": 1,
+              "overloadedMinutes": 2,
+              "end": 3
+            }
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "A release applied in the middle of the peak does not cut the pod count",
+          "input": {
+            "checks": [
+              "autoscale"
+            ],
+            "load": {
+              "start": 3,
+              "cpu": [
+                450,
+                450,
+                450,
+                450,
+                450,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                1800,
+                450,
+                450,
+                450,
+                450,
+                450,
+                450,
+                450,
+                450,
+                450,
+                450
+              ],
+              "applyAt": 12
+            }
+          },
+          "expected": {
+            "autoscale": {
+              "metric": "cpu: 60%/70%",
+              "max": 11,
+              "min": 3,
+              "scaleDowns": 1,
+              "overloadedMinutes": 2,
+              "end": 3
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Load that swings every minute keeps 6 pods steady instead of flapping",
+          "input": {
+            "checks": [
+              "autoscale"
+            ],
+            "load": {
+              "start": 6,
+              "cpu": [
+                650,
+                1150,
+                650,
+                1150,
+                650,
+                1150,
+                650,
+                1150,
+                650,
+                1150,
+                650,
+                1150,
+                650,
+                1150,
+                650,
+                1150,
+                650,
+                1150,
+                650,
+                1150,
+                650,
+                1150,
+                650,
+                1150
+              ]
+            }
+          },
+          "expected": {
+            "autoscale": {
+              "metric": "cpu: 43%/70%",
+              "max": 6,
+              "min": 6,
+              "scaleDowns": 0,
+              "overloadedMinutes": 0,
+              "end": 6
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Night load stays at 3 pods and a load spike stops at 12",
+          "input": {
+            "checks": [
+              "bounds",
+              "autoscale"
+            ],
+            "load": {
+              "start": 3,
+              "cpu": [
+                200,
+                200,
+                200,
+                200,
+                200,
+                6000,
+                6000,
+                6000,
+                6000,
+                6000
+              ]
+            }
+          },
+          "expected": {
+            "bounds": {
+              "min": 3,
+              "max": 12
+            },
+            "autoscale": {
+              "metric": "cpu: 27%/70%",
+              "max": 12,
+              "min": 3,
+              "scaleDowns": 0,
+              "overloadedMinutes": 5,
+              "end": 12
+            }
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

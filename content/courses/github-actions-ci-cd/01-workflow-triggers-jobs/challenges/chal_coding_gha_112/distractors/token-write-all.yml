@@ -1,0 +1,2 @@
+# @piece token-permissions: What the GITHUB_TOKEN of these jobs may do
+permissions: write-all

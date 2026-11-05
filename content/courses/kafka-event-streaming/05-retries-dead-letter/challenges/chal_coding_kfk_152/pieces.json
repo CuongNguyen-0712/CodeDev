@@ -1,0 +1,45 @@
+[
+  {
+    "id": "handle-or-route",
+    "label": "Run the handler; a failure sends the record on",
+    "code": "try {\n    deps.handle(record);\n} catch (error) {\n    const next = routeFailure(record, error as Failure, nowMs);\n    deps.publish(next.topic, { key: record.key, value: record.value, headers: next.headers });\n}"
+  },
+  {
+    "id": "count-attempts",
+    "label": "How many times the record has failed, this time included",
+    "code": "const attempts = Number(previous[\"x-attempts\"] ?? \"0\") + 1;"
+  },
+  {
+    "id": "origin-headers",
+    "label": "Where and when the record failed the first time",
+    "code": "const origin: Headers = {\n    \"x-original-topic\": previous[\"x-original-topic\"] ?? record.topic,\n    \"x-original-partition\": previous[\"x-original-partition\"] ?? String(record.partition),\n    \"x-original-offset\": previous[\"x-original-offset\"] ?? String(record.offset),\n    \"x-first-failed-at\": previous[\"x-first-failed-at\"] ?? String(nowMs),\n};"
+  },
+  {
+    "id": "bad-data-to-dlt",
+    "label": "Failures that no retry can fix",
+    "code": "if (failure.kind === \"validation\" || failure.kind === \"schema\") return { topic: DEAD_LETTER_TOPIC, headers };"
+  },
+  {
+    "id": "next-retry-topic",
+    "label": "Retryable failures: the next retry topic, then the DLT",
+    "code": "return { topic: RETRY_TOPICS[attempts - 1] ?? DEAD_LETTER_TOPIC, headers };"
+  },
+  {
+    "id": "attempts-reset",
+    "label": "How many times the record has failed, this time included",
+    "code": "const attempts = 1;",
+    "distractor": true
+  },
+  {
+    "id": "dlt-everything",
+    "label": "Failures that no retry can fix",
+    "code": "return { topic: DEAD_LETTER_TOPIC, headers };",
+    "distractor": true
+  },
+  {
+    "id": "handle-propagates",
+    "label": "Run the handler; a failure sends the record on",
+    "code": "deps.handle(record);",
+    "distractor": true
+  }
+]

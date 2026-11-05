@@ -1,0 +1,8 @@
+# @piece startup-probe: Give a slow boot up to 60 s before other probes
+startupProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 3

@@ -1,0 +1,50 @@
+# Rice Rocket web deploy: build web/ and publish web/dist to S3 behind CloudFront on every push
+# to main that changes web/. AWS trusts this repository through OIDC (IAM role
+# rice-rocket-web-deploy, see the trust policy in the lesson); no AWS key is stored in GitHub.
+name: deploy-web
+
+on:
+  push:
+    branches: [main]
+    paths: ["web/**"]
+
+# @piece workflow-permissions: What the GITHUB_TOKEN may do unless a job says otherwise
+permissions:
+  contents: read
+# @end
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    # @piece job-permissions: deploy: read the code and request an OIDC token
+    permissions:
+      contents: read
+      id-token: write
+    # @end
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run build
+      # @piece commit-message-log: Log the commit message without running it
+      - name: Log the release
+        env:
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: echo "Deploying: $MESSAGE"
+      # @end
+      # @piece aws-credentials: Short-lived AWS credentials for the deploy role
+      - name: Assume the deploy role
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/rice-rocket-web-deploy
+          aws-region: ap-southeast-1
+      # @end
+      - run: aws s3 sync dist s3://rice-rocket-web --delete
+      - run: aws cloudfront create-invalidation --distribution-id E2RICEROCKET01 --paths "/*"

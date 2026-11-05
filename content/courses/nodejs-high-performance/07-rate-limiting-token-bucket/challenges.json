@@ -94,6 +94,7 @@
     },
     {
       "publicId": "chal_quiz_nhp_303",
+      "published": false,
       "name": "redis-incr-expire-quiz",
       "type": "quiz",
       "title": "Sharing one limit across API instances",

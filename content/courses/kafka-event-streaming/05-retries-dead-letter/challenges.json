@@ -1,0 +1,241 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_kfk_152",
+      "name": "retry-and-dead-letter-routing",
+      "type": "mini_coding",
+      "title": "Route failed orders through retry topics to a dead-letter topic",
+      "description": "The courier-matcher's first version let a matching error escape `eachMessage`: one OrderPlaced without an address was retried forever and held up every order behind it on partition 5. The editor holds `src/failures.ts`: `onRecord`, called for every record of `orders.v1` and of the retry topics, and `routeFailure`, which picks where a failed record goes next. Their key blocks are missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a failure never stops the partition (the record is published onward and the consumer moves on); validation and schema errors go to `orders.v1.dlt` at once; timeout and unavailable errors go to `orders.v1.retry.30s` after the 1st failure, `orders.v1.retry.5m` after the 2nd and the dead-letter topic after the 3rd; every forwarded record carries `x-attempts`, `x-error` and, kept from its first failure, `x-original-topic`, `x-original-partition`, `x-original-offset` and `x-first-failed-at`. The runner replays a lunch rush second by second against an in-memory broker, with a poison order and an outage of the maps API.",
+      "difficulty": "hard",
+      "outcomes": [
+        "consuming"
+      ],
+      "points": 40,
+      "hints": [
+        "Follow one record through three failures: which topic does it land in each time, what do its headers say, and does the consumer move to the next offset after each failure or stay where it is?",
+        "Look at what the catch block does with the error, how `x-attempts` is read from the incoming headers (a record from a retry topic already has some), which headers must keep their first value (`??`), and which failure kinds skip the retry topics.",
+        "A payment webhook consumer with retry topics `pay.retry.1m` and `pay.retry.10m`: `const tries = Number(h[\"x-tries\"] ?? \"0\") + 1; if (err.kind === \"signature\") return { topic: \"pay.dlt\", headers }; return { topic: RETRIES[tries - 1] ?? \"pay.dlt\", headers };` and in the handler `try { pay(record) } catch (e) { const next = route(record, e); publish(next.topic, { ...record, headers: next.headers }); }`."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "src/failures.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A poison order goes to the DLT once; the orders behind it on partition 5 are matched at once",
+          "input": {
+            "orders": [
+              {
+                "id": "o-1001",
+                "address": "12 Le Loi, District 1"
+              },
+              {
+                "id": "o-1002",
+                "address": "45 Hai Ba Trung, District 3"
+              },
+              {
+                "id": "o-1003",
+                "address": null
+              },
+              {
+                "id": "o-1004",
+                "address": "8 Nguyen Hue, District 1"
+              },
+              {
+                "id": "o-1005",
+                "address": "210 Vo Van Tan, District 3"
+              },
+              {
+                "id": "o-1006",
+                "address": "3 Ton Duc Thang, District 1"
+              },
+              {
+                "id": "o-1007",
+                "address": "77 Pasteur, District 1"
+              },
+              {
+                "id": "o-1008",
+                "address": "19 Ly Tu Trong, District 1"
+              }
+            ],
+            "mapsDownUntilMs": 0
+          },
+          "expected": {
+            "matched": {
+              "o-1001": 0,
+              "o-1002": 0,
+              "o-1003": null,
+              "o-1004": 0,
+              "o-1005": 0,
+              "o-1006": 0,
+              "o-1007": 0,
+              "o-1008": 0
+            },
+            "dlt": [
+              {
+                "id": "o-1003",
+                "attempts": "1",
+                "error": "validation: address is required",
+                "from": "orders.v1-5@0",
+                "firstFailedAt": "0"
+              }
+            ],
+            "pendingRetries": 0,
+            "blockedSeconds": 0
+          },
+          "hidden": false,
+          "score": 10
+        },
+        {
+          "name": "During a 60-second maps outage, orders retry after 30 s and 5 min, then are matched",
+          "input": {
+            "orders": [
+              {
+                "id": "o-1009",
+                "address": "5 Dong Khoi, District 1"
+              },
+              {
+                "id": "o-1010",
+                "address": "88 Cach Mang Thang Tam, District 3"
+              },
+              {
+                "id": "o-1011",
+                "address": "14 Phan Xich Long, Phu Nhuan"
+              },
+              {
+                "id": "o-1012",
+                "address": "301 Nguyen Trai, District 5"
+              }
+            ],
+            "mapsDownUntilMs": 60000
+          },
+          "expected": {
+            "matched": {
+              "o-1009": 330,
+              "o-1010": 330,
+              "o-1011": 330,
+              "o-1012": 330
+            },
+            "dlt": [],
+            "pendingRetries": 0,
+            "blockedSeconds": 0
+          },
+          "hidden": false,
+          "score": 10
+        },
+        {
+          "name": "A 30-minute outage: after both retries the orders reach the DLT with 3 attempts and their origin",
+          "input": {
+            "orders": [
+              {
+                "id": "o-1009",
+                "address": "5 Dong Khoi, District 1"
+              },
+              {
+                "id": "o-1010",
+                "address": "88 Cach Mang Thang Tam, District 3"
+              }
+            ],
+            "mapsDownUntilMs": 1800000
+          },
+          "expected": {
+            "matched": {
+              "o-1009": null,
+              "o-1010": null
+            },
+            "dlt": [
+              {
+                "id": "o-1009",
+                "attempts": "3",
+                "error": "unavailable: maps API answered 503",
+                "from": "orders.v1-0@0",
+                "firstFailedAt": "0"
+              },
+              {
+                "id": "o-1010",
+                "attempts": "3",
+                "error": "unavailable: maps API answered 503",
+                "from": "orders.v1-2@0",
+                "firstFailedAt": "0"
+              }
+            ],
+            "pendingRetries": 0,
+            "blockedSeconds": 0
+          },
+          "hidden": true,
+          "score": 10
+        },
+        {
+          "name": "Poison order during a 100-second outage: DLT at once, the rest matched after the 5-minute retry",
+          "input": {
+            "orders": [
+              {
+                "id": "o-1001",
+                "address": "12 Le Loi, District 1"
+              },
+              {
+                "id": "o-1002",
+                "address": "45 Hai Ba Trung, District 3"
+              },
+              {
+                "id": "o-1003",
+                "address": null
+              },
+              {
+                "id": "o-1004",
+                "address": "8 Nguyen Hue, District 1"
+              },
+              {
+                "id": "o-1005",
+                "address": "210 Vo Van Tan, District 3"
+              },
+              {
+                "id": "o-1006",
+                "address": "3 Ton Duc Thang, District 1"
+              },
+              {
+                "id": "o-1007",
+                "address": "77 Pasteur, District 1"
+              },
+              {
+                "id": "o-1008",
+                "address": "19 Ly Tu Trong, District 1"
+              }
+            ],
+            "mapsDownUntilMs": 100000
+          },
+          "expected": {
+            "matched": {
+              "o-1001": 330,
+              "o-1002": 330,
+              "o-1003": null,
+              "o-1004": 330,
+              "o-1005": 330,
+              "o-1006": 330,
+              "o-1007": 330,
+              "o-1008": 330
+            },
+            "dlt": [
+              {
+                "id": "o-1003",
+                "attempts": "1",
+                "error": "validation: address is required",
+                "from": "orders.v1-5@0",
+                "firstFailedAt": "0"
+              }
+            ],
+            "pendingRetries": 0,
+            "blockedSeconds": 0
+          },
+          "hidden": true,
+          "score": 10
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+# Rice Rocket deploys: every push to main goes to staging, then to production.
+# Settings > Environments already holds both environments: staging (secret STAGING_SSH_KEY) and
+# production (required reviewer, deployments from main only, secret PROD_SSH_KEY).
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - run: ./deploy/build-image.sh "${{ github.sha }}"
+
+  deploy-staging:
+    needs: build
+    # @piece main-only: Deploy only what is on main
+    if: github.ref == 'refs/heads/main'
+    # @end
+    runs-on: ubuntu-24.04
+    # @piece staging-env: staging: the environment and its address
+    environment:
+      name: staging
+      url: https://staging.ricerocket.vn
+    # @end
+    # @piece staging-concurrency: staging: one deploy at a time, none cut short
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    # @end
+    steps:
+      - uses: actions/checkout@v5
+      - run: ./deploy/ship.sh staging "${{ github.sha }}"
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+
+  deploy-production:
+    # @piece production-needs: production: start only after staging succeeded
+    needs: deploy-staging
+    # @end
+    runs-on: ubuntu-24.04
+    # @piece production-env: production: the protected environment and its address
+    environment:
+      name: production
+      url: https://ricerocket.vn
+    # @end
+    # @piece production-concurrency: production: one deploy at a time, none cut short
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    # @end
+    steps:
+      - uses: actions/checkout@v5
+      - run: ./deploy/ship.sh production "${{ github.sha }}"
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}

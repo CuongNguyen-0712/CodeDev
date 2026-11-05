@@ -1,0 +1,161 @@
+{
+  "publicId": "github-actions-ci-cd",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793806720/codedev/courses/github-actions-ci-cd/cover",
+  "title": "GitHub Actions CI/CD: From Pull Request to Production",
+  "concept": "Build the pipeline a small team actually ships with: workflows and triggers, caching dependencies, test matrices, building and pushing images, environments with approvals, secrets and OIDC, and a deploy job that can roll back. Challenges are workflow files graded by a run simulator.",
+  "description": "Build the pipeline a small team actually ships with: workflows and triggers, caching dependencies, test matrices, building and pushing images, environments with approvals, secrets and OIDC, and a deploy job that can roll back. Challenges are workflow files graded by a run simulator. 8 lessons, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.",
+  "level": "intermediate",
+  "durationMinutes": 140,
+  "instructor": "CodeDev Engineering Team",
+  "language": "JavaScript",
+  "category": "DevOps",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "template": "core-first",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "devops_engineer",
+    "backend_developer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "docker": 3,
+    "testing": 3,
+    "system_design": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "docker-nginx-ship-a-service"
+  ],
+  "completionRules": {},
+  "domain": "devops",
+  "learningOutcomes": [
+    {
+      "code": "pr-checks",
+      "text": "Trigger the right workflows for pull requests and pushes, with ordered jobs, a read-only token and time limits."
+    },
+    {
+      "code": "fast-feedback",
+      "text": "Keep CI fast and trustworthy with lockfile-keyed caches, test matrices, fail-fast choices and service containers."
+    },
+    {
+      "code": "release-images",
+      "text": "Build and push traceable images and deploy them through environments with approvals and concurrency groups."
+    },
+    {
+      "code": "pipeline-security",
+      "text": "Lock a pipeline down: least-privilege tokens, OIDC instead of stored cloud keys, pinned actions and no script injection."
+    },
+    {
+      "code": "safe-release",
+      "text": "Gate a deploy on health checks, roll back on failure and share one pipeline across repositories with reusable workflows."
+    }
+  ],
+  "testedVersions": {
+    "GitHub-hosted runner": "ubuntu-24.04 (to verify)",
+    "actions/checkout": "v5",
+    "actions/setup-node": "v5",
+    "actions/cache": "v4",
+    "docker/build-push-action": "v6",
+    "docker/metadata-action": "v5",
+    "Node.js": "24"
+  },
+  "lastReviewedAt": "2026-11-05",
+  "sourceLinks": [
+    "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax",
+    "https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows",
+    "https://docs.github.com/en/actions/reference/workflows-and-actions/expressions",
+    "https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-jobs",
+    "https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions",
+    "https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges grade workflow files with a simulator of the documented GitHub Actions behaviour (triggers, expressions, matrices, caches, concurrency), not on real runners.",
+    "testedVersions are not yet re-checked against live runners."
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Continuous integration",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-workflow-triggers-jobs",
+          "title": "Workflows, triggers and jobs for every pull request",
+          "sanityId": "lesson-gha-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-dependency-caching",
+          "title": "Caching dependencies without stale builds",
+          "sanityId": "lesson-gha-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-test-matrix-services",
+          "title": "Test matrices, fail-fast and a real Postgres",
+          "sanityId": "lesson-gha-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Delivery",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-build-push-image",
+          "title": "Build and push a traceable image",
+          "sanityId": "lesson-gha-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-environments-concurrency",
+          "title": "Environments, approvals and concurrency groups",
+          "sanityId": "lesson-gha-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-secrets-oidc-permissions",
+          "title": "Secrets, OIDC and least-privilege tokens",
+          "sanityId": "lesson-gha-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Release",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-deploy-health-gate",
+          "title": "A deploy job with a health gate and rollback",
+          "sanityId": "lesson-gha-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-reusable-workflows",
+          "title": "Reusable workflows for many repositories",
+          "sanityId": "lesson-gha-3-2"
+        }
+      ]
+    }
+  ]
+}

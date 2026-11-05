@@ -1,0 +1,45 @@
+[
+  {
+    "id": "page-index",
+    "label": "Index that serves the list's filter and order",
+    "code": "PAGE_INDEX = \"CREATE INDEX orders_restaurant_created_id ON orders (restaurant_id, created_at, id)\""
+  },
+  {
+    "id": "first-page",
+    "label": "Query for the first page",
+    "code": "Q_FIRST = \"\"\"\nSELECT id, created_at FROM orders\nWHERE restaurant_id = :restaurant_id\nORDER BY created_at DESC, id DESC\nLIMIT :page_size\n\"\"\""
+  },
+  {
+    "id": "next-page",
+    "label": "Query for the page after a cursor",
+    "code": "Q_NEXT = \"\"\"\nSELECT id, created_at FROM orders\nWHERE restaurant_id = :restaurant_id\n  AND (created_at, id) < (:created_at, :id)\nORDER BY created_at DESC, id DESC\nLIMIT :page_size\n\"\"\""
+  },
+  {
+    "id": "encode-cursor",
+    "label": "Turn the last row of a page into a cursor",
+    "code": "def encode_cursor(row):\n    data = json.dumps({\"created_at\": row[1], \"id\": row[0]}, separators=(\",\", \":\"))\n    return base64.urlsafe_b64encode(data.encode()).decode()"
+  },
+  {
+    "id": "decode-cursor",
+    "label": "Read a cursor back, rejecting anything else",
+    "code": "def decode_cursor(cursor):\n    try:\n        data = json.loads(base64.urlsafe_b64decode(cursor.encode()))\n    except (binascii.Error, UnicodeDecodeError, ValueError):\n        raise InvalidCursor(\"invalid cursor\")\n    if not isinstance(data, dict) or set(data) != {\"created_at\", \"id\"} \\\n            or not isinstance(data[\"created_at\"], str) or type(data[\"id\"]) is not int:\n        raise InvalidCursor(\"invalid cursor\")\n    return data"
+  },
+  {
+    "id": "decode-cursor-unchecked",
+    "label": "Read a cursor back, rejecting anything else",
+    "code": "def decode_cursor(cursor):\n    return json.loads(base64.urlsafe_b64decode(cursor.encode()))",
+    "distractor": true
+  },
+  {
+    "id": "encode-cursor-created-only",
+    "label": "Turn the last row of a page into a cursor",
+    "code": "def encode_cursor(row):\n    data = json.dumps({\"created_at\": row[1]}, separators=(\",\", \":\"))\n    return base64.urlsafe_b64encode(data.encode()).decode()",
+    "distractor": true
+  },
+  {
+    "id": "next-page-no-tiebreak",
+    "label": "Query for the page after a cursor",
+    "code": "Q_NEXT = \"\"\"\nSELECT id, created_at FROM orders\nWHERE restaurant_id = :restaurant_id\n  AND created_at < :created_at\nORDER BY created_at DESC, id DESC\nLIMIT :page_size\n\"\"\"",
+    "distractor": true
+  }
+]

@@ -117,6 +117,7 @@
     },
     {
       "publicId": "chal_quiz_js_613",
+      "published": false,
       "name": "advance-sync-vs-async-quiz",
       "type": "quiz",
       "title": "Three seconds passed, but only one poll ran",

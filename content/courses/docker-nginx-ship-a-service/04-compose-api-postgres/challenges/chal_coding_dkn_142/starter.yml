@@ -1,0 +1,36 @@
+# Rice Rocket on the VPS: Postgres, a one-shot migration and the api.
+# The VPS already has ./secrets/db_password.txt and ./secrets/jwt_secret.txt, and the api's
+# config loader (lesson 3) reads DATABASE_PASSWORD_FILE and JWT_SECRET_FILE.
+services:
+  db:
+    image: postgres:17
+    # [ ] db: user, database and a password kept out of this file
+    # [ ] db: keep the data files across down and up
+    # [ ] db: readiness check and network exposure
+
+  migrate:
+    image: rice-rocket/api:1.0.0
+    command: ["node", "dist/migrate.js"]
+    environment:
+      # [ ] migrate: where to reach the database
+      DATABASE_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    # [ ] migrate: start only when the database is ready
+    restart: "no"
+
+  api:
+    image: rice-rocket/api:1.0.0
+    restart: always
+    environment:
+      NODE_ENV: production
+      # [ ] api: where to reach the database
+      DATABASE_PASSWORD_FILE: /run/secrets/db_password
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+    secrets:
+      - db_password
+      - jwt_secret
+    # [ ] api: publish port 3000 for Nginx on the same host
+    # [ ] api: start after the database and the migrations
+
+# [ ] Declare the named volume and the secret files

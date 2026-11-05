@@ -1,0 +1,119 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dkn_111",
+      "name": "multi-stage-image-quiz",
+      "type": "quiz",
+      "title": "Read the day-one image",
+      "description": "Three statements about the Dockerfile Rice Rocket shipped on day one and the image it produced. Decide whether each one is true.",
+      "difficulty": "easy",
+      "outcomes": ["small-images"],
+      "points": 10,
+      "hints": [
+        "Which stage of a multi-stage build becomes the image you push?",
+        "Look at what `CMD npm start` actually starts as PID 1, and who receives the SIGTERM from `docker stop`.",
+        "In a two-stage build, try listing the files of the final stage only: base image, then every COPY into that stage."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The api image was built from this Dockerfile and pushed:\n\n```dockerfile\nFROM node:24\nWORKDIR /app\nCOPY . .\nRUN npm ci\nRUN npm run build\nCMD npm start\n```\n\nStatement: \"Deleting the TypeScript compiler in a later `RUN rm -rf node_modules/typescript` would make the pushed image smaller.\"",
+          "explanation": "False. Every RUN, COPY and ADD adds a layer, and layers only ever add files. Deleting files in a later layer hides them, but the earlier layer that contains them is still pushed and pulled. To ship fewer bytes, never put the files into the final stage in the first place: build in one stage, then COPY --from only the runtime files into a fresh stage.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A two-stage build:\n\n```dockerfile\nFROM node:24-slim AS build\nWORKDIR /app\nCOPY package.json package-lock.json ./\nRUN npm ci\nCOPY src ./src\nRUN npm run build && npm prune --omit=dev\n\nFROM node:24-slim\nWORKDIR /app\nCOPY --from=build /app/node_modules ./node_modules\nCOPY --from=build /app/dist ./dist\nCMD [\"node\", \"dist/server.js\"]\n```\n\nStatement: \"The final image contains neither `src/` nor the TypeScript compiler.\"",
+          "explanation": "True. Only the last stage becomes the image. It starts from a clean node:24-slim and receives exactly two things from the build stage: node_modules after `npm prune --omit=dev` removed the devDependencies (typescript is one), and the compiled dist/. src/ never enters the final stage.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Every deploy logs this for the api container:\n\n```text\n$ docker stop api\n# ... 10 seconds later\napi exited with code 137\n```\n\nThe image ends with `CMD npm start`.\n\nStatement: \"The shell form of CMD is not the cause: Docker sends SIGTERM to the node process whether CMD is written in shell form or exec form.\"",
+          "explanation": "False. The shell form runs `/bin/sh -c \"npm start\"`, so PID 1 is the shell (and npm below it), not node. The shell does not forward SIGTERM, so node never starts its graceful shutdown; after the 10 second grace period Docker sends SIGKILL, hence exit code 137. The exec form `CMD [\"node\", \"dist/server.js\"]` makes node PID 1 so it receives the signal itself.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dkn_112",
+      "name": "multi-stage-api-dockerfile",
+      "type": "mini_coding",
+      "title": "Assemble the api Dockerfile as a multi-stage build",
+      "description": "The api image is 1.5 GB, ships every devDependency and the TypeScript source, runs as root and is killed on every deploy. The editor holds the multi-stage Dockerfile with its key blocks missing, each marked by a `# [ ]` line. Fill every line with a piece so the build stage compiles, and only package.json, the production node_modules and dist/ reach a fresh slim stage that runs `node dist/server.js` (exec form) as the non-root `node` user. Some pieces are wrong on purpose. Run grades it with a build simulator: the context holds package.json, package-lock.json, tsconfig.json, src/, README.md, .git, .env and a host node_modules folder.",
+      "difficulty": "easy",
+      "outcomes": ["small-images"],
+      "points": 30,
+      "hints": [
+        "Which files does `node dist/server.js` actually need at runtime, and which ones only `npm run build` needs?",
+        "Look at the order in the build stage: `npm run build` needs the devDependencies, so remove them only after it, with `npm prune --omit=dev`.",
+        "A Go service does the same thing: `FROM golang AS build` compiles `/out/app`, then `FROM gcr.io/distroless/base` + `COPY --from=build /out/app /app` + `USER nonroot` + `ENTRYPOINT [\"/app\"]`."
+      ],
+      "coding": {
+        "language": "dockerfile",
+        "filePath": "Dockerfile",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The image builds, with a separate build stage that compiles dist/",
+          "input": { "checks": ["build", "multi-stage", "has-build-output"] },
+          "expected": { "build": "ok", "multi-stage": true, "has-build-output": true },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Only production dependencies and compiled code reach the final image",
+          "input": { "checks": ["no-dev-dependencies", "no-source-in-final"] },
+          "expected": { "no-dev-dependencies": true, "no-source-in-final": true },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "node is PID 1 (exec-form CMD) and runs as a non-root user",
+          "input": { "checks": ["exec-form-cmd", "non-root"] },
+          "expected": { "exec-form-cmd": true, "non-root": true },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The final image is under 300 MB on a slim base",
+          "input": { "checks": ["slim-base", "size-under-300mb"] },
+          "expected": { "slim-base": true, "size-under-300mb": true },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Nothing from .env or .git ends up in the final image",
+          "input": { "checks": ["build", "no-secrets"] },
+          "expected": { "build": "ok", "no-secrets": true },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Builds from a context without the host node_modules and README",
+          "input": { "context": ["package.json", "package-lock.json", "tsconfig.json", "src"], "checks": ["build", "has-build-output", "no-dev-dependencies"] },
+          "expected": { "build": "ok", "has-build-output": true, "no-dev-dependencies": true },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+# Rice Rocket's shared Node CI, in the rice-rocket/.github repository. app, admin and courier-app
+# call it from their own workflows:
+#   jobs:
+#     ci:
+#       uses: rice-rocket/.github/.github/workflows/node-ci.yml@v1
+#       with:
+#         working-directory: api
+#       secrets: inherit
+name: node-ci
+
+on:
+  workflow_call:
+    # [ ] Inputs: the folder, the Node version, integration tests
+    secrets:
+      NPM_TOKEN:
+        required: false
+    # [ ] Outputs: the test coverage, for the caller
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # [ ] test: expose the coverage step's result
+    # [ ] test: run commands in the caller's folder
+    steps:
+      - uses: actions/checkout@v5
+      # [ ] test: the caller's Node version, with the npm cache
+      - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm run test:coverage
+      - id: cov
+        name: Read the coverage
+        run: echo "pct=$(jq .total.lines.pct coverage/coverage-summary.json)" >> "$GITHUB_OUTPUT"
+      # [ ] test: integration tests only when the caller asks

@@ -1,0 +1,35 @@
+[
+  {
+    "id": "select-unsent",
+    "label": "The unsent rows, oldest first, at most batchSize",
+    "code": "const rows = db.query(\n    \"SELECT id, aggregate_id, event_id, type, payload FROM outbox WHERE sent_at IS NULL ORDER BY id LIMIT $1\",\n    [batchSize],\n);"
+  },
+  {
+    "id": "publish-batch",
+    "label": "Publish the rows to orders.v1, keyed by order",
+    "code": "producer.send(\"orders.v1\", rows.map((row) => ({\n    key: row.aggregateId,\n    value: row.payload,\n    headers: { \"event-id\": row.eventId, \"event-type\": row.type },\n})));"
+  },
+  {
+    "id": "mark-sent",
+    "label": "Mark exactly these rows as sent",
+    "code": "db.query(\"UPDATE outbox SET sent_at = now() WHERE id = ANY($1)\", [rows.map((row) => row.id)]);"
+  },
+  {
+    "id": "publish-after-marking",
+    "label": "Publish the rows to orders.v1, keyed by order",
+    "code": "db.query(\"UPDATE outbox SET sent_at = now() WHERE id = ANY($1)\", [rows.map((row) => row.id)]);\nproducer.send(\"orders.v1\", rows.map((row) => ({\n    key: row.aggregateId,\n    value: row.payload,\n    headers: { \"event-id\": row.eventId, \"event-type\": row.type },\n})));",
+    "distractor": true
+  },
+  {
+    "id": "publish-without-key",
+    "label": "Publish the rows to orders.v1, keyed by order",
+    "code": "producer.send(\"orders.v1\", rows.map((row) => ({\n    key: null,\n    value: row.payload,\n    headers: { \"event-id\": row.eventId, \"event-type\": row.type },\n})));",
+    "distractor": true
+  },
+  {
+    "id": "select-without-order",
+    "label": "The unsent rows, oldest first, at most batchSize",
+    "code": "const rows = db.query(\n    \"SELECT id, aggregate_id, event_id, type, payload FROM outbox WHERE sent_at IS NULL LIMIT $1\",\n    [batchSize],\n);",
+    "distractor": true
+  }
+]

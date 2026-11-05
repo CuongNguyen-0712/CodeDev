@@ -1,0 +1,210 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_k8s_141",
+      "name": "rolling-updates-quiz",
+      "type": "quiz",
+      "title": "Read the rollouts of the api",
+      "description": "Three statements about rollouts of Rice Rocket's api Deployment: a stuck release, the default strategy at lunch time, and a bad image behind a strict strategy. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "health-and-rollouts"
+      ],
+      "points": 10,
+      "hints": [
+        "Read the condition, not the command: what does `ProgressDeadlineExceeded` change in the cluster, and what is left for a person or a pipeline to do?",
+        "Percentages in `rollingUpdate` are turned into pod counts. One field is rounded up and the other down; which rounding keeps more pods serving?",
+        "With `maxUnavailable: 0`, list which pods the controller is allowed to remove before a new pod is available, and which pods the Service keeps sending traffic to."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The 1.5.0 release crashes on start. The deploy pipeline shows:\n\n```text\n$ kubectl rollout status deployment/api -n rice-rocket --timeout=15m\nWaiting for deployment \"api\" rollout to finish: 1 out of 6 new replicas have been updated...\nerror: deployment \"api\" exceeded its progress deadline\n\n$ kubectl get deploy api -n rice-rocket -o jsonpath='{.status.conditions[?(@.type==\"Progressing\")].reason}'\nProgressDeadlineExceeded\n```\n\nStatement: \"Now that the progress deadline is exceeded, Kubernetes scales the new ReplicaSet back to 0 and restores the previous version on its own; the pipeline only has to report the failure.\"",
+          "explanation": "False. `progressDeadlineSeconds` only sets the `Progressing` condition to `False` with reason `ProgressDeadlineExceeded`; the Deployment controller takes no further action, and the new ReplicaSet keeps its crashing pod. Rolling back is a decision someone makes: `kubectl rollout undo deployment/api`, or a pipeline step that runs it when `rollout status` fails. The misconception is that the deadline is an automatic rollback switch; it is a signal that tools like `kubectl rollout status` can fail on.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The api runs 6 replicas with no `strategy:` in the manifest. During the 12:00 rollout:\n\n```text\n$ kubectl get deploy api -n rice-rocket -o jsonpath='{.spec.strategy}'\n{\"rollingUpdate\":{\"maxSurge\":\"25%\",\"maxUnavailable\":\"25%\"},\"type\":\"RollingUpdate\"}\n\n$ kubectl get rs -n rice-rocket -l app=api\nNAME             DESIRED   CURRENT   READY   AGE\napi-7c9f6d5b8d   5         5         5       3d\napi-5f4b8c7d9a   3         3         0       12s\n```\n\nStatement: \"25% of 6 is 1.5; maxSurge rounds up to 2 and maxUnavailable rounds down to 1, so the rollout runs with up to 8 pods but can leave only 5 serving, which is what happened at lunch.\"",
+          "explanation": "True. For percentages, Kubernetes rounds `maxSurge` up and `maxUnavailable` down: 6 x 25% gives 2 extra pods allowed and 1 pod allowed to be unavailable. The listing shows exactly that: 5 old pods ready plus 3 new pods not ready yet (8 in total), so only 5 pods serve traffic during the peak. Setting `maxSurge: 1` and `maxUnavailable: 0` keeps all 6 serving at the cost of a slower rollout. The misconception is that the default strategy never reduces capacity.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The strategy is now `maxSurge: 1`, `maxUnavailable: 0`, and the 1.5.2 image never passes its readiness probe:\n\n```text\n$ kubectl get pods -n rice-rocket -l app=api\nNAME                   READY   STATUS    RESTARTS   AGE\napi-7c9f6d5b8d-2xk4p   1/1     Running   0          3d\napi-7c9f6d5b8d-8hq7m   1/1     Running   0          3d\napi-7c9f6d5b8d-c5w2n   1/1     Running   0          3d\napi-7c9f6d5b8d-jd9rt   1/1     Running   0          3d\napi-7c9f6d5b8d-q7zlv   1/1     Running   0          3d\napi-7c9f6d5b8d-x4mbf   1/1     Running   0          3d\napi-5d8b7f6c4e-k2p9s   0/1     Running   0          4m\n```\n\nStatement: \"The rollout is stuck, but customers see no errors: no old pod may go before a new one is available, and the Service sends traffic only to the 6 ready old pods.\"",
+          "explanation": "True. With `maxUnavailable: 0` the controller may remove an old pod only after a new pod has been available (ready for `minReadySeconds`); the new pod never gets there, so all 6 old pods stay. The not-ready pod is not an endpoint of the Service, so it receives no traffic. The rollout simply stops after one surge pod, and the progress deadline reports it. The misconception is that a stuck rollout always means an outage; with this strategy it means a release that did not happen.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_k8s_142",
+      "name": "safe-rolling-update",
+      "type": "mini_coding",
+      "title": "Make the api rollout safe",
+      "description": "Rice Rocket's api runs 6 replicas, and the lunch peak needs all 6. The last releases dropped to 5 serving pods with the default strategy, shipped `latest` so nobody knew which version ran, and hung for 10 minutes on a crashing image. The editor holds the api Deployment with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: a rollout adds one pod before it removes one and never has fewer than 6 serving; a new pod counts as available only after 10 seconds of passing readiness; a stuck rollout is reported after 5 minutes; the last 5 versions stay available for `kubectl rollout undo`; and the image is the exact version `1.5.1`. Run grades the file with a simulator of the Deployment controller that rolls out a healthy and a never-ready image.",
+      "difficulty": "medium",
+      "outcomes": [
+        "health-and-rollouts"
+      ],
+      "points": 30,
+      "hints": [
+        "For each requirement, find the Deployment field that controls it: how many pods may be added or missing during a rollout, when a ready pod counts, when a rollout is called stuck, how many old ReplicaSets are kept.",
+        "Look at `spec.strategy.rollingUpdate` (`maxSurge`, `maxUnavailable`), `spec.minReadySeconds`, `spec.progressDeadlineSeconds`, `spec.revisionHistoryLimit`, and the tag in `image:`.",
+        "A worker Deployment with 4 replicas that may lose at most one pod, adds none, waits 30 seconds per pod, gives up after 10 minutes and keeps 3 versions: `strategy: { type: RollingUpdate, rollingUpdate: { maxSurge: 0, maxUnavailable: 1 } }`, `minReadySeconds: 30`, `progressDeadlineSeconds: 600`, `revisionHistoryLimit: 3`, `image: ghcr.io/acme/worker:2.3.0`."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": "k8s/api-deployment.yaml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A healthy release rolls out one pod at a time and never serves with fewer than 6 pods",
+          "input": {
+            "checks": [
+              "parse",
+              "rollout"
+            ],
+            "rollout": {
+              "newReady": true,
+              "readySeconds": 20
+            }
+          },
+          "expected": {
+            "parse": "ok",
+            "rollout": {
+              "result": "complete",
+              "at": 180,
+              "maxPods": 7,
+              "minAvailable": 6,
+              "serving": {
+                "old": 0,
+                "new": 6
+              }
+            }
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "A never-ready image is reported after 5 minutes while the 6 old pods keep serving",
+          "input": {
+            "checks": [
+              "rollout"
+            ],
+            "rollout": {
+              "newReady": false,
+              "readySeconds": 20
+            }
+          },
+          "expected": {
+            "rollout": {
+              "result": "ProgressDeadlineExceeded",
+              "at": 300,
+              "maxPods": 7,
+              "minAvailable": 6,
+              "serving": {
+                "old": 6,
+                "new": 0
+              }
+            }
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "The image is the exact version 1.5.1",
+          "input": {
+            "checks": [
+              "image"
+            ]
+          },
+          "expected": {
+            "image": {
+              "image": "ghcr.io/rice-rocket/api:1.5.1",
+              "tag": "pinned"
+            }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A fast-starting image still waits 10 seconds of readiness per pod",
+          "input": {
+            "checks": [
+              "rollout"
+            ],
+            "rollout": {
+              "newReady": true,
+              "readySeconds": 5
+            }
+          },
+          "expected": {
+            "rollout": {
+              "result": "complete",
+              "at": 90,
+              "maxPods": 7,
+              "minAvailable": 6,
+              "serving": {
+                "old": 0,
+                "new": 6
+              }
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Five old versions are kept for rollout undo, with 6 replicas",
+          "input": {
+            "checks": [
+              "history",
+              "replicas"
+            ]
+          },
+          "expected": {
+            "history": 5,
+            "replicas": 6
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

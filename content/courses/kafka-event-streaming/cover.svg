@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Kafka event streaming (a producer writes keyed messages into three partitions of one topic, a consumer group reads them, with a committed offset marker). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1C140A"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#E8A33D" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#E8A33D" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C77E"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#E8A33D"/>
+    <g fill="#1C140A"><rect x="128" y="174" width="60" height="10" rx="5"/><rect x="128" y="193" width="46" height="10" rx="5"/><rect x="128" y="212" width="54" height="10" rx="5"/></g>
+    <rect x="164" y="166" width="5" height="64" rx="2" fill="#F4F2F8"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#F2C77E">MICROSERVICES · KAFKA</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Kafka Event</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Streaming</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Partitions · Groups · Offsets · Outbox</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#FBE6C4">
+      <rect x="110" y="660" width="244" height="52" rx="26" fill="#2A1E0E" stroke="#E8A33D"/>
+      <text x="232" y="695" text-anchor="middle">consumer group</text>
+      <rect x="370" y="660" width="144" height="52" rx="26" fill="#2A1E0E" stroke="#E8A33D"/>
+      <text x="442" y="695" text-anchor="middle">offsets</text>
+      <rect x="530" y="660" width="130" height="52" rx="26" fill="#2A1E0E" stroke="#E8A33D"/>
+      <text x="595" y="695" text-anchor="middle">outbox</text>
+    </g>
+  </g>
+
+  <!-- Producer, a topic with three partition lanes, a consumer group and a committed offset -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="1060" y="236" font-size="20" letter-spacing="3" fill="#F2C77E">TOPIC orders</text>
+    <text x="1060" y="278" font-size="18" fill="#F2C77E">partition 0</text>
+    <rect x="1060" y="290" width="300" height="64" rx="10" fill="#1A140C" stroke="#4A3A22" stroke-width="2"/>
+    <rect x="1072" y="300" width="44" height="44" rx="6" fill="#E8A33D" fill-opacity="0.56"/><text x="1094" y="329" font-size="20" font-weight="700" fill="#1C140A" text-anchor="middle">0</text>
+    <rect x="1124" y="300" width="44" height="44" rx="6" fill="#E8A33D" fill-opacity="0.67"/><text x="1146" y="329" font-size="20" font-weight="700" fill="#1C140A" text-anchor="middle">1</text>
+    <rect x="1176" y="300" width="44" height="44" rx="6" fill="#E8A33D" fill-opacity="0.78"/><text x="1198" y="329" font-size="20" font-weight="700" fill="#1C140A" text-anchor="middle">2</text>
+    <rect x="1228" y="300" width="44" height="44" rx="6" fill="#E8A33D" fill-opacity="0.89"/><text x="1250" y="329" font-size="20" font-weight="700" fill="#1C140A" text-anchor="middle">3</text>
+    <rect x="1280" y="300" width="44" height="44" rx="6" fill="#E8A33D" fill-opacity="1.00"/><text x="1302" y="329" font-size="20" font-weight="700" fill="#1C140A" text-anchor="middle">4</text>
+    <text x="1060" y="398" font-size="18" fill="#F2C77E">partition 1</text>
+    <rect x="1060" y="410" width="300" height="64" rx="10" fill="#1A140C" stroke="#4A3A22" stroke-width="2"/>
+    <rect x="1072" y="420" width="44" height="44" rx="6" fill="#E8A33D" fill-opacity="0.59"/><text x="1094" y="449" font-size="20" font-weight="700" fill="#1C140A" text-anchor="middle">0</text>
+    <rect x="1124" y="420" width="44" height="44" rx="6" fill="#E8A33D" fill-opacity="0.73"/><text x="1146" y="449" font-size="20" font-weight="700" fill="#1C140A" text-anchor="middle">1</text>
+    <rect x="1176" y="420" width="44" height="44" rx="6" fill="#E8A33D" fill-opacity="0.86"/><text x="1198" y="449" font-size="20" font-weight="700" fill="#1C140A" text-anchor="middle">2</text>
+    <rect x="1228" y="420" width="44" height="44" rx="6" fill="#E8A33D" fill-opacity="1.00"/><text x="1250" y="449" font-size="20" font-weight="700" fill="#1C140A" text-anchor="middle">3</text>
+    <text x="1060" y="518" font-size="18" fill="#F2C77E">partition 2</text>
+    <rect x="1060" y="530" width="300" height="64" rx="10" fill="#1A140C" stroke="#4A3A22" stroke-width="2"/>
+    <rect x="1072" y="540" width="44" height="44" rx="6" fill="#E8A33D" fill-opacity="0.63"/><text x="1094" y="569" font-size="20" font-weight="700" fill="#1C140A" text-anchor="middle">0</text>
+    <rect x="1124" y="540" width="44" height="44" rx="6" fill="#E8A33D" fill-opacity="0.82"/><text x="1146" y="569" font-size="20" font-weight="700" fill="#1C140A" text-anchor="middle">1</text>
+    <rect x="1176" y="540" width="44" height="44" rx="6" fill="#E8A33D" fill-opacity="1.00"/><text x="1198" y="569" font-size="20" font-weight="700" fill="#1C140A" text-anchor="middle">2</text>
+    <path d="M1214 268 H1234 L1224 284 Z" fill="#F4F2F8"/>
+    <path d="M1224 286 V358" stroke="#F4F2F8" stroke-width="3" stroke-dasharray="5 5"/>
+    <text x="1242" y="282" font-size="18" fill="#F4F2F8">offset 3</text>
+    <rect x="896" y="410" width="124" height="70" rx="14" fill="#2A1E0E" stroke="#E8A33D" stroke-width="2"/>
+    <text x="958" y="452" font-size="20" fill="#FBE6C4" text-anchor="middle">producer</text>
+    <text x="958" y="512" font-size="17" fill="#8C8399" text-anchor="middle">key=order_id</text>
+    <path d="M1020 432 L1054 330" stroke="#6F6A80" stroke-width="3" marker-end="url(#arrowMuted)"/>
+    <path d="M1020 445 H1054" stroke="#6F6A80" stroke-width="3" marker-end="url(#arrowMuted)"/>
+    <path d="M1020 458 L1054 556" stroke="#6F6A80" stroke-width="3" marker-end="url(#arrowMuted)"/>
+    <text x="1460" y="252" font-size="18" fill="#F2C77E" text-anchor="middle">group: billing</text>
+    <rect x="1390" y="270" width="140" height="346" rx="16" fill="none" stroke="#E8A33D" stroke-width="2" stroke-dasharray="9 7"/>
+    <rect x="1406" y="350" width="108" height="64" rx="12" fill="#2A1E0E" stroke="#E8A33D" stroke-width="2"/>
+    <text x="1460" y="390" font-size="24" font-weight="700" fill="#FBE6C4" text-anchor="middle">c1</text>
+    <rect x="1406" y="530" width="108" height="64" rx="12" fill="#2A1E0E" stroke="#E8A33D" stroke-width="2"/>
+    <text x="1460" y="570" font-size="24" font-weight="700" fill="#FBE6C4" text-anchor="middle">c2</text>
+    <path d="M1360 322 L1400 366" stroke="#F2C77E" stroke-width="3" marker-end="url(#arrow)"/>
+    <path d="M1360 442 L1400 400" stroke="#F2C77E" stroke-width="3" marker-end="url(#arrow)"/>
+    <path d="M1360 562 H1400" stroke="#F2C77E" stroke-width="3" marker-end="url(#arrow)"/>
+    <text x="1060" y="660" font-size="19" fill="#B8B2C8">ordered within a partition</text>
+  </g>
+</svg>

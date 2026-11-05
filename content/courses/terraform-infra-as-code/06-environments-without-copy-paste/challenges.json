@@ -1,0 +1,249 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_tf_162",
+      "name": "one-root-module-per-environment",
+      "type": "mini_coding",
+      "title": "One configuration for staging and production",
+      "description": "Rice Rocket's `infra/staging/` and `infra/production/` folders started as copies and drifted apart, and the attempt to merge them with `terraform.workspace` conditionals once applied staging values to production. The editor holds the single `infra/main.tf` that replaces both, with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: `env` accepts only `staging` or `production` (error message `env must be staging or production.`); every difference between the environments (database size, backup retention, deletion protection, log retention) lives in one settings map and is read through one lookup by `var.env`, never through the CLI workspace (CI always plans in the `default` workspace); the database `rice-rocket-<env>` takes its size and protection from that lookup; and `api`, `courier-matcher` and `notifications` each get a log group `/rice-rocket-<env>/<service>` addressed by the service name. Run plans the file for both environments, in different workspaces, and against production's current state.",
+      "difficulty": "hard",
+      "outcomes": [
+        "safe-refactoring"
+      ],
+      "points": 40,
+      "hints": [
+        "Plan production twice in your head: once from CI (workspace `default`) and once from a laptop that still has the `staging` workspace selected. Which single input should decide every production value?",
+        "Look at a `locals` map keyed by environment name, an index expression `local.settings[var.env]`, attribute access on the result (`local.current.instance_class`), and `for_each` with `toset(...)` so each log group is keyed by its service name.",
+        "Two queues per region with per-region retention look like: `locals { regions = { sg = { retention = 4 }, jp = { retention = 14 } }  region = local.regions[var.region] }`, then `resource \"aws_sqs_queue\" \"jobs\" { for_each = toset([\"orders\", \"emails\"])  name = \"${var.region}-${each.key}\"  message_retention_seconds = local.region.retention * 86400 }`."
+      ],
+      "coding": {
+        "language": "hcl",
+        "filePath": "infra/main.tf",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A staging plan from CI creates the database and three log groups keyed by service",
+          "input": {
+            "checks": [
+              "parse",
+              "plan",
+              "actions"
+            ],
+            "vars": {
+              "env": "staging",
+              "db_password": "test-only-password"
+            }
+          },
+          "expected": {
+            "parse": "ok",
+            "plan": "Plan: 4 to add, 0 to change, 0 to destroy.",
+            "actions": {
+              "aws_cloudwatch_log_group.service[\"api\"]": "create",
+              "aws_cloudwatch_log_group.service[\"courier-matcher\"]": "create",
+              "aws_cloudwatch_log_group.service[\"notifications\"]": "create",
+              "aws_db_instance.main": "create"
+            }
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Staging gets the small database, 3 days of backups and 7-day logs",
+          "input": {
+            "checks": [
+              "database",
+              "logs"
+            ],
+            "vars": {
+              "env": "staging",
+              "db_password": "test-only-password"
+            }
+          },
+          "expected": {
+            "database": {
+              "identifier": "rice-rocket-staging",
+              "instance_class": "db.t4g.micro",
+              "backup_retention_period": 3,
+              "deletion_protection": false
+            },
+            "logs": {
+              "aws_cloudwatch_log_group.service[\"api\"]": "/rice-rocket-staging/api (7 days)",
+              "aws_cloudwatch_log_group.service[\"courier-matcher\"]": "/rice-rocket-staging/courier-matcher (7 days)",
+              "aws_cloudwatch_log_group.service[\"notifications\"]": "/rice-rocket-staging/notifications (7 days)"
+            }
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Production planned from CI (workspace default) gets production's values",
+          "input": {
+            "checks": [
+              "database",
+              "logs"
+            ],
+            "vars": {
+              "env": "production",
+              "db_password": "test-only-password"
+            },
+            "workspace": "default"
+          },
+          "expected": {
+            "database": {
+              "identifier": "rice-rocket-production",
+              "instance_class": "db.t4g.medium",
+              "backup_retention_period": 14,
+              "deletion_protection": true
+            },
+            "logs": {
+              "aws_cloudwatch_log_group.service[\"api\"]": "/rice-rocket-production/api (30 days)",
+              "aws_cloudwatch_log_group.service[\"courier-matcher\"]": "/rice-rocket-production/courier-matcher (30 days)",
+              "aws_cloudwatch_log_group.service[\"notifications\"]": "/rice-rocket-production/notifications (30 days)"
+            }
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Production from a laptop left on the staging workspace still gets production's values",
+          "input": {
+            "checks": [
+              "database"
+            ],
+            "vars": {
+              "env": "production",
+              "db_password": "test-only-password"
+            },
+            "workspace": "staging"
+          },
+          "expected": {
+            "database": {
+              "identifier": "rice-rocket-production",
+              "instance_class": "db.t4g.medium",
+              "backup_retention_period": 14,
+              "deletion_protection": true
+            }
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Production planned over its current state: no changes, outputs name every log group",
+          "input": {
+            "checks": [
+              "plan",
+              "outputs"
+            ],
+            "vars": {
+              "env": "production",
+              "db_password": "test-only-password"
+            },
+            "state": {
+              "aws_db_instance.main": {
+                "type": "aws_db_instance",
+                "attrs": {
+                  "identifier": "rice-rocket-production",
+                  "engine": "postgres",
+                  "engine_version": "17",
+                  "instance_class": "db.t4g.medium",
+                  "allocated_storage": 20,
+                  "username": "rocket",
+                  "password": "test-only-password",
+                  "backup_retention_period": 14,
+                  "deletion_protection": true,
+                  "tags": {
+                    "Project": "rice-rocket",
+                    "Environment": "production",
+                    "ManagedBy": "terraform"
+                  },
+                  "id": "db-PRODEXAMPLE",
+                  "arn": "arn:aws:rds:ap-southeast-1:123456789012:db:rice-rocket-production",
+                  "address": "rice-rocket-production.example.ap-southeast-1.rds.amazonaws.com",
+                  "endpoint": "rice-rocket-production.example.ap-southeast-1.rds.amazonaws.com:5432",
+                  "port": 5432
+                }
+              },
+              "aws_cloudwatch_log_group.service[\"api\"]": {
+                "type": "aws_cloudwatch_log_group",
+                "attrs": {
+                  "name": "/rice-rocket-production/api",
+                  "retention_in_days": 30,
+                  "tags": {
+                    "Project": "rice-rocket",
+                    "Environment": "production",
+                    "ManagedBy": "terraform"
+                  },
+                  "id": "/rice-rocket-production/api",
+                  "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/api"
+                }
+              },
+              "aws_cloudwatch_log_group.service[\"courier-matcher\"]": {
+                "type": "aws_cloudwatch_log_group",
+                "attrs": {
+                  "name": "/rice-rocket-production/courier-matcher",
+                  "retention_in_days": 30,
+                  "tags": {
+                    "Project": "rice-rocket",
+                    "Environment": "production",
+                    "ManagedBy": "terraform"
+                  },
+                  "id": "/rice-rocket-production/courier-matcher",
+                  "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/courier-matcher"
+                }
+              },
+              "aws_cloudwatch_log_group.service[\"notifications\"]": {
+                "type": "aws_cloudwatch_log_group",
+                "attrs": {
+                  "name": "/rice-rocket-production/notifications",
+                  "retention_in_days": 30,
+                  "tags": {
+                    "Project": "rice-rocket",
+                    "Environment": "production",
+                    "ManagedBy": "terraform"
+                  },
+                  "id": "/rice-rocket-production/notifications",
+                  "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/notifications"
+                }
+              }
+            }
+          },
+          "expected": {
+            "plan": "No changes. Your infrastructure matches the configuration.",
+            "outputs": {
+              "database_identifier": "rice-rocket-production",
+              "log_groups": {
+                "api": "/rice-rocket-production/api",
+                "courier-matcher": "/rice-rocket-production/courier-matcher",
+                "notifications": "/rice-rocket-production/notifications"
+              }
+            }
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "An unknown environment name is refused before anything is planned",
+          "input": {
+            "checks": [
+              "plan"
+            ],
+            "vars": {
+              "env": "prod",
+              "db_password": "test-only-password"
+            }
+          },
+          "expected": {
+            "plan": "Error: Invalid value for variable: var.env: env must be staging or production."
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

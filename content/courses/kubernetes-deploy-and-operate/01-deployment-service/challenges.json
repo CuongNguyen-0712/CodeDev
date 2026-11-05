@@ -1,0 +1,274 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_k8s_111",
+      "name": "deployment-service-quiz",
+      "type": "quiz",
+      "title": "Read the first cluster deploy",
+      "description": "Three statements about what Rice Rocket saw after applying its first manifests to the cluster. Decide whether each one is true.",
+      "difficulty": "easy",
+      "outcomes": [
+        "workloads"
+      ],
+      "points": 10,
+      "hints": [
+        "A Service finds pods only through its selector: compare the selector key by key with the labels the pods really carry (`kubectl get pods --show-labels`).",
+        "Ask who would create a replacement pod. A Deployment's ReplicaSet watches its pod count; what watches a pod that was created on its own?",
+        "Read the endpoint address: which port does it name, and which port does the container listen on? `port` is what clients call, `targetPort` is where the traffic lands."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The api pods run, yet every call through the Service fails:\n\n```text\n$ kubectl -n rice-rocket get pods --show-labels\nNAME                   READY   STATUS    LABELS\napi-7d9f8c6b5d-2kxqv   1/1     Running   app.kubernetes.io/name=api,pod-template-hash=7d9f8c6b5d\napi-7d9f8c6b5d-8wz4n   1/1     Running   app.kubernetes.io/name=api,pod-template-hash=7d9f8c6b5d\n\n$ kubectl -n rice-rocket get service api -o jsonpath='{.spec.selector}'\n{\"app\":\"api\"}\n\n$ kubectl -n rice-rocket get endpointslices -l kubernetes.io/service-name=api\nNAME        ADDRESSTYPE   PORTS     ENDPOINTS   AGE\napi-x7c2m   IPv4          <unset>   <unset>     6m\n```\n\nStatement: \"The pods are healthy; the Service has no endpoints because its selector `app: api` matches no pod label, so it must select `app.kubernetes.io/name: api`.\"",
+          "explanation": "True. A Service sends traffic to the ready pods whose labels match every key of its selector. The pods carry `app.kubernetes.io/name=api`, not `app=api`, so the EndpointSlice is empty and connections are refused. Nothing is wrong with the pods. The misconception is that a Service follows the Deployment of the same name: it only follows labels.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "During a cluster upgrade the provider drained node `pool-a-1`. A debug copy of the api that someone started with a plain Pod manifest is gone:\n\n```yaml\napiVersion: v1\nkind: Pod\nmetadata:\n  name: api-debug\n  namespace: rice-rocket\nspec:\n  containers:\n    - name: api\n      image: ghcr.io/rice-rocket/api:1.4.0\n```\n\n```text\n$ kubectl -n rice-rocket get pods\nNAME                   READY   STATUS    RESTARTS   AGE\napi-7d9f8c6b5d-5m2rt   1/1     Running   0          2m\napi-7d9f8c6b5d-8wz4n   1/1     Running   0          3d\n$ kubectl -n rice-rocket get pod api-debug\nError from server (NotFound): pods \"api-debug\" not found\n```\n\nStatement: \"The scheduler moves a bare Pod to another node when its node is drained, just as it does for a Deployment's pods, so `api-debug` will come back by itself.\"",
+          "explanation": "False. A drain evicts pods; nothing recreates a pod that no controller owns, so `api-debug` is simply deleted. The Deployment's pod came back (`api-7d9f8c6b5d-5m2rt`, 2 minutes old) because its ReplicaSet saw one replica missing and created a new pod, which the scheduler placed on another node. The scheduler never moves running pods; controllers replace them. Run real workloads as Deployments, even with one replica.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The selector is fixed and the Service has endpoints, but calls still fail:\n\n```yaml\n# Service api\n  ports:\n    - port: 80\n      targetPort: 80\n# container api\n          ports:\n            - name: http\n              containerPort: 3000\n```\n\n```text\n$ kubectl -n rice-rocket get endpointslices -l kubernetes.io/service-name=api\nNAME        ADDRESSTYPE   PORTS   ENDPOINTS              AGE\napi-x7c2m   IPv4          80      10.8.1.14,10.8.2.9     9m\n$ kubectl -n rice-rocket run curl --rm -it --image=curlimages/curl -- curl -sS http://api/health\ncurl: (7) Failed to connect to api port 80: Connection refused\n```\n\nStatement: \"The endpoints point at port 80 on the pods, where nothing listens; `targetPort` must be the container's port, `3000` or its name `http`.\"",
+          "explanation": "True. `port: 80` is what clients call (`http://api`), and `targetPort` is the port on the pod the traffic is forwarded to. The EndpointSlice lists the pods on port 80, but the api listens on 3000, so each connection is refused at the pod. `targetPort: http` follows the container's named port, so a later port change in the image needs one edit. The misconception is that the Service port and the container port have to be the same number.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_k8s_112",
+      "name": "api-deployment-service",
+      "type": "mini_coding",
+      "title": "Write the api Deployment and Service",
+      "description": "The editor holds `k8s/api.yaml` for the `rice-rocket` namespace: a Deployment and a Service with their key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: three replicas of `ghcr.io/rice-rocket/api:1.4.0` run; the Deployment owns its pods through the `app.kubernetes.io/name: api` label; the container's port 3000 is named `http`; and the Service `api` sends port 80 to the api pods only (the namespace also runs `web` and `courier-matcher` pods labelled `app.kubernetes.io/part-of: rice-rocket`). Run applies the file to a simulated namespace, lists the Service's endpoints and calls `http://api.rice-rocket/health` from another pod.",
+      "difficulty": "easy",
+      "outcomes": [
+        "workloads"
+      ],
+      "points": 20,
+      "hints": [
+        "Follow one request: which labels does the Service select, which pods carry them, and which port on those pods does the traffic reach? Then check that the Deployment's selector and its pod labels agree.",
+        "Look at `spec.selector.matchLabels` and `spec.template.metadata.labels` of the Deployment, `ports[].name` and `containerPort` of the container, and `selector` plus `port` / `targetPort` of the Service.",
+        "A worker that listens on 9000 behind a Service `matcher` on port 80 looks like: Deployment `selector: { matchLabels: { app.kubernetes.io/name: courier-matcher } }`, the same label in the template, `ports: [{ name: grpc, containerPort: 9000 }]`, and a Service with `selector: { app.kubernetes.io/name: courier-matcher }` and `ports: [{ port: 80, targetPort: grpc }]`."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": "k8s/api.yaml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The file applies and the Deployment runs three api pods",
+          "input": {
+            "checks": [
+              "parse",
+              "pods"
+            ]
+          },
+          "expected": {
+            "parse": "ok",
+            "pods": [
+              "api-0",
+              "api-1",
+              "api-2"
+            ]
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The Service has the three api pods as endpoints on port 3000",
+          "input": {
+            "checks": [
+              "endpoints"
+            ],
+            "otherPods": [
+              {
+                "name": "web-0",
+                "labels": {
+                  "app.kubernetes.io/name": "web",
+                  "app.kubernetes.io/part-of": "rice-rocket"
+                },
+                "ready": true,
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 8080
+                  }
+                ]
+              },
+              {
+                "name": "courier-matcher-0",
+                "labels": {
+                  "app.kubernetes.io/name": "courier-matcher",
+                  "app.kubernetes.io/part-of": "rice-rocket"
+                },
+                "ready": true,
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 9000
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "endpoints": [
+              "api-0:3000",
+              "api-1:3000",
+              "api-2:3000"
+            ]
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A call to http://api.rice-rocket/health from another pod is answered by an api pod",
+          "input": {
+            "checks": [
+              "request"
+            ],
+            "otherPods": [
+              {
+                "name": "web-0",
+                "labels": {
+                  "app.kubernetes.io/name": "web",
+                  "app.kubernetes.io/part-of": "rice-rocket"
+                },
+                "ready": true,
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 8080
+                  }
+                ]
+              },
+              {
+                "name": "courier-matcher-0",
+                "labels": {
+                  "app.kubernetes.io/name": "courier-matcher",
+                  "app.kubernetes.io/part-of": "rice-rocket"
+                },
+                "ready": true,
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 9000
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "request": "200 OK from api-0"
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Both objects live in rice-rocket and the Service is reachable at its cluster DNS name",
+          "input": {
+            "checks": [
+              "namespaces",
+              "dns"
+            ]
+          },
+          "expected": {
+            "namespaces": [
+              "rice-rocket"
+            ],
+            "dns": "api.rice-rocket.svc.cluster.local:80"
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "web and courier-matcher pods of the same namespace never receive the api's traffic",
+          "input": {
+            "checks": [
+              "endpoints",
+              "request"
+            ],
+            "otherPods": [
+              {
+                "name": "courier-matcher-0",
+                "labels": {
+                  "app.kubernetes.io/name": "courier-matcher",
+                  "app.kubernetes.io/part-of": "rice-rocket"
+                },
+                "ready": true,
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 9000
+                  }
+                ]
+              },
+              {
+                "name": "web-0",
+                "labels": {
+                  "app.kubernetes.io/name": "web",
+                  "app.kubernetes.io/part-of": "rice-rocket"
+                },
+                "ready": true,
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 8080
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "endpoints": [
+              "api-0:3000",
+              "api-1:3000",
+              "api-2:3000"
+            ],
+            "request": "200 OK from api-0"
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

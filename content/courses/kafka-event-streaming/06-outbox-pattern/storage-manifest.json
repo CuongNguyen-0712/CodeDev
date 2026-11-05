@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_kfk_162",
+      "key": "challenges/typescript/chal_coding_kfk_162/starter.ts",
+      "contentType": "application/typescript; charset=utf-8",
+      "originalName": "src/outbox-relay.ts",
+      "size": 11616
+    }
+  ]
+}

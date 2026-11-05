@@ -1,0 +1,3 @@
+# @piece migrate-depends-healthy: migrate: start only when the database is ready
+depends_on:
+  - db

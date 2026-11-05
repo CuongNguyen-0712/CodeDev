@@ -1,0 +1,2 @@
+# @piece cron-schedule: Every night at 03:00 Ho Chi Minh City time
+schedule: "0 3 * * *"

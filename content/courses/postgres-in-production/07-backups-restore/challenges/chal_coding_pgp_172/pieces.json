@@ -1,0 +1,45 @@
+[
+  {
+    "id": "choose-base",
+    "label": "Base backups that can be used, newest first",
+    "code": "def usable_base_backups(backups, incident, policy):\n    oldest = t(policy[\"now\"]) - timedelta(days=policy[\"retention_days\"])\n    usable = [b for b in backups if b[\"kind\"] == \"base\" and oldest <= t(b[\"finished_at\"]) < incident]\n    return sorted(usable, key=lambda b: t(b[\"finished_at\"]), reverse=True)"
+  },
+  {
+    "id": "wal-chain",
+    "label": "End of the gap-free WAL chain from a start time",
+    "code": "def wal_chain_end(wal_archive, start):\n    end = start\n    for segment in sorted(wal_archive, key=lambda s: t(s[\"from\"])):\n        if t(segment[\"to\"]) <= end:\n            continue\n        if t(segment[\"from\"]) > end:\n            break\n        end = t(segment[\"to\"])\n    return end"
+  },
+  {
+    "id": "set-target",
+    "label": "Where replay stops",
+    "code": "def recovery_target(incident, chain_end):\n    return min(incident - timedelta(seconds=1), chain_end)"
+  },
+  {
+    "id": "estimate-rto",
+    "label": "Minutes to restore and replay",
+    "code": "def estimate_rto(base, target, policy):\n    replay_hours = (target - t(base[\"started_at\"])).total_seconds() / 3600\n    return math.ceil(base[\"size_gb\"] / policy[\"restore_gb_per_min\"] + replay_hours * policy[\"replay_min_per_wal_hour\"])"
+  },
+  {
+    "id": "dump-fallback",
+    "label": "Without PITR, the newest dump before the incident",
+    "code": "dumps = [b for b in backups if b[\"kind\"] == \"dump\" and t(b[\"finished_at\"]) < incident]\nif not dumps:\n    return {\"status\": \"failed\", \"reason\": \"no backup finished before the incident\"}\ndump = max(dumps, key=lambda b: t(b[\"finished_at\"]))\nreturn {\n    \"status\": \"dump-only\",\n    \"dump\": dump[\"id\"],\n    \"data_loss_seconds\": int((incident - t(dump[\"started_at\"])).total_seconds()),\n    \"rto_minutes\": math.ceil(dump[\"size_gb\"] / policy[\"dump_restore_gb_per_min\"]),\n}"
+  },
+  {
+    "id": "choose-base-newest",
+    "label": "Base backups that can be used, newest first",
+    "code": "def usable_base_backups(backups, incident, policy):\n    usable = [b for b in backups if b[\"kind\"] == \"base\"]\n    return sorted(usable, key=lambda b: t(b[\"finished_at\"]), reverse=True)",
+    "distractor": true
+  },
+  {
+    "id": "set-target-at-incident",
+    "label": "Where replay stops",
+    "code": "def recovery_target(incident, chain_end):\n    return min(incident, chain_end)",
+    "distractor": true
+  },
+  {
+    "id": "wal-chain-ignore-gaps",
+    "label": "End of the gap-free WAL chain from a start time",
+    "code": "def wal_chain_end(wal_archive, start):\n    return max(t(segment[\"to\"]) for segment in wal_archive)",
+    "distractor": true
+  }
+]

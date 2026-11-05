@@ -1,0 +1,2 @@
+# @piece cache-key: The key: runner OS and the exact lockfile
+key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}

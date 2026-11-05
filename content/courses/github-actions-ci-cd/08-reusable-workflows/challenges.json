@@ -1,0 +1,204 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_gha_182",
+      "name": "reusable-node-ci",
+      "type": "mini_coding",
+      "title": "Write the shared Node CI workflow",
+      "description": "Rice Rocket's three repositories (app, admin, courier-app) each copied the same CI file, and the copies drifted: one still installs Node 20, one lost its npm cache, one has no time limit. The fix is one reusable workflow in the `rice-rocket/.github` repository that every repository calls with `uses: rice-rocket/.github/.github/workflows/node-ci.yml@v1`. The editor holds `node-ci.yml` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: callers must pass `working-directory` (a string), may pass `node-version` (a string, `24` when omitted) and `run-integration` (a boolean, off when omitted); every command runs in the caller's folder with the caller's Node version and an npm cache keyed on that folder's lockfile; the integration tests run only when the caller sets `run-integration: true`; and the caller can read the line coverage as the workflow output `coverage`, taken from the `cov` step. Run grades the file by calling it the way the three repositories do, with a simulator of GitHub's `workflow_call` inputs, secrets, expressions and outputs.",
+      "difficulty": "hard",
+      "outcomes": [
+        "safe-release",
+        "pr-checks"
+      ],
+      "points": 40,
+      "hints": [
+        "Follow one value from the caller to its use: `with: { working-directory: api }` must be declared under `on.workflow_call.inputs`, then read where the commands run and where the cache looks for the lockfile. Do the same for `coverage` in the other direction: step, job, workflow.",
+        "Look at `inputs.<name>` (not `github.event.inputs`, which belongs to `workflow_dispatch`), at the `type:` and `default:` of each input, at `jobs.<id>.outputs` versus `on.workflow_call.outputs.<name>.value`, and at which contexts each of those may use. Compare how a boolean and the string `'true'` behave in `==`.",
+        "A reusable deploy workflow with a typed input and an output: `on: { workflow_call: { inputs: { dry-run: { type: boolean, default: true } }, outputs: { url: { value: \"${{ jobs.deploy.outputs.url }}\" } } } }`, the job `deploy` with `outputs: { url: \"${{ steps.release.outputs.url }}\" }`, and a step guarded by `if: ${{ !inputs.dry-run }}`."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": ".github/workflows/node-ci.yml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "app calls it with only its folder: Node 24, no integration tests, coverage returned",
+          "input": {
+            "checks": [
+              "parse",
+              "call"
+            ],
+            "call": {
+              "with": {
+                "working-directory": "api"
+              },
+              "secrets": "inherit",
+              "callerSecrets": {
+                "NPM_TOKEN": "npm_rr_app"
+              }
+            },
+            "stepOutputs": {
+              "cov": {
+                "pct": "87.5"
+              }
+            }
+          },
+          "expected": {
+            "parse": "ok",
+            "call": {
+              "result": "ok",
+              "outputs": {
+                "coverage": "87.5"
+              },
+              "node": "24",
+              "folder": "api",
+              "integration": "skipped",
+              "npmToken": "set"
+            }
+          },
+          "hidden": false,
+          "score": 10
+        },
+        {
+          "name": "courier-app passes Node 22 and asks for integration tests",
+          "input": {
+            "checks": [
+              "call"
+            ],
+            "call": {
+              "with": {
+                "working-directory": "courier-app",
+                "node-version": "22",
+                "run-integration": true
+              },
+              "secrets": {}
+            },
+            "stepOutputs": {
+              "cov": {
+                "pct": "87.5"
+              }
+            }
+          },
+          "expected": {
+            "call": {
+              "result": "ok",
+              "outputs": {
+                "coverage": "87.5"
+              },
+              "node": "22",
+              "folder": "courier-app",
+              "integration": "ran",
+              "npmToken": "empty"
+            }
+          },
+          "hidden": false,
+          "score": 10
+        },
+        {
+          "name": "A caller that forgets working-directory fails before any job runs",
+          "input": {
+            "checks": [
+              "call"
+            ],
+            "call": {
+              "with": {
+                "node-version": "24"
+              }
+            },
+            "stepOutputs": {
+              "cov": {
+                "pct": "87.5"
+              }
+            }
+          },
+          "expected": {
+            "call": {
+              "result": "error: Input required and not supplied: working-directory"
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Steps run in order with the integration tests, and NPM_TOKEN can be passed by name",
+          "input": {
+            "checks": [
+              "steps",
+              "call"
+            ],
+            "call": {
+              "with": {
+                "working-directory": "admin",
+                "run-integration": true
+              },
+              "secrets": {
+                "NPM_TOKEN": "npm_rr_admin"
+              }
+            },
+            "stepOutputs": {
+              "cov": {
+                "pct": "91.2"
+              }
+            }
+          },
+          "expected": {
+            "steps": {
+              "test": [
+                "actions/checkout",
+                "actions/setup-node",
+                "admin$ npm ci",
+                "admin$ npm run test:coverage",
+                "Read the coverage",
+                "Integration tests"
+              ]
+            },
+            "call": {
+              "result": "ok",
+              "node": "24",
+              "folder": "admin",
+              "integration": "ran",
+              "npmToken": "set",
+              "outputs": {
+                "coverage": "91.2"
+              }
+            }
+          },
+          "hidden": true,
+          "score": 10
+        },
+        {
+          "name": "An input the workflow does not declare is refused",
+          "input": {
+            "checks": [
+              "call"
+            ],
+            "call": {
+              "with": {
+                "working-directory": "api",
+                "node": "20"
+              }
+            },
+            "stepOutputs": {
+              "cov": {
+                "pct": "87.5"
+              }
+            }
+          },
+          "expected": {
+            "call": {
+              "result": "error: Invalid input, node is not defined in the referenced workflow."
+            }
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "rollout-release",
+    "label": "Roll the new tag out on the server",
+    "code": "await io.rollout(release);"
+  },
+  {
+    "id": "ask-health",
+    "label": "Ask /health once; no answer counts as down",
+    "code": "checks++;\nlet answer = null;\ntry {\n    answer = await io.health();\n} catch {\n    answer = null;\n}"
+  },
+  {
+    "id": "count-healthy-streak",
+    "label": "Count healthy answers in a row from the new version",
+    "code": "if (answer && answer.status === 200 && answer.version === release) streak++;\nelse streak = 0;"
+  },
+  {
+    "id": "report-deployed",
+    "label": "Healthy: record the new version and pass the step",
+    "code": "if (streak >= policy.okInARow) {\n    io.output(\"deployed\", release);\n    io.output(\"rolled_back\", \"false\");\n    io.summary(`${release} is live: ${streak} healthy checks in a row`);\n    return { status: \"deployed\", version: release, checks, exitCode: 0 };\n}"
+  },
+  {
+    "id": "no-previous",
+    "label": "First deploy: nothing to roll back to",
+    "code": "if (previous === null) {\n    io.output(\"rolled_back\", \"false\");\n    io.summary(`${release} failed its health gate and there is no previous version to restore`);\n    return { status: \"failed\", version: release, checks, exitCode: 1 };\n}"
+  },
+  {
+    "id": "roll-back",
+    "label": "Unhealthy: restore the previous tag and fail the step",
+    "code": "await io.rollout(previous);\nio.output(\"deployed\", previous);\nio.output(\"rolled_back\", \"true\");\nio.summary(`${release} failed its health gate after ${checks} checks; rolled back to ${previous}`);\nreturn { status: \"rolled_back\", version: previous, checks, exitCode: 1 };"
+  },
+  {
+    "id": "roll-back-exit-zero",
+    "label": "Unhealthy: restore the previous tag and fail the step",
+    "code": "await io.rollout(previous);\nio.output(\"deployed\", previous);\nio.output(\"rolled_back\", \"true\");\nio.summary(`${release} failed its health gate after ${checks} checks; rolled back to ${previous}`);\nreturn { status: \"rolled_back\", version: previous, checks, exitCode: 0 };",
+    "distractor": true
+  },
+  {
+    "id": "streak-any-version",
+    "label": "Count healthy answers in a row from the new version",
+    "code": "if (answer && answer.status === 200) streak++;\nelse streak = 0;",
+    "distractor": true
+  },
+  {
+    "id": "streak-no-reset",
+    "label": "Count healthy answers in a row from the new version",
+    "code": "if (answer && answer.status === 200 && answer.version === release) streak++;",
+    "distractor": true
+  }
+]

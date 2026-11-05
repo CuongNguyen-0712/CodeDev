@@ -1,0 +1,195 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_tf_131",
+      "name": "remote-state-quiz",
+      "type": "quiz",
+      "title": "Read the state incidents",
+      "description": "Three statements about what happened while Rice Rocket's Terraform state lived in git, and after it moved to S3. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "state-and-modules"
+      ],
+      "points": 10,
+      "hints": [
+        "Git keeps every version of every file it ever committed. Where is the old `terraform.tfstate` after a commit that deletes it?",
+        "Read the Lock Info: who holds the lock, since when, and for which operation? What could happen if two writers both think they hold it?",
+        "`terraform init` reads the backend block before Terraform evaluates any variable. Where else can per-environment backend values come from?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The state file was committed for months. It contains, among the database's attributes:\n\n```text\n$ git log --oneline -- infra/terraform.tfstate | wc -l\n41\n$ git show HEAD~12:infra/terraform.tfstate | grep -m1 '\"password\"'\n            \"password\": \"rr-Pr0d-2025!\",\n```\n\nThe team adds `*.tfstate` to `.gitignore` and commits `git rm --cached infra/terraform.tfstate`.\n\nStatement: \"After that commit the password is gone from the repository, so it does not need to be changed.\"",
+          "explanation": "False. Removing the file from the next commit leaves all 41 earlier versions in the history, on every clone and fork, and in any CI cache. Treat the value as leaked: rotate the password first, then clean the history if you must (a rewrite does not reach existing clones). Terraform state stores resource attributes in plain text, secrets included, which is why it belongs in an encrypted, access-controlled backend and why secrets are better kept out of Terraform (for RDS, `manage_master_user_password` keeps the password in Secrets Manager).",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Tuan's apply stops right away while Mai's apply is running:\n\n```text\n$ terraform apply tfplan\nAcquiring state lock. This may take a few moments...\n\nError: Error acquiring the state lock\n\nLock Info:\n  ID:        7b0e2c55-3f1d-4a8e-9c2a-5d1f0e6b9a41\n  Path:      rice-rocket-terraform-state/production/terraform.tfstate\n  Operation: OperationTypeApply\n  Who:       mai@mai-laptop\n  Version:   1.13.4\n  Created:   2026-11-05 07:41:12 UTC\n```\n\nStatement: \"The lock is doing its job: Tuan waits and plans again after Mai's apply; `terraform force-unlock 7b0e2c55-...` is only for a lock whose holder is known to be gone, because breaking a live lock lets two applies write the same state.\"",
+          "explanation": "True. The lock exists so only one operation writes a state file at a time; a second writer would start from an old copy and its write would drop what the first one recorded. Here the holder is a running apply, so the answer is to wait, then plan again (Tuan's saved plan is now stale anyway). `force-unlock` is for a lock left behind by a process that crashed or was killed, after checking it is really gone.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "To pick the state bucket per environment, someone wrote:\n\n```hcl\nterraform {\n  backend \"s3\" {\n    bucket = var.state_bucket\n    key    = \"${var.env}/terraform.tfstate\"\n    region = \"ap-southeast-1\"\n  }\n}\n```\n\n```text\n$ terraform init\nError: Variables not allowed\n  on backend.tf line 3, in terraform:\n   3:     bucket = var.state_bucket\nVariables may not be used here.\n```\n\nStatement: \"Terraform configures the backend before it evaluates variables, so per-environment values go in a file passed at init time, `terraform init -backend-config=backends/staging.s3.tfbackend`.\"",
+          "explanation": "True. The backend has to be known to read the state, and variables and locals belong to the configuration that is evaluated afterwards, so backend arguments must be literal values. The usual pattern is a partial configuration: the shared values (bucket, region, encryption, locking) stay in the block, and the per-environment ones (the `key`) come from a small `.tfbackend` file or `-backend-config=\"key=...\"` at `terraform init`.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_tf_132",
+      "name": "backend-configuration",
+      "type": "fix_bug",
+      "title": "Fix the backend configuration",
+      "description": "Rice Rocket's state lived in `infra/terraform.tfstate`, in git: two engineers applied at the same time and one apply's resources vanished from the state, and the database password sat in plain text in the history. The editor holds the fixed `infra/backend.tf` with its key lines missing, each marked by a `# [ ]` line; some pieces are the old file's mistakes. Fill every line so that: the state lives in the S3 bucket `rice-rocket-terraform-state` in `ap-southeast-1`, encrypted at rest; each environment's state file comes from its `-backend-config` file (`key = \"<env>/terraform.tfstate\"`); only one plan or apply at a time can hold a state file, using S3's own lock file (there is no DynamoDB lock table); and the configuration refuses Terraform versions older than 1.11.0 or from 2.0.0 on. Run simulates `terraform init` per environment and two applies started at the same moment.",
+      "difficulty": "medium",
+      "outcomes": [
+        "state-and-modules"
+      ],
+      "points": 30,
+      "hints": [
+        "Start from what `terraform init` must know before it can read any state: which bucket, which file, how it is protected, and which Terraform may run this code.",
+        "Look at the arguments of the `s3` backend (`bucket`, `region`, `encrypt`, `use_lockfile`), what `-backend-config` adds at init time, and `required_version` in the `terraform` block.",
+        "A team on Google Cloud keeps its state like this: `terraform { required_version = \">= 1.9.0, < 2.0.0\"  backend \"gcs\" { bucket = \"acme-tf-state\" } }`, and runs `terraform init -backend-config=\"prefix=staging\"`; the gcs backend locks on its own."
+      ],
+      "coding": {
+        "language": "hcl",
+        "filePath": "infra/backend.tf",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "terraform init for staging uses the S3 state file of staging",
+          "input": {
+            "checks": [
+              "parse",
+              "init"
+            ],
+            "backendConfig": {
+              "key": "staging/terraform.tfstate"
+            }
+          },
+          "expected": {
+            "parse": "ok",
+            "init": "Initialized: s3://rice-rocket-terraform-state/staging/terraform.tfstate (ap-southeast-1)"
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The state is remote, encrypted at rest and locked with S3's lock file",
+          "input": {
+            "checks": [
+              "storage"
+            ],
+            "backendConfig": {
+              "key": "staging/terraform.tfstate"
+            }
+          },
+          "expected": {
+            "storage": {
+              "remote": true,
+              "encrypted": true,
+              "locking": "lockfile"
+            }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Two applies at the same moment: the second one cannot take the lock, nothing is lost",
+          "input": {
+            "checks": [
+              "concurrent"
+            ],
+            "backendConfig": {
+              "key": "production/terraform.tfstate"
+            },
+            "dynamodbTables": []
+          },
+          "expected": {
+            "concurrent": {
+              "first": "applied",
+              "second": "Error acquiring the state lock",
+              "recorded": [
+                "aws_s3_bucket.web"
+              ],
+              "orphaned": []
+            }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Production gets its own state file in the same bucket",
+          "input": {
+            "checks": [
+              "init"
+            ],
+            "backendConfig": {
+              "key": "production/terraform.tfstate"
+            },
+            "terraformVersion": "1.13.4"
+          },
+          "expected": {
+            "init": "Initialized: s3://rice-rocket-terraform-state/production/terraform.tfstate (ap-southeast-1)"
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "An old Terraform 1.9.8 on a laptop is refused before it touches the state",
+          "input": {
+            "checks": [
+              "init"
+            ],
+            "backendConfig": {
+              "key": "production/terraform.tfstate"
+            },
+            "terraformVersion": "1.9.8"
+          },
+          "expected": {
+            "init": "Error: Unsupported Terraform Core version: This configuration does not support Terraform version 1.9.8."
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

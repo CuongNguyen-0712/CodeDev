@@ -1,0 +1,40 @@
+[
+  {
+    "id": "drop-unused",
+    "label": "Drop the one-column indexes no query needs",
+    "code": "DROP_UNUSED = \"\"\"\nDROP INDEX orders_restaurant_id_idx;\nDROP INDEX orders_customer_id_idx;\nDROP INDEX orders_status_idx;\nDROP INDEX orders_created_at_idx;\nDROP INDEX orders_total_vnd_idx;\nDROP INDEX orders_public_code_idx;\n\"\"\""
+  },
+  {
+    "id": "active-index",
+    "label": "Index for a restaurant's active orders, newest first",
+    "code": "ACTIVE_INDEX = \"\"\"\nCREATE INDEX orders_active_by_restaurant\n    ON orders (restaurant_id, created_at)\n    WHERE status IN ('pending', 'cooking');\n\"\"\""
+  },
+  {
+    "id": "history-index",
+    "label": "Index for one customer's orders in a date range",
+    "code": "HISTORY_INDEX = \"\"\"\nCREATE INDEX orders_by_customer_created ON orders (customer_id, created_at);\n\"\"\""
+  },
+  {
+    "id": "lookup-index",
+    "label": "Index for support's lookup by public code",
+    "code": "LOOKUP_INDEX = \"\"\"\nCREATE UNIQUE INDEX orders_public_code_key ON orders (public_code);\n\"\"\""
+  },
+  {
+    "id": "active-one-per-column",
+    "label": "Index for a restaurant's active orders, newest first",
+    "code": "ACTIVE_INDEX = \"\"\"\nCREATE INDEX orders_by_restaurant ON orders (restaurant_id);\nCREATE INDEX orders_by_created ON orders (created_at);\n\"\"\"",
+    "distractor": true
+  },
+  {
+    "id": "active-partial-mismatch",
+    "label": "Index for a restaurant's active orders, newest first",
+    "code": "ACTIVE_INDEX = \"\"\"\nCREATE INDEX orders_active_by_restaurant\n    ON orders (restaurant_id, created_at)\n    WHERE status <> 'delivered';\n\"\"\"",
+    "distractor": true
+  },
+  {
+    "id": "history-range-first",
+    "label": "Index for one customer's orders in a date range",
+    "code": "HISTORY_INDEX = \"\"\"\nCREATE INDEX orders_by_created_customer ON orders (created_at, customer_id);\n\"\"\"",
+    "distractor": true
+  }
+]

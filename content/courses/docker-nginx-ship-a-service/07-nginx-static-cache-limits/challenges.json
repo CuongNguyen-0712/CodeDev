@@ -1,0 +1,231 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dkn_171",
+      "name": "nginx-static-cache-limits-quiz",
+      "type": "quiz",
+      "title": "Read the static, cache and limit config",
+      "description": "Three statements about how Rice Rocket's nginx serves the web app, which headers it adds, and what its login rate limit really does. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": ["nginx-proxy"],
+      "points": 10,
+      "hints": [
+        "For each statement, find the one location that handles the request, then ask which directives that location has of its own and which it inherits.",
+        "Look at the levels where `add_header` appears, at the last parameter of `try_files`, and at the numbers in `rate=` and `burst=`.",
+        "Same rules on different input: with `location /img/ { add_header X-Robots-Tag noindex; }` under a server that adds `Referrer-Policy`, a 200 from /img/ carries X-Robots-Tag only; and `try_files $uri /404.html` serves /404.html for a missing file without changing the URL in the browser."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Security headers are set at server level, and the assets location adds a cache header:\n\n```nginx\nserver {\n    add_header X-Content-Type-Options nosniff;\n    add_header Referrer-Policy strict-origin-when-cross-origin;\n\n    location /assets/ {\n        try_files $uri =404;\n        add_header Cache-Control \"public, max-age=31536000, immutable\";\n    }\n}\n```\n\nStatement: \"A 200 response for `/assets/index-4f9a2c.js` carries all three headers: `X-Content-Type-Options`, `Referrer-Policy` and `Cache-Control`.\"",
+          "explanation": "False. add_header directives are inherited from the outer level only if the current level has no add_header of its own. The location defines one, so its responses carry only Cache-Control and lose both security headers. The common reading is that add_header appends to the inherited list; nginx replaces the list per level. Repeat the security headers in the location (or use expires 1y there instead of add_header, so the location has no add_header and inherits the server ones).",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The web app is a single-page app. Its build output and the location that serves it:\n\n```text\n/usr/share/nginx/html/index.html\n/usr/share/nginx/html/assets/index-4f9a2c.js\n```\n\n```nginx\nlocation / {\n    try_files $uri $uri/ /index.html;\n}\n```\n\nStatement: \"A request for `/orders/42` gets `index.html` with status 200, and the address bar still shows `/orders/42`, so the app's router can render order 42.\"",
+          "explanation": "True. Neither the file /orders/42 nor a directory /orders/42/ exists, so try_files makes an internal redirect to its last parameter, /index.html. An internal redirect happens inside nginx: the browser receives the shell with 200 and never sees a new URL, so the client-side router reads /orders/42. The misconception is that this is an HTTP redirect (301/302); it is not, and that is exactly why deep links work.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The login endpoint is limited like this:\n\n```nginx\nlimit_req_zone $binary_remote_addr zone=login:10m rate=10r/m;\n\nlocation = /api/login {\n    limit_req zone=login burst=5 nodelay;\n    proxy_pass http://api/login;\n}\n```\n\nOne IP then sends 20 login requests within the same second:\n\n```text\n198.51.100.23 \"POST /api/login\" x 20 at 10:02:07\n```\n\nStatement: \"Because of `nodelay`, all 20 requests reach the api immediately; the limit only slows down requests in the following minute.\"",
+          "explanation": "False. nodelay only means that requests inside the burst are not spaced out: the first request plus the 5 burst slots (6 in total) go to the api at once, and the other 14 are rejected straight away with limit_req_status, 503 by default (set 429). The bucket then refills at the rate, one slot every 6 seconds for 10r/m. A common misconception is that nodelay disables or defers the limit; it changes only the delay of requests that are within the burst.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dkn_172",
+      "name": "nginx-static-cache-limits-default-conf",
+      "type": "mini_coding",
+      "title": "Serve the app, cache it right and limit logins",
+      "description": "After each deploy users get a blank page (yesterday's index.html, cached for a day, asks for hashed bundles that no longer exist), deep links like `/orders/42` return 404, and a credential-stuffing burst hit `/api/login` with 2,000 requests a minute. Assemble the fixed default.conf: (1) app routes that are not files (e.g. `/orders/42`) get `/index.html` with 200; a missing file under `/assets/` is a 404, never HTML; (2) `/index.html` (also when reached as `/` or as the fallback) must revalidate on every load (no-cache or max-age=0), files under `/assets/` are cached for at least 30 days (1 year recommended); (3) every static 200 response keeps `X-Content-Type-Options: nosniff`; (4) gzip covers HTML, CSS, JavaScript, SVG and the api's JSON, but not PNG; (5) `/api/login` allows 10 requests a minute per client IP, with a burst of 5 served without delay, and rejects the excess with 429; other api endpoints are not limited. Run grades it with a simulator that answers each request (status, file served, Cache-Control, gzip, rate limit, nosniff); request times `t` are seconds. The editor starts from the finished file with key blocks missing (`[ ] label` lines): fill each one by clicking a piece, or drag it onto the line on desktop. Some pieces are wrong on purpose.",
+      "difficulty": "medium",
+      "outcomes": ["nginx-proxy"],
+      "points": 30,
+      "hints": [
+        "Which location answers `/index.html` when it is reached through the try_files fallback, and does that location have an `add_header` of its own?",
+        "Compare the pieces that fill the same line: the last parameter of each `try_files`, whether a location sets an `add_header` of its own (and so drops the server-level one), and which location carries `limit_req`.",
+        "Same tools on a docs site: `location = /docs/index.html { expires -1; }`, `location /docs/_static/ { try_files $uri =404; expires 30d; }`, and for a password-reset form `limit_req_zone $binary_remote_addr zone=reset:1m rate=3r/m;` with `limit_req zone=reset burst=2 nodelay; limit_req_status 429;` in `location = /api/password-reset`."
+      ],
+      "coding": {
+        "language": "nginx",
+        "filePath": "default.conf",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Hashed assets are cached for a long time; index.html (also as /) revalidates",
+          "input": {
+            "files": ["/index.html", "/favicon.ico", "/robots.txt", "/assets/index-4f9a2c.js", "/assets/index-b81e07.css", "/assets/logo-9c1d2e.svg", "/assets/hero-77aa01.png"],
+            "fields": ["status", "file", "cacheControl"],
+            "requests": [
+              { "path": "/assets/index-4f9a2c.js" },
+              { "path": "/index.html" },
+              { "path": "/" }
+            ]
+          },
+          "expected": [
+            { "status": 200, "file": "/assets/index-4f9a2c.js", "cacheControl": "long" },
+            { "status": 200, "file": "/index.html", "cacheControl": "revalidate" },
+            { "status": 200, "file": "/index.html", "cacheControl": "revalidate" }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Deep links get the app shell; a deleted hashed asset is a 404, not HTML",
+          "input": {
+            "files": ["/index.html", "/favicon.ico", "/robots.txt", "/assets/index-4f9a2c.js", "/assets/index-b81e07.css", "/assets/logo-9c1d2e.svg", "/assets/hero-77aa01.png"],
+            "fields": ["status", "file", "cacheControl"],
+            "requests": [
+              { "path": "/orders/42" },
+              { "path": "/restaurants/pho-hoa/menu?tab=noodles" },
+              { "path": "/assets/index-0ld000.js" }
+            ]
+          },
+          "expected": [
+            { "status": 200, "file": "/index.html", "cacheControl": "revalidate" },
+            { "status": 200, "file": "/index.html", "cacheControl": "revalidate" },
+            { "status": 404, "file": null, "cacheControl": null }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "8 logins from one IP in the same second: 6 reach the api, 2 get 429",
+          "input": {
+            "files": ["/index.html"],
+            "fields": ["status", "limited"],
+            "requests": [
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0 }
+            ]
+          },
+          "expected": [
+            { "status": 200, "limited": false },
+            { "status": 200, "limited": false },
+            { "status": 200, "limited": false },
+            { "status": 200, "limited": false },
+            { "status": 200, "limited": false },
+            { "status": 200, "limited": false },
+            { "status": 429, "limited": true },
+            { "status": 429, "limited": true }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Every static 200 keeps X-Content-Type-Options: nosniff, cached or not",
+          "input": {
+            "files": ["/index.html", "/favicon.ico", "/robots.txt", "/assets/index-4f9a2c.js", "/assets/index-b81e07.css", "/assets/logo-9c1d2e.svg", "/assets/hero-77aa01.png"],
+            "fields": ["status", "nosniff"],
+            "requests": [
+              { "path": "/assets/index-4f9a2c.js" },
+              { "path": "/assets/index-b81e07.css" },
+              { "path": "/index.html" },
+              { "path": "/orders/42" },
+              { "path": "/robots.txt" }
+            ]
+          },
+          "expected": [
+            { "status": 200, "nosniff": true },
+            { "status": 200, "nosniff": true },
+            { "status": 200, "nosniff": true },
+            { "status": 200, "nosniff": true },
+            { "status": 200, "nosniff": true }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "JS, CSS, SVG, HTML and api JSON are gzipped; PNG is not",
+          "input": {
+            "files": ["/index.html", "/favicon.ico", "/robots.txt", "/assets/index-4f9a2c.js", "/assets/index-b81e07.css", "/assets/logo-9c1d2e.svg", "/assets/hero-77aa01.png"],
+            "fields": ["gzip"],
+            "requests": [
+              { "path": "/assets/index-4f9a2c.js" },
+              { "path": "/assets/index-b81e07.css" },
+              { "path": "/assets/logo-9c1d2e.svg" },
+              { "path": "/orders/42" },
+              { "path": "/api/orders?status=new" },
+              { "path": "/assets/hero-77aa01.png" }
+            ]
+          },
+          "expected": [
+            { "gzip": true },
+            { "gzip": true },
+            { "gzip": true },
+            { "gzip": true },
+            { "gzip": true },
+            { "gzip": false }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "The login limit is per IP, leaves other endpoints alone and refills at 10 a minute",
+          "input": {
+            "files": ["/index.html"],
+            "fields": ["status", "limited"],
+            "requests": [
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0 },
+              { "path": "/api/login", "t": 0, "ip": "198.51.100.23" },
+              { "path": "/api/orders", "t": 0 },
+              { "path": "/api/orders", "t": 0 },
+              { "path": "/api/login", "t": 12 },
+              { "path": "/api/login", "t": 12 },
+              { "path": "/api/login", "t": 60 }
+            ]
+          },
+          "expected": [
+            { "status": 200, "limited": false },
+            { "status": 200, "limited": false },
+            { "status": 200, "limited": false },
+            { "status": 200, "limited": false },
+            { "status": 200, "limited": false },
+            { "status": 200, "limited": false },
+            { "status": 429, "limited": true },
+            { "status": 200, "limited": false },
+            { "status": 200, "limited": false },
+            { "status": 200, "limited": false },
+            { "status": 200, "limited": false },
+            { "status": 429, "limited": true },
+            { "status": 200, "limited": false }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

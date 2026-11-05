@@ -1,0 +1,98 @@
+# Rice Rocket's public entry point on the managed cluster (namespace rice-rocket).
+# The platform provides the GatewayClass "managed"; cert-manager keeps the Secret
+# "ricerocket-tls" (ricerocket.vn and api.ricerocket.vn) up to date.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: public
+  namespace: rice-rocket
+spec:
+  gatewayClassName: managed
+  listeners:
+    # @piece https-listener: HTTPS on 443, TLS ends here with the site certificate
+    - name: https
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: ricerocket-tls
+    # @end
+    # @piece http-listener: Plain HTTP on 80, kept only to redirect
+    - name: http
+      protocol: HTTP
+      port: 80
+    # @end
+---
+# Every http:// request gets a permanent redirect to https://.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: redirect-to-https
+  namespace: rice-rocket
+spec:
+  parentRefs:
+    - name: public
+      sectionName: http
+  hostnames: ["ricerocket.vn", "api.ricerocket.vn"]
+  rules:
+    # @piece redirect-rule: Send every plain HTTP request to its https:// URL
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+    # @end
+---
+# ricerocket.vn: the web app, with its API calls under /api on the same origin.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: site
+  namespace: rice-rocket
+spec:
+  parentRefs:
+    - name: public
+      sectionName: https
+  hostnames: ["ricerocket.vn"]
+  rules:
+    # @piece api-rule: /api and every path below it, to the api without /api
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: api
+          port: 80
+    # @end
+    # @piece web-rule: Every other path, to the web app
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: web
+          port: 80
+    # @end
+---
+# api.ricerocket.vn: the API for the courier and partner apps.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: api
+  namespace: rice-rocket
+spec:
+  parentRefs:
+    - name: public
+      sectionName: https
+  hostnames: ["api.ricerocket.vn"]
+  rules:
+    - backendRefs:
+        - name: api
+          port: 80

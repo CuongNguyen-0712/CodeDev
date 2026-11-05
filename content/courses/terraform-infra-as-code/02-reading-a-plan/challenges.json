@@ -1,0 +1,310 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_tf_121",
+      "name": "reading-a-plan-quiz",
+      "type": "quiz",
+      "title": "Read the database plans",
+      "description": "Three statements about plans Rice Rocket reviewed for its PostgreSQL instance. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "reading-plans"
+      ],
+      "points": 10,
+      "hints": [
+        "Read the symbol in front of the resource and the comment at the end of the changed line. What does `-/+` do to the object that exists today?",
+        "A plan line `~ a = 32 -> 20` is a call Terraform will make to the cloud API. Who made the value 32 in the first place?",
+        "Compare `terraform apply` with `terraform apply tfplan`: which one plans again, and what does Terraform do with a saved plan when the state moved on?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A pull request titled \"rename the database to our naming convention\" produced this plan:\n\n```text\n  # aws_db_instance.main must be replaced\n-/+ resource \"aws_db_instance\" \"main\" {\n      ~ address    = \"rr-staging-db.c9x2k1.ap-southeast-1.rds.amazonaws.com\" -> (known after apply)\n      ~ id         = \"db-STAGING7Q2\" -> (known after apply)\n      ~ identifier = \"rr-staging-db\" -> \"rice-rocket-staging\" # forces replacement\n        # (11 unchanged attributes hidden)\n    }\n\nPlan: 1 to add, 0 to change, 1 to destroy.\n```\n\nStatement: \"Only the name changes, so AWS renames the instance in place and keeps the data; `-/+` here is cosmetic.\"",
+          "explanation": "False. `-/+` means destroy the existing object, then create a new one, and `# forces replacement` names the attribute that causes it: the provider cannot change `identifier` through an update, so the plan deletes the database and creates an empty one. The `1 to destroy` in the summary is the line to stop at. A replaced database is a new, empty database (or one restored from a snapshot, by hand). The misconception is reading the attribute that changed instead of the action.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "RDS storage autoscaling grew the disk last month. Every plan since shows:\n\n```text\n  # aws_db_instance.main will be updated in-place\n  ~ resource \"aws_db_instance\" \"main\" {\n      ~ allocated_storage = 32 -> 20\n        id                = \"db-PRODUCTION7Q2\"\n        # (14 unchanged attributes hidden)\n    }\n\nPlan: 0 to add, 1 to change, 0 to destroy.\n```\n\nStatement: \"Applying this is harmless: Terraform only writes 20 back into its state file and leaves the real storage alone.\"",
+          "explanation": "False. An update in a plan is an API call: Terraform would ask RDS to set the storage to 20 GiB, which RDS refuses because allocated storage can only grow, so the apply fails (and keeps failing on every run). The value is managed outside Terraform on purpose, so the configuration should say so with `lifecycle { ignore_changes = [allocated_storage] }`. The misconception is that a plan only edits state: state is updated after the real change succeeds.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The release job saves the reviewed plan and applies exactly that file:\n\n```text\n$ terraform plan -out tfplan        # reviewed in the pull request\n$ terraform apply tfplan            # run after approval\n```\n\nStatement: \"`terraform apply tfplan` performs the saved actions without planning again, and if the state changed after the plan was made, Terraform refuses the stale plan instead of applying it.\"",
+          "explanation": "True. A saved plan records the actions and the state it was made against. Applying it does not refresh or re-plan, so what runs is what was reviewed. If another apply changed the state in between, Terraform reports the saved plan as stale and stops; you plan again and review again. Plain `terraform apply` makes a new plan, which may differ from the one people looked at. Note that the plan file can contain sensitive values, so CI keeps it private.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_tf_122",
+      "name": "database-plan-guards",
+      "type": "mini_coding",
+      "title": "Guard the database against the plans that hurt",
+      "description": "The editor holds `infra/database.tf`, Rice Rocket's PostgreSQL for one environment, with its key lines missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: the instance is named `rice-rocket-<env>` and runs PostgreSQL 17; its class comes from `var.db_instance_class`, it starts at 20 GiB and RDS may grow it to 100 GiB on its own; AWS refuses to delete it and a last snapshot named `rice-rocket-<env>-final` is taken if it is ever deleted; a plan that would replace it stops with an error; and storage grown by RDS never shows up as a change, while every other difference still does. Run plans the file against the recorded state and the real instance (drift included) with a plan simulator.",
+      "difficulty": "medium",
+      "outcomes": [
+        "reading-plans"
+      ],
+      "points": 30,
+      "hints": [
+        "For each test, write down the state, the real instance and the configuration, then ask: which attributes differ, and does any of them force a replacement?",
+        "Look at the `lifecycle` block inside a resource: `prevent_destroy` stops any plan that would destroy or replace the object, `ignore_changes` lists attributes Terraform should leave alone after creation.",
+        "A cache cluster whose node count is changed by an autoscaler, and which must never be recreated: `resource \"aws_elasticache_cluster\" \"cache\" { cluster_id = \"${local.name}-cache\"  num_cache_nodes = 2  lifecycle { prevent_destroy = true  ignore_changes = [num_cache_nodes] } }`."
+      ],
+      "coding": {
+        "language": "hcl",
+        "filePath": "infra/database.tf",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A new staging environment plans one database to create",
+          "input": {
+            "checks": [
+              "parse",
+              "plan",
+              "actions"
+            ],
+            "vars": {
+              "env": "staging"
+            }
+          },
+          "expected": {
+            "parse": "ok",
+            "plan": "Plan: 1 to add, 0 to change, 0 to destroy.",
+            "actions": {
+              "aws_db_instance.main": "create"
+            }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Storage grown by RDS from 20 to 32 GiB is not a change",
+          "input": {
+            "checks": [
+              "plan"
+            ],
+            "vars": {
+              "env": "staging"
+            },
+            "state": {
+              "aws_db_instance.main": {
+                "type": "aws_db_instance",
+                "attrs": {
+                  "identifier": "rice-rocket-staging",
+                  "engine": "postgres",
+                  "engine_version": "17",
+                  "instance_class": "db.t4g.micro",
+                  "allocated_storage": 20,
+                  "max_allocated_storage": 100,
+                  "username": "rocket",
+                  "manage_master_user_password": true,
+                  "deletion_protection": true,
+                  "skip_final_snapshot": false,
+                  "final_snapshot_identifier": "rice-rocket-staging-final",
+                  "id": "db-STAGING7Q2",
+                  "arn": "arn:aws:rds:ap-southeast-1:123456789012:db:rice-rocket-staging",
+                  "address": "rice-rocket-staging.c9x2k1.ap-southeast-1.rds.amazonaws.com",
+                  "endpoint": "rice-rocket-staging.c9x2k1.ap-southeast-1.rds.amazonaws.com:5432",
+                  "port": 5432
+                }
+              }
+            },
+            "remote": {
+              "aws_db_instance.main": {
+                "identifier": "rice-rocket-staging",
+                "engine": "postgres",
+                "engine_version": "17",
+                "instance_class": "db.t4g.micro",
+                "allocated_storage": 32,
+                "max_allocated_storage": 100,
+                "username": "rocket",
+                "manage_master_user_password": true,
+                "deletion_protection": true,
+                "skip_final_snapshot": false,
+                "final_snapshot_identifier": "rice-rocket-staging-final",
+                "id": "db-STAGING7Q2",
+                "arn": "arn:aws:rds:ap-southeast-1:123456789012:db:rice-rocket-staging",
+                "address": "rice-rocket-staging.c9x2k1.ap-southeast-1.rds.amazonaws.com",
+                "endpoint": "rice-rocket-staging.c9x2k1.ap-southeast-1.rds.amazonaws.com:5432",
+                "port": 5432
+              }
+            }
+          },
+          "expected": {
+            "plan": "No changes. Your infrastructure matches the configuration."
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The rename from rr-staging-db stops the plan instead of replacing the database",
+          "input": {
+            "checks": [
+              "plan"
+            ],
+            "vars": {
+              "env": "staging"
+            },
+            "state": {
+              "aws_db_instance.main": {
+                "type": "aws_db_instance",
+                "attrs": {
+                  "identifier": "rr-staging-db",
+                  "engine": "postgres",
+                  "engine_version": "17",
+                  "instance_class": "db.t4g.micro",
+                  "allocated_storage": 20,
+                  "max_allocated_storage": 100,
+                  "username": "rocket",
+                  "manage_master_user_password": true,
+                  "deletion_protection": true,
+                  "skip_final_snapshot": false,
+                  "final_snapshot_identifier": "rice-rocket-staging-final",
+                  "id": "db-STAGING7Q2",
+                  "arn": "arn:aws:rds:ap-southeast-1:123456789012:db:rice-rocket-staging",
+                  "address": "rice-rocket-staging.c9x2k1.ap-southeast-1.rds.amazonaws.com",
+                  "endpoint": "rice-rocket-staging.c9x2k1.ap-southeast-1.rds.amazonaws.com:5432",
+                  "port": 5432
+                }
+              }
+            }
+          },
+          "expected": {
+            "plan": "Error: Instance cannot be destroyed: resource aws_db_instance.main has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed (replace: identifier)"
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A bigger instance class in production is one update in place, storage untouched",
+          "input": {
+            "checks": [
+              "plan",
+              "actions",
+              "changed"
+            ],
+            "vars": {
+              "env": "production",
+              "db_instance_class": "db.t4g.medium"
+            },
+            "state": {
+              "aws_db_instance.main": {
+                "type": "aws_db_instance",
+                "attrs": {
+                  "identifier": "rice-rocket-production",
+                  "engine": "postgres",
+                  "engine_version": "17",
+                  "instance_class": "db.t4g.micro",
+                  "allocated_storage": 48,
+                  "max_allocated_storage": 100,
+                  "username": "rocket",
+                  "manage_master_user_password": true,
+                  "deletion_protection": true,
+                  "skip_final_snapshot": false,
+                  "final_snapshot_identifier": "rice-rocket-production-final",
+                  "id": "db-PRODUCTION7Q2",
+                  "arn": "arn:aws:rds:ap-southeast-1:123456789012:db:rice-rocket-production",
+                  "address": "rice-rocket-production.c9x2k1.ap-southeast-1.rds.amazonaws.com",
+                  "endpoint": "rice-rocket-production.c9x2k1.ap-southeast-1.rds.amazonaws.com:5432",
+                  "port": 5432
+                }
+              }
+            },
+            "remote": {
+              "aws_db_instance.main": {
+                "identifier": "rice-rocket-production",
+                "engine": "postgres",
+                "engine_version": "17",
+                "instance_class": "db.t4g.micro",
+                "allocated_storage": 48,
+                "max_allocated_storage": 100,
+                "username": "rocket",
+                "manage_master_user_password": true,
+                "deletion_protection": true,
+                "skip_final_snapshot": false,
+                "final_snapshot_identifier": "rice-rocket-production-final",
+                "id": "db-PRODUCTION7Q2",
+                "arn": "arn:aws:rds:ap-southeast-1:123456789012:db:rice-rocket-production",
+                "address": "rice-rocket-production.c9x2k1.ap-southeast-1.rds.amazonaws.com",
+                "endpoint": "rice-rocket-production.c9x2k1.ap-southeast-1.rds.amazonaws.com:5432",
+                "port": 5432
+              }
+            }
+          },
+          "expected": {
+            "plan": "Plan: 0 to add, 1 to change, 0 to destroy.",
+            "actions": {
+              "aws_db_instance.main": "update"
+            },
+            "changed": [
+              "instance_class"
+            ]
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Production: deletion protection, a named final snapshot and storage up to 100 GiB",
+          "input": {
+            "checks": [
+              "settings"
+            ],
+            "vars": {
+              "env": "production"
+            }
+          },
+          "expected": {
+            "settings": {
+              "identifier": "rice-rocket-production",
+              "instance_class": "db.t4g.micro",
+              "max_allocated_storage": 100,
+              "deletion_protection": true,
+              "skip_final_snapshot": false,
+              "final_snapshot_identifier": "rice-rocket-production-final"
+            }
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+[
+  {
+    "id": "workflow-permissions",
+    "label": "What the GITHUB_TOKEN may do unless a job says otherwise",
+    "code": "permissions:\n  contents: read"
+  },
+  {
+    "id": "job-permissions",
+    "label": "deploy: read the code and request an OIDC token",
+    "code": "permissions:\n  contents: read\n  id-token: write"
+  },
+  {
+    "id": "commit-message-log",
+    "label": "Log the commit message without running it",
+    "code": "- name: Log the release\n  env:\n    MESSAGE: ${{ github.event.head_commit.message }}\n  run: echo \"Deploying: $MESSAGE\""
+  },
+  {
+    "id": "aws-credentials",
+    "label": "Short-lived AWS credentials for the deploy role",
+    "code": "- name: Assume the deploy role\n  uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4\n  with:\n    role-to-assume: arn:aws:iam::123456789012:role/rice-rocket-web-deploy\n    aws-region: ap-southeast-1"
+  },
+  {
+    "id": "aws-stored-keys",
+    "label": "Short-lived AWS credentials for the deploy role",
+    "code": "- name: Assume the deploy role\n  uses: aws-actions/configure-aws-credentials@v4\n  with:\n    aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}\n    aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}\n    aws-region: ap-southeast-1",
+    "distractor": true
+  },
+  {
+    "id": "commit-message-inline",
+    "label": "Log the commit message without running it",
+    "code": "- name: Log the release\n  run: echo \"Deploying: ${{ github.event.head_commit.message }}\"",
+    "distractor": true
+  },
+  {
+    "id": "token-write-all",
+    "label": "What the GITHUB_TOKEN may do unless a job says otherwise",
+    "code": "permissions: write-all",
+    "distractor": true
+  }
+]

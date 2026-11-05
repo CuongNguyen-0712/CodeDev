@@ -1,0 +1,9 @@
+# @piece build-push: Build api/, push except on pull requests, reuse the cache
+- uses: docker/build-push-action@v6
+  with:
+    context: api
+    push: true
+    tags: ${{ steps.meta.outputs.tags }}
+    labels: ${{ steps.meta.outputs.labels }}
+    cache-from: type=gha
+    cache-to: type=gha,mode=max

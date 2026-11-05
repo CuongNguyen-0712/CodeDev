@@ -1,0 +1,33 @@
+# Rice Rocket CI: lint and test the api on every pull request into main and every push to main.
+# The api lives in api/ (Node version in api/.nvmrc, dependencies locked in api/package-lock.json).
+name: ci
+
+on:
+  # [ ] Pull requests into main, except docs-only changes
+  # [ ] Pushes to main, except docs-only changes
+
+# [ ] What the GITHUB_TOKEN of these jobs may do
+
+defaults:
+  run:
+    working-directory: api
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    # [ ] lint: give up after 10 minutes
+    steps:
+      # [ ] lint: the code, Node from .nvmrc and the locked dependencies
+      - run: npm run lint
+
+  test:
+    # [ ] test: start only once lint has passed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: api/.nvmrc
+      - run: npm ci
+      - run: npm test

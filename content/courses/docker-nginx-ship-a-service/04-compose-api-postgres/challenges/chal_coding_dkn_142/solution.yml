@@ -1,0 +1,79 @@
+# Rice Rocket on the VPS: Postgres, a one-shot migration and the api.
+# The VPS already has ./secrets/db_password.txt and ./secrets/jwt_secret.txt, and the api's
+# config loader (lesson 3) reads DATABASE_PASSWORD_FILE and JWT_SECRET_FILE.
+services:
+  db:
+    image: postgres:17
+    # @piece db-password-file: db: user, database and a password kept out of this file
+    environment:
+      POSTGRES_USER: rocket
+      POSTGRES_DB: rocket
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    # @end
+    # @piece db-volume: db: keep the data files across down and up
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # @end
+    # @piece db-healthcheck: db: readiness check and network exposure
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rocket -d rocket"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    # @end
+
+  migrate:
+    image: rice-rocket/api:1.0.0
+    command: ["node", "dist/migrate.js"]
+    environment:
+      # @piece migrate-database-url: migrate: where to reach the database
+      DATABASE_URL: postgres://rocket@db:5432/rocket
+      # @end
+      DATABASE_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    # @piece migrate-depends-healthy: migrate: start only when the database is ready
+    depends_on:
+      db:
+        condition: service_healthy
+    # @end
+    restart: "no"
+
+  api:
+    image: rice-rocket/api:1.0.0
+    restart: always
+    environment:
+      NODE_ENV: production
+      # @piece api-database-url: api: where to reach the database
+      DATABASE_URL: postgres://rocket@db:5432/rocket
+      # @end
+      DATABASE_PASSWORD_FILE: /run/secrets/db_password
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+    secrets:
+      - db_password
+      - jwt_secret
+    # @piece api-ports-loopback: api: publish port 3000 for Nginx on the same host
+    ports:
+      - "127.0.0.1:3000:3000"
+    # @end
+    # @piece api-depends: api: start after the database and the migrations
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # @end
+
+# @piece top-level-volumes-secrets: Declare the named volume and the secret files
+volumes:
+  pgdata:
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+# @end

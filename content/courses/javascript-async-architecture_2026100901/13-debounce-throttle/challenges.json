@@ -144,6 +144,7 @@
     },
     {
       "publicId": "chal_quiz_js_513",
+      "published": false,
       "name": "debounced-typeahead-stale-results-quiz",
       "type": "quiz",
       "title": "Is a debounce enough for typeahead?",

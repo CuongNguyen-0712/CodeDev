@@ -1,0 +1,40 @@
+[
+  {
+    "id": "expand-column",
+    "label": "Release 1: the new column, old code keeps working",
+    "code": "EXPAND = \"ALTER TABLE orders ADD COLUMN phone_e164 TEXT\""
+  },
+  {
+    "id": "backfill-batch",
+    "label": "Fill the new column for existing rows, one batch",
+    "code": "BACKFILL = \"\"\"\nUPDATE orders\nSET phone_e164 = '+84' || substr(customer_phone, 2)\nWHERE id IN (\n    SELECT id FROM orders\n    WHERE phone_e164 IS NULL AND customer_phone IS NOT NULL\n    ORDER BY id\n    LIMIT :batch\n)\n\"\"\""
+  },
+  {
+    "id": "release-2-migration",
+    "label": "Release 2: what runs before v2 rolls out",
+    "code": "RELEASE_2 = []"
+  },
+  {
+    "id": "contract",
+    "label": "After release 3: what only the old code needed",
+    "code": "CONTRACT = [\n    \"DROP TRIGGER orders_phone_sync\",\n    \"ALTER TABLE orders DROP COLUMN customer_phone\",\n]"
+  },
+  {
+    "id": "backfill-whole-table",
+    "label": "Fill the new column for existing rows, one batch",
+    "code": "BACKFILL = \"\"\"\nUPDATE orders\nSET phone_e164 = '+84' || substr(customer_phone, 2)\nWHERE phone_e164 IS NULL AND customer_phone IS NOT NULL\n\"\"\"",
+    "distractor": true
+  },
+  {
+    "id": "expand-rename-column",
+    "label": "Release 1: the new column, old code keeps working",
+    "code": "EXPAND = \"ALTER TABLE orders RENAME COLUMN customer_phone TO phone_e164\"",
+    "distractor": true
+  },
+  {
+    "id": "release-2-drops-old-column",
+    "label": "Release 2: what runs before v2 rolls out",
+    "code": "RELEASE_2 = [\n    \"DROP TRIGGER orders_phone_sync\",\n    \"ALTER TABLE orders DROP COLUMN customer_phone\",\n]",
+    "distractor": true
+  }
+]

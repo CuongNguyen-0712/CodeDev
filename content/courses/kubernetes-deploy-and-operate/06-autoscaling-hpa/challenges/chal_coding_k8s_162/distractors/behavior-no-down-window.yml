@@ -1,0 +1,10 @@
+# @piece hpa-behavior: Grow fast, shrink only after 5 calm minutes
+behavior:
+  scaleUp:
+    stabilizationWindowSeconds: 0
+    policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+  scaleDown:
+    stabilizationWindowSeconds: 0

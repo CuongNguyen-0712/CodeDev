@@ -1,0 +1,220 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_gha_142",
+      "name": "build-push-traceable-image",
+      "type": "mini_coding",
+      "title": "Build the image on every pull request, push it with traceable tags",
+      "description": "Until now the api image was built on a laptop and pushed as `latest`, so nobody could tell which commit ran on the VPS, and a rollback meant rebuilding an old commit. The first workflow that replaced it also pushed from pull requests and failed for pull requests from forks. The editor holds `.github/workflows/image.yml` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: the workflow runs for pull requests into `main`, pushes to `main` and tags like `v1.4.0`, and nothing else; the token can read the repository and write packages, and the login to `ghcr.io` uses that token (no personal token, no other secret is set in this repository); a pull request builds the image but signs in to nothing and pushes nothing; every image carries a `sha-<7 chars>` tag, plus the branch name on a push to main, `pr-<number>` on a pull request, and `1.4.0`, `1.4` and `latest` on the release tag `v1.4.0`; the build uses `api/` as its context and the GitHub Actions cache (`type=gha`, `mode=max` on export). Run grades the file with a simulator of the trigger filters, the token and the three Docker actions.",
+      "difficulty": "medium",
+      "outcomes": [
+        "release-images"
+      ],
+      "points": 30,
+      "hints": [
+        "Follow one event at a time through the steps: on a pull request, which steps run, what does `push:` evaluate to, and what would a push without a login answer? On the tag push, which `tags:` lines of the metadata step produce something?",
+        "Look at `tags:` next to `branches:` under `push`, the `packages` scope in `permissions:`, the `if:` of the login step, the `type=` lines of `docker/metadata-action` (it adds `latest` by itself on a release), and an expression for `push:` instead of a constant.",
+        "An image for the `web/` folder that builds on pull requests into `develop` and pushes only from `develop`: `if: github.event_name != 'pull_request'` on the login, metadata `tags: |` with `type=sha` and `type=ref,event=branch`, and `push: ${{ github.event_name != 'pull_request' }}` with `tags: ${{ steps.meta.outputs.tags }}` on the build."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": ".github/workflows/image.yml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A push to main signs in and pushes the image tagged with the branch and the short commit",
+          "input": {
+            "checks": [
+              "parse",
+              "events"
+            ],
+            "events": {
+              "push-main": {
+                "name": "push",
+                "ref": "refs/heads/main",
+                "sha": "1a2b3c4d5e6f708192a3b4c5d6e7f80912345678",
+                "files": [
+                  "api/src/orders.js"
+                ]
+              }
+            }
+          },
+          "expected": {
+            "parse": "ok",
+            "events": {
+              "push-main": {
+                "runs": true,
+                "login": true,
+                "pushed": true,
+                "tags": [
+                  "ghcr.io/rice-rocket/api:main",
+                  "ghcr.io/rice-rocket/api:sha-1a2b3c4"
+                ],
+                "result": "success"
+              }
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A pull request builds the image but signs in to nothing and pushes nothing",
+          "input": {
+            "checks": [
+              "events"
+            ],
+            "events": {
+              "pr-42": {
+                "name": "pull_request",
+                "base": "main",
+                "number": 42,
+                "sha": "9f8e7d6c5b4a39281706f5e4d3c2b1a098765432",
+                "files": [
+                  "api/src/orders.js"
+                ]
+              }
+            }
+          },
+          "expected": {
+            "events": {
+              "pr-42": {
+                "runs": true,
+                "login": false,
+                "pushed": false,
+                "tags": [
+                  "ghcr.io/rice-rocket/api:pr-42",
+                  "ghcr.io/rice-rocket/api:sha-9f8e7d6"
+                ],
+                "result": "success"
+              }
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "The release tag v1.4.0 pushes 1.4.0, 1.4, latest and the short commit",
+          "input": {
+            "checks": [
+              "events"
+            ],
+            "events": {
+              "tag-v1.4.0": {
+                "name": "push",
+                "ref": "refs/tags/v1.4.0",
+                "sha": "4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f"
+              }
+            }
+          },
+          "expected": {
+            "events": {
+              "tag-v1.4.0": {
+                "runs": true,
+                "login": true,
+                "pushed": true,
+                "tags": [
+                  "ghcr.io/rice-rocket/api:1.4",
+                  "ghcr.io/rice-rocket/api:1.4.0",
+                  "ghcr.io/rice-rocket/api:latest",
+                  "ghcr.io/rice-rocket/api:sha-4c5d6e7"
+                ],
+                "result": "success"
+              }
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A feature branch push starts nothing; a pull request from a fork still builds",
+          "input": {
+            "checks": [
+              "events"
+            ],
+            "events": {
+              "push-feature": {
+                "name": "push",
+                "ref": "refs/heads/feature/momo-pay",
+                "sha": "9f8e7d6c5b4a39281706f5e4d3c2b1a098765432",
+                "files": [
+                  "api/src/pay.js"
+                ]
+              },
+              "pr-57-fork": {
+                "name": "pull_request",
+                "base": "main",
+                "number": 57,
+                "sha": "9f8e7d6c5b4a39281706f5e4d3c2b1a098765432",
+                "fork": true,
+                "files": [
+                  "api/src/menu.js"
+                ]
+              }
+            }
+          },
+          "expected": {
+            "events": {
+              "push-feature": {
+                "runs": false
+              },
+              "pr-57-fork": {
+                "runs": true,
+                "login": false,
+                "pushed": false,
+                "tags": [
+                  "ghcr.io/rice-rocket/api:pr-57",
+                  "ghcr.io/rice-rocket/api:sha-9f8e7d6"
+                ],
+                "result": "success"
+              }
+            }
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "The token reads the repository and writes packages, and it is what signs in",
+          "input": {
+            "checks": [
+              "token",
+              "registry-auth"
+            ]
+          },
+          "expected": {
+            "token": {
+              "image": {
+                "contents": "read",
+                "packages": "write"
+              }
+            },
+            "registry-auth": "GITHUB_TOKEN"
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "The build uses api/ and the GitHub Actions cache",
+          "input": {
+            "checks": [
+              "build-cache"
+            ]
+          },
+          "expected": {
+            "build-cache": {
+              "from": "type=gha",
+              "to": "type=gha,mode=max",
+              "context": "api"
+            }
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

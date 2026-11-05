@@ -1,0 +1,50 @@
+[
+  {
+    "id": "collect-errors",
+    "label": "Collect errors; treat \"\" as not set",
+    "code": "const errors = [];\nconst get = (name) => (env[name] === undefined || env[name] === \"\" ? undefined : env[name]);"
+  },
+  {
+    "id": "parse-port",
+    "label": "PORT: digits only, 1-65535, default 3000",
+    "code": "const rawPort = get(\"PORT\");\nconst port = rawPort === undefined ? 3000 : Number(rawPort);\nif (rawPort !== undefined && !(/^\\d+$/.test(rawPort) && port >= 1 && port <= 65535)) {\n    errors.push(`PORT must be an integer from 1 to 65535, got \"${rawPort}\"`);\n}"
+  },
+  {
+    "id": "database-url",
+    "label": "DATABASE_URL: required, postgres scheme",
+    "code": "const databaseUrl = get(\"DATABASE_URL\");\nif (databaseUrl === undefined) errors.push(\"DATABASE_URL is required\");\nelse if (!/^postgres(ql)?:\\/\\//.test(databaseUrl)) {\n    // Never echo the value: it carries the database password.\n    errors.push(\"DATABASE_URL must start with postgres:// or postgresql://\");\n}"
+  },
+  {
+    "id": "log-level",
+    "label": "LOG_LEVEL: one of four, default info",
+    "code": "const logLevel = get(\"LOG_LEVEL\") ?? \"info\";\nif (![\"debug\", \"info\", \"warn\", \"error\"].includes(logLevel)) {\n    errors.push(`LOG_LEVEL must be one of debug, info, warn, error, got \"${logLevel}\"`);\n}"
+  },
+  {
+    "id": "jwt-secret",
+    "label": "JWT secret from env or from a mounted file",
+    "code": "const secretFile = get(\"JWT_SECRET_FILE\");\nlet jwtSecret = get(\"JWT_SECRET\");\nif (jwtSecret !== undefined && secretFile !== undefined) {\n    errors.push(\"JWT_SECRET and JWT_SECRET_FILE are both set\");\n} else if (secretFile !== undefined) {\n    if (!Object.hasOwn(files, secretFile)) errors.push(`JWT_SECRET_FILE not found: ${secretFile}`);\n    else {\n        jwtSecret = files[secretFile].replace(/\\r?\\n$/, \"\");\n        if (jwtSecret === \"\") errors.push(\"JWT_SECRET or JWT_SECRET_FILE is required\");\n    }\n} else if (jwtSecret === undefined) {\n    errors.push(\"JWT_SECRET or JWT_SECRET_FILE is required\");\n}"
+  },
+  {
+    "id": "throw-or-freeze",
+    "label": "Throw all problems at once, or return frozen",
+    "code": "if (errors.length) throw new Error(errors.sort().join(\"; \"));\nreturn Object.freeze({ port, databaseUrl, logLevel, jwtSecret });"
+  },
+  {
+    "id": "jwt-secret-no-trim",
+    "label": "JWT secret from env or from a mounted file",
+    "code": "const secretFile = get(\"JWT_SECRET_FILE\");\nlet jwtSecret = get(\"JWT_SECRET\");\nif (jwtSecret !== undefined && secretFile !== undefined) {\n    errors.push(\"JWT_SECRET and JWT_SECRET_FILE are both set\");\n} else if (secretFile !== undefined) {\n    if (!Object.hasOwn(files, secretFile)) errors.push(`JWT_SECRET_FILE not found: ${secretFile}`);\n    else jwtSecret = files[secretFile];\n} else if (jwtSecret === undefined) {\n    errors.push(\"JWT_SECRET or JWT_SECRET_FILE is required\");\n}",
+    "distractor": true
+  },
+  {
+    "id": "parse-port-parseint",
+    "label": "PORT: digits only, 1-65535, default 3000",
+    "code": "const rawPort = get(\"PORT\");\nconst port = rawPort === undefined ? 3000 : parseInt(rawPort, 10);\nif (rawPort !== undefined && (Number.isNaN(port) || port < 1 || port > 65535)) {\n    errors.push(`PORT must be an integer from 1 to 65535, got \"${rawPort}\"`);\n}",
+    "distractor": true
+  },
+  {
+    "id": "throw-first-error",
+    "label": "Throw all problems at once, or return frozen",
+    "code": "if (errors.length) throw new Error(errors[0]);\nreturn Object.freeze({ port, databaseUrl, logLevel, jwtSecret });",
+    "distractor": true
+  }
+]

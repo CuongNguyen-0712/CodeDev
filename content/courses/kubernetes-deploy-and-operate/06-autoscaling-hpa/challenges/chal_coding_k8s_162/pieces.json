@@ -1,0 +1,50 @@
+[
+  {
+    "id": "deployment-selector",
+    "label": "Deployment: its pods, and who decides how many",
+    "code": "selector:\n  matchLabels:\n    app: api"
+  },
+  {
+    "id": "cpu-request",
+    "label": "api: the CPU and memory each pod reserves",
+    "code": "resources:\n  requests:\n    cpu: 250m\n    memory: 256Mi\n  limits:\n    memory: 512Mi"
+  },
+  {
+    "id": "hpa-target",
+    "label": "The workload this autoscaler resizes",
+    "code": "scaleTargetRef:\n  apiVersion: apps/v1\n  kind: Deployment\n  name: api"
+  },
+  {
+    "id": "hpa-bounds",
+    "label": "The fewest and the most pods",
+    "code": "minReplicas: 3\nmaxReplicas: 12"
+  },
+  {
+    "id": "hpa-metric",
+    "label": "Scale on CPU: 70% of what each pod reserves",
+    "code": "metrics:\n  - type: Resource\n    resource:\n      name: cpu\n      target:\n        type: Utilization\n        averageUtilization: 70"
+  },
+  {
+    "id": "hpa-behavior",
+    "label": "Grow fast, shrink only after 5 calm minutes",
+    "code": "behavior:\n  scaleUp:\n    stabilizationWindowSeconds: 0\n    policies:\n      - type: Percent\n        value: 100\n        periodSeconds: 60\n  scaleDown:\n    stabilizationWindowSeconds: 300"
+  },
+  {
+    "id": "behavior-no-down-window",
+    "label": "Grow fast, shrink only after 5 calm minutes",
+    "code": "behavior:\n  scaleUp:\n    stabilizationWindowSeconds: 0\n    policies:\n      - type: Percent\n        value: 100\n        periodSeconds: 60\n  scaleDown:\n    stabilizationWindowSeconds: 0",
+    "distractor": true
+  },
+  {
+    "id": "deployment-replicas-3",
+    "label": "Deployment: its pods, and who decides how many",
+    "code": "replicas: 3\nselector:\n  matchLabels:\n    app: api",
+    "distractor": true
+  },
+  {
+    "id": "metric-average-value-70",
+    "label": "Scale on CPU: 70% of what each pod reserves",
+    "code": "metrics:\n  - type: Resource\n    resource:\n      name: cpu\n      target:\n        type: AverageValue\n        averageValue: 70",
+    "distractor": true
+  }
+]

@@ -1,0 +1,66 @@
+# Rice Rocket CI: integration tests of the api on every supported Node and Postgres version.
+# Staging runs Postgres 16, production Postgres 17; Node 25 is tried early, without blocking merges.
+name: integration
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: api
+
+jobs:
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      # @piece fail-fast-off: Let every combination finish when one fails
+      fail-fast: false
+      # @end
+      matrix:
+        # @piece matrix-axes: The Node and Postgres versions to support
+        node: [22, 24]
+        postgres: [16, 17]
+        # @end
+        # @piece matrix-include-experimental: One extra, experimental combination
+        include:
+          - node: 25
+            postgres: 17
+            experimental: true
+        # @end
+    # @piece continue-on-error: A failure that must not fail the whole run
+    continue-on-error: ${{ matrix.experimental == true }}
+    # @end
+    # @piece postgres-service: Postgres of the matrix version, ready before tests
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    # @end
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+      - run: npm run test:integration
+        # @piece test-env: Where the tests find the database
+        env:
+          DATABASE_URL: postgres://postgres:test@localhost:5432/postgres
+        # @end

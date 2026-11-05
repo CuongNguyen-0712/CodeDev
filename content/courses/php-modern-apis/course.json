@@ -13,7 +13,7 @@
   "pointPrice": 0,
   "reward": 100,
   "accessModel": "premium",
-  "publishStatus": "draft",
+  "publishStatus": "archived",
   "offers": [
     {
       "priceType": "points",

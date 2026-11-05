@@ -1,0 +1,3 @@
+# @piece commit-message-log: Log the commit message without running it
+- name: Log the release
+  run: echo "Deploying: ${{ github.event.head_commit.message }}"

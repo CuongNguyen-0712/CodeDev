@@ -41,7 +41,7 @@
     "build_projects"
   ],
   "prerequisites": [
-    "go-concurrency"
+    "go-foundations"
   ],
   "modules": [],
   "outline": [

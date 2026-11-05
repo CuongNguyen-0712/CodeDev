@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Terraform (a reviewed plan with add, change and destroy lines is applied to cloud resources, while the state file is held by a lock). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#170F24"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7B42BC" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#7B42BC" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#B794F6"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#7B42BC"/>
+    <g fill="#F4F2F8"><path d="M132 178 H178 L186 190 H140 Z"/><path d="M132 196 H178 L186 208 H140 Z" fill-opacity="0.8"/><path d="M132 214 H178 L186 226 H140 Z" fill-opacity="0.6"/></g>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#B794F6">CLOUD · TERRAFORM</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Terraform</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Infra as Code</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">State · Modules · Plans · Drift</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#E6DAFB">
+      <rect x="110" y="660" width="101" height="52" rx="26" fill="#1F1430" stroke="#7B42BC"/>
+      <text x="160.5" y="695" text-anchor="middle">plan</text>
+      <rect x="227" y="660" width="187" height="52" rx="26" fill="#1F1430" stroke="#7B42BC"/>
+      <text x="320.5" y="695" text-anchor="middle">state lock</text>
+      <rect x="430" y="660" width="144" height="52" rx="26" fill="#1F1430" stroke="#7B42BC"/>
+      <text x="502" y="695" text-anchor="middle">modules</text>
+    </g>
+  </g>
+
+  <!-- Plan diff, apply into cloud resources, and a locked state file -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <rect x="896" y="200" width="380" height="300" rx="14" fill="#150F1F" stroke="#4A3566" stroke-width="2"/>
+    <text x="920" y="242" font-size="20" fill="#B794F6">$ terraform plan</text>
+    <path d="M896 262 H1276" stroke="#4A3566" stroke-width="2"/>
+    <text x="920" y="304" font-size="21" fill="#3DBE7B">+ bucket.assets</text>
+    <text x="920" y="346" font-size="21" fill="#F2C14E">~ database.main</text>
+    <text x="920" y="388" font-size="21" fill="#F2555A">- server.legacy</text>
+    <text x="920" y="458" font-size="18" fill="#B8B2C8">1 add · 1 change · 1 destroy</text>
+    <text x="1310" y="334" font-size="19" fill="#B794F6" text-anchor="middle">apply</text>
+    <path d="M1276 350 H1338" stroke="#B794F6" stroke-width="4" marker-end="url(#arrow)"/>
+    <rect x="1344" y="200" width="186" height="300" rx="18" fill="none" stroke="#B794F6" stroke-width="2" stroke-dasharray="9 7"/>
+    <text x="1437" y="240" font-size="19" fill="#B794F6" text-anchor="middle">cloud</text>
+    <rect x="1364" y="262" width="146" height="56" rx="10" fill="#1F1430" stroke="#3DBE7B" stroke-width="2"/>
+    <text x="1437" y="297" font-size="20" fill="#F4F2F8" text-anchor="middle">bucket</text>
+    <rect x="1364" y="332" width="146" height="56" rx="10" fill="#1F1430" stroke="#F2C14E" stroke-width="2"/>
+    <text x="1437" y="367" font-size="20" fill="#F4F2F8" text-anchor="middle">database</text>
+    <rect x="1364" y="402" width="146" height="56" rx="10" fill="#1F1430" stroke="#7B42BC" stroke-width="2"/>
+    <text x="1437" y="437" font-size="20" fill="#F4F2F8" text-anchor="middle">network</text>
+    <path d="M1046 504 V590" stroke="#6F6A80" stroke-width="3" stroke-dasharray="7 6" marker-start="url(#arrowMuted)" marker-end="url(#arrowMuted)"/>
+    <text x="1062" y="554" font-size="18" fill="#8C8399">refresh</text>
+    <text x="904" y="560" font-size="20" letter-spacing="3" fill="#B794F6">STATE</text>
+    <rect x="896" y="596" width="300" height="96" rx="14" fill="#1F1430" stroke="#7B42BC" stroke-width="2"/>
+    <text x="920" y="638" font-size="21" fill="#E6DAFB">terraform.tfstate</text>
+    <text x="920" y="670" font-size="18" fill="#8C8399">serial 42 · remote</text>
+    <path d="M1248 628 V612 A18 18 0 0 1 1284 612 V628" fill="none" stroke="#B794F6" stroke-width="7"/>
+    <rect x="1236" y="626" width="60" height="50" rx="8" fill="#B794F6"/>
+    <circle cx="1266" cy="646" r="6" fill="#170F24"/><rect x="1263" y="648" width="6" height="14" rx="2" fill="#170F24"/>
+    <text x="1320" y="644" font-size="21" font-weight="700" fill="#F4F2F8">locked</text>
+    <text x="1320" y="674" font-size="18" fill="#8C8399">by apply #17</text>
+  </g>
+</svg>

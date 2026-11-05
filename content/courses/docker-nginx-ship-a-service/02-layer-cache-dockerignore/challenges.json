@@ -1,0 +1,155 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dkn_121",
+      "name": "layer-cache-quiz",
+      "type": "quiz",
+      "title": "Read the build logs",
+      "description": "Three statements about Rice Rocket's api builds: what a .dockerignore removes from the cache key, why a CI runner rebuilds everything, and what happens after the first cache miss. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": ["cache-aware-builds"],
+      "points": 10,
+      "hints": [
+        "When Docker decides whether a COPY step can be reused, which files does it compare: the ones on your disk, or the ones in the build context it received?",
+        "Look at where the build runs. A cache is only useful if the machine doing the build has the layers of the previous build, locally or imported from somewhere.",
+        "Picture a stage of five steps where step 2 misses: try listing which of steps 3, 4 and 5 Docker can still take from the cache, and why."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The build stage still starts with `COPY . .`, and the repository has this .dockerignore:\n\n```dockerfile\n# Dockerfile (build stage)\nFROM node:24-slim AS build\nWORKDIR /app\nCOPY . .\nRUN npm ci\n\n# .dockerignore\nnode_modules\n.git\n.env\n*.md\n```\n\nA developer fixes a typo in `README.md` (at the repository root) and builds again on the same machine.\n\nStatement: \"`COPY . .` and `RUN npm ci` are both reported as CACHED in this rebuild.\"",
+          "explanation": "True. The cache key of a COPY is the content of the files it copies from the build context, and `*.md` keeps README.md out of the context altogether, so the copied files are identical and the COPY is reused; npm ci follows a cached step with the same instruction text, so it is reused too. The common misconception is that `COPY . .` always invalidates the cache: it only does when a file that reaches the context changed. The ordering is still fragile: any edit in src/ would reinstall every dependency.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The Dockerfile now copies package.json and package-lock.json, runs npm ci, and only then copies src/. Locally a source edit rebuilds in seconds, but every CI run looks like this:\n\n```text\n$ docker buildx build -t registry.example.com/rice-rocket/api:9f3c2e1 .   # fresh CI runner\n#6 [build 3/7] COPY package.json package-lock.json ./\n#6 DONE 0.1s\n#7 [build 4/7] RUN npm ci\n#7 DONE 92.4s\n```\n\nStatement: \"The layer order is still wrong: once `COPY src ./src` is below `RUN npm ci`, npm ci is CACHED on this runner too.\"",
+          "explanation": "False. The order is already right, which is why local rebuilds are fast. A fresh CI runner starts with an empty build cache, so there is no previous layer to reuse, whatever the order. The fix is to export and import the cache, for example `--cache-to type=registry,ref=...,mode=max` and `--cache-from type=registry,ref=...` (or `type=gha` on GitHub Actions); `mode=max` is needed so the layers of the build stage, not only those of the final image, are exported. The misconception is that the cache travels with the Dockerfile or the repository: it lives in the builder.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A teammate adds a dependency, which changes `package.json` and `package-lock.json`, and builds this stage:\n\n```dockerfile\nFROM node:24-slim AS build\nWORKDIR /app\nCOPY package.json package-lock.json ./\nRUN npm ci\nCOPY tsconfig.json ./\nCOPY src ./src\nRUN npm run build && npm prune --omit=dev\n```\n\nNothing under `src/` and nothing in `tsconfig.json` changed.\n\nStatement: \"`COPY tsconfig.json ./` and `COPY src ./src` run again in this build, even though the files they copy did not change.\"",
+          "explanation": "True. Each layer is built on top of the previous one, so a step can only be reused when every step before it in the stage was reused too. The first COPY misses because the lock file changed; from that point every following step runs again, including the two COPY steps whose files are unchanged. The common misconception is that Docker checks each step on its own. That is exactly why the rarely changing inputs go first and the often changing ones (src/) go last.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dkn_122",
+      "name": "cache-friendly-api-dockerfile",
+      "type": "mini_coding",
+      "title": "Make a source change rebuild in seconds",
+      "description": "Every CI build of the api reinstalls every dependency, because the build stage copies the whole context before `npm ci`. The editor holds the Dockerfile with the steps of the build stage missing, each marked by a `# [ ]` line; the runtime stage from lesson 1 is already in place, so the image still runs `node dist/server.js` with production dependencies as the `node` user. Fill every line with a piece so `npm ci` depends only on package.json and package-lock.json. Some pieces are wrong on purpose. Run grades it with a layer-cache simulator: it rebuilds your Dockerfile after the files listed in the test changed, applies the repository's .dockerignore (given by each test, since you edit only the Dockerfile), and reports which steps ran again and how long the rebuild took. The context holds package.json, package-lock.json, tsconfig.json, src/, README.md, .env, .git and a host node_modules; `npm run build` needs src/, tsconfig.json and the devDependencies. Rough step costs: npm ci 90 s, npm run build 15 s, a COPY 1 s, plus the time to send the context.",
+      "difficulty": "easy",
+      "outcomes": ["cache-aware-builds"],
+      "points": 30,
+      "hints": [
+        "Which files does `npm ci` actually read, and how often do those files change compared with the files in src/?",
+        "Look at the first COPY of the build stage: the cache key of `RUN npm ci` includes every file that this COPY (and any COPY above it) brought in.",
+        "A Python service does the same: `COPY requirements.txt ./` then `RUN pip install -r requirements.txt`, and only after that `COPY app ./app`, so a code edit never reinstalls packages."
+      ],
+      "coding": {
+        "language": "dockerfile",
+        "filePath": "Dockerfile",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The image still builds: dist/ compiled in a build stage, prod deps, exec CMD, non-root",
+          "input": {
+            "dockerignore": ["node_modules", ".git", ".env", "*.md", "dist", "Dockerfile", ".dockerignore"],
+            "changed": [],
+            "checks": ["build", "multi-stage", "has-build-output", "no-dev-dependencies", "exec-form-cmd", "non-root"]
+          },
+          "expected": { "build": "ok", "multi-stage": true, "has-build-output": true, "no-dev-dependencies": true, "exec-form-cmd": true, "non-root": true },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Editing src/orders.ts keeps npm ci cached and rebuilds in under 30 seconds",
+          "input": {
+            "dockerignore": ["node_modules", ".git", ".env", "*.md", "dist", "Dockerfile", ".dockerignore"],
+            "changed": ["src/orders.ts"],
+            "checks": ["build", "npm-ci-cached", "rebuild-under-30s"]
+          },
+          "expected": { "build": "ok", "npm-ci-cached": true, "rebuild-under-30s": true },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Editing README.md rebuilds nothing",
+          "input": {
+            "dockerignore": ["node_modules", ".git", ".env", "*.md", "dist", "Dockerfile", ".dockerignore"],
+            "changed": ["README.md"],
+            "checks": ["build", "fully-cached"]
+          },
+          "expected": { "build": "ok", "fully-cached": true },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A changed package-lock.json reinstalls the dependencies",
+          "input": {
+            "dockerignore": ["node_modules", ".git", ".env", "*.md", "dist", "Dockerfile", ".dockerignore"],
+            "changed": ["package-lock.json"],
+            "checks": ["build", "npm-ci-cached", "has-build-output"]
+          },
+          "expected": { "build": "ok", "npm-ci-cached": false, "has-build-output": true },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Editing tsconfig.json does not reinstall the dependencies",
+          "input": {
+            "dockerignore": ["node_modules", ".git", ".env", "*.md", "dist", "Dockerfile", ".dockerignore"],
+            "changed": ["tsconfig.json"],
+            "checks": ["build", "npm-ci-cached"]
+          },
+          "expected": { "build": "ok", "npm-ci-cached": true },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Without any .dockerignore, a README and src edit still keep npm ci cached",
+          "input": {
+            "dockerignore": [],
+            "changed": ["README.md", "src/menu.ts"],
+            "checks": ["build", "npm-ci-cached"]
+          },
+          "expected": { "build": "ok", "npm-ci-cached": true },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "With a 5-minute npm ci, a new file under src/ still rebuilds in under 30 seconds",
+          "input": {
+            "dockerignore": ["node_modules", ".git", ".env", "*.md", "dist", "Dockerfile", ".dockerignore"],
+            "changed": ["src/server.ts", "src/routes/riders.ts"],
+            "costs": { "npm ci": 300 },
+            "checks": ["build", "npm-ci-cached", "rebuild-under-30s", "has-build-output"]
+          },
+          "expected": { "build": "ok", "npm-ci-cached": true, "rebuild-under-30s": true, "has-build-output": true },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

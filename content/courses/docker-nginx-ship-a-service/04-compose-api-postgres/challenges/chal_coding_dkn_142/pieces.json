@@ -1,0 +1,65 @@
+[
+  {
+    "id": "db-password-file",
+    "label": "db: user, database and a password kept out of this file",
+    "code": "environment:\n  POSTGRES_USER: rocket\n  POSTGRES_DB: rocket\n  POSTGRES_PASSWORD_FILE: /run/secrets/db_password\nsecrets:\n  - db_password"
+  },
+  {
+    "id": "db-volume",
+    "label": "db: keep the data files across down and up",
+    "code": "volumes:\n  - pgdata:/var/lib/postgresql/data"
+  },
+  {
+    "id": "db-healthcheck",
+    "label": "db: readiness check and network exposure",
+    "code": "healthcheck:\n  test: [\"CMD-SHELL\", \"pg_isready -U rocket -d rocket\"]\n  interval: 5s\n  timeout: 3s\n  retries: 10\n  start_period: 10s"
+  },
+  {
+    "id": "migrate-database-url",
+    "label": "migrate: where to reach the database",
+    "code": "DATABASE_URL: postgres://rocket@db:5432/rocket"
+  },
+  {
+    "id": "migrate-depends-healthy",
+    "label": "migrate: start only when the database is ready",
+    "code": "depends_on:\n  db:\n    condition: service_healthy"
+  },
+  {
+    "id": "api-database-url",
+    "label": "api: where to reach the database",
+    "code": "DATABASE_URL: postgres://rocket@db:5432/rocket"
+  },
+  {
+    "id": "api-ports-loopback",
+    "label": "api: publish port 3000 for Nginx on the same host",
+    "code": "ports:\n  - \"127.0.0.1:3000:3000\""
+  },
+  {
+    "id": "api-depends",
+    "label": "api: start after the database and the migrations",
+    "code": "depends_on:\n  db:\n    condition: service_healthy\n  migrate:\n    condition: service_completed_successfully"
+  },
+  {
+    "id": "top-level-volumes-secrets",
+    "label": "Declare the named volume and the secret files",
+    "code": "volumes:\n  pgdata:\n\nsecrets:\n  db_password:\n    file: ./secrets/db_password.txt\n  jwt_secret:\n    file: ./secrets/jwt_secret.txt"
+  },
+  {
+    "id": "api-database-url-localhost",
+    "label": "api: where to reach the database",
+    "code": "DATABASE_URL: postgres://rocket@localhost:5432/rocket",
+    "distractor": true
+  },
+  {
+    "id": "db-port-published",
+    "label": "db: readiness check and network exposure",
+    "code": "healthcheck:\n  test: [\"CMD-SHELL\", \"pg_isready -U rocket -d rocket\"]\n  interval: 5s\n  timeout: 3s\n  retries: 10\n  start_period: 10s\nports:\n  - \"5432:5432\"",
+    "distractor": true
+  },
+  {
+    "id": "migrate-depends-short",
+    "label": "migrate: start only when the database is ready",
+    "code": "depends_on:\n  - db",
+    "distractor": true
+  }
+]

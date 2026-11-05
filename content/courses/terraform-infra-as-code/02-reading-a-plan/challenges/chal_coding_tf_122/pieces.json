@@ -1,0 +1,40 @@
+[
+  {
+    "id": "db-identity",
+    "label": "Name and engine of the database",
+    "code": "identifier     = local.name\nengine         = \"postgres\"\nengine_version = \"17\""
+  },
+  {
+    "id": "db-size",
+    "label": "Instance size, and storage that may grow by itself",
+    "code": "instance_class        = var.db_instance_class\nallocated_storage     = 20\nmax_allocated_storage = 100"
+  },
+  {
+    "id": "db-protection",
+    "label": "Refuse deletes and keep a last snapshot",
+    "code": "deletion_protection       = true\nskip_final_snapshot       = false\nfinal_snapshot_identifier = \"${local.name}-final\""
+  },
+  {
+    "id": "db-lifecycle",
+    "label": "Never replace it; let AWS own the storage size",
+    "code": "lifecycle {\n  prevent_destroy = true\n  ignore_changes  = [allocated_storage]\n}"
+  },
+  {
+    "id": "db-lifecycle-ignore-class",
+    "label": "Never replace it; let AWS own the storage size",
+    "code": "lifecycle {\n  prevent_destroy = true\n  ignore_changes  = [allocated_storage, instance_class]\n}",
+    "distractor": true
+  },
+  {
+    "id": "db-lifecycle-no-ignore",
+    "label": "Never replace it; let AWS own the storage size",
+    "code": "lifecycle {\n  prevent_destroy = true\n}",
+    "distractor": true
+  },
+  {
+    "id": "db-lifecycle-no-prevent",
+    "label": "Never replace it; let AWS own the storage size",
+    "code": "lifecycle {\n  ignore_changes = [allocated_storage]\n}",
+    "distractor": true
+  }
+]

@@ -1,0 +1,8 @@
+# @piece hpa-metric: Scale on CPU: 70% of what each pod reserves
+metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: AverageValue
+        averageValue: 70

@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: GitHub Actions CI/CD (a pull request fans out to a test matrix, builds one image, deploys to staging, then waits at an approval gate before production). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0C1526"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#2088FF" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#2088FF" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7DBBFF"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#2088FF"/>
+    <circle cx="158" cy="198" r="30" fill="#0C1526"/>
+    <path d="M150 183 L174 198 L150 213 Z" fill="#2088FF"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#7DBBFF">DEVOPS · CI/CD</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">GitHub Actions</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">PR to Production</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Triggers · Matrix · Images · Approvals</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#D2E7FF">
+      <rect x="110" y="660" width="130" height="52" rx="26" fill="#0F1D33" stroke="#2088FF"/>
+      <text x="175" y="695" text-anchor="middle">matrix</text>
+      <rect x="256" y="660" width="101" height="52" rx="26" fill="#0F1D33" stroke="#2088FF"/>
+      <text x="306.5" y="695" text-anchor="middle">OIDC</text>
+      <rect x="373" y="660" width="216" height="52" rx="26" fill="#0F1D33" stroke="#2088FF"/>
+      <text x="481" y="695" text-anchor="middle">environments</text>
+    </g>
+  </g>
+
+  <!-- Pull request to matrix jobs, image, staging, approval gate and production -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="904" y="256" font-size="20" letter-spacing="3" fill="#7DBBFF">WORKFLOW</text>
+    <rect x="896" y="280" width="150" height="84" rx="14" fill="#0F1D33" stroke="#2088FF" stroke-width="2"/>
+    <text x="971" y="330" font-size="24" font-weight="700" fill="#7DBBFF" text-anchor="middle">PR #42</text>
+    <text x="971" y="398" font-size="18" fill="#8C8399" text-anchor="middle">pull_request</text>
+    <path d="M1046 322 H1088" stroke="#7DBBFF" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="1094" y="200" width="436" height="246" rx="16" fill="#111A2B" stroke="#2B4A75" stroke-width="2"/>
+    <text x="1114" y="236" font-size="19" fill="#7DBBFF">matrix: node [20, 22, 24]</text>
+    <rect x="1114" y="256" width="396" height="52" rx="10" fill="#0F1D33" stroke="#264468" stroke-width="2"/>
+    <circle cx="1142" cy="282" r="15" fill="#3DBE7B"/><path d="M1135 283 L1139.9 288.25 L1149 277.4" fill="none" stroke="#0C1526" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="1170" y="289" font-size="21" fill="#F4F2F8">test (node 20)</text><text x="1494" y="289" font-size="19" fill="#8C8399" text-anchor="end">41s</text>
+    <rect x="1114" y="318" width="396" height="52" rx="10" fill="#0F1D33" stroke="#264468" stroke-width="2"/>
+    <circle cx="1142" cy="344" r="15" fill="#3DBE7B"/><path d="M1135 345 L1139.9 350.25 L1149 339.4" fill="none" stroke="#0C1526" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="1170" y="351" font-size="21" fill="#F4F2F8">test (node 22)</text><text x="1494" y="351" font-size="19" fill="#8C8399" text-anchor="end">38s</text>
+    <rect x="1114" y="380" width="396" height="52" rx="10" fill="#0F1D33" stroke="#264468" stroke-width="2"/>
+    <circle cx="1142" cy="406" r="15" fill="#3DBE7B"/><path d="M1135 407 L1139.9 412.25 L1149 401.4" fill="none" stroke="#0C1526" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="1170" y="413" font-size="21" fill="#F4F2F8">test (node 24)</text><text x="1494" y="413" font-size="19" fill="#8C8399" text-anchor="end">44s</text>
+    <path d="M1312 446 V486 H976 V570" fill="none" stroke="#7DBBFF" stroke-width="3" marker-end="url(#arrow)"/>
+    <text x="994" y="538" font-size="19" fill="#B8B2C8">build &amp; push</text>
+    <rect x="896" y="576" width="160" height="84" rx="12" fill="#2088FF" fill-opacity="0.9"/>
+    <text x="976" y="614" font-size="22" font-weight="700" fill="#0C1526" text-anchor="middle">image</text>
+    <text x="976" y="644" font-size="18" fill="#0C1526" text-anchor="middle">sha-3f2a</text>
+    <path d="M1056 618 H1094" stroke="#7DBBFF" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="1100" y="576" width="140" height="84" rx="12" fill="#0F1D33" stroke="#2088FF" stroke-width="2"/>
+    <text x="1170" y="626" font-size="22" fill="#D2E7FF" text-anchor="middle">staging</text>
+    <text x="1170" y="698" font-size="18" fill="#8C8399" text-anchor="middle">auto</text>
+    <path d="M1240 618 H1272" stroke="#7DBBFF" stroke-width="3" marker-end="url(#arrow)"/>
+    <path d="M1300 592 L1326 618 L1300 644 L1274 618 Z" fill="#F2C14E"/>
+    <rect x="1293" y="608" width="5" height="20" rx="1" fill="#0C1526"/><rect x="1302" y="608" width="5" height="20" rx="1" fill="#0C1526"/>
+    <text x="1300" y="698" font-size="18" fill="#F2C14E" text-anchor="middle">approve</text>
+    <path d="M1326 618 H1354" stroke="#7DBBFF" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="1360" y="576" width="170" height="84" rx="12" fill="#12233D" stroke="#2088FF" stroke-width="3"/>
+    <text x="1445" y="626" font-size="22" font-weight="700" fill="#F4F2F8" text-anchor="middle">production</text>
+    <text x="1445" y="698" font-size="18" fill="#8C8399" text-anchor="middle">rollback ready</text>
+  </g>
+</svg>

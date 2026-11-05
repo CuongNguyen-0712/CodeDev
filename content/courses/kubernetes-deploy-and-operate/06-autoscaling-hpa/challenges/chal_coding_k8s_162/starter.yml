@@ -1,0 +1,32 @@
+# Rice Rocket api: 3 pods at night, up to 12 for the 11:00 and 18:00 peaks.
+# The HorizontalPodAutoscaler owns the pod count; the pipeline applies this file on every release.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: rice-rocket
+spec:
+  # [ ] Deployment: its pods, and who decides how many
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/rice-rocket/api:1.5.1
+          ports:
+            - name: http
+              containerPort: 3000
+          # [ ] api: the CPU and memory each pod reserves
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api
+  namespace: rice-rocket
+spec:
+  # [ ] The workload this autoscaler resizes
+  # [ ] The fewest and the most pods
+  # [ ] Scale on CPU: 70% of what each pod reserves
+  # [ ] Grow fast, shrink only after 5 calm minutes

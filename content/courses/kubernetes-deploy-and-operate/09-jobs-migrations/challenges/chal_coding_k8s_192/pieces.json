@@ -1,0 +1,50 @@
+[
+  {
+    "id": "job-retries",
+    "label": "Retry a failed migration once, and stop it after 5 minutes",
+    "code": "backoffLimit: 1\nactiveDeadlineSeconds: 300"
+  },
+  {
+    "id": "job-cleanup",
+    "label": "Delete the finished Job and its pods a day later",
+    "code": "ttlSecondsAfterFinished: 86400"
+  },
+  {
+    "id": "job-restart-policy",
+    "label": "A failed attempt gets a new pod, its logs stay readable",
+    "code": "restartPolicy: Never"
+  },
+  {
+    "id": "cron-schedule",
+    "label": "Every night at 03:00 Ho Chi Minh City time",
+    "code": "schedule: \"0 3 * * *\"\ntimeZone: Asia/Ho_Chi_Minh"
+  },
+  {
+    "id": "cron-concurrency",
+    "label": "One run at a time; skip a run more than 10 minutes late",
+    "code": "concurrencyPolicy: Forbid\nstartingDeadlineSeconds: 600"
+  },
+  {
+    "id": "cron-run-deadline",
+    "label": "Stop a nightly run that takes longer than one hour",
+    "code": "activeDeadlineSeconds: 3600"
+  },
+  {
+    "id": "cron-concurrency-no-deadline",
+    "label": "One run at a time; skip a run more than 10 minutes late",
+    "code": "concurrencyPolicy: Forbid",
+    "distractor": true
+  },
+  {
+    "id": "cron-schedule-no-time-zone",
+    "label": "Every night at 03:00 Ho Chi Minh City time",
+    "code": "schedule: \"0 3 * * *\"",
+    "distractor": true
+  },
+  {
+    "id": "job-retries-default",
+    "label": "Retry a failed migration once, and stop it after 5 minutes",
+    "code": "backoffLimit: 6",
+    "distractor": true
+  }
+]

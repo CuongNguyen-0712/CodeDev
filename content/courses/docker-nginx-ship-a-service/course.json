@@ -1,0 +1,92 @@
+{
+  "publicId": "docker-nginx-ship-a-service",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793806711/codedev/courses/docker-nginx-ship-a-service/cover",
+  "title": "Docker & Nginx: Ship a Real Service to One Server",
+  "concept": "Package a Node API in a small, cache-friendly image, configure it through the environment, run it with Postgres under Compose, put Nginx in front for routing, static files, caching and rate limits, and switch versions without dropping requests. Every lesson teaches only the core you need, then you apply it to the project's real files.",
+  "description": "Package a Node API in a small, cache-friendly image, configure it through the environment, run it with Postgres under Compose, put Nginx in front for routing, static files, caching and rate limits, and switch versions without dropping requests. 8 lessons on one project, each with a quiz and a hands-on challenge: Dockerfiles, compose files and nginx.conf graded by a build and routing simulator, and small Node modules you assemble from snippets.",
+  "level": "beginner",
+  "durationMinutes": 140,
+  "instructor": "CodeDev Engineering Team",
+  "language": "JavaScript",
+  "category": "DevOps",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "template": "core-first",
+  "careerRoles": [
+    "devops_engineer",
+    "backend_developer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "docker": 5,
+    "nodejs": 2,
+    "system_design": 2,
+    "performance": 2
+  },
+  "goals": [
+    "build_projects",
+    "first_job",
+    "grow_in_role"
+  ],
+  "prerequisites": [],
+  "completionRules": {},
+  "domain": "devops",
+  "learningOutcomes": [
+    { "code": "small-images", "text": "Write multi-stage Dockerfiles that ship only the runtime files, run as a non-root user and stop cleanly." },
+    { "code": "cache-aware-builds", "text": "Order layers and write .dockerignore so a code change rebuilds in seconds, not minutes." },
+    { "code": "env-config", "text": "Configure one image for every environment through validated environment variables and secrets." },
+    { "code": "compose-services", "text": "Run the API with Postgres under Compose with healthchecks, startup order, volumes and restart policies." },
+    { "code": "nginx-proxy", "text": "Put Nginx in front of the API: upstreams, forwarded headers, timeouts, static files, caching and rate limits." },
+    { "code": "zero-downtime", "text": "Switch to a new version behind Nginx with a health gate and a rollback, without dropping requests." }
+  ],
+  "testedVersions": {
+    "Docker Engine": "28.x (to verify)",
+    "Docker Compose": "v2 (to verify)",
+    "nginx": "1.28 (to verify)",
+    "Node.js": "24"
+  },
+  "lastReviewedAt": "2026-11-04",
+  "sourceLinks": [
+    "https://docs.docker.com/build/building/multi-stage/",
+    "https://docs.docker.com/build/cache/",
+    "https://docs.docker.com/compose/how-tos/startup-order/",
+    "https://nginx.org/en/docs/http/ngx_http_proxy_module.html",
+    "https://nginx.org/en/docs/http/ngx_http_upstream_module.html"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges grade Dockerfiles, compose files and nginx.conf with a simulator of the documented behaviour, not with a real Docker or Nginx.",
+    "testedVersions are not yet re-checked on a live host."
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Package the API",
+      "lessons": [
+        { "orderIndex": 1, "folder": "01-dockerfile-multi-stage", "title": "Package the API: a multi-stage Dockerfile", "sanityId": "lesson-dkn-1-1" },
+        { "orderIndex": 2, "folder": "02-layer-cache-dockerignore", "title": "Builds in seconds: layer cache and .dockerignore", "sanityId": "lesson-dkn-1-2" },
+        { "orderIndex": 3, "folder": "03-config-from-environment", "title": "One image, every environment: config from env", "sanityId": "lesson-dkn-1-3" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Run it with its database",
+      "lessons": [
+        { "orderIndex": 1, "folder": "04-compose-api-postgres", "title": "Compose: the API, Postgres and migrations", "sanityId": "lesson-dkn-2-1" },
+        { "orderIndex": 2, "folder": "05-healthchecks-restart", "title": "Healthchecks and restart policies that tell the truth", "sanityId": "lesson-dkn-2-2" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Nginx in front",
+      "lessons": [
+        { "orderIndex": 1, "folder": "06-nginx-reverse-proxy", "title": "Nginx as a reverse proxy: upstreams, headers, timeouts", "sanityId": "lesson-dkn-3-1" },
+        { "orderIndex": 2, "folder": "07-nginx-static-cache-limits", "title": "Static files, caching and rate limits in Nginx", "sanityId": "lesson-dkn-3-2" },
+        { "orderIndex": 3, "folder": "08-blue-green-deploy", "title": "Zero-downtime deploys: blue-green behind Nginx", "sanityId": "lesson-dkn-3-3" }
+      ]
+    }
+  ]
+}

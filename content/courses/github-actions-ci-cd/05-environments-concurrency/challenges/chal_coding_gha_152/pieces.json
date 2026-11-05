@@ -1,0 +1,50 @@
+[
+  {
+    "id": "main-only",
+    "label": "Deploy only what is on main",
+    "code": "if: github.ref == 'refs/heads/main'"
+  },
+  {
+    "id": "staging-env",
+    "label": "staging: the environment and its address",
+    "code": "environment:\n  name: staging\n  url: https://staging.ricerocket.vn"
+  },
+  {
+    "id": "staging-concurrency",
+    "label": "staging: one deploy at a time, none cut short",
+    "code": "concurrency:\n  group: deploy-staging\n  cancel-in-progress: false"
+  },
+  {
+    "id": "production-needs",
+    "label": "production: start only after staging succeeded",
+    "code": "needs: deploy-staging"
+  },
+  {
+    "id": "production-env",
+    "label": "production: the protected environment and its address",
+    "code": "environment:\n  name: production\n  url: https://ricerocket.vn"
+  },
+  {
+    "id": "production-concurrency",
+    "label": "production: one deploy at a time, none cut short",
+    "code": "concurrency:\n  group: deploy-production\n  cancel-in-progress: false"
+  },
+  {
+    "id": "production-concurrency-cancel",
+    "label": "production: one deploy at a time, none cut short",
+    "code": "concurrency:\n  group: deploy-production\n  cancel-in-progress: true",
+    "distractor": true
+  },
+  {
+    "id": "production-needs-build",
+    "label": "production: start only after staging succeeded",
+    "code": "needs: build",
+    "distractor": true
+  },
+  {
+    "id": "staging-concurrency-per-commit",
+    "label": "staging: one deploy at a time, none cut short",
+    "code": "concurrency:\n  group: deploy-staging-${{ github.sha }}\n  cancel-in-progress: false",
+    "distractor": true
+  }
+]

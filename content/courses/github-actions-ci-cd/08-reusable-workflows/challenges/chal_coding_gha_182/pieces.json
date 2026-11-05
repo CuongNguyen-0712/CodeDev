@@ -1,0 +1,50 @@
+[
+  {
+    "id": "call-inputs",
+    "label": "Inputs: the folder, the Node version, integration tests",
+    "code": "inputs:\n  working-directory:\n    type: string\n    required: true\n  node-version:\n    type: string\n    default: \"24\"\n  run-integration:\n    type: boolean\n    default: false"
+  },
+  {
+    "id": "call-outputs",
+    "label": "Outputs: the test coverage, for the caller",
+    "code": "outputs:\n  coverage:\n    description: Line coverage of the tests, in percent\n    value: ${{ jobs.test.outputs.coverage }}"
+  },
+  {
+    "id": "job-outputs",
+    "label": "test: expose the coverage step's result",
+    "code": "outputs:\n  coverage: ${{ steps.cov.outputs.pct }}"
+  },
+  {
+    "id": "run-folder",
+    "label": "test: run commands in the caller's folder",
+    "code": "defaults:\n  run:\n    working-directory: ${{ inputs.working-directory }}"
+  },
+  {
+    "id": "setup-node-inputs",
+    "label": "test: the caller's Node version, with the npm cache",
+    "code": "- uses: actions/setup-node@v5\n  with:\n    node-version: ${{ inputs.node-version }}\n    cache: npm\n    cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json"
+  },
+  {
+    "id": "integration-if",
+    "label": "test: integration tests only when the caller asks",
+    "code": "- name: Integration tests\n  if: inputs.run-integration\n  run: npm run test:integration"
+  },
+  {
+    "id": "call-outputs-steps",
+    "label": "Outputs: the test coverage, for the caller",
+    "code": "outputs:\n  coverage:\n    description: Line coverage of the tests, in percent\n    value: ${{ steps.cov.outputs.pct }}",
+    "distractor": true
+  },
+  {
+    "id": "integration-if-string",
+    "label": "test: integration tests only when the caller asks",
+    "code": "- name: Integration tests\n  if: inputs.run-integration == 'true'\n  run: npm run test:integration",
+    "distractor": true
+  },
+  {
+    "id": "setup-node-event-inputs",
+    "label": "test: the caller's Node version, with the npm cache",
+    "code": "- uses: actions/setup-node@v5\n  with:\n    node-version: ${{ github.event.inputs.node-version }}\n    cache: npm\n    cache-dependency-path: ${{ github.event.inputs.working-directory }}/package-lock.json",
+    "distractor": true
+  }
+]

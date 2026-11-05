@@ -1,0 +1,3 @@
+# @piece service-selector: Which pods receive the Service's traffic
+selector:
+  app.kubernetes.io/part-of: rice-rocket

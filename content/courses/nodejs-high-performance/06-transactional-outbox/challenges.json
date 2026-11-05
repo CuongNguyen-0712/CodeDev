@@ -287,6 +287,7 @@
     },
     {
       "publicId": "chal_quiz_nhp_223",
+      "published": false,
       "name": "outbox-relay-delivery-quiz",
       "type": "quiz",
       "title": "What the outbox relay guarantees",

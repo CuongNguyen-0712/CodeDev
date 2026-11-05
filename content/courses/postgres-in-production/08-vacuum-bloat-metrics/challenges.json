@@ -1,0 +1,420 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pgp_181",
+      "name": "vacuum-bloat-quiz",
+      "type": "quiz",
+      "title": "Read the bloated courier_locations table",
+      "description": "Three statements about why courier_locations grew from 200 MB to 9 GB while the dashboards showed a healthy database. Decide whether each one is true.",
+      "difficulty": "hard",
+      "outcomes": [
+        "operations"
+      ],
+      "points": 10,
+      "hints": [
+        "An UPDATE in PostgreSQL writes a new row version and leaves the old one behind. Ask what plain VACUUM does with the space of a removed version, and what it takes to hand pages back to the operating system.",
+        "A dead row can only be removed when no transaction could still need it. Look for the oldest snapshot in the system: sessions, replication slots, prepared transactions.",
+        "Compute the autovacuum trigger yourself: threshold + scale_factor x reltuples, with the table's own storage parameters where it has them."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the session that blocked cleanup was gone, the team ran a manual vacuum:\n\n```sql\nSELECT pg_size_pretty(pg_total_relation_size('courier_locations'));\n--  9012 MB\nVACUUM (VERBOSE) courier_locations;\n-- INFO:  finished vacuuming \"rice_rocket.public.courier_locations\": index scans: 1\n-- tuples: 4796210 removed, 120034 remain, 0 are dead but not yet removable\nSELECT pg_size_pretty(pg_total_relation_size('courier_locations'));\n--  8987 MB\n```\n\nStatement: \"The VACUUM did not work: a successful VACUUM gives the space of the 4.8 million removed rows back to the operating system, so the table should now be about 200 MB.\"",
+          "explanation": "False. The VACUUM worked: 4,796,210 dead versions were removed and their space is now free for new rows inside the table's files. Plain VACUUM only returns space to the operating system when whole pages at the end of the file become empty, which is rare for a table updated everywhere. Shrinking the file needs a rewrite: `VACUUM FULL` (takes an ACCESS EXCLUSIVE lock for the whole rewrite) or `pg_repack` (rebuilds online, with brief locks). The misconception is that free space inside the table and file size are the same thing.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Before that, autovacuum ran every few minutes on the table and nothing changed:\n\n```text\nLOG:  automatic vacuum of table \"rice_rocket.public.courier_locations\": index scans: 0\n      tuples: 1203 removed, 118797 remain, 4796210 are dead but not yet removable\n      removable cutoff: 81234567, which was 9012345 XIDs old when operation ended\n\n=# SELECT pid, state, now() - xact_start AS open_for, age(backend_xmin)\n   FROM pg_stat_activity WHERE backend_xmin IS NOT NULL ORDER BY 4 DESC LIMIT 1;\n  pid  |        state        |    open_for     |   age\n-------+---------------------+-----------------+---------\n  4242 | idle in transaction | 3 days 02:11:07 | 9012345\n```\n\nStatement: \"Session 4242, idle in a transaction for three days, holds the xmin horizon: every row version that died after its snapshot must be kept, so no vacuum can remove them until that transaction ends.\"",
+          "explanation": "True. Vacuum may only remove a dead row version that no running transaction could still see. The removable cutoff is the oldest xmin in the system, here the snapshot of session 4242, 9 million transactions old; everything that died since is \"dead but not yet removable\". Ending the session (`pg_terminate_backend(4242)`) or its transaction lets the next vacuum clean up. The same horizon can be held by a replication slot with an old `xmin` or by a forgotten prepared transaction. The misconception is that an idle session costs nothing.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team gave the hot table its own autovacuum settings:\n\n```sql\n-- server defaults: autovacuum_vacuum_threshold = 50, autovacuum_vacuum_scale_factor = 0.2\nSELECT reltuples FROM pg_class WHERE relname = 'courier_locations';\n--  120000\nALTER TABLE courier_locations SET (\n  autovacuum_vacuum_scale_factor = 0.01,\n  autovacuum_vacuum_threshold = 1000\n);\n```\n\nStatement: \"With these storage parameters, autovacuum starts on courier_locations after about 2,200 dead rows instead of about 24,050.\"",
+          "explanation": "True. Autovacuum vacuums a table when its dead rows exceed `autovacuum_vacuum_threshold + autovacuum_vacuum_scale_factor * reltuples`. With the defaults that is 50 + 0.2 x 120,000 = 24,050; with the table's own parameters 1,000 + 0.01 x 120,000 = 2,200. Per-table settings are the usual fix for a small table that is updated constantly. (PostgreSQL 18 also adds `autovacuum_vacuum_max_threshold`, a cap that matters for very large tables.) The misconception is that one server-wide scale factor suits every table.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pgp_182",
+      "name": "vacuum-health-check",
+      "type": "fix_bug",
+      "title": "Fix the vacuum health check",
+      "description": "The monitoring job's vacuum check said \"ok\" for a month while courier_locations grew to 9 GB. Rebuild it from its pieces. For every table it must decide whether vacuum is due with the real autovacuum trigger (threshold + scale_factor x reltuples, the table's storage parameters over the server settings), and report \"blocked by pid <pid>\" or \"blocked by slot <name>\" when a session or a replication slot holds the xmin horizon longer than `max_xmin_age` (the oldest one wins), \"vacuum lagging\" when vacuum is due and nothing blocks it, and \"ok\" otherwise. The editor holds `vacuum_check.py` with its functions missing, each marked by a `# [ ]` line; some pieces are last month's bugs.",
+      "difficulty": "medium",
+      "outcomes": [
+        "operations"
+      ],
+      "points": 30,
+      "hints": [
+        "Replay last month with the numbers in the tests: what threshold does autovacuum really use for courier_locations, and which object kept the dead rows alive?",
+        "Check each piece against the docstring: settings merged with the table's options, a sum (not a product) for the trigger, and both pg_stat_activity and pg_replication_slots for the horizon.",
+        "A disk-usage alert follows the same shape: per volume, merge the default limits with the volume's own, compare used space with base + percent x size, and when it is over, name the biggest process holding deleted-but-open files before calling it plain growth."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "vacuum_check.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: a session idle in transaction for 3 days blocks courier_locations",
+          "input": {
+            "settings": {
+              "autovacuum_vacuum_threshold": 50,
+              "autovacuum_vacuum_scale_factor": 0.2
+            },
+            "tables": [
+              {
+                "relname": "courier_locations",
+                "reltuples": 120000,
+                "n_live_tup": 120000,
+                "n_dead_tup": 4800000,
+                "options": {
+                  "autovacuum_vacuum_scale_factor": 0.01,
+                  "autovacuum_vacuum_threshold": 1000
+                }
+              },
+              {
+                "relname": "orders",
+                "reltuples": 2000000,
+                "n_live_tup": 2000000,
+                "n_dead_tup": 100000,
+                "options": {}
+              }
+            ],
+            "sessions": [
+              {
+                "pid": 4242,
+                "state": "idle in transaction",
+                "xmin_age": 9000000
+              },
+              {
+                "pid": 5100,
+                "state": "active",
+                "xmin_age": 1200
+              }
+            ],
+            "slots": [
+              {
+                "slot_name": "replica_1",
+                "active": true,
+                "xmin_age": 900
+              }
+            ],
+            "max_xmin_age": 1000000
+          },
+          "expected": {
+            "tables": {
+              "courier_locations": "blocked by pid 4242",
+              "orders": "ok"
+            },
+            "blocker": "pid 4242"
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "courier_locations is due under its own storage parameters, not under the defaults",
+          "input": {
+            "settings": {
+              "autovacuum_vacuum_threshold": 50,
+              "autovacuum_vacuum_scale_factor": 0.2
+            },
+            "tables": [
+              {
+                "relname": "courier_locations",
+                "reltuples": 120000,
+                "n_live_tup": 120000,
+                "n_dead_tup": 5000,
+                "options": {
+                  "autovacuum_vacuum_scale_factor": 0.01,
+                  "autovacuum_vacuum_threshold": 1000
+                }
+              },
+              {
+                "relname": "orders",
+                "reltuples": 2000000,
+                "n_live_tup": 2000000,
+                "n_dead_tup": 300000,
+                "options": {}
+              }
+            ],
+            "sessions": [
+              {
+                "pid": 5100,
+                "state": "active",
+                "xmin_age": 1200
+              }
+            ],
+            "slots": [
+              {
+                "slot_name": "replica_1",
+                "active": true,
+                "xmin_age": 900
+              }
+            ],
+            "max_xmin_age": 1000000
+          },
+          "expected": {
+            "tables": {
+              "courier_locations": "vacuum lagging",
+              "orders": "ok"
+            },
+            "blocker": null
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "An inactive replication slot holds the horizon",
+          "input": {
+            "settings": {
+              "autovacuum_vacuum_threshold": 50,
+              "autovacuum_vacuum_scale_factor": 0.2
+            },
+            "tables": [
+              {
+                "relname": "courier_locations",
+                "reltuples": 120000,
+                "n_live_tup": 120000,
+                "n_dead_tup": 3000000,
+                "options": {
+                  "autovacuum_vacuum_scale_factor": 0.01,
+                  "autovacuum_vacuum_threshold": 1000
+                }
+              },
+              {
+                "relname": "orders",
+                "reltuples": 2000000,
+                "n_live_tup": 2000000,
+                "n_dead_tup": 50000,
+                "options": {}
+              }
+            ],
+            "sessions": [
+              {
+                "pid": 5100,
+                "state": "active",
+                "xmin_age": 1200
+              }
+            ],
+            "slots": [
+              {
+                "slot_name": "old_replica",
+                "active": false,
+                "xmin_age": 50000000
+              },
+              {
+                "slot_name": "replica_1",
+                "active": true,
+                "xmin_age": 900
+              }
+            ],
+            "max_xmin_age": 1000000
+          },
+          "expected": {
+            "tables": {
+              "courier_locations": "blocked by slot old_replica",
+              "orders": "ok"
+            },
+            "blocker": "slot old_replica"
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "orders with 500,000 dead rows is past the trigger of 400,050",
+          "input": {
+            "settings": {
+              "autovacuum_vacuum_threshold": 50,
+              "autovacuum_vacuum_scale_factor": 0.2
+            },
+            "tables": [
+              {
+                "relname": "courier_locations",
+                "reltuples": 120000,
+                "n_live_tup": 120000,
+                "n_dead_tup": 1000,
+                "options": {
+                  "autovacuum_vacuum_scale_factor": 0.01,
+                  "autovacuum_vacuum_threshold": 1000
+                }
+              },
+              {
+                "relname": "orders",
+                "reltuples": 2000000,
+                "n_live_tup": 2000000,
+                "n_dead_tup": 500000,
+                "options": {}
+              }
+            ],
+            "sessions": [
+              {
+                "pid": 5100,
+                "state": "active",
+                "xmin_age": 1200
+              }
+            ],
+            "slots": [],
+            "max_xmin_age": 1000000
+          },
+          "expected": {
+            "tables": {
+              "courier_locations": "ok",
+              "orders": "vacuum lagging"
+            },
+            "blocker": null
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A session and a slot both hold the horizon: the oldest one is reported",
+          "input": {
+            "settings": {
+              "autovacuum_vacuum_threshold": 50,
+              "autovacuum_vacuum_scale_factor": 0.2
+            },
+            "tables": [
+              {
+                "relname": "courier_locations",
+                "reltuples": 120000,
+                "n_live_tup": 120000,
+                "n_dead_tup": 3000000,
+                "options": {
+                  "autovacuum_vacuum_scale_factor": 0.01,
+                  "autovacuum_vacuum_threshold": 1000
+                }
+              },
+              {
+                "relname": "orders",
+                "reltuples": 2000000,
+                "n_live_tup": 2000000,
+                "n_dead_tup": 450000,
+                "options": {}
+              }
+            ],
+            "sessions": [
+              {
+                "pid": 4242,
+                "state": "idle in transaction",
+                "xmin_age": 9000000
+              },
+              {
+                "pid": 5100,
+                "state": "active",
+                "xmin_age": 1200
+              }
+            ],
+            "slots": [
+              {
+                "slot_name": "old_replica",
+                "active": false,
+                "xmin_age": 50000000
+              }
+            ],
+            "max_xmin_age": 1000000
+          },
+          "expected": {
+            "tables": {
+              "courier_locations": "blocked by slot old_replica",
+              "orders": "blocked by slot old_replica"
+            },
+            "blocker": "slot old_replica"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A young transaction is not a blocker: 10,000 dead rows is plain lag",
+          "input": {
+            "settings": {
+              "autovacuum_vacuum_threshold": 50,
+              "autovacuum_vacuum_scale_factor": 0.2
+            },
+            "tables": [
+              {
+                "relname": "courier_locations",
+                "reltuples": 120000,
+                "n_live_tup": 120000,
+                "n_dead_tup": 10000,
+                "options": {
+                  "autovacuum_vacuum_scale_factor": 0.01,
+                  "autovacuum_vacuum_threshold": 1000
+                }
+              },
+              {
+                "relname": "orders",
+                "reltuples": 2000000,
+                "n_live_tup": 2000000,
+                "n_dead_tup": 200000,
+                "options": {}
+              }
+            ],
+            "sessions": [
+              {
+                "pid": 4242,
+                "state": "idle in transaction",
+                "xmin_age": 800000
+              }
+            ],
+            "slots": [
+              {
+                "slot_name": "replica_1",
+                "active": true,
+                "xmin_age": 900
+              }
+            ],
+            "max_xmin_age": 1000000
+          },
+          "expected": {
+            "tables": {
+              "courier_locations": "vacuum lagging",
+              "orders": "ok"
+            },
+            "blocker": null
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

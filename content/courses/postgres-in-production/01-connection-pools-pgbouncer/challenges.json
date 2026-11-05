@@ -1,0 +1,301 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pgp_111",
+      "name": "connection-pools-quiz",
+      "type": "quiz",
+      "title": "Read the lunch-peak connection outage",
+      "description": "Three statements about Rice Rocket's connection outage and the PgBouncer that followed it. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "connections"
+      ],
+      "points": 10,
+      "hints": [
+        "Count every client of the database, not only the api: who else keeps a connection open, and which slots can an ordinary role never take?",
+        "In transaction pooling, a client keeps a server connection only for the length of one transaction. Where does a plain `SET` live, and where does the next transaction run?",
+        "Read SHOW POOLS column by column: `cl_` columns are clients of PgBouncer, `sv_` columns are its connections to PostgreSQL. Which side is short?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the outage the team wants the smallest change:\n\n```text\nFATAL:  sorry, too many clients already\n\nmax_connections                = 100\nsuperuser_reserved_connections = 3\nconnections from other clients  = 7    (migrate job, metrics exporter, two psql sessions)\nHPA maxReplicas                = 12\nnode-postgres Pool({ max })    = 20\n```\n\nStatement: \"Lowering the pool to `max: 8` fixes it: 12 pods x 8 = 96 connections, under max_connections 100.\"",
+          "explanation": "False. 100 is not what the api gets: 3 slots are reserved for superusers and 7 are taken by other clients, so ordinary roles have 90. 96 still fails at full scale, and the next raise of maxReplicas breaks it again. Budget = max_connections - reserved - other clients, divided by the HPA's maximum (90 / 12 = 7 per pod), or put PgBouncer in front so the pods' pools stop mapping one to one onto server connections.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "With PgBouncer in `pool_mode = transaction`, the multi-tenant report sometimes reads the wrong schema:\n\n```sql\n-- request 1, outside any transaction\nSET search_path TO tenant_42;\nSELECT count(*) FROM orders;      -- tenant_42.orders\n-- request 2 from the same pod, a moment later\nSELECT count(*) FROM orders;      -- ERROR: relation \"orders\" does not exist\n```\n\nStatement: \"Each transaction may run on a different server connection, so the session-level SET stayed on another connection; `SET LOCAL search_path` inside the report's transaction (or a schema-qualified name) works in transaction mode.\"",
+          "explanation": "True. In transaction mode PgBouncer hands a server connection to a client for one transaction and takes it back. A plain `SET` changes that server session, which the next transaction (maybe another client's) inherits, while this client's next query lands on a different connection. `SET LOCAL` lasts until the end of the current transaction, so it travels with the work. The same goes for session advisory locks (`pg_advisory_lock`) vs `pg_advisory_xact_lock`. The misconception is that a pod's connection stays the same server connection.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "During the next peak the api is slow but nothing errors. PgBouncer's admin console shows (columns trimmed):\n\n```text\npgbouncer=# SHOW POOLS;\n database | user | cl_active | cl_waiting | sv_active | sv_idle | maxwait | pool_mode\n----------+------+-----------+------------+-----------+---------+---------+-------------\n rocket   | api  |        40 |         32 |        40 |       0 |       2 | transaction\n```\n\nStatement: \"All 40 server connections of the pool are busy, so 32 clients wait in PgBouncer (the oldest for 2 seconds); PostgreSQL itself refused nobody.\"",
+          "explanation": "True. `sv_active 40` with `sv_idle 0` means the pool (default_pool_size 40) is fully used, and `cl_waiting 32` clients are queued inside PgBouncer; `maxwait` is how long the oldest has waited, in seconds. PostgreSQL sees only 40 connections, well under its limit. Waiting is the intended behaviour of a pool: the fix is shorter transactions or a carefully raised pool size, not more pods. The misconception is that waiting clients mean the database is rejecting connections.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pgp_112",
+      "name": "connection-planner",
+      "type": "mini_coding",
+      "title": "Plan connections before you scale",
+      "description": "Rice Rocket wants a check that runs before anyone raises the HPA's maxReplicas or a pool size. The editor holds `pool_planner.py` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that `plan(case)` reports, for one scenario: the server connections the api may use (`max_connections` minus `superuser_reserved_connections` minus other clients); the connections the api opens with every pod of the HPA's maximum holding a full pool; the server connections PostgreSQL sees at peak with no PgBouncer, or with PgBouncer in session, transaction or statement mode (capped by `default_pool_size`, the rest waiting); whether PostgreSQL or PgBouncer refuses clients; and which of the api's features the pool mode breaks. The docstring at the top of the file is the exact contract.",
+      "difficulty": "medium",
+      "outcomes": [
+        "connections"
+      ],
+      "points": 30,
+      "hints": [
+        "Work one scenario by hand first: 12 pods, pool 20, 6 transactions per pod at peak, PgBouncer pool 40. How many client connections, how many transactions at once, how many server connections, how many waiting?",
+        "There are three numbers to get right (available, clients, needed) and one table (which features keep state in the server session). `min()` caps the server side; the difference is the queue.",
+        "A worker fleet of 4-10 pods with `pool_max` 5 behind PgBouncer in session mode with `default_pool_size` 30: clients = 10 x 5 = 50; session mode needs one server connection per client, so needed = 50, server = min(50, 30) = 30 and 20 wait. In transaction mode with 2 transactions per pod at peak, needed = 10 x 2 = 20 and nobody waits."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "pool_planner.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: 12 pods x pool 20 straight to PostgreSQL is too many clients",
+          "input": {
+            "server": {
+              "max_connections": 100,
+              "superuser_reserved_connections": 3,
+              "other_clients": 7
+            },
+            "app": {
+              "min_pods": 3,
+              "max_pods": 12,
+              "pool_max": 20,
+              "peak_active_per_pod": 6
+            },
+            "pgbouncer": null,
+            "features": [
+              "session_set",
+              "set_local",
+              "xact_advisory_lock",
+              "session_advisory_lock",
+              "prepared_statements"
+            ]
+          },
+          "expected": {
+            "available": 90,
+            "client_connections": 240,
+            "server_connections": 240,
+            "too_many_clients": true,
+            "pgbouncer_refused": false,
+            "waiting_at_peak": 0,
+            "broken_features": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Transaction mode: 72 transactions at peak, pool of 40, 32 wait; session SET and session locks break",
+          "input": {
+            "server": {
+              "max_connections": 100,
+              "superuser_reserved_connections": 3,
+              "other_clients": 7
+            },
+            "app": {
+              "min_pods": 3,
+              "max_pods": 12,
+              "pool_max": 20,
+              "peak_active_per_pod": 6
+            },
+            "pgbouncer": {
+              "pool_mode": "transaction",
+              "default_pool_size": 40,
+              "max_client_conn": 400,
+              "max_prepared_statements": 200
+            },
+            "features": [
+              "session_set",
+              "set_local",
+              "xact_advisory_lock",
+              "session_advisory_lock",
+              "prepared_statements"
+            ]
+          },
+          "expected": {
+            "available": 90,
+            "client_connections": 240,
+            "server_connections": 40,
+            "too_many_clients": false,
+            "pgbouncer_refused": false,
+            "waiting_at_peak": 32,
+            "broken_features": [
+              "session_set",
+              "session_advisory_lock"
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Session mode holds a server connection per client: a pool of 100 is over the 90 available",
+          "input": {
+            "server": {
+              "max_connections": 100,
+              "superuser_reserved_connections": 3,
+              "other_clients": 7
+            },
+            "app": {
+              "min_pods": 3,
+              "max_pods": 12,
+              "pool_max": 20,
+              "peak_active_per_pod": 6
+            },
+            "pgbouncer": {
+              "pool_mode": "session",
+              "default_pool_size": 100,
+              "max_client_conn": 400
+            },
+            "features": [
+              "session_set",
+              "set_local",
+              "xact_advisory_lock",
+              "session_advisory_lock",
+              "prepared_statements"
+            ]
+          },
+          "expected": {
+            "available": 90,
+            "client_connections": 240,
+            "server_connections": 100,
+            "too_many_clients": true,
+            "pgbouncer_refused": false,
+            "waiting_at_peak": 140,
+            "broken_features": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Statement mode breaks transactions; prepared statements break without max_prepared_statements",
+          "input": {
+            "server": {
+              "max_connections": 100,
+              "superuser_reserved_connections": 3,
+              "other_clients": 7
+            },
+            "app": {
+              "min_pods": 3,
+              "max_pods": 12,
+              "pool_max": 20,
+              "peak_active_per_pod": 2
+            },
+            "pgbouncer": {
+              "pool_mode": "statement",
+              "default_pool_size": 40,
+              "max_client_conn": 400
+            },
+            "features": [
+              "multi_statement_transaction",
+              "set_local",
+              "prepared_statements",
+              "listen_notify",
+              "with_hold_cursor",
+              "temp_table"
+            ]
+          },
+          "expected": {
+            "available": 90,
+            "client_connections": 240,
+            "server_connections": 24,
+            "too_many_clients": false,
+            "pgbouncer_refused": false,
+            "waiting_at_peak": 0,
+            "broken_features": [
+              "multi_statement_transaction",
+              "prepared_statements",
+              "listen_notify",
+              "with_hold_cursor",
+              "temp_table"
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "PgBouncer refuses clients over max_client_conn; a smaller server keeps 3 slots for superusers",
+          "input": {
+            "server": {
+              "max_connections": 50,
+              "superuser_reserved_connections": 3,
+              "other_clients": 5
+            },
+            "app": {
+              "min_pods": 2,
+              "max_pods": 10,
+              "pool_max": 25,
+              "peak_active_per_pod": 4
+            },
+            "pgbouncer": {
+              "pool_mode": "transaction",
+              "default_pool_size": 45,
+              "max_client_conn": 200,
+              "max_prepared_statements": 0
+            },
+            "features": [
+              "xact_advisory_lock",
+              "prepared_statements"
+            ]
+          },
+          "expected": {
+            "available": 42,
+            "client_connections": 250,
+            "server_connections": 40,
+            "too_many_clients": false,
+            "pgbouncer_refused": true,
+            "waiting_at_peak": 0,
+            "broken_features": [
+              "prepared_statements"
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

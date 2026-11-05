@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: PostgreSQL in production (api clients share a small connection pool in front of the database, a B-tree index, and a backup that has been restored). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F1822"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#336791" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#336791" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6FA8DC"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#336791"/>
+    <path d="M134 180 V216 A24 8 0 0 0 182 216 V180 Z" fill="#E6EEF6"/>
+    <path d="M134 180 A24 8 0 0 1 182 180 A24 8 0 0 1 134 180 Z" fill="#BFD6EC" stroke="#336791" stroke-width="2"/>
+    <path d="M134 198 A24 8 0 0 0 182 198" fill="none" stroke="#336791" stroke-width="3"/>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#6FA8DC">DATABASE · POSTGRESQL</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">PostgreSQL</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">in Production</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Pools · Migrations · Indexes · Backups</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#D5E6F5">
+      <rect x="110" y="660" width="173" height="52" rx="26" fill="#13202D" stroke="#336791"/>
+      <text x="196.5" y="695" text-anchor="middle">PgBouncer</text>
+      <rect x="299" y="660" width="144" height="52" rx="26" fill="#13202D" stroke="#336791"/>
+      <text x="371" y="695" text-anchor="middle">EXPLAIN</text>
+      <rect x="459" y="660" width="144" height="52" rx="26" fill="#13202D" stroke="#336791"/>
+      <text x="531" y="695" text-anchor="middle">pg_dump</text>
+    </g>
+  </g>
+
+  <!-- Connection pool to the primary, a B-tree index and a backup restored for real -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="904" y="196" font-size="20" letter-spacing="3" fill="#6FA8DC">CONNECTIONS</text>
+    <rect x="896" y="220" width="110" height="46" rx="10" fill="#121B26" stroke="#2C4560" stroke-width="2"/><text x="951" y="250" font-size="20" fill="#B8B2C8" text-anchor="middle">api</text>
+    <rect x="896" y="285" width="110" height="46" rx="10" fill="#121B26" stroke="#2C4560" stroke-width="2"/><text x="951" y="315" font-size="20" fill="#B8B2C8" text-anchor="middle">api</text>
+    <rect x="896" y="350" width="110" height="46" rx="10" fill="#121B26" stroke="#2C4560" stroke-width="2"/><text x="951" y="380" font-size="20" fill="#B8B2C8" text-anchor="middle">worker</text>
+    <path d="M1006 243 L1052 290" stroke="#6F6A80" stroke-width="3" marker-end="url(#arrowMuted)"/>
+    <path d="M1006 308 H1052" stroke="#6F6A80" stroke-width="3" marker-end="url(#arrowMuted)"/>
+    <path d="M1006 373 L1052 326" stroke="#6F6A80" stroke-width="3" marker-end="url(#arrowMuted)"/>
+    <rect x="1058" y="226" width="170" height="164" rx="14" fill="#13202D" stroke="#336791" stroke-width="3"/>
+    <text x="1143" y="262" font-size="22" font-weight="700" fill="#6FA8DC" text-anchor="middle">pool</text>
+    <g fill="#6FA8DC"><circle cx="1087" cy="296" r="9"/><circle cx="1115" cy="296" r="9"/><circle cx="1143" cy="296" r="9"/><circle cx="1171" cy="296" r="9"/><circle cx="1199" cy="296" r="9"/><circle cx="1087" cy="326" r="9"/><circle cx="1115" cy="326" r="9"/></g>
+    <g fill="none" stroke="#6FA8DC" stroke-width="2"><circle cx="1143" cy="326" r="8"/><circle cx="1171" cy="326" r="8"/><circle cx="1199" cy="326" r="8"/></g>
+    <text x="1143" y="370" font-size="18" fill="#B8B2C8" text-anchor="middle">7 / 10 busy</text>
+    <path d="M1228 308 H1302" stroke="#6FA8DC" stroke-width="4" marker-end="url(#arrow)"/>
+    <path d="M1310 240 V380 A105 22 0 0 0 1520 380 V240 Z" fill="#1A2C3E" stroke="#6FA8DC" stroke-width="2"/>
+    <path d="M1310 240 A105 22 0 0 1 1520 240 A105 22 0 0 1 1310 240 Z" fill="#336791" stroke="#6FA8DC" stroke-width="2"/>
+    <text x="1415" y="326" font-size="24" font-weight="700" fill="#F4F2F8" text-anchor="middle">postgres</text>
+    <text x="1415" y="356" font-size="18" fill="#B8B2C8" text-anchor="middle">primary</text>
+    <text x="904" y="500" font-size="20" letter-spacing="3" fill="#6FA8DC">INDEX · B-TREE</text>
+    <rect x="1005" y="530" width="90" height="44" rx="8" fill="#13202D" stroke="#6FA8DC" stroke-width="2"/>
+    <text x="1050" y="559" font-size="20" fill="#D5E6F5" text-anchor="middle">40</text>
+    <path d="M1030 574 L985 618 M1070 574 L1135 618" stroke="#6FA8DC" stroke-width="2"/>
+    <rect x="920" y="620" width="110" height="44" rx="8" fill="#13202D" stroke="#6FA8DC" stroke-width="2"/>
+    <text x="975" y="649" font-size="20" fill="#D5E6F5" text-anchor="middle">12 27</text>
+    <rect x="1090" y="620" width="110" height="44" rx="8" fill="#13202D" stroke="#6FA8DC" stroke-width="2"/>
+    <text x="1145" y="649" font-size="20" fill="#D5E6F5" text-anchor="middle">55 63</text>
+    <path d="M955 664 L937 706 M995 664 L1013 706 M1125 664 L1107 706 M1165 664 L1183 706" stroke="#6FA8DC" stroke-width="2"/>
+    <g fill="#336791"><rect x="906" y="706" width="62" height="34" rx="6"/><rect x="982" y="706" width="62" height="34" rx="6"/><rect x="1076" y="706" width="62" height="34" rx="6"/><rect x="1152" y="706" width="62" height="34" rx="6"/></g>
+    <text x="904" y="784" font-size="19" fill="#B8B2C8">idx_orders_user_id</text>
+    <text x="1290" y="500" font-size="20" letter-spacing="3" fill="#6FA8DC">BACKUP · RESTORE</text>
+    <path d="M1290 540 H1356 L1380 564 V660 H1290 Z" fill="#13202D" stroke="#6FA8DC" stroke-width="2"/>
+    <path d="M1356 540 V564 H1380" fill="none" stroke="#6FA8DC" stroke-width="2"/>
+    <g fill="#336791"><rect x="1304" y="582" width="58" height="7" rx="3"/><rect x="1304" y="602" width="58" height="7" rx="3"/><rect x="1304" y="622" width="40" height="7" rx="3"/></g>
+    <text x="1335" y="694" font-size="19" fill="#B8B2C8" text-anchor="middle">pg_dump</text>
+    <path d="M1386 610 H1434" stroke="#6FA8DC" stroke-width="3" marker-end="url(#arrow)"/>
+    <path d="M1443 570 V650 A42 10 0 0 0 1527 650 V570 Z" fill="#1A2C3E" stroke="#6FA8DC" stroke-width="2"/>
+    <path d="M1443 570 A42 10 0 0 1 1527 570 A42 10 0 0 1 1443 570 Z" fill="#336791" stroke="#6FA8DC" stroke-width="2"/>
+    <circle cx="1485" cy="618" r="16" fill="#3DBE7B"/><path d="M1478 619 L1482.9 624.25 L1492 613.4" fill="none" stroke="#0F1822" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="1485" y="694" font-size="19" fill="#B8B2C8" text-anchor="middle">restore</text>
+    <text x="1290" y="740" font-size="19" fill="#9BE7BD">restored &amp; verified</text>
+  </g>
+</svg>

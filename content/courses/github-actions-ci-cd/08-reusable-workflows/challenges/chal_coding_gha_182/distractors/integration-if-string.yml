@@ -1,0 +1,4 @@
+# @piece integration-if: test: integration tests only when the caller asks
+- name: Integration tests
+  if: inputs.run-integration == 'true'
+  run: npm run test:integration

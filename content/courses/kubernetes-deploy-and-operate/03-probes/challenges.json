@@ -1,0 +1,211 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_k8s_131",
+      "name": "probes-quiz",
+      "type": "quiz",
+      "title": "Read the probe incidents",
+      "description": "Three statements about what Rice Rocket's probes did in production. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "health-and-rollouts"
+      ],
+      "points": 10,
+      "hints": [
+        "Each probe kind has one consequence when it fails. Which one restarts the container, which one only changes whether the pod gets traffic, and which one only delays the other two?",
+        "Ask what a restart can fix. If every pod fails the same check because of something outside the pods, what does restarting all of them at once do to the service?",
+        "Multiply `failureThreshold` by `periodSeconds` for each probe, and check in the docs which probes run while a startup probe has not succeeded yet."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "One api pod has been unready for six minutes:\n\n```text\n$ kubectl -n rice-rocket get pods -l app=api\nNAME                   READY   STATUS    RESTARTS   AGE\napi-7d9f8c6b5d-4kq2x   0/1     Running   0          6m\napi-7d9f8c6b5d-9wz7m   1/1     Running   0          2d\n\n$ kubectl -n rice-rocket describe pod api-7d9f8c6b5d-4kq2x | tail -1\n  Warning  Unhealthy  12s (x71 over 6m)  kubelet  Readiness probe failed: HTTP probe failed with statuscode: 503\n```\n\nStatement: \"After `failureThreshold` failed readiness checks the kubelet restarts the container, so the RESTARTS column of this pod will keep growing until it recovers.\"",
+          "explanation": "False. A failing readiness probe never restarts anything: the kubelet marks the pod unready and the EndpointSlice controller removes it from the Service, so it stops getting traffic. RESTARTS stays 0, as the output shows after 71 failures. Only a failing liveness probe (or a failing startup probe) restarts the container. The misconception is that every probe is a health check that heals by restarting.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "During a 40 second failover of the managed Postgres, every api pod restarted at the same time and the site was down for two minutes:\n\n```yaml\nlivenessProbe:\n  httpGet:\n    path: /ready        # runs SELECT 1 against Postgres\n    port: http\n  periodSeconds: 10\n  failureThreshold: 3\n```\n\n```text\n$ kubectl -n rice-rocket get pods -l app=api\nNAME                   READY   STATUS    RESTARTS     AGE\napi-7d9f8c6b5d-4kq2x   0/1     Running   1 (8s ago)   2d\napi-7d9f8c6b5d-9wz7m   0/1     Running   1 (9s ago)   2d\napi-7d9f8c6b5d-r2t5p   0/1     Running   1 (8s ago)   2d\n```\n\nStatement: \"Pointing liveness at `/ready` is right: a pod that cannot reach its database is broken, and a restart is how Kubernetes replaces it with a healthy one.\"",
+          "explanation": "False. A restart cannot fix a database that is down for everyone: all three pods failed liveness together, restarted together, and each then spent its boot time (about 20 s here) unable to serve even after Postgres came back, which stretched a 40 s blip into an outage. Liveness should answer only \"is this process stuck?\" (`/health`); dependency checks belong in readiness, which takes the pod out of the Service without killing it. The misconception is that liveness is a general health check.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "On a freshly added node the api took 44 seconds to load its price cache:\n\n```yaml\nstartupProbe:\n  httpGet: { path: /health, port: http }\n  periodSeconds: 2\n  failureThreshold: 30\nlivenessProbe:\n  httpGet: { path: /health, port: http }\n  periodSeconds: 10\n  failureThreshold: 3\n```\n\n```text\n  Warning  Unhealthy  2s (x22 over 44s)  kubelet  Startup probe failed: Get \"http://10.42.3.17:3000/health\": dial tcp 10.42.3.17:3000: connect: connection refused\n  Normal   Started    ...\n```\n\nStatement: \"The app has up to 60 seconds (30 x 2 s) to answer `/health`, and liveness does not run until the startup probe has succeeded, so this slow start does not end in a restart.\"",
+          "explanation": "True. While a startup probe is configured and has not yet succeeded, the kubelet does not run the liveness and readiness probes. It allows `failureThreshold x periodSeconds` = 60 s; 22 failures over 44 s stay under 30, the probe then succeeds and liveness takes over with its own 30 s window for a process that later hangs. Without the startup probe, the liveness probe alone (3 x 10 s) would have restarted the container at about 30 s, every time, into CrashLoopBackOff.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_k8s_132",
+      "name": "fix-api-probes",
+      "type": "fix_bug",
+      "title": "Fix the api probes",
+      "description": "The api's probes caused three incidents: liveness on `/ready` restarted every pod during a 40 s Postgres failover; with no readiness probe, pods got traffic while they were still booting (about 20 s, up to 50 s on a cold node), which showed as 502s on every rollout; and a later liveness probe with a 5 s initial delay killed slow starts into CrashLoopBackOff. The editor holds the api Deployment with its three probes missing, each marked by a `# [ ]` line; some pieces are the old, wrong probes. The api answers `GET /health` once the process is up and `GET /ready` only while it can also reach Postgres. Fill the lines so that: a boot of up to 50 s never ends in a restart; a pod gets traffic only while `/ready` answers, and leaves the Service within 10 s when it stops answering; a database outage never restarts a pod; a process that hangs is restarted within about 30 s. Run plays each scenario on a one-pod timeline with the documented probe rules.",
+      "difficulty": "medium",
+      "outcomes": [
+        "health-and-rollouts"
+      ],
+      "points": 30,
+      "hints": [
+        "For each scenario (slow boot, database failover, hung process), ask which endpoint stops answering, which probe looks at it, and what that probe does after `failureThreshold` failures.",
+        "Look at the three probe kinds (`startupProbe`, `readinessProbe`, `livenessProbe`) and their fields `httpGet.path`, `httpGet.port`, `periodSeconds` and `failureThreshold`. A TCP check succeeds as soon as the port listens.",
+        "A worker that needs up to 2 minutes to warm up, should leave the Service within 6 s when its queue is unreachable, and be restarted after 45 s stuck: `startupProbe` on `/livez` with `periodSeconds: 5, failureThreshold: 24`; `readinessProbe` on `/readyz` with `periodSeconds: 3, failureThreshold: 2`; `livenessProbe` on `/livez` with `periodSeconds: 15, failureThreshold: 3`."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": "k8s/api-deployment.yaml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A 20 s boot: no restart, first traffic once /ready answers",
+          "input": {
+            "checks": [
+              "parse",
+              "timeline"
+            ],
+            "scenario": {
+              "seconds": 120,
+              "bootSeconds": 20
+            }
+          },
+          "expected": {
+            "parse": "ok",
+            "timeline": {
+              "restarts": 0,
+              "firstTraffic": 20,
+              "badTrafficSeconds": 0,
+              "hangRestartAfter": null
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A 50 s cold boot still ends without a restart",
+          "input": {
+            "checks": [
+              "timeline"
+            ],
+            "scenario": {
+              "seconds": 180,
+              "bootSeconds": 50
+            }
+          },
+          "expected": {
+            "timeline": {
+              "restarts": 0,
+              "firstTraffic": 50,
+              "badTrafficSeconds": 0,
+              "hangRestartAfter": null
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A 40 s Postgres failover takes the pod out of the Service and restarts nothing",
+          "input": {
+            "checks": [
+              "timeline"
+            ],
+            "scenario": {
+              "seconds": 180,
+              "bootSeconds": 20,
+              "dbDown": [
+                60,
+                100
+              ]
+            }
+          },
+          "expected": {
+            "timeline": {
+              "restarts": 0,
+              "firstTraffic": 20,
+              "badTrafficSeconds": 5,
+              "hangRestartAfter": null
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A hung process is restarted within 30 s and gets no traffic meanwhile",
+          "input": {
+            "checks": [
+              "timeline"
+            ],
+            "scenario": {
+              "seconds": 240,
+              "bootSeconds": 20,
+              "hangAt": 90
+            }
+          },
+          "expected": {
+            "timeline": {
+              "restarts": 1,
+              "firstTraffic": 20,
+              "badTrafficSeconds": 5,
+              "hangRestartAfter": 20
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "The container has a startup, a readiness and a liveness probe",
+          "input": {
+            "checks": [
+              "probes"
+            ]
+          },
+          "expected": {
+            "probes": [
+              "startupProbe",
+              "readinessProbe",
+              "livenessProbe"
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

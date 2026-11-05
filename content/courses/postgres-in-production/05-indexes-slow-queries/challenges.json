@@ -1,0 +1,305 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pgp_151",
+      "name": "indexes-slow-queries-quiz",
+      "type": "quiz",
+      "title": "Read the slow query log",
+      "description": "Three statements about Rice Rocket's slowest queries and the indexes on its orders table. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "query-performance"
+      ],
+      "points": 10,
+      "hints": [
+        "`total_exec_time` is `calls` times `mean_exec_time`: which number says where the database spends its time, and which one says how one request feels?",
+        "In the plan, look at the index name, the `Index Cond` (what the index narrows down) and the `Filter` with `Rows Removed by Filter` (what was read and thrown away).",
+        "Every index on a table is a second structure that INSERT has to update. Which view counts how often each index was used since the statistics were reset?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The top of `pg_stat_statements`, sorted by total time:\n\n```text\n query                                              | calls   | mean_exec_time | total_exec_time\n----------------------------------------------------+---------+----------------+-----------------\n SELECT ... FROM orders WHERE restaurant_id = $1 .. | 2104311 |       0.41 ms  |       862 768 ms\n SELECT ... FROM orders WHERE customer_id = $1 ...  |  611204 |       0.96 ms  |       586 756 ms\n SELECT ... FROM daily_report WHERE day = $1        |     312 |    1180.00 ms  |       368 160 ms\n```\n\nStatement: \"The daily report is where the database spends most of its time, because its mean is over a thousand times higher than the others; it should be fixed first.\"",
+          "explanation": "False. `total_exec_time` (calls x mean) is the time the server spent, and the restaurant query alone took 863 seconds, more than twice the report's 368 seconds, because it runs two million times. The report is the slowest single query and may be worth fixing for the people who wait for it, but halving the restaurant query frees far more of the database. The misconception is ranking by mean time, which hides cheap queries that run constantly.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The customer history query and its plan:\n\n```sql\nEXPLAIN (ANALYZE, BUFFERS)\nSELECT id, total_vnd, created_at FROM orders\nWHERE customer_id = 42 AND created_at >= '2026-10-01' AND created_at < '2026-11-01'\nORDER BY created_at DESC;\n```\n\n```text\n Index Scan Backward using orders_created_at_idx on orders  (actual time=0.03..212.40 rows=31 loops=1)\n   Index Cond: ((created_at >= '2026-10-01') AND (created_at < '2026-11-01'))\n   Filter: (customer_id = 42)\n   Rows Removed by Filter: 184211\n   Buffers: shared hit=9120 read=2804\n Execution Time: 212.61 ms\n```\n\nStatement: \"The index narrows the scan to October only, then 184,211 rows of other customers are read and thrown away; an index on `(customer_id, created_at)` would start at this customer's October rows and return them already in order.\"",
+          "explanation": "True. `Index Cond` shows what the index narrowed: only the date range. `Filter` plus `Rows Removed by Filter` shows the work wasted on every other customer's orders. With `(customer_id, created_at)` the equality column comes first, the range second: the scan jumps to customer 42, walks only October, and reads the rows in `created_at` order, so no sort is needed. With the columns the other way round the range would come first and the customer would still be a filter.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Inserts into `orders` slowed down after someone added an index on every column:\n\n```sql\nSELECT indexrelname, idx_scan, pg_size_pretty(pg_relation_size(indexrelid)) AS size\nFROM pg_stat_user_indexes WHERE relname = 'orders' ORDER BY idx_scan;\n```\n\n```text\n indexrelname             | idx_scan | size\n--------------------------+----------+--------\n orders_total_vnd_idx     |        0 | 214 MB\n orders_status_idx        |        0 | 188 MB\n orders_created_at_idx    |       12 | 214 MB\n orders_courier_id_idx    |   981233 | 201 MB\n```\n\nStatement: \"Every INSERT into `orders` also writes an entry into each of its indexes, so dropping the indexes that no query uses (`idx_scan` = 0 over a representative period) makes inserts cheaper without slowing any query.\"",
+          "explanation": "True. A new row has to be added to every index of the table, and each index also costs WAL, vacuum work and cache memory. `pg_stat_user_indexes.idx_scan` counts how often each index was used since the statistics were last reset, so check that the period covers month-end jobs and rare reports before dropping. Drop with `DROP INDEX CONCURRENTLY` so the table stays writable. The misconception is that an unused index is free.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pgp_152",
+      "name": "indexes-from-slow-queries",
+      "type": "mini_coding",
+      "title": "Replace one index per column with the indexes the queries need",
+      "description": "The `orders` table has one index on each of seven columns: inserts are slower and the three slow queries are still slow. The editor holds `migrations/0042_orders_indexes.py` with its SQL pieces missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: the one-column indexes no query needs are dropped (keep `orders_courier_id_idx`); the restaurant tablet query (active orders of one restaurant, newest first) searches an index that holds only the `pending` and `cooking` orders and needs no sort; the customer history query searches on the customer and the date range; support's lookup uses a UNIQUE index on `public_code`; every query returns exactly what it returned before, and the table ends with 4 indexes. Run builds the table on SQLite, applies your pieces and prints each query's plan from `EXPLAIN QUERY PLAN`.",
+      "difficulty": "hard",
+      "outcomes": [
+        "query-performance"
+      ],
+      "points": 40,
+      "hints": [
+        "Read each query as the planner does: which columns are compared with `=`, which with a range, and which one is in `ORDER BY`? A useful index puts the equality columns first.",
+        "Look at composite indexes (column order matters), partial indexes (`CREATE INDEX ... WHERE <condition>`, used only when the query's WHERE contains that same condition) and `CREATE UNIQUE INDEX`.",
+        "For a courier screen that lists one courier's undelivered orders, oldest first: `CREATE INDEX orders_open_by_courier ON orders (courier_id, created_at) WHERE status = 'delivering';` serves `WHERE courier_id = :c AND status = 'delivering' ORDER BY created_at` without a sort."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "migrations/0042_orders_indexes.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The restaurant query searches an active-orders index by restaurant and needs no sort",
+          "input": {
+            "checks": [
+              "plans"
+            ],
+            "queries": [
+              "active"
+            ],
+            "params": {
+              "active": {
+                "restaurant_id": 3
+              },
+              "history": {
+                "customer_id": 11,
+                "from": "2026-10-05",
+                "to": "2026-10-20"
+              },
+              "lookup": {
+                "code": "RR-00042"
+              },
+              "courier": {
+                "courier_id": 4
+              }
+            }
+          },
+          "expected": {
+            "plans": {
+              "active": {
+                "index": "orders_active_by_restaurant",
+                "constraint": "restaurant_id=?",
+                "temp_sort": false
+              }
+            }
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "The customer history query searches on the customer and the date range",
+          "input": {
+            "checks": [
+              "plans"
+            ],
+            "queries": [
+              "history"
+            ],
+            "params": {
+              "active": {
+                "restaurant_id": 3
+              },
+              "history": {
+                "customer_id": 11,
+                "from": "2026-10-05",
+                "to": "2026-10-20"
+              },
+              "lookup": {
+                "code": "RR-00042"
+              },
+              "courier": {
+                "courier_id": 4
+              }
+            }
+          },
+          "expected": {
+            "plans": {
+              "history": {
+                "index": "orders_by_customer_created",
+                "constraint": "customer_id=? AND created_at>? AND created_at<?",
+                "temp_sort": false
+              }
+            }
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Four indexes remain and every query returns the same rows as before",
+          "input": {
+            "checks": [
+              "indexes",
+              "same_results"
+            ],
+            "params": {
+              "active": {
+                "restaurant_id": 3
+              },
+              "history": {
+                "customer_id": 11,
+                "from": "2026-10-05",
+                "to": "2026-10-20"
+              },
+              "lookup": {
+                "code": "RR-00042"
+              },
+              "courier": {
+                "courier_id": 4
+              }
+            }
+          },
+          "expected": {
+            "indexes": [
+              "orders_active_by_restaurant",
+              "orders_by_customer_created",
+              "orders_courier_id_idx",
+              "orders_public_code_key"
+            ],
+            "same_results": true
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "public_code is unique and support's lookup searches that index",
+          "input": {
+            "checks": [
+              "plans",
+              "duplicate_code"
+            ],
+            "queries": [
+              "lookup"
+            ],
+            "params": {
+              "active": {
+                "restaurant_id": 3
+              },
+              "history": {
+                "customer_id": 11,
+                "from": "2026-10-05",
+                "to": "2026-10-20"
+              },
+              "lookup": {
+                "code": "RR-00042"
+              },
+              "courier": {
+                "courier_id": 4
+              }
+            }
+          },
+          "expected": {
+            "plans": {
+              "lookup": {
+                "index": "orders_public_code_key",
+                "constraint": "public_code=?",
+                "temp_sort": false
+              }
+            },
+            "duplicate_code": "IntegrityError: UNIQUE constraint failed: orders.public_code"
+          },
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "Other data and parameters: all four plans and results hold",
+          "input": {
+            "checks": [
+              "plans",
+              "same_results"
+            ],
+            "params": {
+              "active": {
+                "restaurant_id": 9
+              },
+              "history": {
+                "customer_id": 27,
+                "from": "2026-10-01",
+                "to": "2026-10-31"
+              },
+              "lookup": {
+                "code": "RR-00777"
+              },
+              "courier": {
+                "courier_id": 18
+              }
+            },
+            "rows": 900,
+            "seed": 21
+          },
+          "expected": {
+            "plans": {
+              "active": {
+                "index": "orders_active_by_restaurant",
+                "constraint": "restaurant_id=?",
+                "temp_sort": false
+              },
+              "history": {
+                "index": "orders_by_customer_created",
+                "constraint": "customer_id=? AND created_at>? AND created_at<?",
+                "temp_sort": false
+              },
+              "lookup": {
+                "index": "orders_public_code_key",
+                "constraint": "public_code=?",
+                "temp_sort": false
+              },
+              "courier": {
+                "index": "orders_courier_id_idx",
+                "constraint": "courier_id=?",
+                "temp_sort": false
+              }
+            },
+            "same_results": true
+          },
+          "hidden": true,
+          "score": 8
+        }
+      ]
+    }
+  ]
+}

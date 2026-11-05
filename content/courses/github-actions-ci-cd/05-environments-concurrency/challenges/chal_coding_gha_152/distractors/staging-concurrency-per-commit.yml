@@ -1,0 +1,4 @@
+# @piece staging-concurrency: staging: one deploy at a time, none cut short
+concurrency:
+  group: deploy-staging-${{ github.sha }}
+  cancel-in-progress: false

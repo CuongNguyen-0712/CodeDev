@@ -1,0 +1,3 @@
+// @piece count-healthy-streak: Count healthy answers in a row from the new version
+if (answer && answer.status === 200) streak++;
+else streak = 0;

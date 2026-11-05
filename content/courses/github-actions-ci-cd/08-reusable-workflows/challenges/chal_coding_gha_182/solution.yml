@@ -1,0 +1,71 @@
+# Rice Rocket's shared Node CI, in the rice-rocket/.github repository. app, admin and courier-app
+# call it from their own workflows:
+#   jobs:
+#     ci:
+#       uses: rice-rocket/.github/.github/workflows/node-ci.yml@v1
+#       with:
+#         working-directory: api
+#       secrets: inherit
+name: node-ci
+
+on:
+  workflow_call:
+    # @piece call-inputs: Inputs: the folder, the Node version, integration tests
+    inputs:
+      working-directory:
+        type: string
+        required: true
+      node-version:
+        type: string
+        default: "24"
+      run-integration:
+        type: boolean
+        default: false
+    # @end
+    secrets:
+      NPM_TOKEN:
+        required: false
+    # @piece call-outputs: Outputs: the test coverage, for the caller
+    outputs:
+      coverage:
+        description: Line coverage of the tests, in percent
+        value: ${{ jobs.test.outputs.coverage }}
+    # @end
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # @piece job-outputs: test: expose the coverage step's result
+    outputs:
+      coverage: ${{ steps.cov.outputs.pct }}
+    # @end
+    # @piece run-folder: test: run commands in the caller's folder
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    # @end
+    steps:
+      - uses: actions/checkout@v5
+      # @piece setup-node-inputs: test: the caller's Node version, with the npm cache
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+      # @end
+      - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm run test:coverage
+      - id: cov
+        name: Read the coverage
+        run: echo "pct=$(jq .total.lines.pct coverage/coverage-summary.json)" >> "$GITHUB_OUTPUT"
+      # @piece integration-if: test: integration tests only when the caller asks
+      - name: Integration tests
+        if: inputs.run-integration
+        run: npm run test:integration
+      # @end

@@ -1,0 +1,45 @@
+[
+  {
+    "id": "env-variable",
+    "label": "The environment to plan, refused unless it is known",
+    "code": "variable \"env\" {\n  type        = string\n  description = \"Environment name: staging or production.\"\n  validation {\n    condition     = contains([\"staging\", \"production\"], var.env)\n    error_message = \"env must be staging or production.\"\n  }\n}"
+  },
+  {
+    "id": "settings-map",
+    "label": "Everything that differs between environments",
+    "code": "locals {\n  settings = {\n    staging = {\n      instance_class          = \"db.t4g.micro\"\n      backup_retention_period = 3\n      deletion_protection     = false\n      log_retention_days      = 7\n    }\n    production = {\n      instance_class          = \"db.t4g.medium\"\n      backup_retention_period = 14\n      deletion_protection     = true\n      log_retention_days      = 30\n    }\n  }\n}"
+  },
+  {
+    "id": "current-settings",
+    "label": "The settings of the environment being planned",
+    "code": "locals {\n  current = local.settings[var.env]\n}"
+  },
+  {
+    "id": "database",
+    "label": "The database, sized and protected per environment",
+    "code": "resource \"aws_db_instance\" \"main\" {\n  identifier              = local.name\n  engine                  = \"postgres\"\n  engine_version          = \"17\"\n  instance_class          = local.current.instance_class\n  allocated_storage       = 20\n  username                = \"rocket\"\n  password                = var.db_password\n  backup_retention_period = local.current.backup_retention_period\n  deletion_protection     = local.current.deletion_protection\n  tags                    = local.tags\n}"
+  },
+  {
+    "id": "log-groups",
+    "label": "One log group per service, kept per environment",
+    "code": "resource \"aws_cloudwatch_log_group\" \"service\" {\n  for_each          = toset(local.services)\n  name              = \"/${local.name}/${each.key}\"\n  retention_in_days = local.current.log_retention_days\n  tags              = local.tags\n}"
+  },
+  {
+    "id": "current-settings-workspace",
+    "label": "The settings of the environment being planned",
+    "code": "locals {\n  current = local.settings[terraform.workspace == \"production\" ? \"production\" : \"staging\"]\n}",
+    "distractor": true
+  },
+  {
+    "id": "log-groups-list",
+    "label": "One log group per service, kept per environment",
+    "code": "resource \"aws_cloudwatch_log_group\" \"service\" {\n  for_each          = local.services\n  name              = \"/${local.name}/${each.key}\"\n  retention_in_days = local.current.log_retention_days\n  tags              = local.tags\n}",
+    "distractor": true
+  },
+  {
+    "id": "settings-map-production-copy",
+    "label": "Everything that differs between environments",
+    "code": "locals {\n  settings = {\n    staging = {\n      instance_class          = \"db.t4g.micro\"\n      backup_retention_period = 3\n      deletion_protection     = false\n      log_retention_days      = 7\n    }\n    production = {\n      instance_class      = \"db.t4g.medium\"\n      deletion_protection = true\n      log_retention_days  = 30\n    }\n  }\n}",
+    "distractor": true
+  }
+]

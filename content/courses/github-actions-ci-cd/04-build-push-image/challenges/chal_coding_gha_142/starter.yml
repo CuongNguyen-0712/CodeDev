@@ -1,0 +1,19 @@
+# Rice Rocket image build: every pull request into main builds the api image; pushes to main and
+# release tags (v1.4.0) push it to GHCR with tags that name the commit, the branch and the release.
+name: image
+
+on:
+  # [ ] Pull requests into main, pushes to main, release tags
+
+# [ ] What the GITHUB_TOKEN of this job may do
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      # [ ] Sign in to ghcr.io, except on pull requests
+      # [ ] Tags naming the commit, branch, pull request and release
+      # [ ] Build api/, push except on pull requests, reuse the cache

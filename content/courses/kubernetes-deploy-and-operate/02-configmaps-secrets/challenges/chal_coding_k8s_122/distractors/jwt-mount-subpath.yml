@@ -1,0 +1,6 @@
+# @piece jwt-mount: Mount the JWT secret read-only under /run/secrets
+volumeMounts:
+  - name: jwt
+    mountPath: /run/secrets/jwt_secret
+    subPath: jwt_secret
+    readOnly: true

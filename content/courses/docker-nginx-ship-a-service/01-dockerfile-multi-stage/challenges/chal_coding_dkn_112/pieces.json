@@ -1,0 +1,34 @@
+[
+  {
+    "id": "install-deps",
+    "label": "Install dependencies from the lockfile",
+    "code": "COPY package.json package-lock.json ./\nRUN npm ci"
+  },
+  {
+    "id": "build-and-prune",
+    "label": "Copy the sources, compile, then drop devDependencies",
+    "code": "COPY tsconfig.json ./\nCOPY src ./src\nRUN npm run build && npm prune --omit=dev"
+  },
+  {
+    "id": "runtime-copy",
+    "label": "Copy only what the server needs from the build stage",
+    "code": "COPY --from=build /app/package.json ./\nCOPY --from=build /app/node_modules ./node_modules\nCOPY --from=build /app/dist ./dist"
+  },
+  {
+    "id": "run-as-node",
+    "label": "Start node as PID 1, as a non-root user",
+    "code": "USER node\nEXPOSE 3000\nCMD [\"node\", \"dist/server.js\"]"
+  },
+  {
+    "id": "cmd-shell-form",
+    "label": "Start node as PID 1, as a non-root user",
+    "code": "EXPOSE 3000\nCMD npm start",
+    "distractor": true
+  },
+  {
+    "id": "runtime-copy-all",
+    "label": "Copy only what the server needs from the build stage",
+    "code": "COPY --from=build /app ./",
+    "distractor": true
+  }
+]

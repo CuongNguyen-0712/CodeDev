@@ -1,0 +1,146 @@
+{
+  "publicId": "kafka-event-streaming",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793806726/codedev/courses/kafka-event-streaming/cover",
+  "title": "Kafka Event Streaming: Topics, Consumers and Exactly-Once in Practice",
+  "concept": "Move an order service to events with Kafka: topics and partitions, keys and ordering, consumer groups and rebalancing, offsets and retries, dead-letter topics, idempotent producers and the outbox pattern. Challenges are TypeScript consumers and producers graded against an in-memory broker.",
+  "description": "Move an order service to events with Kafka: topics and partitions, keys and ordering, consumer groups and rebalancing, offsets and retries, dead-letter topics, idempotent producers and the outbox pattern. Challenges are TypeScript consumers and producers graded against an in-memory broker. 7 lessons, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.",
+  "level": "advanced",
+  "durationMinutes": 140,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Microservices",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "template": "core-first",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "backend_developer",
+    "data_engineer"
+  ],
+  "skills": {
+    "concurrency": 4,
+    "system_design": 5,
+    "typescript": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "background-jobs-messaging"
+  ],
+  "completionRules": {},
+  "domain": "backend",
+  "learningOutcomes": [
+    {
+      "code": "partitioning",
+      "text": "Choose topics, partition counts and message keys so related events stay in order."
+    },
+    {
+      "code": "reliable-producing",
+      "text": "Produce without losing or duplicating events: acks, idempotent producers and the transactional outbox."
+    },
+    {
+      "code": "consuming",
+      "text": "Run consumer groups that survive rebalances, commit offsets after the work and park poison messages."
+    },
+    {
+      "code": "schema-evolution",
+      "text": "Change event schemas without breaking the consumers that read them."
+    }
+  ],
+  "testedVersions": {
+    "Apache Kafka": "4.1 (KRaft, to verify)",
+    "@confluentinc/kafka-javascript": "1.x (to verify)",
+    "TypeScript": "5.x",
+    "Node.js": "24"
+  },
+  "lastReviewedAt": "2026-11-05",
+  "sourceLinks": [
+    "https://kafka.apache.org/documentation/#design",
+    "https://kafka.apache.org/documentation/#producerconfigs",
+    "https://kafka.apache.org/documentation/#consumerconfigs",
+    "https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html",
+    "https://microservices.io/patterns/data/transactional-outbox.html"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges run TypeScript against an in-memory broker that follows Kafka's documented semantics (partitions, offsets, groups, idempotence), not a real cluster.",
+    "testedVersions are not yet re-checked against a live cluster."
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Producing",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-topics-partitions-keys",
+          "title": "Topics, partitions and message keys",
+          "sanityId": "lesson-kfk-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-idempotent-producers-acks",
+          "title": "Idempotent producers and acks",
+          "sanityId": "lesson-kfk-1-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Consuming",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "03-consumer-groups-rebalancing",
+          "title": "Consumer groups and rebalancing",
+          "sanityId": "lesson-kfk-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "04-commit-after-work",
+          "title": "Committing offsets after the work, not before",
+          "sanityId": "lesson-kfk-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "05-retries-dead-letter",
+          "title": "Retries and dead-letter topics",
+          "sanityId": "lesson-kfk-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Consistency",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "06-outbox-pattern",
+          "title": "The outbox pattern from the database to Kafka",
+          "sanityId": "lesson-kfk-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "07-schema-evolution",
+          "title": "Schemas and compatible event changes",
+          "sanityId": "lesson-kfk-3-2"
+        }
+      ]
+    }
+  ]
+}

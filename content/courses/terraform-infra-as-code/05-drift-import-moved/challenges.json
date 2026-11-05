@@ -1,0 +1,391 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_tf_151",
+      "name": "drift-import-moved-quiz",
+      "type": "quiz",
+      "title": "Read the refactoring plans",
+      "description": "Three statements about the plans Rice Rocket saw while cleaning up drift, importing a hand-made log group and refactoring two buckets into one resource. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "safe-refactoring"
+      ],
+      "points": 10,
+      "hints": [
+        "Separate the two things a refresh can change: the state file, and the real objects in AWS. Which one does `-refresh-only` write to?",
+        "An import adopts an existing object into state. Where does the `resource` block that describes it come from, and what can `-generate-config-out` do about it?",
+        "A `moved` block is applied per state. Count the states that still record the old addresses before deleting one."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Someone raised the api log retention in the AWS console. The team ran:\n\n```text\n$ terraform plan -refresh-only -var env=production\nNote: Objects have changed outside of Terraform\n\n  # aws_cloudwatch_log_group.api has changed\n  ~ resource \"aws_cloudwatch_log_group\" \"api\" {\n      ~ retention_in_days = 30 -> 90\n    }\n\nWould you like to update the Terraform state to reflect these detected changes?\n```\n\nStatement: \"Running `terraform apply -refresh-only` now sets the log group back to 30 days, because the configuration still says 30.\"",
+          "explanation": "False. A refresh-only apply changes nothing in AWS: it only records the real values (90 days) in the state. The configuration still says 30, so the next normal plan proposes `90 -> 30`. The team has to decide: write `retention_in_days = 90` into the code to adopt the console change, or let a normal apply revert it. The misconception is that refresh-only enforces the configuration; it does the opposite.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The worker log group was created by hand. The team added only this and planned:\n\n```hcl\nimport {\n  to = aws_cloudwatch_log_group.worker\n  id = \"/rice-rocket-production/worker\"\n}\n```\n\n```text\n$ terraform plan\nError: Configuration for import target does not exist\n```\n\nStatement: \"An import block writes the matching `resource` block into the configuration by itself, so this error means the id is wrong.\"",
+          "explanation": "False. The import block says which existing object to adopt and at which address, but the `resource \"aws_cloudwatch_log_group\" \"worker\"` block at that address must exist in the configuration. `terraform plan -generate-config-out=generated.tf` can draft it from the real object for you to review and move into place. The id is fine here; the target is missing. The misconception is that importing writes code automatically.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The refactor replaced `aws_s3_bucket.web` and `aws_s3_bucket.admin` with one `for_each` resource and two `moved` blocks. Production applied it last week; staging has not been planned since. A cleanup pull request deletes the moved blocks:\n\n```text\n$ terraform plan -var env=staging\n  # aws_s3_bucket.admin will be destroyed\n  # aws_s3_bucket.web will be destroyed\n  # aws_s3_bucket.site[\"admin\"] will be created\n  # aws_s3_bucket.site[\"web\"] will be created\nPlan: 2 to add, 0 to change, 2 to destroy.\n```\n\nStatement: \"Moved blocks must stay until every state that still has the old addresses has been applied with them; removed too early, the staging plan destroys and recreates both buckets.\"",
+          "explanation": "True. A `moved` block rewrites addresses in the state that is being planned. Production's state already has `site[\"web\"]`, but staging's still has `aws_s3_bucket.web`, and without the block Terraform sees one object to delete and another to create. Keep moved blocks for as long as any environment, or any other team using the module, may still hold the old addresses; they cost nothing once applied.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_tf_152",
+      "name": "refactoring-pull-request",
+      "type": "fix_bug",
+      "title": "Fix the refactoring pull request",
+      "description": "The pull request turns `aws_s3_bucket.web` and `aws_s3_bucket.admin` into one `aws_s3_bucket.site` with `for_each`, adds the worker log group that was created by hand, and keeps the api log group. Its first plan destroyed and recreated both buckets (with every uploaded file), tried to create a worker log group that already exists, and wanted to set the api retention back to 30 days after the team had raised it to 90 in the console on purpose. The editor holds the corrected file with its key blocks missing, each marked by a `# [ ]` line; some pieces repeat the pull request's mistakes. Fill every line so that the production plan creates, replaces and destroys nothing: both buckets move to their new addresses, the worker log group (`/rice-rocket-<env>/worker`; a log group's import id is its name) is imported, and the api log group keeps 90 days. Run plans the file against the recorded state, the real objects and the hand-made log group.",
+      "difficulty": "medium",
+      "outcomes": [
+        "safe-refactoring"
+      ],
+      "points": 30,
+      "hints": [
+        "For every object in the plan, ask what Terraform knows about it: is its new address in the state, is there a `moved` block from its old one, or is it a real object that no state knows yet?",
+        "Look at `moved { from = ...  to = ... }` with the exact for_each key, `import { to = ...  id = ... }` with the id format the resource type documents, and which value the configuration must hold so that the plan does not undo the console change.",
+        "Turning two IAM roles into one `aws_iam_role.svc` with `for_each = toset([\"api\", \"worker\"])` keeps them with `moved { from = aws_iam_role.api  to = aws_iam_role.svc[\"api\"] }` (and one for worker); a role made by hand is adopted with `import { to = aws_iam_role.ci  id = \"rice-rocket-ci\" }` (the role name is its id)."
+      ],
+      "coding": {
+        "language": "hcl",
+        "filePath": "infra/sites.tf",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The production plan imports one log group and adds, changes and destroys nothing",
+          "input": {
+            "checks": [
+              "parse",
+              "plan",
+              "destroyed"
+            ],
+            "env": "production",
+            "state": {
+              "aws_s3_bucket.web": {
+                "type": "aws_s3_bucket",
+                "attrs": {
+                  "bucket": "rice-rocket-production-web",
+                  "id": "rice-rocket-production-web",
+                  "arn": "arn:aws:s3:::rice-rocket-production-web"
+                }
+              },
+              "aws_s3_bucket.admin": {
+                "type": "aws_s3_bucket",
+                "attrs": {
+                  "bucket": "rice-rocket-production-admin",
+                  "id": "rice-rocket-production-admin",
+                  "arn": "arn:aws:s3:::rice-rocket-production-admin"
+                }
+              },
+              "aws_cloudwatch_log_group.api": {
+                "type": "aws_cloudwatch_log_group",
+                "attrs": {
+                  "name": "/rice-rocket-production/api",
+                  "retention_in_days": 30,
+                  "id": "/rice-rocket-production/api",
+                  "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/api"
+                }
+              }
+            },
+            "remote": {
+              "aws_cloudwatch_log_group.api": {
+                "name": "/rice-rocket-production/api",
+                "retention_in_days": 90,
+                "id": "/rice-rocket-production/api",
+                "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/api"
+              }
+            },
+            "importable": {
+              "/rice-rocket-production/worker": {
+                "name": "/rice-rocket-production/worker",
+                "retention_in_days": 14,
+                "id": "/rice-rocket-production/worker",
+                "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/worker"
+              }
+            }
+          },
+          "expected": {
+            "parse": "ok",
+            "plan": "Plan: 1 to import, 0 to add, 0 to change, 0 to destroy.",
+            "destroyed": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Both buckets move to their for_each keys and the worker log group is imported",
+          "input": {
+            "checks": [
+              "actions"
+            ],
+            "env": "production",
+            "state": {
+              "aws_s3_bucket.web": {
+                "type": "aws_s3_bucket",
+                "attrs": {
+                  "bucket": "rice-rocket-production-web",
+                  "id": "rice-rocket-production-web",
+                  "arn": "arn:aws:s3:::rice-rocket-production-web"
+                }
+              },
+              "aws_s3_bucket.admin": {
+                "type": "aws_s3_bucket",
+                "attrs": {
+                  "bucket": "rice-rocket-production-admin",
+                  "id": "rice-rocket-production-admin",
+                  "arn": "arn:aws:s3:::rice-rocket-production-admin"
+                }
+              },
+              "aws_cloudwatch_log_group.api": {
+                "type": "aws_cloudwatch_log_group",
+                "attrs": {
+                  "name": "/rice-rocket-production/api",
+                  "retention_in_days": 30,
+                  "id": "/rice-rocket-production/api",
+                  "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/api"
+                }
+              }
+            },
+            "remote": {
+              "aws_cloudwatch_log_group.api": {
+                "name": "/rice-rocket-production/api",
+                "retention_in_days": 90,
+                "id": "/rice-rocket-production/api",
+                "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/api"
+              }
+            },
+            "importable": {
+              "/rice-rocket-production/worker": {
+                "name": "/rice-rocket-production/worker",
+                "retention_in_days": 14,
+                "id": "/rice-rocket-production/worker",
+                "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/worker"
+              }
+            }
+          },
+          "expected": {
+            "actions": {
+              "aws_cloudwatch_log_group.api": "no-op",
+              "aws_cloudwatch_log_group.worker": "import",
+              "aws_s3_bucket.site[\"admin\"]": "moved from aws_s3_bucket.admin",
+              "aws_s3_bucket.site[\"web\"]": "moved from aws_s3_bucket.web"
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "The api keeps the 90 days set in the console; the worker keeps its 14",
+          "input": {
+            "checks": [
+              "retention"
+            ],
+            "env": "production",
+            "state": {
+              "aws_s3_bucket.web": {
+                "type": "aws_s3_bucket",
+                "attrs": {
+                  "bucket": "rice-rocket-production-web",
+                  "id": "rice-rocket-production-web",
+                  "arn": "arn:aws:s3:::rice-rocket-production-web"
+                }
+              },
+              "aws_s3_bucket.admin": {
+                "type": "aws_s3_bucket",
+                "attrs": {
+                  "bucket": "rice-rocket-production-admin",
+                  "id": "rice-rocket-production-admin",
+                  "arn": "arn:aws:s3:::rice-rocket-production-admin"
+                }
+              },
+              "aws_cloudwatch_log_group.api": {
+                "type": "aws_cloudwatch_log_group",
+                "attrs": {
+                  "name": "/rice-rocket-production/api",
+                  "retention_in_days": 30,
+                  "id": "/rice-rocket-production/api",
+                  "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/api"
+                }
+              }
+            },
+            "remote": {
+              "aws_cloudwatch_log_group.api": {
+                "name": "/rice-rocket-production/api",
+                "retention_in_days": 90,
+                "id": "/rice-rocket-production/api",
+                "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/api"
+              }
+            },
+            "importable": {
+              "/rice-rocket-production/worker": {
+                "name": "/rice-rocket-production/worker",
+                "retention_in_days": 14,
+                "id": "/rice-rocket-production/worker",
+                "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/worker"
+              }
+            }
+          },
+          "expected": {
+            "retention": {
+              "api": 90,
+              "worker": 14
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Staging, with its own state and hand-made log group, also plans without loss",
+          "input": {
+            "checks": [
+              "plan",
+              "destroyed"
+            ],
+            "env": "staging",
+            "state": {
+              "aws_s3_bucket.web": {
+                "type": "aws_s3_bucket",
+                "attrs": {
+                  "bucket": "rice-rocket-staging-web",
+                  "id": "rice-rocket-staging-web",
+                  "arn": "arn:aws:s3:::rice-rocket-staging-web"
+                }
+              },
+              "aws_s3_bucket.admin": {
+                "type": "aws_s3_bucket",
+                "attrs": {
+                  "bucket": "rice-rocket-staging-admin",
+                  "id": "rice-rocket-staging-admin",
+                  "arn": "arn:aws:s3:::rice-rocket-staging-admin"
+                }
+              },
+              "aws_cloudwatch_log_group.api": {
+                "type": "aws_cloudwatch_log_group",
+                "attrs": {
+                  "name": "/rice-rocket-staging/api",
+                  "retention_in_days": 30,
+                  "id": "/rice-rocket-staging/api",
+                  "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-staging/api"
+                }
+              }
+            },
+            "remote": {
+              "aws_cloudwatch_log_group.api": {
+                "name": "/rice-rocket-staging/api",
+                "retention_in_days": 90,
+                "id": "/rice-rocket-staging/api",
+                "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-staging/api"
+              }
+            },
+            "importable": {
+              "/rice-rocket-staging/worker": {
+                "name": "/rice-rocket-staging/worker",
+                "retention_in_days": 14,
+                "id": "/rice-rocket-staging/worker",
+                "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-staging/worker"
+              }
+            }
+          },
+          "expected": {
+            "plan": "Plan: 1 to import, 0 to add, 0 to change, 0 to destroy.",
+            "destroyed": []
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Planned again after the apply, with the moved and import blocks still there: no changes",
+          "input": {
+            "checks": [
+              "plan"
+            ],
+            "env": "production",
+            "state": {
+              "aws_s3_bucket.site[\"web\"]": {
+                "type": "aws_s3_bucket",
+                "attrs": {
+                  "bucket": "rice-rocket-production-web",
+                  "id": "rice-rocket-production-web",
+                  "arn": "arn:aws:s3:::rice-rocket-production-web"
+                }
+              },
+              "aws_s3_bucket.site[\"admin\"]": {
+                "type": "aws_s3_bucket",
+                "attrs": {
+                  "bucket": "rice-rocket-production-admin",
+                  "id": "rice-rocket-production-admin",
+                  "arn": "arn:aws:s3:::rice-rocket-production-admin"
+                }
+              },
+              "aws_cloudwatch_log_group.api": {
+                "type": "aws_cloudwatch_log_group",
+                "attrs": {
+                  "name": "/rice-rocket-production/api",
+                  "retention_in_days": 90,
+                  "id": "/rice-rocket-production/api",
+                  "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/api"
+                }
+              },
+              "aws_cloudwatch_log_group.worker": {
+                "type": "aws_cloudwatch_log_group",
+                "attrs": {
+                  "name": "/rice-rocket-production/worker",
+                  "retention_in_days": 14,
+                  "id": "/rice-rocket-production/worker",
+                  "arn": "arn:aws:logs:ap-southeast-1:123456789012:log-group:/rice-rocket-production/worker"
+                }
+              }
+            }
+          },
+          "expected": {
+            "plan": "No changes. Your infrastructure matches the configuration."
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

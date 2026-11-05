@@ -1,0 +1,46 @@
+[
+  {
+    "id": "skip-untouchable",
+    "label": "Sessions the watchdog must never touch",
+    "code": "if row[\"pid\"] == case[\"my_pid\"] or row[\"backend_type\"] != \"client backend\":\n    continue"
+  },
+  {
+    "id": "idle-in-transaction",
+    "label": "End sessions idle in a transaction too long",
+    "code": "if state in (\"idle in transaction\", \"idle in transaction (aborted)\"):\n    idle_for = now - row[\"state_change\"]\n    if idle_for > limits[\"idle_in_transaction_s\"]:\n        terminate.append([row[\"pid\"], f\"idle in transaction for {idle_for}s\"])\n        roles.add(row[\"usename\"])"
+  },
+  {
+    "id": "long-query",
+    "label": "Stop queries that run too long",
+    "code": "elif state == \"active\":\n    running_for = now - row[\"query_start\"]\n    if running_for > limits[\"statement_s\"]:\n        cancel.append([row[\"pid\"], f\"query running for {running_for}s\"])\n        roles.add(row[\"usename\"])"
+  },
+  {
+    "id": "role-settings",
+    "label": "Settings that make the server do it next time",
+    "code": "alter_role = []\nfor role in sorted(roles):\n    alter_role.append(f\"ALTER ROLE {role} SET idle_in_transaction_session_timeout = '{limits['idle_in_transaction_s']}s'\")\n    alter_role.append(f\"ALTER ROLE {role} SET statement_timeout = '{limits['statement_s']}s'\")"
+  },
+  {
+    "id": "idle-cancelled",
+    "label": "End sessions idle in a transaction too long",
+    "code": "if state in (\"idle in transaction\", \"idle in transaction (aborted)\"):\n    idle_for = now - row[\"state_change\"]\n    if idle_for > limits[\"idle_in_transaction_s\"]:\n        cancel.append([row[\"pid\"], f\"idle in transaction for {idle_for}s\"])\n        roles.add(row[\"usename\"])",
+    "distractor": true
+  },
+  {
+    "id": "idle-from-xact-start",
+    "label": "End sessions idle in a transaction too long",
+    "code": "if state in (\"idle in transaction\", \"idle in transaction (aborted)\"):\n    idle_for = now - row[\"xact_start\"]\n    if idle_for > limits[\"idle_in_transaction_s\"]:\n        terminate.append([row[\"pid\"], f\"idle in transaction for {idle_for}s\"])\n        roles.add(row[\"usename\"])",
+    "distractor": true
+  },
+  {
+    "id": "long-query-any-state",
+    "label": "Stop queries that run too long",
+    "code": "elif state != \"idle in transaction (aborted)\":\n    running_for = now - row[\"query_start\"]\n    if running_for > limits[\"statement_s\"]:\n        cancel.append([row[\"pid\"], f\"query running for {running_for}s\"])\n        roles.add(row[\"usename\"])",
+    "distractor": true
+  },
+  {
+    "id": "skip-own-pid-only",
+    "label": "Sessions the watchdog must never touch",
+    "code": "if row[\"pid\"] == case[\"my_pid\"]:\n    continue",
+    "distractor": true
+  }
+]

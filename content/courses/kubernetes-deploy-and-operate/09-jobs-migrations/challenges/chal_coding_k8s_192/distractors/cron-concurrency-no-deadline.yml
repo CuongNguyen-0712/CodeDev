@@ -1,0 +1,2 @@
+# @piece cron-concurrency: One run at a time; skip a run more than 10 minutes late
+concurrencyPolicy: Forbid

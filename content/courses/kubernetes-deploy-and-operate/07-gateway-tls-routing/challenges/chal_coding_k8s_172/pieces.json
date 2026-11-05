@@ -1,0 +1,45 @@
+[
+  {
+    "id": "https-listener",
+    "label": "HTTPS on 443, TLS ends here with the site certificate",
+    "code": "- name: https\n  protocol: HTTPS\n  port: 443\n  tls:\n    mode: Terminate\n    certificateRefs:\n      - name: ricerocket-tls"
+  },
+  {
+    "id": "http-listener",
+    "label": "Plain HTTP on 80, kept only to redirect",
+    "code": "- name: http\n  protocol: HTTP\n  port: 80"
+  },
+  {
+    "id": "redirect-rule",
+    "label": "Send every plain HTTP request to its https:// URL",
+    "code": "- filters:\n    - type: RequestRedirect\n      requestRedirect:\n        scheme: https\n        statusCode: 301"
+  },
+  {
+    "id": "api-rule",
+    "label": "/api and every path below it, to the api without /api",
+    "code": "- matches:\n    - path:\n        type: PathPrefix\n        value: /api\n  filters:\n    - type: URLRewrite\n      urlRewrite:\n        path:\n          type: ReplacePrefixMatch\n          replacePrefixMatch: /\n  backendRefs:\n    - name: api\n      port: 80"
+  },
+  {
+    "id": "web-rule",
+    "label": "Every other path, to the web app",
+    "code": "- matches:\n    - path:\n        type: PathPrefix\n        value: /\n  backendRefs:\n    - name: web\n      port: 80"
+  },
+  {
+    "id": "api-rule-container-port",
+    "label": "/api and every path below it, to the api without /api",
+    "code": "- matches:\n    - path:\n        type: PathPrefix\n        value: /api\n  filters:\n    - type: URLRewrite\n      urlRewrite:\n        path:\n          type: ReplacePrefixMatch\n          replacePrefixMatch: /\n  backendRefs:\n    - name: api\n      port: 3000",
+    "distractor": true
+  },
+  {
+    "id": "api-rule-exact",
+    "label": "/api and every path below it, to the api without /api",
+    "code": "- matches:\n    - path:\n        type: Exact\n        value: /api\n  backendRefs:\n    - name: api\n      port: 80",
+    "distractor": true
+  },
+  {
+    "id": "https-listener-plain-http",
+    "label": "HTTPS on 443, TLS ends here with the site certificate",
+    "code": "- name: https\n  protocol: HTTP\n  port: 443",
+    "distractor": true
+  }
+]

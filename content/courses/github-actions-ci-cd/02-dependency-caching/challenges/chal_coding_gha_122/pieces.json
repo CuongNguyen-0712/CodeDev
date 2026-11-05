@@ -1,0 +1,40 @@
+[
+  {
+    "id": "cache-path",
+    "label": "What to keep between runs",
+    "code": "path: ~/.npm"
+  },
+  {
+    "id": "cache-key",
+    "label": "The key: runner OS and the exact lockfile",
+    "code": "key: npm-${{ runner.os }}-${{ hashFiles('api/package-lock.json') }}"
+  },
+  {
+    "id": "restore-keys",
+    "label": "Fallback after the lockfile changed",
+    "code": "restore-keys: |\n  npm-${{ runner.os }}-"
+  },
+  {
+    "id": "install-always",
+    "label": "Install the locked dependencies",
+    "code": "- run: npm ci"
+  },
+  {
+    "id": "cache-key-root-lockfile",
+    "label": "The key: runner OS and the exact lockfile",
+    "code": "key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}",
+    "distractor": true
+  },
+  {
+    "id": "cache-path-node-modules",
+    "label": "What to keep between runs",
+    "code": "path: api/node_modules",
+    "distractor": true
+  },
+  {
+    "id": "install-only-on-miss",
+    "label": "Install the locked dependencies",
+    "code": "- run: npm ci\n  if: steps.npm-cache.outputs.cache-hit != 'true'",
+    "distractor": true
+  }
+]

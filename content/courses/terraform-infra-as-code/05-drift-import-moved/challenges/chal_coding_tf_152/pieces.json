@@ -1,0 +1,40 @@
+[
+  {
+    "id": "moved-web",
+    "label": "Keep the existing web bucket under its new address",
+    "code": "moved {\n  from = aws_s3_bucket.web\n  to   = aws_s3_bucket.site[\"web\"]\n}"
+  },
+  {
+    "id": "moved-admin",
+    "label": "Keep the existing admin bucket under its new address",
+    "code": "moved {\n  from = aws_s3_bucket.admin\n  to   = aws_s3_bucket.site[\"admin\"]\n}"
+  },
+  {
+    "id": "import-worker-logs",
+    "label": "Adopt the worker log group created by hand",
+    "code": "import {\n  to = aws_cloudwatch_log_group.worker\n  id = \"/${local.name}/worker\"\n}"
+  },
+  {
+    "id": "api-retention",
+    "label": "api log retention, as the team decided in the console",
+    "code": "retention_in_days = 90"
+  },
+  {
+    "id": "api-retention-old-value",
+    "label": "api log retention, as the team decided in the console",
+    "code": "retention_in_days = 30",
+    "distractor": true
+  },
+  {
+    "id": "import-worker-arn-id",
+    "label": "Adopt the worker log group created by hand",
+    "code": "import {\n  to = aws_cloudwatch_log_group.worker\n  id = \"arn:aws:logs:ap-southeast-1:123456789012:log-group:/${local.name}/worker\"\n}",
+    "distractor": true
+  },
+  {
+    "id": "moved-web-wrong-key",
+    "label": "Keep the existing web bucket under its new address",
+    "code": "moved {\n  from = aws_s3_bucket.web\n  to   = aws_s3_bucket.site[\"www\"]\n}",
+    "distractor": true
+  }
+]

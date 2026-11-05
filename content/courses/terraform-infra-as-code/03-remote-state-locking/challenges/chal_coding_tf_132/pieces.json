@@ -1,0 +1,40 @@
+[
+  {
+    "id": "required-version",
+    "label": "The Terraform versions this code is written for",
+    "code": "required_version = \">= 1.11.0, < 2.0.0\""
+  },
+  {
+    "id": "state-bucket",
+    "label": "The bucket and region that hold every state file",
+    "code": "bucket = \"rice-rocket-terraform-state\"\nregion = \"ap-southeast-1\""
+  },
+  {
+    "id": "state-encryption",
+    "label": "The state holds secrets: encrypt it at rest",
+    "code": "encrypt = true"
+  },
+  {
+    "id": "state-locking",
+    "label": "Only one plan or apply at a time per state file",
+    "code": "use_lockfile = true"
+  },
+  {
+    "id": "state-bucket-variable",
+    "label": "The bucket and region that hold every state file",
+    "code": "bucket = var.state_bucket\nregion = var.region",
+    "distractor": true
+  },
+  {
+    "id": "state-encryption-off",
+    "label": "The state holds secrets: encrypt it at rest",
+    "code": "encrypt = false",
+    "distractor": true
+  },
+  {
+    "id": "state-locking-missing-table",
+    "label": "Only one plan or apply at a time per state file",
+    "code": "dynamodb_table = \"rice-rocket-terraform-locks\"",
+    "distractor": true
+  }
+]

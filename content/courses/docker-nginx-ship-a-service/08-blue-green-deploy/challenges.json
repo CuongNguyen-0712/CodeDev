@@ -1,0 +1,155 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dkn_181",
+      "name": "blue-green-deploy-quiz",
+      "type": "quiz",
+      "title": "Read the switch",
+      "description": "Three statements about what nginx and the deploy script do during a blue-green switch: a reload, a failed config test and a rollback. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": ["zero-downtime"],
+      "points": 10,
+      "hints": [
+        "During a switch, which nginx processes and which api containers exist at each moment, and which of them is handling a given request?",
+        "Look at the order of the lines in each log, and at what nginx does with a configuration it cannot load.",
+        "Same idea with a different service: a payments worker pool where new workers start on the new config, old workers keep their in-flight jobs and exit when done; if the new config fails to load, the pool keeps running the old one."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The deploy switches the upstream from blue to green while a 4-minute report export is running on blue:\n\n```text\n10:20:00  GET /api/reports/monthly  -> nginx worker 31 -> api-blue:3000   (in flight)\n10:20:41  deploy: write upstream green; nginx -t ok; nginx -s reload\n10:20:41  nginx: start worker processes 58, 59 (new config: api-green)\n10:20:41  nginx: gracefully shutting down worker process 31\n10:20:43  deploy: smoke test green ok; drain blue 300s ...\n```\n\nStatement: \"The export that is in flight on worker 31 finishes on api-blue, and only new requests go to api-green.\"",
+          "explanation": "True. On reload the master starts new workers with the new configuration and asks the old ones to shut down gracefully: they stop accepting new connections but finish the requests they already serve, against the config they started with (api-blue). That is why the script must keep blue running for a drain period at least as long as the slowest request before stopping it. The misconception is that a reload cuts every open connection, like a restart would.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A typo slipped into the generated upstream file during a deploy:\n\n```nginx\nupstream api {\n    server api-gren:3000;\n}\n```\n\n```text\n$ docker compose exec nginx nginx -t\nnginx: [emerg] host not found in upstream \"api-gren:3000\" in /etc/nginx/conf.d/upstream.conf:2\nnginx: configuration file /etc/nginx/nginx.conf test failed\n```\n\nStatement: \"If the script had run `nginx -s reload` anyway, nginx would have stopped serving and every request would fail until someone fixed the file.\"",
+          "explanation": "False. On reload nginx first tries to load the new configuration; if that fails it logs the error and keeps running with the old one, so traffic keeps flowing to blue. The reason to test first is different: the broken file stays on disk, and the next nginx restart (a crash, a host reboot, `docker compose up` recreating the container) cannot start at all. The deploy must treat a failed `nginx -t` as a rollback: write the blue upstream back and remove green. The misconception is that a bad reload takes the site down; the real risk is a hidden landmine for the next restart.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Release 1.8.0 passed its healthcheck but broke checkout. The deploy log:\n\n```text\n14:02:10  start green ricerocket/api:1.8.0\n14:02:31  wait healthy green ... healthy\n14:02:31  write upstream green; nginx -t ok; reload nginx\n14:02:32  smoke test green: POST /api/checkout -> 500\n14:02:32  write upstream blue; nginx -t ok; reload nginx\n14:02:33  stop green\n```\n\nStatement: \"The rollback takes about a second because api-blue was still running with the previous release; the script only pointed the upstream back and reloaded nginx.\"",
+          "explanation": "True. Blue is retired only after the smoke test passes and a drain period ends, so when green fails, the previous release is still running and warm. Rolling back is a file write and a reload, not a rebuild or an image pull. The common misconception is that a healthcheck is enough of a gate: it proves the process answers /health, not that checkout works, which is why the switch ends with a real-traffic check while blue still exists.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dkn_182",
+      "name": "blue-green-deploy-plan",
+      "type": "mini_coding",
+      "title": "Plan a blue-green switch with a rollback",
+      "description": "Every deploy ran `docker compose up -d api`, which stopped the old container before the new one was ready (20-40 s of 502s), and one bad release took 15 minutes to roll back by hand. Assemble `planDeploy(state, results)` for the new deploy script from the pieces. `state` is `{ active: \"blue\" | \"green\", candidateImage, drainSeconds? }` (default drain 30 s); `results` says how each gate turns out: `{ healthy, configTest, reload, smoke }` (booleans). Return `{ actions, active }`: the ordered steps, each written exactly as `start <colour> <image>`, `wait healthy <colour>`, `write upstream <colour>`, `nginx -t`, `reload nginx`, `smoke test <colour>`, `drain <colour> <n>s`, `stop <colour>`, and the colour serving traffic at the end. The happy path starts the other colour, waits for it to be healthy, writes the upstream file, tests it, reloads, smoke-tests, drains and stops the old colour. When a gate fails, the plan stops there and rolls back: the candidate is stopped, the upstream file names the old colour again, and nginx is reloaded only if it was already serving the candidate (then test the restored file first). Never reload a config that failed `nginx -t`, and never stop the old colour before the smoke test passed. The editor starts from the function with every gate missing (`[ ] label` lines): fill each one by clicking a piece, or drag it onto the line on desktop. Some pieces are wrong on purpose.",
+      "difficulty": "medium",
+      "outcomes": ["zero-downtime"],
+      "points": 30,
+      "hints": [
+        "At each failed gate, ask two questions: which colour is nginx's running config sending traffic to right now, and which file on disk would the next nginx restart load?",
+        "Look at where each gate sits: a failure before `reload nginx` never reached traffic, a failure after it did. The rollback steps differ only in that.",
+        "The same shape for a database migration: `copy table to new`, `verify new`, (fail: `drop new`), `point app at new`, `restart app`, `check app`, (fail: `point app at old`, `restart app`, `drop new`), `wait 1h`, `drop old`. The old copy is dropped last, after every check passed."
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "deploy.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Happy path blue -> green: start, gate, switch, smoke test, then retire blue",
+          "input": {
+            "state": { "active": "blue", "candidateImage": "ricerocket/api:1.8.0" },
+            "results": { "healthy": true, "configTest": true, "reload": true, "smoke": true }
+          },
+          "expected": {
+            "actions": ["start green ricerocket/api:1.8.0", "wait healthy green", "write upstream green", "nginx -t", "reload nginx", "smoke test green", "drain blue 30s", "stop blue"],
+            "active": "green"
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Health gate fails: the candidate is stopped, nothing else changes",
+          "input": {
+            "state": { "active": "blue", "candidateImage": "ricerocket/api:1.8.0" },
+            "results": { "healthy": false, "configTest": true, "reload": true, "smoke": true }
+          },
+          "expected": {
+            "actions": ["start green ricerocket/api:1.8.0", "wait healthy green", "stop green"],
+            "active": "blue"
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "nginx -t fails: no reload, the upstream file names blue again, green is stopped",
+          "input": {
+            "state": { "active": "blue", "candidateImage": "ricerocket/api:1.8.0" },
+            "results": { "healthy": true, "configTest": false, "reload": true, "smoke": true }
+          },
+          "expected": {
+            "actions": ["start green ricerocket/api:1.8.0", "wait healthy green", "write upstream green", "nginx -t", "write upstream blue", "stop green"],
+            "active": "blue"
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Live is green: the candidate is blue, and drainSeconds is honoured",
+          "input": {
+            "state": { "active": "green", "candidateImage": "ricerocket/api:1.9.0", "drainSeconds": 300 },
+            "results": { "healthy": true, "configTest": true, "reload": true, "smoke": true }
+          },
+          "expected": {
+            "actions": ["start blue ricerocket/api:1.9.0", "wait healthy blue", "write upstream blue", "nginx -t", "reload nginx", "smoke test blue", "drain green 300s", "stop green"],
+            "active": "blue"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Smoke test fails after the reload: switch back (tested), reload, stop the candidate",
+          "input": {
+            "state": { "active": "blue", "candidateImage": "ricerocket/api:1.8.0" },
+            "results": { "healthy": true, "configTest": true, "reload": true, "smoke": false }
+          },
+          "expected": {
+            "actions": ["start green ricerocket/api:1.8.0", "wait healthy green", "write upstream green", "nginx -t", "reload nginx", "smoke test green", "write upstream blue", "nginx -t", "reload nginx", "stop green"],
+            "active": "blue"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Reload fails from green: nginx keeps the old config; restore the file, stop blue",
+          "input": {
+            "state": { "active": "green", "candidateImage": "ricerocket/api:1.9.1", "drainSeconds": 45 },
+            "results": { "healthy": true, "configTest": true, "reload": false, "smoke": true }
+          },
+          "expected": {
+            "actions": ["start blue ricerocket/api:1.9.1", "wait healthy blue", "write upstream blue", "nginx -t", "reload nginx", "write upstream green", "stop blue"],
+            "active": "green"
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

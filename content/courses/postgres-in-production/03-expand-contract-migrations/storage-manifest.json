@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_pgp_132",
+      "key": "challenges/python/chal_coding_pgp_132/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "migrations/phone_e164.py",
+      "size": 6114
+    }
+  ]
+}

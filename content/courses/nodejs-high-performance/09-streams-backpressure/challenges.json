@@ -80,6 +80,7 @@
     },
     {
       "publicId": "chal_quiz_nhp_323",
+      "published": false,
       "name": "pipe-vs-pipeline-quiz",
       "type": "quiz",
       "title": "pipe() or pipeline()?",

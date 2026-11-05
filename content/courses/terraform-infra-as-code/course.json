@@ -1,0 +1,138 @@
+{
+  "publicId": "terraform-infra-as-code",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793806729/codedev/courses/terraform-infra-as-code/cover",
+  "title": "Terraform: Infrastructure as Code for a Small Product",
+  "concept": "Describe the infrastructure of a small product in Terraform: providers and resources, variables and outputs, state and locking, modules, plans you can review, drift and imports. Challenges are configurations graded by a plan simulator.",
+  "description": "Describe the infrastructure of a small product in Terraform: providers and resources, variables and outputs, state and locking, modules, plans you can review, drift and imports. Challenges are configurations graded by a plan simulator. 6 lessons, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.",
+  "level": "intermediate",
+  "durationMinutes": 110,
+  "instructor": "CodeDev Engineering Team",
+  "language": "JavaScript",
+  "category": "Cloud Computing",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "template": "core-first",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "devops_engineer"
+  ],
+  "skills": {
+    "system_design": 3,
+    "docker": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "docker-nginx-ship-a-service"
+  ],
+  "completionRules": {},
+  "domain": "devops",
+  "learningOutcomes": [
+    {
+      "code": "config-basics",
+      "text": "Describe infrastructure with providers, resources, variables, locals and outputs."
+    },
+    {
+      "code": "reading-plans",
+      "text": "Read a plan before applying it and spot replacements, destroys and unknown values."
+    },
+    {
+      "code": "state-and-modules",
+      "text": "Share state safely with remote backends and locking, and package resources as modules with clear inputs."
+    },
+    {
+      "code": "safe-refactoring",
+      "text": "Handle drift, import existing resources, refactor with moved blocks and run environments without copy-paste."
+    }
+  ],
+  "testedVersions": {
+    "Terraform": "1.13 (to verify)",
+    "hashicorp/aws provider": "6.x (to verify)",
+    "OpenTofu": "1.10 (compatible, to verify)"
+  },
+  "lastReviewedAt": "2026-11-05",
+  "sourceLinks": [
+    "https://developer.hashicorp.com/terraform/language",
+    "https://developer.hashicorp.com/terraform/cli/commands/plan",
+    "https://developer.hashicorp.com/terraform/language/state/remote",
+    "https://developer.hashicorp.com/terraform/language/modules/develop",
+    "https://developer.hashicorp.com/terraform/language/modules/develop/refactoring",
+    "https://developer.hashicorp.com/terraform/language/import"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges grade .tf files with a plan simulator of documented Terraform behaviour, not with real providers or a cloud account.",
+    "testedVersions are not yet re-checked with a live terraform plan."
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Basics",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-resources-variables-outputs",
+          "title": "Resources, variables and outputs",
+          "sanityId": "lesson-tf-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-reading-a-plan",
+          "title": "Reading a plan before you apply it",
+          "sanityId": "lesson-tf-1-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Teams",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "03-remote-state-locking",
+          "title": "Remote state and locking",
+          "sanityId": "lesson-tf-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "04-modules-clear-inputs",
+          "title": "Modules with clear inputs",
+          "sanityId": "lesson-tf-2-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Change",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "05-drift-import-moved",
+          "title": "Drift, imports and refactoring with moved blocks",
+          "sanityId": "lesson-tf-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "06-environments-without-copy-paste",
+          "title": "Environments without copy-paste",
+          "sanityId": "lesson-tf-3-2"
+        }
+      ]
+    }
+  ]
+}

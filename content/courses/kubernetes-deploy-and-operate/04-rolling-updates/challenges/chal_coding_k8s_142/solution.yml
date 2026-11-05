@@ -1,0 +1,48 @@
+# Rice Rocket api: 6 replicas carry the lunch and dinner peaks, so a rollout must never
+# leave fewer than 6 pods serving, must say when it is stuck and must be easy to undo.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: rice-rocket
+  annotations:
+    kubernetes.io/change-cause: "api 1.5.1: retry MoMo payment webhooks"
+spec:
+  replicas: 6
+  # @piece strategy: Roll out by adding a pod before removing one
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  # @end
+  # @piece min-ready: Count a new pod only after 10 seconds of ready
+  minReadySeconds: 10
+  # @end
+  # @piece progress-deadline: Report a stuck rollout after 5 minutes
+  progressDeadlineSeconds: 300
+  # @end
+  # @piece revision-history: Keep the last versions for rollout undo
+  revisionHistoryLimit: 5
+  # @end
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          # @piece image-tag: The exact version this rollout ships
+          image: ghcr.io/rice-rocket/api:1.5.1
+          # @end
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 5

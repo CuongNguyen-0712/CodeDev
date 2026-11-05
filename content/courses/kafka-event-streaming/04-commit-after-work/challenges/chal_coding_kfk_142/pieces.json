@@ -1,0 +1,40 @@
+[
+  {
+    "id": "fetch-batch",
+    "label": "Fetch the next batch",
+    "code": "const batch = consumer.poll(50);"
+  },
+  {
+    "id": "send-push",
+    "label": "Push \"on the way\" so a re-run cannot send it twice",
+    "code": "if (event.status === \"picked_up\") {\n    push.send({ userId: event.customerId, text: `Your order ${event.orderId} is on the way`, idempotencyKey: event.eventId });\n}"
+  },
+  {
+    "id": "mark-done",
+    "label": "Remember how far each partition got",
+    "code": "next.set(record.partition, record.offset + 1);"
+  },
+  {
+    "id": "commit-batch",
+    "label": "Commit once the batch's pushes went out",
+    "code": "for (const [partition, offset] of next) consumer.commit(partition, offset);"
+  },
+  {
+    "id": "dedupe-in-memory",
+    "label": "Push \"on the way\" so a re-run cannot send it twice",
+    "code": "if (event.status === \"picked_up\" && !seen.has(event.eventId)) {\n    seen.add(event.eventId);\n    push.send({ userId: event.customerId, text: `Your order ${event.orderId} is on the way` });\n}",
+    "distractor": true
+  },
+  {
+    "id": "fetch-and-commit",
+    "label": "Fetch the next batch",
+    "code": "const batch = consumer.poll(50);\nfor (const record of batch) consumer.commit(record.partition, record.offset + 1);",
+    "distractor": true
+  },
+  {
+    "id": "mark-last-offset",
+    "label": "Remember how far each partition got",
+    "code": "next.set(record.partition, record.offset);",
+    "distractor": true
+  }
+]

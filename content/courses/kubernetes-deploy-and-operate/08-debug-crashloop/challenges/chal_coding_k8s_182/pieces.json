@@ -1,0 +1,51 @@
+[
+  {
+    "id": "pick-container",
+    "label": "The first container that is not ready, or Healthy",
+    "code": "const status = statuses.find((s) => !s.ready);\nif (!status) return { cause: \"Healthy\", evidence: \"all containers ready\", next: \"nothing to do\" };"
+  },
+  {
+    "id": "waiting-reasons",
+    "label": "Containers that never started: image or config",
+    "code": "if (waiting && (waiting.reason === \"ImagePullBackOff\" || waiting.reason === \"ErrImagePull\")) {\n    return { cause: \"ImagePullBackOff\", evidence: waiting.message, next: NEXT.ImagePullBackOff };\n}\nif (waiting && waiting.reason === \"CreateContainerConfigError\") {\n    return { cause: \"CreateContainerConfigError\", evidence: waiting.message, next: NEXT.CreateContainerConfigError };\n}"
+  },
+  {
+    "id": "oom-killed",
+    "label": "The last run was killed at its memory limit",
+    "code": "if (last && last.reason === \"OOMKilled\") {\n    return {\n        cause: \"OOMKilled\",\n        evidence: `exit code ${last.exitCode} (OOMKilled) after ${status.restartCount} restarts`,\n        next: NEXT.OOMKilled,\n    };\n}"
+  },
+  {
+    "id": "liveness-kill",
+    "label": "The kubelet restarted it after failed liveness probes",
+    "code": "const killed = events.some((e) => e.reason === \"Killing\" && /failed liveness probe/.test(e.message));\nif (killed) {\n    const probe = events.filter((e) => /^Liveness probe failed/.test(e.message)).pop();\n    return { cause: \"LivenessProbe\", evidence: probe ? probe.message : \"failed liveness probe\", next: NEXT.LivenessProbe };\n}"
+  },
+  {
+    "id": "app-error-evidence",
+    "label": "Why the app exited: the log of the run that died",
+    "code": "const line = lastLine(logs.previous);\nreturn { cause: \"AppError\", evidence: line || `exit code ${last ? last.exitCode : \"unknown\"}`, next: NEXT.AppError };"
+  },
+  {
+    "id": "app-error-current-log",
+    "label": "Why the app exited: the log of the run that died",
+    "code": "const line = lastLine(logs.current);\nreturn { cause: \"AppError\", evidence: line || `exit code ${last ? last.exitCode : \"unknown\"}`, next: NEXT.AppError };",
+    "distractor": true
+  },
+  {
+    "id": "liveness-exit-reason",
+    "label": "The kubelet restarted it after failed liveness probes",
+    "code": "if (last && last.reason === \"Liveness\") {\n    return { cause: \"LivenessProbe\", evidence: \"failed liveness probe\", next: NEXT.LivenessProbe };\n}",
+    "distractor": true
+  },
+  {
+    "id": "oom-current-state",
+    "label": "The last run was killed at its memory limit",
+    "code": "const now = (status.state && status.state.terminated) || null;\nif (now && now.reason === \"OOMKilled\") {\n    return {\n        cause: \"OOMKilled\",\n        evidence: `exit code ${now.exitCode} (OOMKilled) after ${status.restartCount} restarts`,\n        next: NEXT.OOMKilled,\n    };\n}",
+    "distractor": true
+  },
+  {
+    "id": "waiting-terminated-only",
+    "label": "Containers that never started: image or config",
+    "code": "const current = (status.state && status.state.terminated) || null;\nif (current && (current.reason === \"ImagePullBackOff\" || current.reason === \"ErrImagePull\")) {\n    return { cause: \"ImagePullBackOff\", evidence: current.message, next: NEXT.ImagePullBackOff };\n}\nif (current && current.reason === \"CreateContainerConfigError\") {\n    return { cause: \"CreateContainerConfigError\", evidence: current.message, next: NEXT.CreateContainerConfigError };\n}",
+    "distractor": true
+  }
+]

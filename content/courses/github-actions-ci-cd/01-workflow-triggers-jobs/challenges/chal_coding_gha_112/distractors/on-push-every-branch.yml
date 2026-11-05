@@ -1,0 +1,5 @@
+# @piece on-push: Pushes to main, except docs-only changes
+push:
+  paths-ignore:
+    - "docs/**"
+    - "**/*.md"

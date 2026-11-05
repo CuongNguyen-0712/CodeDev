@@ -1,0 +1,327 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pgp_141",
+      "name": "locks-alter-table-quiz",
+      "type": "quiz",
+      "title": "Read the lock queue",
+      "description": "Three statements about the two minutes when a millisecond migration stopped every query on the orders table. Decide whether each one is true.",
+      "difficulty": "hard",
+      "outcomes": [
+        "safe-migrations"
+      ],
+      "points": 10,
+      "hints": [
+        "Check the lock conflict table: does ACCESS SHARE (held by a SELECT) conflict with another SELECT's ACCESS SHARE? Then ask what a new request does when an earlier request in the queue is still waiting.",
+        "Look up the volatility of `now()`: is it evaluated per row or once per statement, and what does PostgreSQL 11 and later store for a non-volatile default?",
+        "Read the error message and the timestamps: what did the migration do while the report query held its lock, and what did the other queries do meanwhile?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The incident, two minutes after the migration started:\n\n```text\n-- pg_stat_activity (abridged)\n  pid  | state  | wait_event_type | wait_event | duration | query\n 50211 | active |                 |            | 00:02:04 | SELECT ... FROM orders JOIN ... -- weekly report\n 50388 | active | Lock            | relation   | 00:01:58 | ALTER TABLE orders ADD COLUMN tip_vnd integer DEFAULT 0\n 50401 | active | Lock            | relation   | 00:01:57 | SELECT * FROM orders WHERE id = $1\n 50417 | active | Lock            | relation   | 00:01:57 | INSERT INTO orders (...) VALUES (...)\n ... 212 more rows waiting on relation orders\n```\n\nStatement: \"Only the `ALTER TABLE` was blocked by the migration; the `SELECT` and `INSERT` sessions were waiting for the report query and would have waited just as long without the migration.\"",
+          "explanation": "False. The report holds ACCESS SHARE, which conflicts only with ACCESS EXCLUSIVE: without the migration, other SELECTs and INSERTs run next to it. The `ALTER TABLE` asked for ACCESS EXCLUSIVE and queued behind the report. Every later request that conflicts with the waiting ACCESS EXCLUSIVE (every request, even a plain SELECT) queued behind the `ALTER TABLE`. A statement that needs milliseconds of work stopped the whole table for as long as the report ran.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "On PostgreSQL 17, the production `orders` table has 18 million rows:\n\n```sql\nALTER TABLE orders ADD COLUMN accepted_at timestamptz DEFAULT now();\n-- ALTER TABLE\n-- Time: 3.104 ms\nSELECT count(*) FILTER (WHERE accepted_at IS NULL) FROM orders;\n--  0\n```\n\nStatement: \"`now()` gives every row its own value, so PostgreSQL must rewrite all 18 million rows; a timing of 3 ms means the command did not run against the real table.\"",
+          "explanation": "False. `now()` is a stable function: it returns the start time of the current transaction, evaluated once for the whole statement. Since PostgreSQL 11, a column added with a non-volatile default stores that one value in the catalog and serves it for every existing row, without rewriting them; that is why the count of NULLs is 0 after 3 ms. A volatile default such as `clock_timestamp()` or `gen_random_uuid()` would rewrite the table.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team now runs every migration with a lock timeout and retries:\n\n```text\nmigrate  SET lock_timeout = '3s'\nmigrate  ALTER TABLE orders ADD COLUMN tip_vnd integer DEFAULT 0\nmigrate  ERROR:  canceling statement due to lock timeout\nmigrate  attempt 1 failed, retrying in 20s\nmigrate  ALTER TABLE orders ADD COLUMN tip_vnd integer DEFAULT 0\nmigrate  ALTER TABLE  (Time: 2.871 ms)\n```\n\nStatement: \"The `ALTER TABLE` gave up after waiting 3 seconds for its lock instead of making every query queue behind it for minutes; the retry found a moment when no conflicting lock was held.\"",
+          "explanation": "True. `lock_timeout` aborts a statement that waits longer than the limit to acquire a lock. Other queries can queue behind it for those 3 seconds at most, and the migration tool tries again later, when the long query has finished. The timeout must be short enough that 3 seconds of queued queries are acceptable; `statement_timeout` alone does not help, because it also counts the work, not only the wait.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pgp_142",
+      "name": "migration-linter",
+      "type": "fix_bug",
+      "title": "Fix the migration linter",
+      "description": "Rice Rocket's CI runs `tools/lint_migrations.py` on every migration. It passed the `ALTER TABLE` that stopped the orders table, called a `gen_random_uuid()` default safe, told a developer to wrap `CREATE INDEX CONCURRENTLY` in a transaction (which PostgreSQL refuses), and flagged `VALIDATE CONSTRAINT` as blocking. The editor holds the linter with its rule blocks missing, each marked by a `# [ ]` line; some pieces are last month's buggy rules. Fill every line so that `lint(statements, pg_version)` reports, for each statement, the lock PostgreSQL takes, the work it does, a verdict, and the statements to run instead, following the rules in the module's docstring. Run lints sample migrations against PostgreSQL 17 and 10.",
+      "difficulty": "hard",
+      "outcomes": [
+        "safe-migrations"
+      ],
+      "points": 40,
+      "hints": [
+        "For each statement ask two questions: which lock, and for how long? A lock that blocks writes is fine for a catalog change (with a lock timeout) and not fine for a scan, rewrite or index build.",
+        "Look at the volatile function check in `default_rewrites`, at what a migration tool does with `BEGIN` / `COMMIT` around `CREATE INDEX CONCURRENTLY`, and at the lock level of `VALIDATE CONSTRAINT` in the ALTER TABLE documentation.",
+        "A linter rule for `CLUSTER orders USING orders_pkey` (rewrites the table under ACCESS EXCLUSIVE) would read: `if re.match(r\"cluster\\b\", low): return finding(s, \"ACCESS EXCLUSIVE\", \"rewrites the table\", \"unsafe\", [\"-- use pg_repack or a new table\"])`, placed before the generic ALTER TABLE parsing."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "tools/lint_migrations.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident's ADD COLUMN with a constant or now() default: catalog only, needs lock_timeout",
+          "input": {
+            "pg_version": 17,
+            "statements": [
+              "ALTER TABLE orders ADD COLUMN tip_vnd integer DEFAULT 0;",
+              "ALTER TABLE orders ADD COLUMN accepted_at timestamptz DEFAULT now()"
+            ]
+          },
+          "expected": [
+            {
+              "sql": "ALTER TABLE orders ADD COLUMN tip_vnd integer DEFAULT 0",
+              "lock": "ACCESS EXCLUSIVE",
+              "work": "catalog only",
+              "verdict": "needs lock_timeout",
+              "fix": [
+                "SET lock_timeout = '3s'",
+                "ALTER TABLE orders ADD COLUMN tip_vnd integer DEFAULT 0"
+              ]
+            },
+            {
+              "sql": "ALTER TABLE orders ADD COLUMN accepted_at timestamptz DEFAULT now()",
+              "lock": "ACCESS EXCLUSIVE",
+              "work": "catalog only",
+              "verdict": "needs lock_timeout",
+              "fix": [
+                "SET lock_timeout = '3s'",
+                "ALTER TABLE orders ADD COLUMN accepted_at timestamptz DEFAULT now()"
+              ]
+            }
+          ],
+          "hidden": false,
+          "score": 7
+        },
+        {
+          "name": "A volatile default rewrites the table and is split into add, set default and backfill",
+          "input": {
+            "pg_version": 17,
+            "statements": [
+              "ALTER TABLE orders ADD COLUMN public_id uuid DEFAULT gen_random_uuid()"
+            ]
+          },
+          "expected": [
+            {
+              "sql": "ALTER TABLE orders ADD COLUMN public_id uuid DEFAULT gen_random_uuid()",
+              "lock": "ACCESS EXCLUSIVE",
+              "work": "rewrites the table",
+              "verdict": "unsafe",
+              "fix": [
+                "SET lock_timeout = '3s'",
+                "ALTER TABLE orders ADD COLUMN public_id uuid",
+                "ALTER TABLE orders ALTER COLUMN public_id SET DEFAULT gen_random_uuid()",
+                "-- backfill existing rows in batches"
+              ]
+            }
+          ],
+          "hidden": false,
+          "score": 7
+        },
+        {
+          "name": "CREATE INDEX blocks writes; the fix builds it concurrently, outside any transaction",
+          "input": {
+            "pg_version": 17,
+            "statements": [
+              "CREATE INDEX orders_courier_id_idx ON orders (courier_id)",
+              "CREATE UNIQUE INDEX CONCURRENTLY orders_public_id_key ON orders (public_id)"
+            ]
+          },
+          "expected": [
+            {
+              "sql": "CREATE INDEX orders_courier_id_idx ON orders (courier_id)",
+              "lock": "SHARE",
+              "work": "builds an index",
+              "verdict": "unsafe",
+              "fix": [
+                "CREATE INDEX CONCURRENTLY orders_courier_id_idx ON orders (courier_id)"
+              ]
+            },
+            {
+              "sql": "CREATE UNIQUE INDEX CONCURRENTLY orders_public_id_key ON orders (public_id)",
+              "lock": "SHARE UPDATE EXCLUSIVE",
+              "work": "builds an index",
+              "verdict": "safe",
+              "fix": [
+                "CREATE UNIQUE INDEX CONCURRENTLY orders_public_id_key ON orders (public_id)"
+              ]
+            }
+          ],
+          "hidden": false,
+          "score": 7
+        },
+        {
+          "name": "A foreign key is added NOT VALID, then validated under a lock that lets writes through",
+          "input": {
+            "pg_version": 17,
+            "statements": [
+              "ALTER TABLE orders ADD CONSTRAINT orders_courier_fk FOREIGN KEY (courier_id) REFERENCES couriers (id)",
+              "ALTER TABLE orders VALIDATE CONSTRAINT orders_courier_fk"
+            ]
+          },
+          "expected": [
+            {
+              "sql": "ALTER TABLE orders ADD CONSTRAINT orders_courier_fk FOREIGN KEY (courier_id) REFERENCES couriers (id)",
+              "lock": "SHARE ROW EXCLUSIVE",
+              "work": "scans the table",
+              "verdict": "unsafe",
+              "fix": [
+                "SET lock_timeout = '3s'",
+                "ALTER TABLE orders ADD CONSTRAINT orders_courier_fk FOREIGN KEY (courier_id) REFERENCES couriers (id) NOT VALID",
+                "ALTER TABLE orders VALIDATE CONSTRAINT orders_courier_fk"
+              ]
+            },
+            {
+              "sql": "ALTER TABLE orders VALIDATE CONSTRAINT orders_courier_fk",
+              "lock": "SHARE UPDATE EXCLUSIVE",
+              "work": "scans the table",
+              "verdict": "safe",
+              "fix": [
+                "ALTER TABLE orders VALIDATE CONSTRAINT orders_courier_fk"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "SET NOT NULL through a CHECK constraint, a type change, a rename and a drop",
+          "input": {
+            "pg_version": 17,
+            "statements": [
+              "ALTER TABLE orders ALTER COLUMN restaurant_id SET NOT NULL",
+              "ALTER TABLE orders ALTER COLUMN total_vnd TYPE bigint",
+              "ALTER TABLE orders RENAME COLUMN note TO customer_note",
+              "ALTER TABLE orders DROP COLUMN legacy_status"
+            ]
+          },
+          "expected": [
+            {
+              "sql": "ALTER TABLE orders ALTER COLUMN restaurant_id SET NOT NULL",
+              "lock": "ACCESS EXCLUSIVE",
+              "work": "scans the table",
+              "verdict": "unsafe",
+              "fix": [
+                "SET lock_timeout = '3s'",
+                "ALTER TABLE orders ADD CONSTRAINT orders_restaurant_id_not_null CHECK (restaurant_id IS NOT NULL) NOT VALID",
+                "ALTER TABLE orders VALIDATE CONSTRAINT orders_restaurant_id_not_null",
+                "ALTER TABLE orders ALTER COLUMN restaurant_id SET NOT NULL",
+                "ALTER TABLE orders DROP CONSTRAINT orders_restaurant_id_not_null"
+              ]
+            },
+            {
+              "sql": "ALTER TABLE orders ALTER COLUMN total_vnd TYPE bigint",
+              "lock": "ACCESS EXCLUSIVE",
+              "work": "rewrites the table",
+              "verdict": "unsafe",
+              "fix": [
+                "-- expand and contract: add a new column, backfill in batches, switch reads, drop the old one later"
+              ]
+            },
+            {
+              "sql": "ALTER TABLE orders RENAME COLUMN note TO customer_note",
+              "lock": "ACCESS EXCLUSIVE",
+              "work": "catalog only",
+              "verdict": "unsafe",
+              "fix": [
+                "-- expand and contract: add a new column, backfill in batches, switch reads, drop the old one later"
+              ]
+            },
+            {
+              "sql": "ALTER TABLE orders DROP COLUMN legacy_status",
+              "lock": "ACCESS EXCLUSIVE",
+              "work": "catalog only",
+              "verdict": "needs lock_timeout",
+              "fix": [
+                "SET lock_timeout = '3s'",
+                "ALTER TABLE orders DROP COLUMN legacy_status"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "On PostgreSQL 10 any default rewrites and SET NOT NULL has no shortcut",
+          "input": {
+            "pg_version": 10,
+            "statements": [
+              "ALTER TABLE orders ADD COLUMN tip_vnd integer DEFAULT 0",
+              "ALTER TABLE orders ALTER COLUMN restaurant_id SET NOT NULL",
+              "VACUUM orders"
+            ]
+          },
+          "expected": [
+            {
+              "sql": "ALTER TABLE orders ADD COLUMN tip_vnd integer DEFAULT 0",
+              "lock": "ACCESS EXCLUSIVE",
+              "work": "rewrites the table",
+              "verdict": "unsafe",
+              "fix": [
+                "SET lock_timeout = '3s'",
+                "ALTER TABLE orders ADD COLUMN tip_vnd integer",
+                "ALTER TABLE orders ALTER COLUMN tip_vnd SET DEFAULT 0",
+                "-- backfill existing rows in batches"
+              ]
+            },
+            {
+              "sql": "ALTER TABLE orders ALTER COLUMN restaurant_id SET NOT NULL",
+              "lock": "ACCESS EXCLUSIVE",
+              "work": "scans the table",
+              "verdict": "unsafe",
+              "fix": [
+                "SET lock_timeout = '3s'",
+                "ALTER TABLE orders ALTER COLUMN restaurant_id SET NOT NULL"
+              ]
+            },
+            {
+              "sql": "VACUUM orders",
+              "lock": "unknown",
+              "work": "unknown",
+              "verdict": "review",
+              "fix": [
+                "VACUUM orders"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 7
+        }
+      ]
+    }
+  ]
+}

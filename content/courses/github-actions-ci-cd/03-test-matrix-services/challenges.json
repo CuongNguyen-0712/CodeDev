@@ -1,0 +1,219 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gha_131",
+      "name": "test-matrix-quiz",
+      "type": "quiz",
+      "title": "Read the matrix runs",
+      "description": "Three statements about the first runs of Rice Rocket's integration test matrix. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "fast-feedback"
+      ],
+      "points": 10,
+      "hints": [
+        "Expand the matrix by hand: write every node/os pair, then apply the `include` entry with GitHub's rule about not overwriting an original matrix value.",
+        "Read the last line of the run log: which setting decided that one failure stops the other combinations, and what is its default?",
+        "Where does the test process run: on the runner's virtual machine, or inside a container on the job's Docker network? Which of the two can resolve the name `postgres`?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team wants coverage from one combination only:\n\n```yaml\nstrategy:\n  matrix:\n    node: [22, 24]\n    os: [ubuntu-24.04, windows-2025]\n    include:\n      - node: 24\n        os: ubuntu-24.04\n        coverage: true\n```\n\nStatement: \"This matrix starts 5 jobs: the four node/os combinations, plus one extra job on Node 24 and Ubuntu that collects coverage.\"",
+          "explanation": "False. It starts 4 jobs. An `include` entry is added to every original combination it can join without overwriting an original matrix value; `{node: 24, os: ubuntu-24.04}` already exists, so that job just gains `coverage: true` (read as `matrix.coverage`, empty in the other three). An include entry creates a new combination only when it would overwrite an original value, as `node: 25` would. The misconception is that every `include` entry adds a job.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The first matrix run after a pull request that changed a query:\n\n```text\nintegration (22, 16)   failed after 1m 12s\nintegration (22, 17)   cancelled\nintegration (24, 16)   cancelled\nintegration (24, 17)   cancelled\n\nThe strategy configuration was canceled because \"integration._22_16\" failed\n```\n\nStatement: \"With `fail-fast: false` in the strategy, the three other combinations would run to the end, and their results would show whether the failure is specific to Postgres 16, to Node 22, or to neither.\"",
+          "explanation": "True. `fail-fast` defaults to `true`: the first failing job of a matrix cancels every job of that matrix that is still queued or running. Here that hid the only useful information. With `fail-fast: false` every combination reports its own result; if (22, 17) and (24, 17) pass while (24, 16) fails too, the query depends on a Postgres 17 feature. The cost is paying for the runs that continue after a failure.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The job runs on the runner, with Postgres as a service container; the URL was copied from `compose.yaml`:\n\n```yaml\njobs:\n  integration:\n    runs-on: ubuntu-24.04\n    services:\n      postgres:\n        image: postgres:17\n        ports:\n          - 5432:5432\n    steps:\n      - run: npm run test:integration\n        env:\n          DATABASE_URL: postgres://postgres:test@postgres:5432/postgres\n```\n\n```text\nError: getaddrinfo ENOTFOUND postgres\n```\n\nStatement: \"The service name resolves only when the job itself runs in a container (`container:`); a job running directly on the runner reaches the service through the mapped port on `localhost`.\"",
+          "explanation": "True. Service containers join a Docker network that the job's own container is attached to when the job uses `container:`; there, `postgres` resolves through Docker's DNS. A job without `container:` runs on the runner VM, outside that network, and reaches the service only through the port published on the host: `localhost:5432` with `ports: - 5432:5432`. The misconception is that Actions services work like Compose services for every job.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_gha_132",
+      "name": "node-postgres-test-matrix",
+      "type": "mini_coding",
+      "title": "Test every Node and Postgres version, all the way through",
+      "description": "The api has to pass on Node 22 and 24 and on Postgres 16 (staging) and 17 (production). The first matrix run was useless: one failure cancelled the other combinations, the tests looked for the database at the host `postgres` and got `ENOTFOUND`, and the runs that did connect flaked with `the database system is starting up`. The editor holds the integration workflow with its matrix, service and test settings missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: the job runs once per Node 22/24 x Postgres 16/17 combination, plus one experimental combination of Node 25 with Postgres 17; each combination starts a Postgres service of its own matrix version and waits until it accepts connections; the tests reach it from the runner; a failing combination never cancels the others; and a failure of the experimental combination does not fail the run, while any other failure does. Run grades the file with a simulator of the matrix, the service container network and fail-fast.",
+      "difficulty": "medium",
+      "outcomes": [
+        "fast-feedback"
+      ],
+      "points": 30,
+      "hints": [
+        "Take each symptom in turn: what cancelled the other combinations, which network the test process is on when it resolves the database host, and who waits for Postgres before `npm run test:integration` starts.",
+        "Look at `strategy.fail-fast`, `strategy.matrix` with `include`, `jobs.<id>.continue-on-error` with a matrix expression, and a service container's `image`, `ports` and `options` (the `--health-*` flags).",
+        "A Redis-backed job on the runner tested on two Redis versions: `matrix: { redis: [7, 8] }`, `services: { redis: { image: \"redis:${{ matrix.redis }}\", ports: [\"6379:6379\"], options: \"--health-cmd 'redis-cli ping' --health-interval 5s\" } }`, and `REDIS_URL: redis://localhost:6379` on the test step."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": ".github/workflows/integration.yml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Four Node x Postgres combinations plus the experimental Node 25 one",
+          "input": {
+            "checks": [
+              "parse",
+              "jobs"
+            ]
+          },
+          "expected": {
+            "parse": "ok",
+            "jobs": [
+              "node=22 postgres=16",
+              "node=22 postgres=17",
+              "node=24 postgres=16",
+              "node=24 postgres=17",
+              "node=25 postgres=17 experimental=true"
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Each combination gets its own Postgres version, reachable and ready",
+          "input": {
+            "checks": [
+              "images",
+              "database"
+            ]
+          },
+          "expected": {
+            "images": {
+              "node=22 postgres=16": "postgres:16",
+              "node=22 postgres=17": "postgres:17",
+              "node=24 postgres=16": "postgres:16",
+              "node=24 postgres=17": "postgres:17",
+              "node=25 postgres=17 experimental=true": "postgres:17"
+            },
+            "database": {
+              "node=22 postgres=16": "ok",
+              "node=22 postgres=17": "ok",
+              "node=24 postgres=16": "ok",
+              "node=24 postgres=17": "ok",
+              "node=25 postgres=17 experimental=true": "ok"
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A Postgres 16 bug on Node 22 fails the run and cancels nothing",
+          "input": {
+            "checks": [
+              "results",
+              "conclusion"
+            ],
+            "failing": [
+              "node=22 postgres=16"
+            ]
+          },
+          "expected": {
+            "results": {
+              "node=22 postgres=16": "failed",
+              "node=22 postgres=17": "passed",
+              "node=24 postgres=16": "passed",
+              "node=24 postgres=17": "passed",
+              "node=25 postgres=17 experimental=true": "passed"
+            },
+            "conclusion": "failure"
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A failure on the experimental Node 25 combination does not fail the run",
+          "input": {
+            "checks": [
+              "results",
+              "conclusion"
+            ],
+            "failing": [
+              "node=25"
+            ]
+          },
+          "expected": {
+            "results": {
+              "node=22 postgres=16": "passed",
+              "node=22 postgres=17": "passed",
+              "node=24 postgres=16": "passed",
+              "node=24 postgres=17": "passed",
+              "node=25 postgres=17 experimental=true": "failed"
+            },
+            "conclusion": "success"
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A bug on both Postgres 16 combinations shows on both, the run fails",
+          "input": {
+            "checks": [
+              "results",
+              "conclusion"
+            ],
+            "failing": [
+              "postgres=16"
+            ]
+          },
+          "expected": {
+            "results": {
+              "node=22 postgres=16": "failed",
+              "node=22 postgres=17": "passed",
+              "node=24 postgres=16": "failed",
+              "node=24 postgres=17": "passed",
+              "node=25 postgres=17 experimental=true": "passed"
+            },
+            "conclusion": "failure"
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

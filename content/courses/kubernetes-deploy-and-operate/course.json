@@ -1,0 +1,163 @@
+{
+  "publicId": "kubernetes-deploy-and-operate",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793806715/codedev/courses/kubernetes-deploy-and-operate/cover",
+  "title": "Kubernetes in Practice: Deploy, Scale and Debug a Service",
+  "concept": "Take the containerised API from the Docker course to a Kubernetes cluster: Deployments and Services, config and secrets, probes, rolling updates, autoscaling, resource limits, Gateway API routing and the kubectl habits that find a broken pod fast. Challenges are manifests graded by a scheduler and rollout simulator.",
+  "description": "Take the containerised API from the Docker course to a Kubernetes cluster: Deployments and Services, config and secrets, probes, rolling updates, autoscaling, resource limits and the kubectl habits that find a broken pod fast. Challenges are manifests graded by a scheduler and rollout simulator. 9 lessons, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.",
+  "level": "intermediate",
+  "durationMinutes": 200,
+  "instructor": "CodeDev Engineering Team",
+  "language": "JavaScript",
+  "category": "DevOps",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "template": "core-first",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "careerRoles": [
+    "devops_engineer",
+    "backend_developer"
+  ],
+  "skills": {
+    "docker": 5,
+    "system_design": 3,
+    "performance": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "docker-nginx-ship-a-service"
+  ],
+  "completionRules": {},
+  "domain": "devops",
+  "learningOutcomes": [
+    {
+      "code": "workloads",
+      "text": "Run an API as a Deployment behind a Service, configured from ConfigMaps and Secrets."
+    },
+    {
+      "code": "health-and-rollouts",
+      "text": "Write probes that tell the truth and roll out new versions without dropping traffic, with a way back."
+    },
+    {
+      "code": "capacity",
+      "text": "Size pods with requests and limits, read OOMKilled and throttling, and autoscale on real load."
+    },
+    {
+      "code": "traffic",
+      "text": "Route outside traffic to services by host and path with TLS through the Gateway API."
+    },
+    {
+      "code": "operations",
+      "text": "Debug failing pods from status, events and logs, and run migrations and scheduled work as Jobs and CronJobs."
+    }
+  ],
+  "testedVersions": {
+    "Kubernetes": "1.34 (to verify)",
+    "Gateway API": "v1.3 (to verify)",
+    "kubectl": "1.34 (to verify)"
+  },
+  "lastReviewedAt": "2026-11-05",
+  "sourceLinks": [
+    "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+    "https://kubernetes.io/docs/concepts/services-networking/service/",
+    "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
+    "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+    "https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/",
+    "https://gateway-api.sigs.k8s.io/",
+    "https://kubernetes.io/docs/concepts/workloads/controllers/job/"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges grade manifests with a simulator of documented Kubernetes behaviour (validation, selectors, rollouts, probes, autoscaling, routing, Jobs), not on a real cluster.",
+    "testedVersions are not yet re-checked on a live cluster."
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Run it",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-deployment-service",
+          "title": "Deployments and Services for one API",
+          "sanityId": "lesson-k8s-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-configmaps-secrets",
+          "title": "ConfigMaps, Secrets and environment",
+          "sanityId": "lesson-k8s-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-probes",
+          "title": "Readiness, liveness and startup probes that tell the truth",
+          "sanityId": "lesson-k8s-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Change it safely",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-rolling-updates",
+          "title": "Rolling updates, maxSurge and rollbacks",
+          "sanityId": "lesson-k8s-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-requests-limits",
+          "title": "Requests, limits and OOMKilled",
+          "sanityId": "lesson-k8s-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-autoscaling-hpa",
+          "title": "Horizontal Pod Autoscaler on real load",
+          "sanityId": "lesson-k8s-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Operate it",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-gateway-tls-routing",
+          "title": "Gateway API: TLS and path routing",
+          "sanityId": "lesson-k8s-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-debug-crashloop",
+          "title": "Debugging CrashLoopBackOff from status, events and logs",
+          "sanityId": "lesson-k8s-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-jobs-migrations",
+          "title": "Jobs, CronJobs and database migrations",
+          "sanityId": "lesson-k8s-3-3"
+        }
+      ]
+    }
+  ]
+}

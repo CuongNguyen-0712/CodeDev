@@ -1,0 +1,167 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_k8s_122",
+      "name": "api-config-and-secrets",
+      "type": "mini_coding",
+      "title": "Wire the api's config and secrets",
+      "description": "Rice Rocket's first manifest wrote the database password and the JWT secret as plain `value:` entries, and they ended up in git. The team has since created the Secret `api-secrets` out of band (keys `db-password` and `jwt-secret`); it is not in this file and must stay out of it. The editor holds `k8s/api.yaml` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: the ConfigMap `api-config` holds the settings that are not secret (`NODE_ENV=production`, `PORT=3000`, `DATABASE_HOST=db.internal.ricerocket.vn`, `DATABASE_USER=rocket`, `DATABASE_NAME=rocket`, `JWT_SECRET_FILE=/run/secrets/jwt_secret`) and every key reaches the container as a variable; `DATABASE_PASSWORD` comes from the Secret's `db-password` key; the Secret's `jwt-secret` key is the file `/run/secrets/jwt_secret`, mounted read-only, and a rotated secret reaches running pods without a restart; no secret value is written in the file. Run grades the file with a kubelet simulator that starts the api container against the cluster's Secret.",
+      "difficulty": "medium",
+      "outcomes": [
+        "workloads"
+      ],
+      "points": 30,
+      "hints": [
+        "Start the container in your head: for each variable and each file the api reads, which object does the kubelet take it from, and what happens when a name or key does not exist?",
+        "Look at `envFrom` with `configMapRef`, `env[].valueFrom.secretKeyRef`, a `secret` volume with `items` (`key` and `path`), and `volumeMounts` with and without `subPath`. ConfigMap `data` values are strings.",
+        "A worker that reads `REDIS_URL` from a ConfigMap `worker-config` and an API key file from the Secret `worker-secrets`: `envFrom: [{ configMapRef: { name: worker-config } }]`, a volume `{ name: keys, secret: { secretName: worker-secrets, items: [{ key: api-key, path: api_key }] } }` and `volumeMounts: [{ name: keys, mountPath: /etc/worker, readOnly: true }]` give `/etc/worker/api_key`."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": "k8s/api.yaml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The file applies and the api container starts against the cluster's Secret",
+          "input": {
+            "checks": [
+              "parse",
+              "container"
+            ],
+            "cluster": [
+              {
+                "apiVersion": "v1",
+                "kind": "Secret",
+                "metadata": {
+                  "name": "api-secrets",
+                  "namespace": "rice-rocket"
+                },
+                "stringData": {
+                  "db-password": "Rr-prod-2026!",
+                  "jwt-secret": "k3y-for-signing-tokens"
+                }
+              }
+            ]
+          },
+          "expected": {
+            "parse": "ok",
+            "container": "Running"
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The container gets every setting from the ConfigMap and the password from the Secret",
+          "input": {
+            "checks": [
+              "env"
+            ],
+            "cluster": [
+              {
+                "apiVersion": "v1",
+                "kind": "Secret",
+                "metadata": {
+                  "name": "api-secrets",
+                  "namespace": "rice-rocket"
+                },
+                "stringData": {
+                  "db-password": "Rr-prod-2026!",
+                  "jwt-secret": "k3y-for-signing-tokens"
+                }
+              }
+            ]
+          },
+          "expected": {
+            "env": {
+              "NODE_ENV": "production",
+              "PORT": "3000",
+              "DATABASE_HOST": "db.internal.ricerocket.vn",
+              "DATABASE_USER": "rocket",
+              "DATABASE_NAME": "rocket",
+              "JWT_SECRET_FILE": "/run/secrets/jwt_secret",
+              "DATABASE_PASSWORD": "Rr-prod-2026!"
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The JWT secret is the file /run/secrets/jwt_secret",
+          "input": {
+            "checks": [
+              "files"
+            ],
+            "cluster": [
+              {
+                "apiVersion": "v1",
+                "kind": "Secret",
+                "metadata": {
+                  "name": "api-secrets",
+                  "namespace": "rice-rocket"
+                },
+                "stringData": {
+                  "db-password": "Rr-prod-2026!",
+                  "jwt-secret": "k3y-for-signing-tokens"
+                }
+              }
+            ]
+          },
+          "expected": {
+            "files": {
+              "/run/secrets/jwt_secret": "k3y-for-signing-tokens"
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "No password, secret or token is written in the file",
+          "input": {
+            "checks": [
+              "literal-secrets"
+            ]
+          },
+          "expected": {
+            "literal-secrets": []
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A rotated JWT secret reaches running pods without a restart",
+          "input": {
+            "checks": [
+              "updates"
+            ]
+          },
+          "expected": {
+            "updates": {
+              "/run/secrets": "in place"
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Without the Secret in the cluster the pod waits instead of running without it",
+          "input": {
+            "checks": [
+              "container"
+            ],
+            "cluster": []
+          },
+          "expected": {
+            "container": "CreateContainerConfigError: secret \"api-secrets\" not found"
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

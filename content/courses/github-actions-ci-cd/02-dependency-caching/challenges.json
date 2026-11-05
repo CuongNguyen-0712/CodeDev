@@ -1,0 +1,293 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_gha_122",
+      "name": "npm-dependency-cache",
+      "type": "mini_coding",
+      "title": "Cache npm downloads without stale installs",
+      "description": "Rice Rocket's test job spends 2.5 of its 4 minutes in `npm ci` downloading packages. The first cache a teammate added kept `api/node_modules` under a fixed key and skipped `npm ci` on a hit: the day `zod` joined the lockfile, CI restored the old `node_modules` and failed with `Cannot find module 'zod'`. The editor holds the test job with the `actions/cache` step and the install step missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: npm's download cache (`~/.npm`) is kept between runs; a run with an unchanged `api/package-lock.json` restores it exactly and downloads nothing; a run after the lockfile changed restores the newest cache of the same OS and downloads only the changed packages; every run installs from the lockfile, so `node_modules` always matches it; a Windows runner never gets a Linux cache. Run grades the file with a simulator of actions/cache (immutable keys, restore-keys, branch scopes) over a series of CI runs.",
+      "difficulty": "medium",
+      "outcomes": [
+        "fast-feedback"
+      ],
+      "points": 30,
+      "hints": [
+        "Follow one run after `zod` is added: what key does it compute, which saved entry does it find, what lands on disk, and does anything rebuild `node_modules` from the new lockfile?",
+        "Look at the `path`, `key` and `restore-keys` inputs of `actions/cache`, at what `hashFiles()` returns when its pattern matches no file, and at what `npm ci` does to an existing `node_modules`.",
+        "A Python job caching pip downloads uses `path: ~/.cache/pip`, `key: pip-${{ runner.os }}-${{ hashFiles('worker/requirements.txt') }}`, `restore-keys: |` followed by `pip-${{ runner.os }}-`, and always runs `pip install -r worker/requirements.txt` after the cache step."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": ".github/workflows/ci.yml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "First run misses and downloads everything; the next run with the same lockfile hits exactly",
+          "input": {
+            "checks": [
+              "parse",
+              "runs"
+            ],
+            "runs": [
+              {
+                "id": "first",
+                "branch": "main",
+                "os": "Linux",
+                "lock": "3f9c1e"
+              },
+              {
+                "id": "second",
+                "branch": "main",
+                "os": "Linux",
+                "lock": "3f9c1e"
+              }
+            ]
+          },
+          "expected": {
+            "parse": "ok",
+            "runs": {
+              "first": {
+                "restore": "miss",
+                "download": "all",
+                "node_modules": "fresh"
+              },
+              "second": {
+                "restore": "exact",
+                "download": "none",
+                "node_modules": "fresh"
+              }
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "After a lockfile change: partial restore, only new packages, fresh node_modules",
+          "input": {
+            "checks": [
+              "runs"
+            ],
+            "runs": [
+              {
+                "id": "before",
+                "branch": "main",
+                "os": "Linux",
+                "lock": "3f9c1e"
+              },
+              {
+                "id": "zod-added",
+                "branch": "main",
+                "os": "Linux",
+                "lock": "8b27d4"
+              },
+              {
+                "id": "after",
+                "branch": "main",
+                "os": "Linux",
+                "lock": "8b27d4"
+              }
+            ]
+          },
+          "expected": {
+            "runs": {
+              "before": {
+                "restore": "miss",
+                "download": "all",
+                "node_modules": "fresh"
+              },
+              "zod-added": {
+                "restore": "partial",
+                "download": "changed packages",
+                "node_modules": "fresh"
+              },
+              "after": {
+                "restore": "exact",
+                "download": "none",
+                "node_modules": "fresh"
+              }
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A feature branch restores the cache saved on main",
+          "input": {
+            "checks": [
+              "runs"
+            ],
+            "runs": [
+              {
+                "id": "main",
+                "branch": "main",
+                "os": "Linux",
+                "lock": "3f9c1e"
+              },
+              {
+                "id": "feature",
+                "branch": "feature/momo-pay",
+                "os": "Linux",
+                "lock": "3f9c1e"
+              }
+            ]
+          },
+          "expected": {
+            "runs": {
+              "main": {
+                "restore": "miss",
+                "download": "all",
+                "node_modules": "fresh"
+              },
+              "feature": {
+                "restore": "exact",
+                "download": "none",
+                "node_modules": "fresh"
+              }
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A branch sees its own caches and main's, never a sibling branch's",
+          "input": {
+            "checks": [
+              "runs"
+            ],
+            "runs": [
+              {
+                "id": "main",
+                "branch": "main",
+                "os": "Linux",
+                "lock": "3f9c1e"
+              },
+              {
+                "id": "momo",
+                "branch": "feature/momo-pay",
+                "os": "Linux",
+                "lock": "8b27d4"
+              },
+              {
+                "id": "zalo",
+                "branch": "feature/zalo-login",
+                "os": "Linux",
+                "lock": "8b27d4"
+              },
+              {
+                "id": "momo-again",
+                "branch": "feature/momo-pay",
+                "os": "Linux",
+                "lock": "8b27d4"
+              }
+            ]
+          },
+          "expected": {
+            "runs": {
+              "main": {
+                "restore": "miss",
+                "download": "all",
+                "node_modules": "fresh"
+              },
+              "momo": {
+                "restore": "partial",
+                "download": "changed packages",
+                "node_modules": "fresh"
+              },
+              "zalo": {
+                "restore": "partial",
+                "download": "changed packages",
+                "node_modules": "fresh"
+              },
+              "momo-again": {
+                "restore": "exact",
+                "download": "none",
+                "node_modules": "fresh"
+              }
+            }
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A Windows runner does not restore the Linux cache",
+          "input": {
+            "checks": [
+              "runs"
+            ],
+            "runs": [
+              {
+                "id": "linux",
+                "branch": "main",
+                "os": "Linux",
+                "lock": "3f9c1e"
+              },
+              {
+                "id": "windows",
+                "branch": "main",
+                "os": "Windows",
+                "lock": "3f9c1e"
+              }
+            ]
+          },
+          "expected": {
+            "runs": {
+              "linux": {
+                "restore": "miss",
+                "download": "all",
+                "node_modules": "fresh"
+              },
+              "windows": {
+                "restore": "miss",
+                "download": "all",
+                "node_modules": "fresh"
+              }
+            }
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "One cache entry is saved per lockfile, never overwritten",
+          "input": {
+            "checks": [
+              "saved"
+            ],
+            "runs": [
+              {
+                "id": "before",
+                "branch": "main",
+                "os": "Linux",
+                "lock": "3f9c1e"
+              },
+              {
+                "id": "zod-added",
+                "branch": "main",
+                "os": "Linux",
+                "lock": "8b27d4"
+              },
+              {
+                "id": "after",
+                "branch": "main",
+                "os": "Linux",
+                "lock": "8b27d4"
+              }
+            ]
+          },
+          "expected": {
+            "saved": [
+              "main npm-Linux-3f9c1e",
+              "main npm-Linux-8b27d4"
+            ]
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

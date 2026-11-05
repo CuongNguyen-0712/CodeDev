@@ -1,0 +1,455 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_kfk_161",
+      "name": "outbox-pattern-quiz",
+      "type": "quiz",
+      "title": "Read the lost and the phantom events",
+      "description": "Three statements about how Rice Rocket's order api and Kafka got out of step, and about the fixes the team discussed. Decide whether each one is true.",
+      "difficulty": "hard",
+      "outcomes": [
+        "reliable-producing"
+      ],
+      "points": 10,
+      "hints": [
+        "List the two systems written to and ask, for every point where the process can die or a call can time out, which of the two writes has happened. Is there any point where one is done and the other is not?",
+        "Idempotence in a Kafka producer is tied to one producer instance and its sequence numbers. What does a relay that restarts have, and what does it not have, from the instance that died?",
+        "A change data capture connector reads what the database has already committed. Where does it get the outbox rows from, and what does the api still have to do in its own transaction?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A teammate proposes to send the event inside the database transaction:\n\n```ts\nawait db.transaction(async (tx) => {\n  await tx.query(\"INSERT INTO orders (id, status) VALUES ($1, 'placed')\", [order.id]);\n  await producer.send({ topic: \"orders.v1\", messages: [{ key: order.id, value: JSON.stringify(event) }] });\n}); // COMMIT happens here\n```\n\nStatement: \"Because the send runs inside the transaction, the two writes are atomic: if the send fails the order rolls back, and if the COMMIT fails the event is never delivered.\"",
+          "explanation": "False. The first half holds (a send that throws rolls the transaction back), but Kafka is not part of the PostgreSQL transaction. When the broker acknowledged the send and the COMMIT then fails (a lost connection, a serialization failure, the pod killed), the event is already in `orders.v1` for an order that does not exist. A send that times out after the broker stored it is the same case. This is the dual-write problem: two systems without a shared transaction cannot be made atomic by nesting the calls. The outbox writes the event as a row in the same transaction instead.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The relay crashed between publishing a batch and marking it sent. After the restart:\n\n```text\n11:42:07 relay  published 3 rows (ids 418-420) to orders.v1\n11:42:07 relay  SIGKILL (pod evicted)\n11:42:21 relay  started, producer enable.idempotence=true\n11:42:22 relay  published 3 rows (ids 418-420) to orders.v1\n11:42:22 courier-matcher  event o-2002:1 already processed, skipping\n```\n\nStatement: \"With `enable.idempotence=true` on the producer, the broker drops the second copy of rows 418-420, so the consumer never sees a duplicate.\"",
+          "explanation": "False. An idempotent producer removes duplicates caused by its own retries: the broker tracks the producer id and a sequence number per partition and ignores a resent batch from the same producer session. The restarted relay is a new producer instance with a new producer id, re-reading rows it never marked as sent, so the broker stores them again. The outbox gives at-least-once delivery; the consumer has to dedupe by the event id, as the courier-matcher does in the last log line.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team considers replacing the polling relay with change data capture:\n\n```text\nconnector.class = io.debezium.connector.postgresql.PostgresConnector\nplugin.name     = pgoutput\ntable.include.list = public.outbox\ntransforms      = outbox\ntransforms.outbox.type = io.debezium.transforms.outbox.EventRouter\n```\n\nStatement: \"A connector like this reads the committed outbox inserts from PostgreSQL's write-ahead log and publishes them, so the api still writes the outbox row in the same transaction as the order and no longer needs a relay that polls the table.\"",
+          "explanation": "True. Debezium's PostgreSQL connector streams changes from the write-ahead log through logical decoding (here with the built-in `pgoutput` plugin), and its outbox event router turns each inserted outbox row into a Kafka record. Only committed transactions reach the log stream, so the guarantee is the same as the relay's: the event exists exactly when the order change committed. What changes is who moves the rows (a connector instead of a polling loop); the api's transaction does not change, and consumers still dedupe because delivery is at least once.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_kfk_162",
+      "name": "outbox-relay",
+      "type": "mini_coding",
+      "title": "Write the outbox relay",
+      "description": "Rice Rocket's api now writes each order and its events in one PostgreSQL transaction, the events as rows of an `outbox` table. The editor holds `src/outbox-relay.ts` with the relay's key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that each pass of `relayOnce`: reads at most `batchSize` unsent rows, oldest first; publishes them to `orders.v1` keyed by the order id, with the headers `event-id` and `event-type`; and marks exactly those rows as sent only after the broker acknowledged them, letting a broker failure propagate. The runner commits orders pass by pass (some transactions roll back), injects a broker outage and crashes of the relay process, and checks that no committed event is lost, no event of a rolled-back order appears, each order's events stay on one partition in order, and duplicates appear only for a batch that was published but never marked.",
+      "difficulty": "hard",
+      "outcomes": [
+        "reliable-producing"
+      ],
+      "points": 40,
+      "hints": [
+        "For each line of the relay, ask what happens if the process dies right after it. Which order of 'publish' and 'mark as sent' can produce a duplicate, and which one can lose an event?",
+        "Look at the SELECT (which rows, in which order, how many), the key of each message (which events must share a partition) and the UPDATE (which rows it marks, and when it runs).",
+        "A relay for invoice events of a billing service: `const rows = db.query(\"SELECT id, invoice_id, event_id, payload FROM invoice_outbox WHERE published_at IS NULL ORDER BY id LIMIT $1\", [n]); producer.send(\"invoices.v1\", rows.map((r) => ({ key: r.invoiceId, value: r.payload, headers: { \"event-id\": r.eventId } }))); db.query(\"UPDATE invoice_outbox SET published_at = now() WHERE id = ANY($1)\", [rows.map((r) => r.id)]);`"
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "src/outbox-relay.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Every committed event is published once, each order's events on one partition in order",
+          "input": {
+            "orders": [
+              {
+                "id": "o-2001",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid",
+                  "OrderAssigned"
+                ],
+                "atPass": 1,
+                "committed": true
+              },
+              {
+                "id": "o-2002",
+                "events": [
+                  "OrderPlaced",
+                  "OrderCancelled"
+                ],
+                "atPass": 1,
+                "committed": true
+              },
+              {
+                "id": "o-2003",
+                "events": [
+                  "OrderPlaced"
+                ],
+                "atPass": 1,
+                "committed": false
+              },
+              {
+                "id": "o-2004",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid"
+                ],
+                "atPass": 2,
+                "committed": true
+              },
+              {
+                "id": "o-2005",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid",
+                  "OrderCancelled"
+                ],
+                "atPass": 3,
+                "committed": true
+              }
+            ],
+            "batchSize": 3,
+            "passes": 8
+          },
+          "expected": {
+            "published": 10,
+            "missing": [],
+            "duplicates": [],
+            "outOfOrder": [],
+            "rolledBackEvents": [],
+            "unsent": 0
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "A broker outage during two passes delays the events but loses none",
+          "input": {
+            "orders": [
+              {
+                "id": "o-2001",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid",
+                  "OrderAssigned"
+                ],
+                "atPass": 1,
+                "committed": true
+              },
+              {
+                "id": "o-2002",
+                "events": [
+                  "OrderPlaced",
+                  "OrderCancelled"
+                ],
+                "atPass": 1,
+                "committed": true
+              },
+              {
+                "id": "o-2003",
+                "events": [
+                  "OrderPlaced"
+                ],
+                "atPass": 1,
+                "committed": false
+              },
+              {
+                "id": "o-2004",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid"
+                ],
+                "atPass": 2,
+                "committed": true
+              },
+              {
+                "id": "o-2005",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid",
+                  "OrderCancelled"
+                ],
+                "atPass": 3,
+                "committed": true
+              }
+            ],
+            "batchSize": 3,
+            "passes": 8,
+            "brokerDownPasses": [
+              2,
+              3
+            ]
+          },
+          "expected": {
+            "published": 10,
+            "missing": [],
+            "duplicates": [],
+            "outOfOrder": [],
+            "rolledBackEvents": [],
+            "unsent": 0
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "A crash after the broker acked a batch re-sends exactly that batch, with the same event ids",
+          "input": {
+            "orders": [
+              {
+                "id": "o-2001",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid",
+                  "OrderAssigned"
+                ],
+                "atPass": 1,
+                "committed": true
+              },
+              {
+                "id": "o-2002",
+                "events": [
+                  "OrderPlaced",
+                  "OrderCancelled"
+                ],
+                "atPass": 1,
+                "committed": true
+              },
+              {
+                "id": "o-2003",
+                "events": [
+                  "OrderPlaced"
+                ],
+                "atPass": 1,
+                "committed": false
+              },
+              {
+                "id": "o-2004",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid"
+                ],
+                "atPass": 2,
+                "committed": true
+              },
+              {
+                "id": "o-2005",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid",
+                  "OrderCancelled"
+                ],
+                "atPass": 3,
+                "committed": true
+              }
+            ],
+            "batchSize": 3,
+            "passes": 8,
+            "crashAfterPublishPasses": [
+              2
+            ]
+          },
+          "expected": {
+            "published": 13,
+            "missing": [],
+            "duplicates": [
+              "o-2002:1",
+              "o-2002:2",
+              "o-2004:1"
+            ],
+            "outOfOrder": [],
+            "rolledBackEvents": [],
+            "unsent": 0
+          },
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "A crash before the batch is sent causes no duplicate and no loss",
+          "input": {
+            "orders": [
+              {
+                "id": "o-2001",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid",
+                  "OrderAssigned"
+                ],
+                "atPass": 1,
+                "committed": true
+              },
+              {
+                "id": "o-2002",
+                "events": [
+                  "OrderPlaced",
+                  "OrderCancelled"
+                ],
+                "atPass": 1,
+                "committed": true
+              },
+              {
+                "id": "o-2003",
+                "events": [
+                  "OrderPlaced"
+                ],
+                "atPass": 1,
+                "committed": false
+              },
+              {
+                "id": "o-2004",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid"
+                ],
+                "atPass": 2,
+                "committed": true
+              },
+              {
+                "id": "o-2005",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid",
+                  "OrderCancelled"
+                ],
+                "atPass": 3,
+                "committed": true
+              }
+            ],
+            "batchSize": 3,
+            "passes": 8,
+            "crashBeforePublishPasses": [
+              2
+            ]
+          },
+          "expected": {
+            "published": 10,
+            "missing": [],
+            "duplicates": [],
+            "outOfOrder": [],
+            "rolledBackEvents": [],
+            "unsent": 0
+          },
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "A backlog drained two rows at a time keeps every order's events in sequence",
+          "input": {
+            "orders": [
+              {
+                "id": "o-2101",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid",
+                  "OrderAssigned"
+                ],
+                "atPass": 1,
+                "committed": true
+              },
+              {
+                "id": "o-2102",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid",
+                  "OrderCancelled"
+                ],
+                "atPass": 1,
+                "committed": true
+              },
+              {
+                "id": "o-2103",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid",
+                  "OrderAssigned"
+                ],
+                "atPass": 1,
+                "committed": true
+              },
+              {
+                "id": "o-2104",
+                "events": [
+                  "OrderPlaced",
+                  "OrderCancelled"
+                ],
+                "atPass": 1,
+                "committed": true
+              },
+              {
+                "id": "o-2105",
+                "events": [
+                  "OrderPlaced"
+                ],
+                "atPass": 2,
+                "committed": false
+              },
+              {
+                "id": "o-2106",
+                "events": [
+                  "OrderPlaced",
+                  "OrderPaid",
+                  "OrderAssigned"
+                ],
+                "atPass": 2,
+                "committed": true
+              }
+            ],
+            "batchSize": 2,
+            "passes": 12,
+            "crashAfterPublishPasses": [
+              4
+            ]
+          },
+          "expected": {
+            "published": 16,
+            "missing": [],
+            "duplicates": [
+              "o-2103:1",
+              "o-2103:2"
+            ],
+            "outOfOrder": [],
+            "rolledBackEvents": [],
+            "unsent": 0
+          },
+          "hidden": true,
+          "score": 8
+        }
+      ]
+    }
+  ]
+}

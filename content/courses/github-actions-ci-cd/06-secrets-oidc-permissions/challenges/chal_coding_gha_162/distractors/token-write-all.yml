@@ -1,0 +1,2 @@
+# @piece workflow-permissions: What the GITHUB_TOKEN may do unless a job says otherwise
+permissions: write-all

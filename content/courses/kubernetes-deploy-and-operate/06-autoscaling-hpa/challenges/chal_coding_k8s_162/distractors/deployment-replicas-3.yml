@@ -1,0 +1,5 @@
+# @piece deployment-selector: Deployment: its pods, and who decides how many
+replicas: 3
+selector:
+  matchLabels:
+    app: api

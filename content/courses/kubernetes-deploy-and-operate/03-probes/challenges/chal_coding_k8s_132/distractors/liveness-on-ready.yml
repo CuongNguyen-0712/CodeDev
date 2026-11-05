@@ -1,0 +1,8 @@
+# @piece liveness-probe: Restart only a process that stopped answering
+livenessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3

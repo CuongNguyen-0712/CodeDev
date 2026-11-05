@@ -1,0 +1,45 @@
+[
+  {
+    "id": "strategy",
+    "label": "Roll out by adding a pod before removing one",
+    "code": "strategy:\n  type: RollingUpdate\n  rollingUpdate:\n    maxSurge: 1\n    maxUnavailable: 0"
+  },
+  {
+    "id": "min-ready",
+    "label": "Count a new pod only after 10 seconds of ready",
+    "code": "minReadySeconds: 10"
+  },
+  {
+    "id": "progress-deadline",
+    "label": "Report a stuck rollout after 5 minutes",
+    "code": "progressDeadlineSeconds: 300"
+  },
+  {
+    "id": "revision-history",
+    "label": "Keep the last versions for rollout undo",
+    "code": "revisionHistoryLimit: 5"
+  },
+  {
+    "id": "image-tag",
+    "label": "The exact version this rollout ships",
+    "code": "image: ghcr.io/rice-rocket/api:1.5.1"
+  },
+  {
+    "id": "image-tag-latest",
+    "label": "The exact version this rollout ships",
+    "code": "image: ghcr.io/rice-rocket/api:latest",
+    "distractor": true
+  },
+  {
+    "id": "strategy-default-percent",
+    "label": "Roll out by adding a pod before removing one",
+    "code": "strategy:\n  type: RollingUpdate\n  rollingUpdate:\n    maxSurge: 25%\n    maxUnavailable: 25%",
+    "distractor": true
+  },
+  {
+    "id": "strategy-zero-zero",
+    "label": "Roll out by adding a pod before removing one",
+    "code": "strategy:\n  type: RollingUpdate\n  rollingUpdate:\n    maxSurge: 0\n    maxUnavailable: 0",
+    "distractor": true
+  }
+]

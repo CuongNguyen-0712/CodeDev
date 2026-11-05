@@ -208,6 +208,7 @@
     },
     {
       "publicId": "chal_coding_nhp_113",
+      "published": false,
       "name": "batch-loader-n-plus-one",
       "type": "mini_coding",
       "title": "Implement a DataLoader-style batch loader",
@@ -449,6 +450,7 @@
     },
     {
       "publicId": "chal_quiz_nhp_114",
+      "published": false,
       "name": "promise-all-rejection-quiz",
       "type": "quiz",
       "title": "When one of 500 charges fails",

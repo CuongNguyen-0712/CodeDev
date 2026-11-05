@@ -1,0 +1,40 @@
+[
+  {
+    "id": "pick-versions",
+    "label": "Which earlier versions the candidate is checked against",
+    "code": "const against = mode.endsWith(\"_TRANSITIVE\") ? versions : versions.slice(-1);"
+  },
+  {
+    "id": "directions",
+    "label": "Who reads whose data in this mode",
+    "code": "if (mode.startsWith(\"BACKWARD\") || mode.startsWith(\"FULL\")) problems.push(...canRead(next, old));\nif (mode.startsWith(\"FORWARD\") || mode.startsWith(\"FULL\")) problems.push(...canRead(old, next));"
+  },
+  {
+    "id": "required-fields",
+    "label": "Fields the reader cannot do without",
+    "code": "for (const field of reader.schema.required ?? []) {\n    if (!guaranteed.has(field)) problems.push(`${where}: \"${field}\" is required but may be missing`);\n}"
+  },
+  {
+    "id": "type-changes",
+    "label": "Fields both sides declare",
+    "code": "for (const [field, spec] of Object.entries(reader.schema.properties)) {\n    const written = writer.schema.properties[field];\n    if (written && written.type !== spec.type) problems.push(`${where}: \"${field}\" changed from ${written.type} to ${spec.type}`);\n}"
+  },
+  {
+    "id": "directions-swapped",
+    "label": "Who reads whose data in this mode",
+    "code": "if (mode.startsWith(\"BACKWARD\") || mode.startsWith(\"FULL\")) problems.push(...canRead(old, next));\nif (mode.startsWith(\"FORWARD\") || mode.startsWith(\"FULL\")) problems.push(...canRead(next, old));",
+    "distractor": true
+  },
+  {
+    "id": "latest-only",
+    "label": "Which earlier versions the candidate is checked against",
+    "code": "const against = versions.slice(-1);",
+    "distractor": true
+  },
+  {
+    "id": "required-default-is-safe",
+    "label": "Fields the reader cannot do without",
+    "code": "for (const field of reader.schema.required ?? []) {\n    const hasDefault = reader.schema.properties[field]?.default !== undefined;\n    if (!guaranteed.has(field) && !hasDefault) problems.push(`${where}: \"${field}\" is required but may be missing`);\n}",
+    "distractor": true
+  }
+]

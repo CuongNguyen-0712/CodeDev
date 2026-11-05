@@ -1,0 +1,291 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dkn_131",
+      "name": "config-from-env-quiz",
+      "type": "quiz",
+      "title": "Where does the configuration come from?",
+      "description": "Three statements about how Rice Rocket's api got its configuration in the two incidents of this lesson, and about a secret mounted by Compose. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "env-config"
+      ],
+      "points": 10,
+      "hints": [
+        "When a container sets an environment variable at run time, what happens to the value the image was built with: is it replaced inside the image, or only shadowed in that one container?",
+        "Look at how `parseInt` treats a string that starts with digits and continues with letters, and compare it with `Number`.",
+        "Postgres' official image takes `POSTGRES_PASSWORD_FILE=/run/secrets/db_password`: try working out why it needs a variable that holds a path rather than the password."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The incident review found this line in the api Dockerfile. Since then, the staging compose file sets its own `DATABASE_URL`:\n\n```dockerfile\nFROM node:24-slim\nWORKDIR /app\nENV NODE_ENV=production\nENV DATABASE_URL=postgres://rice:Pr0d-pass@prod-db.internal:5432/rice_rocket\nCOPY --from=build /app/dist ./dist\nCMD [\"node\", \"dist/server.js\"]\n```\n\n```yaml\n# compose.staging.yml\nservices:\n  api:\n    image: registry.example.com/rice-rocket/api:1.4.0\n    environment:\n      DATABASE_URL: postgres://rice:stg-pass@staging-db:5432/rice_rocket\n```\n\nStatement: \"Now that staging sets `DATABASE_URL` at run time, the production password can no longer be read by anyone who can pull the image.\"",
+          "explanation": "False. `ENV` is written into the image configuration. A run-time value only shadows it inside that one container; the image still carries the production URL, and `docker image inspect` (or `docker history`) prints it for anyone who can pull the image. The common misconception is that overriding a variable removes it. The fix is to delete the line, rebuild, and rotate the password, because every image already pushed keeps it.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The second incident. The api reads its port like this, and the container was started with a typo in the variable:\n\n```javascript\nconst port = parseInt(process.env.PORT ?? \"3000\", 10);\nserver.listen(port, () => log.info(`listening on ${port}`));\n```\n\n```text\n$ docker compose exec api printenv PORT\n30OO\n$ docker compose logs api\napi-1  | {\"level\":\"info\",\"msg\":\"listening on 30\"}\n```\n\nStatement: \"`parseInt` stopped at the first character that is not a digit, so the api started on port 30 without reporting any error.\"",
+          "explanation": "True. `parseInt(\"30OO\", 10)` reads the leading digits `30` and ignores the rest (the letters O); it only returns NaN when the string does not start with a digit. The api listened on 30 while Nginx and the healthcheck called 3000. The common misconception is that parseInt validates its input. Check the whole string, for example with `/^\\d+$/` and a 1-65535 range, and refuse to start otherwise.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "To keep the JWT signing key out of the image and out of `docker inspect`, the team moves it to a Compose secret:\n\n```yaml\nservices:\n  api:\n    image: registry.example.com/rice-rocket/api:1.4.0\n    secrets:\n      - jwt_secret\n\nsecrets:\n  jwt_secret:\n    file: ./secrets/jwt_secret.txt\n```\n\nStatement: \"Inside the api container, `process.env.JWT_SECRET` now holds the content of `jwt_secret.txt`.\"",
+          "explanation": "False. A Compose secret is mounted as a file, at `/run/secrets/jwt_secret` here; it does not create any environment variable. The api has to read the file, which is why the usual convention is a second variable that holds the path, such as `JWT_SECRET_FILE=/run/secrets/jwt_secret`. The common misconception is that secrets are a protected kind of environment variable; keeping them as files is the point, since environment variables show up in `docker inspect` and are inherited by child processes.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dkn_132",
+      "name": "load-config-from-env",
+      "type": "mini_coding",
+      "title": "Fail fast on a bad environment",
+      "description": "Assemble `loadConfig(env, files)` for the api: it runs once at startup and either returns the whole configuration or stops the container with every problem listed. `env` is an object like `process.env` (strings or undefined; a variable set to \"\" counts as not set). `files` maps a path to its content and stands in for the files mounted in the container, such as Docker secrets under /run/secrets/.\n\nRules: PORT is decimal digits only, from 1 to 65535, default 3000 (returned as a number). DATABASE_URL is required and must start with postgres:// or postgresql://. LOG_LEVEL is one of debug, info, warn, error, default info. The JWT secret comes from JWT_SECRET, or from the file whose path is in JWT_SECRET_FILE with its trailing line break (\\n or \\r\\n) removed; setting both is an error, and an empty secret counts as missing.\n\nCollect every problem, then throw ONE Error whose message is the problems sorted alphabetically (plain `sort()`) and joined with \"; \". The exact problem texts: `PORT must be an integer from 1 to 65535, got \"<value>\"` · `DATABASE_URL is required` · `DATABASE_URL must start with postgres:// or postgresql://` (never echo the URL: it holds the password) · `LOG_LEVEL must be one of debug, info, warn, error, got \"<value>\"` · `JWT_SECRET or JWT_SECRET_FILE is required` · `JWT_SECRET and JWT_SECRET_FILE are both set` · `JWT_SECRET_FILE not found: <path>`.\n\nWithout problems, return a frozen object `{ port, databaseUrl, logLevel, jwtSecret }`. Run shows `{ ok: true, frozen, config }` or `{ ok: false, errors }`, where errors is your message split on \"; \". The editor holds the finished function with its blocks missing, each marked by a `// [ ]` line: fill every line with a piece. Some pieces are wrong on purpose, so check each one against the rules above.",
+      "difficulty": "medium",
+      "outcomes": [
+        "env-config"
+      ],
+      "points": 30,
+      "hints": [
+        "If PORT is \"30OO\", what does each of `parseInt`, `Number` and a digits-only regular expression give you, and which one lets you say no?",
+        "Look at where your function throws: an early `throw` reports one problem per deploy. Push each problem into an array and throw once at the end; for the secret file, look at the last characters of the file content.",
+        "The same shape on other input: a `RETRY_LIMIT` that must be 0-10 with default 3 reads the raw string, checks it against `/^\\d+$/` and the range, pushes `RETRY_LIMIT must be ..., got \"<value>\"` on failure, and only uses the number once the text is valid."
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "config.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Defaults: PORT 3000 and LOG_LEVEL info when they are not set",
+          "input": {
+            "env": {
+              "DATABASE_URL": "postgres://rice:dev-pass@db:5432/rice_rocket",
+              "JWT_SECRET": "dev-secret"
+            }
+          },
+          "expected": {
+            "ok": true,
+            "frozen": true,
+            "config": {
+              "port": 3000,
+              "databaseUrl": "postgres://rice:dev-pass@db:5432/rice_rocket",
+              "logLevel": "info",
+              "jwtSecret": "dev-secret"
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "PORT=30OO is rejected instead of being read as port 30",
+          "input": {
+            "env": {
+              "PORT": "30OO",
+              "DATABASE_URL": "postgres://rice:dev-pass@db:5432/rice_rocket",
+              "JWT_SECRET": "dev-secret"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "errors": [
+              "PORT must be an integer from 1 to 65535, got \"30OO\""
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "JWT secret comes from the file named by JWT_SECRET_FILE, without the trailing newline",
+          "input": {
+            "env": {
+              "PORT": "8080",
+              "LOG_LEVEL": "warn",
+              "DATABASE_URL": "postgres://rice:dev-pass@db:5432/rice_rocket",
+              "JWT_SECRET_FILE": "/run/secrets/jwt_secret"
+            },
+            "files": {
+              "/run/secrets/jwt_secret": "s3cr3t-from-file\n"
+            }
+          },
+          "expected": {
+            "ok": true,
+            "frozen": true,
+            "config": {
+              "port": 8080,
+              "databaseUrl": "postgres://rice:dev-pass@db:5432/rice_rocket",
+              "logLevel": "warn",
+              "jwtSecret": "s3cr3t-from-file"
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Every problem is reported in one error, sorted",
+          "input": {
+            "env": {
+              "PORT": "70000",
+              "LOG_LEVEL": "verbose",
+              "DATABASE_URL": "mysql://rice@db/rice_rocket"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "errors": [
+              "DATABASE_URL must start with postgres:// or postgresql://",
+              "JWT_SECRET or JWT_SECRET_FILE is required",
+              "LOG_LEVEL must be one of debug, info, warn, error, got \"verbose\"",
+              "PORT must be an integer from 1 to 65535, got \"70000\""
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Missing DATABASE_URL, and JWT_SECRET and JWT_SECRET_FILE both set",
+          "input": {
+            "env": {
+              "JWT_SECRET": "dev-secret",
+              "JWT_SECRET_FILE": "/run/secrets/jwt_secret"
+            },
+            "files": {
+              "/run/secrets/jwt_secret": "other\n"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "errors": [
+              "DATABASE_URL is required",
+              "JWT_SECRET and JWT_SECRET_FILE are both set"
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "JWT_SECRET_FILE that points to a file that is not mounted",
+          "input": {
+            "env": {
+              "DATABASE_URL": "postgres://rice:dev-pass@db:5432/rice_rocket",
+              "JWT_SECRET_FILE": "/run/secrets/jwt_secret"
+            },
+            "files": {}
+          },
+          "expected": {
+            "ok": false,
+            "errors": [
+              "JWT_SECRET_FILE not found: /run/secrets/jwt_secret"
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Edge values: PORT 65535, empty LOG_LEVEL and JWT_SECRET, postgresql://, CRLF secret file",
+          "input": {
+            "env": {
+              "PORT": "65535",
+              "LOG_LEVEL": "",
+              "DATABASE_URL": "postgresql://rice@db/rice_rocket",
+              "JWT_SECRET": "",
+              "JWT_SECRET_FILE": "/run/secrets/jwt"
+            },
+            "files": {
+              "/run/secrets/jwt": "from-windows\r\n"
+            }
+          },
+          "expected": {
+            "ok": true,
+            "frozen": true,
+            "config": {
+              "port": 65535,
+              "databaseUrl": "postgresql://rice@db/rice_rocket",
+              "logLevel": "info",
+              "jwtSecret": "from-windows"
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "PORT=1e3 is rejected, and an empty secret file counts as no secret",
+          "input": {
+            "env": {
+              "PORT": "1e3",
+              "DATABASE_URL": "postgres://rice:dev-pass@db:5432/rice_rocket",
+              "JWT_SECRET_FILE": "/run/secrets/jwt_secret"
+            },
+            "files": {
+              "/run/secrets/jwt_secret": "\n"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "errors": [
+              "JWT_SECRET or JWT_SECRET_FILE is required",
+              "PORT must be an integer from 1 to 65535, got \"1e3\""
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "PORT=0 is rejected",
+          "input": {
+            "env": {
+              "PORT": "0",
+              "DATABASE_URL": "postgres://rice:dev-pass@db:5432/rice_rocket",
+              "JWT_SECRET": "dev-secret"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "errors": [
+              "PORT must be an integer from 1 to 65535, got \"0\""
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

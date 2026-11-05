@@ -39,7 +39,7 @@
     "build_projects"
   ],
   "prerequisites": [
-    "kotlin-coroutines-flows"
+    "kotlin-foundations"
   ],
   "modules": [],
   "outline": [

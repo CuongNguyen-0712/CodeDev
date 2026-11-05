@@ -1,0 +1,140 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dkn_151",
+      "name": "healthchecks-restart-quiz",
+      "type": "quiz",
+      "title": "What Docker's health status really says",
+      "description": "Three statements about Rice Rocket's api healthcheck and restart policy, read from `docker inspect`, `docker compose ps` and the logs. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": ["compose-services"],
+      "points": 10,
+      "hints": [
+        "What exactly does Docker run to decide `healthy`, and what does that command look at?",
+        "Look at the `Log` entries in `.State.Health` (ExitCode and Output), the healthcheck fields `timeout`, `retries` and `start_period`, and what a restart policy reacts to.",
+        "A cron job container checks a file with `test: [\"CMD\", \"test\", \"-f\", \"/tmp/alive\"]`: it reports `healthy` as long as the file exists, even when the job has not run for a day. What does that status prove about the job?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "During a Postgres outage the team checked the api container:\n\n```text\n# src/health.ts\napp.get(\"/health\", (_req, res) => res.status(200).json({ status: \"ok\" }));\n\n$ docker inspect --format '{{json .State.Health}}' rice-rocket-api-1\n{\"Status\":\"healthy\",\"FailingStreak\":0,\"Log\":[{\"Start\":\"2026-10-28T11:42:10Z\",\"End\":\"2026-10-28T11:42:10Z\",\"ExitCode\":0,\"Output\":\"\"}]}\n\n$ docker compose logs --tail 2 api\napi-1  | POST /orders 500 connect ECONNREFUSED 172.18.0.2:5432\napi-1  | POST /orders 500 connect ECONNREFUSED 172.18.0.2:5432\n```\n\nStatement: \"Because Docker reports the api container as `healthy`, the api could reach Postgres at that moment.\"",
+          "explanation": "False. `healthy` only means the healthcheck command exited 0 in its last runs. That command calls /health, and this handler answers 200 without touching Postgres, so the probe proves the HTTP server is up and nothing else. The orders fail with ECONNREFUSED at the same time. The misconception is that Docker checks the application's dependencies; it runs your command and trusts its exit code, so the handler has to check what the service needs.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "At the lunch peak the api's health handler waited on a saturated database pool:\n\n```text\n# compose.yaml (api service)\n    healthcheck:\n      test: [\"CMD\", \"node\", \"-e\", \"fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))\"]\n      interval: 10s\n      timeout: 3s\n      retries: 3\n      start_period: 20s\n\n$ docker inspect --format '{{json .State.Health}}' rice-rocket-api-1\n{\"Status\":\"unhealthy\",\"FailingStreak\":3,\"Log\":[\n  {\"ExitCode\":-1,\"Output\":\"Health check exceeded timeout (3s)\"},\n  {\"ExitCode\":-1,\"Output\":\"Health check exceeded timeout (3s)\"},\n  {\"ExitCode\":-1,\"Output\":\"Health check exceeded timeout (3s)\"}]}\n```\n\nStatement: \"Docker marked the api `unhealthy` because three probes in a row ran longer than the 3 s `timeout`; probe failures in the first 20 s after the container started would not have counted toward those three.\"",
+          "explanation": "True. A probe that runs longer than `timeout` is killed and counts as a failure (ExitCode -1 with \"Health check exceeded timeout\"). After `retries` consecutive failures the status becomes unhealthy, and FailingStreak shows 3. During `start_period`, failures do not count toward `retries`, which gives a slow boot time to come up. The misconception is that a hanging check is harmless because it never returns an error: to Docker, no answer within `timeout` is a failure.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The api runs with `restart: unless-stopped`; two hours into a Postgres outage:\n\n```text\n$ docker compose ps --format 'table {{.Service}}\\t{{.Status}}'\nSERVICE   STATUS\napi       Up 2 hours (unhealthy)\ndb        Restarting (1) 12 seconds ago\n\n$ docker inspect --format '{{.RestartCount}}' rice-rocket-api-1\n0\n```\n\nStatement: \"If the outage lasts long enough, `restart: unless-stopped` makes Docker restart the unhealthy api container.\"",
+          "explanation": "False. A restart policy on plain Docker Engine and Compose reacts to the container's process exiting; the health status does not trigger it, which is why the api is `Up 2 hours (unhealthy)` with RestartCount 0. Something else has to act on unhealthy: Swarm replaces unhealthy tasks, and tools like an autoheal container restart them. The misconception is that `unhealthy` plus a restart policy equals self-healing; restarting the api would not bring Postgres back anyway.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dkn_152",
+      "name": "truthful-health-endpoint",
+      "type": "fix_bug",
+      "title": "Fix the health check that lies and hangs",
+      "description": "`checkHealth(deps, opts)` builds the response of the api's GET /health, which Docker's healthcheck and the deploy gate read. Two incidents trace back to it. During a Postgres outage it kept answering 200, so traffic kept coming to an api that failed every order. At the lunch peak a database ping hung for 30 s, the whole check hung with it, and the probe timed out instead of getting an answer; a queue that was slow but not needed for orders made it worse, because the queue was only checked after the database. Assemble the handler from the pieces; the buggy versions from the incident are among them. The finished handler runs both checks in parallel, gives each one `opts.timeoutMs` (use `opts.sleep(ms)`, which resolves after ms of fake time, instead of setTimeout), reports each check as `up`, `down` (rejected or threw) or `timeout`, and decides: db not up -> 503 with status `down`; db up but queue not up -> 200 with status `degraded`; both up -> 200 `ok`. The test harness gives you fake `deps.db` and `deps.queue` and controls the clock, and also reports how long the check took. The editor starts from the finished file with key blocks missing (`[ ] label` lines): fill each one by clicking a piece, or drag it onto the line on desktop. Some pieces are wrong on purpose.",
+      "difficulty": "medium",
+      "outcomes": ["compose-services"],
+      "points": 20,
+      "hints": [
+        "If one ping never answers, what is the longest your function may wait before it reports something, and what happens to the other check meanwhile?",
+        "Compare the pieces that fill the same line: which `withTimeout` can ever resolve to `TIMEOUT`, which way of running the checks waits for db before it starts queue, and which status decision still answers 200 when db is down. How long does each take when db needs 700 ms and queue 800 ms?",
+        "Checking two mirrors with a 500 ms budget each: `Promise.allSettled([a, b].map((m) => Promise.race([m.fetch(), sleep(500).then(() => \"slow\")])))` returns after at most 500 ms, with each result either fulfilled (a value or \"slow\") or rejected."
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "health.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Both dependencies up: 200 ok, and the checks run in parallel",
+          "input": { "db": { "ping": "resolve", "afterMs": 20 }, "queue": { "ping": "resolve", "afterMs": 30 }, "timeoutMs": 1000 },
+          "expected": { "status": 200, "body": { "status": "ok", "checks": { "db": "up", "queue": "up" } }, "elapsedMs": 30 },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "db.ping rejects: 503 down instead of 200",
+          "input": { "db": { "ping": "reject", "afterMs": 20 }, "queue": { "ping": "resolve", "afterMs": 30 }, "timeoutMs": 1000 },
+          "expected": { "status": 503, "body": { "status": "down", "checks": { "db": "down", "queue": "up" } }, "elapsedMs": 30 },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "queue hangs for 30 s: 200 degraded after the 1 s budget",
+          "input": { "db": { "ping": "resolve", "afterMs": 20 }, "queue": { "ping": "resolve", "afterMs": 30000 }, "timeoutMs": 1000 },
+          "expected": { "status": 200, "body": { "status": "degraded", "checks": { "db": "up", "queue": "timeout" } }, "elapsedMs": 1000 },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "db hangs for 30 s: 503 with db timeout after the 1 s budget",
+          "input": { "db": { "ping": "resolve", "afterMs": 30000 }, "queue": { "ping": "resolve", "afterMs": 20 }, "timeoutMs": 1000 },
+          "expected": { "status": 503, "body": { "status": "down", "checks": { "db": "timeout", "queue": "up" } }, "elapsedMs": 1000 },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "queue rejects: 200 degraded, the api keeps taking orders",
+          "input": { "db": { "ping": "resolve", "afterMs": 20 }, "queue": { "ping": "reject", "afterMs": 30 }, "timeoutMs": 1000 },
+          "expected": { "status": 200, "body": { "status": "degraded", "checks": { "db": "up", "queue": "down" } }, "elapsedMs": 30 },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Both slow but inside the budget: total time is the slowest check, not the sum",
+          "input": { "db": { "ping": "resolve", "afterMs": 700 }, "queue": { "ping": "resolve", "afterMs": 800 }, "timeoutMs": 1000 },
+          "expected": { "status": 200, "body": { "status": "ok", "checks": { "db": "up", "queue": "up" } }, "elapsedMs": 800 },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "db.ping throws synchronously: reported as down, not a crash",
+          "input": { "db": { "ping": "throw" }, "queue": { "ping": "resolve", "afterMs": 20 }, "timeoutMs": 1000 },
+          "expected": { "status": 503, "body": { "status": "down", "checks": { "db": "down", "queue": "up" } }, "elapsedMs": 20 },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Both down: 503 down with both checks reported",
+          "input": { "db": { "ping": "reject", "afterMs": 10 }, "queue": { "ping": "reject", "afterMs": 10 }, "timeoutMs": 1000 },
+          "expected": { "status": 503, "body": { "status": "down", "checks": { "db": "down", "queue": "down" } }, "elapsedMs": 10 },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "The budget comes from opts.timeoutMs (250 ms here), not a constant",
+          "input": { "db": { "ping": "resolve", "afterMs": 30000 }, "queue": { "ping": "resolve", "afterMs": 100 }, "timeoutMs": 250 },
+          "expected": { "status": 503, "body": { "status": "down", "checks": { "db": "timeout", "queue": "up" } }, "elapsedMs": 250 },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

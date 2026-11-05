@@ -1,0 +1,139 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_kfk_142",
+      "name": "notification-consumer-commits",
+      "type": "fix_bug",
+      "title": "Fix the notification consumer",
+      "description": "Rice Rocket's notifications consumer pushes \"Your order ... is on the way\" when an order is picked up. With auto-commit, an OOM-killed pod lost 300 pushes; the first fix then re-sent pushes after every crash, and one version never caught up with the end of the topic. The editor holds `runConsumer` with its key blocks missing, each marked by a `// [ ]` line; the pieces include the buggy versions. Fill every line so that: nothing is committed before the batch's pushes went out; each partition's commit is the offset after its last handled record; and a push that runs again after a kill is not delivered twice (the push gateway drops a send whose `idempotencyKey` it has already accepted; the pod's memory does not survive a kill). Run feeds order events to `orders.v1`, kills the pod right after a push or during a commit, restarts it from the committed offsets and counts the pushes customers received.",
+      "difficulty": "hard",
+      "outcomes": [
+        "consuming"
+      ],
+      "points": 40,
+      "hints": [
+        "Write down, for one kill, three things: which pushes were already delivered, which offsets were committed, and what survives the restart. A lost push means a commit ran ahead of the work; a duplicate means the retry could not tell it was a retry.",
+        "Look at where `consumer.commit` can run relative to `push.send`, at the value stored per partition (the committed offset is the next record to read), and at what the dedupe relies on: a Set in the pod, or a key the gateway keeps.",
+        "An invoice consumer that charges cards does: fetch a batch; for each record `payments.charge({ amount, idempotencyKey: invoice.invoiceId })`, then `done.set(record.partition, record.offset + 1)`; after the loop `for (const [p, o] of done) consumer.commit(p, o)`. A crash before the commit re-runs the charges, and the payment provider drops them by key."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "No kill: every picked-up order gets one push and the commits reach the end",
+          "input": {
+            "orders": 12
+          },
+          "expected": {
+            "pushes": 12,
+            "duplicates": [],
+            "missing": [],
+            "committedAtEnd": true,
+            "restarts": 0
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Killed right after the 5th push: no push lost, none delivered twice",
+          "input": {
+            "orders": 12,
+            "crashes": [
+              {
+                "at": "push",
+                "n": 5
+              }
+            ]
+          },
+          "expected": {
+            "pushes": 12,
+            "duplicates": [],
+            "missing": [],
+            "committedAtEnd": true,
+            "restarts": 1
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Killed during the first commit: the batch runs again without double pushes",
+          "input": {
+            "orders": 12,
+            "crashes": [
+              {
+                "at": "commit",
+                "n": 1
+              }
+            ]
+          },
+          "expected": {
+            "pushes": 12,
+            "duplicates": [],
+            "missing": [],
+            "committedAtEnd": true,
+            "restarts": 1
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Three batches, two kills, cancelled orders: exactly one push per picked-up order",
+          "input": {
+            "orders": 120,
+            "cancelled": [
+              7,
+              33
+            ],
+            "crashes": [
+              {
+                "at": "push",
+                "n": 40
+              },
+              {
+                "at": "commit",
+                "n": 3
+              }
+            ]
+          },
+          "expected": {
+            "pushes": 118,
+            "duplicates": [],
+            "missing": [],
+            "committedAtEnd": true,
+            "restarts": 2
+          },
+          "hidden": true,
+          "score": 10
+        },
+        {
+          "name": "Killed after the last push: the restart catches up to the end of every partition",
+          "input": {
+            "orders": 30,
+            "crashes": [
+              {
+                "at": "push",
+                "n": 30
+              }
+            ]
+          },
+          "expected": {
+            "pushes": 30,
+            "duplicates": [],
+            "missing": [],
+            "committedAtEnd": true,
+            "restarts": 1
+          },
+          "hidden": true,
+          "score": 8
+        }
+      ]
+    }
+  ]
+}

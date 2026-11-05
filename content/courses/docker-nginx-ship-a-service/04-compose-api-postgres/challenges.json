@@ -1,0 +1,119 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dkn_141",
+      "name": "compose-api-postgres-quiz",
+      "type": "quiz",
+      "title": "Read the first compose deploy",
+      "description": "Three statements about what went wrong when Rice Rocket first ran the api and Postgres under Compose on the VPS. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": ["compose-services"],
+      "points": 10,
+      "hints": [
+        "Each container has its own network stack. Which machine does `localhost` name from inside the api container?",
+        "Look at what `docker compose down` removes by default, and where the postgres image keeps its data when the compose file declares no volume for it.",
+        "A Redis service on the same project network: the app connects to `redis:6379` by service name, and Redis has no `ports:` entry at all. What would publishing `6379:6379` add, and for whom?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The api crash-loops on the VPS right after `docker compose up -d`:\n\n```text\n# compose.yaml (api service)\n    environment:\n      DATABASE_URL: postgres://rocket:rocket-dev-2024@localhost:5432/rocket\n\n$ docker compose ps --format 'table {{.Service}}\\t{{.Status}}'\nSERVICE   STATUS\napi       Restarting (1) 4 seconds ago\ndb        Up 3 minutes\n\n$ docker compose logs --tail 1 api\napi-1  | Error: connect ECONNREFUSED 127.0.0.1:5432\n```\n\nStatement: \"Postgres is running, but `localhost` inside the api container is the api container itself, so nothing listens on 5432 there; the host in `DATABASE_URL` has to be the service name `db`.\"",
+          "explanation": "True. Every container gets its own network namespace, so 127.0.0.1 inside the api container is the api container, not the VPS and not the db container. Compose puts all services of the project on one network where each service name resolves to its container: postgres://...@db:5432/... reaches Postgres. The common misconception is that containers on one host share localhost, as processes on a laptop do.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The compose file has no `volumes:` anywhere. After a config change the team ran:\n\n```text\n$ docker compose down\n[+] Running 4/4\n Container rice-rocket-api-1      Removed\n Container rice-rocket-migrate-1  Removed\n Container rice-rocket-db-1       Removed\n Network rice-rocket_default      Removed\n$ docker compose up -d\n$ docker compose exec db psql -U rocket -d rocket -tc 'select count(*) from orders'\n     0\n$ docker volume ls\nDRIVER    VOLUME NAME\nlocal     3f9a0c7be1d24e6a9c1f0b8e5d7a2c4f6e8b0a1d3c5e7f9b2d4f6a8c0e2b4d6f\nlocal     9b1e5d3c7a0f2e4b6d8c0a2e4f6b8d0c2e4a6b8d0f2c4e6a8b0d2f4c6e8a0b2d\n```\n\nStatement: \"`docker compose down` deleted the database files, and a named volume would not have helped, because `down` removes every volume of the project.\"",
+          "explanation": "False. `docker compose down` removes containers and networks; it removes named volumes only with `-v`. The postgres image declares a VOLUME for /var/lib/postgresql/data, so without a volume in the compose file Docker created an anonymous volume. The old data still sits in one of the two hash-named volumes listed above, but the new db container got a fresh anonymous volume because nothing ties the old one to it. A named volume (`pgdata:/var/lib/postgresql/data` plus a top-level `volumes: pgdata:`) is reattached by name on the next `up`. The misconception is that `down` is what wipes data; the missing name is.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "ufw on the VPS allows only SSH and the web, yet a laptop outside reaches Postgres:\n\n```text\n# compose.yaml (db service)\n    ports:\n      - \"5432:5432\"\n\n$ sudo ufw status\nStatus: active\nTo         Action   From\n22/tcp     ALLOW    Anywhere\n80/tcp     ALLOW    Anywhere\n443/tcp    ALLOW    Anywhere\n\n# from a laptop outside\n$ nc -zv 203.0.113.10 5432\nConnection to 203.0.113.10 5432 port [tcp/postgresql] succeeded!\n```\n\nStatement: \"Deleting the `ports:` entry of db closes 5432 to the internet, and the api and migrate services still reach Postgres at `db:5432` over the Compose network.\"",
+          "explanation": "True. `\"5432:5432\"` publishes the port on every host interface (0.0.0.0), and Docker writes its own iptables rules that forward the traffic to the container before ufw's rules see it, so ufw does not block it. Containers on the same Compose network talk to each other on the container port without any `ports:` entry; publishing is only for traffic from outside Docker. The misconception is that `ports:` is needed for service-to-service traffic, or that ufw guards published ports.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dkn_142",
+      "name": "compose-api-postgres-migrations",
+      "type": "mini_coding",
+      "title": "Fix the compose file: api, Postgres and migrations",
+      "description": "The compose file from Rice Rocket's first deploy runs three services: `db` (postgres:17), `migrate` (the api image running `node dist/migrate.js` once) and `api`. On the VPS the api crash-loops with `connect ECONNREFUSED 127.0.0.1:5432`, the database came back empty after `docker compose down`, and port 5432 answered from the internet. The editor holds the fixed file with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line with a piece so that: Postgres keeps its data in a named volume; db reports health with `pg_isready` and publishes no port; migrate starts only once db is healthy, and api only once db is healthy and migrate has finished successfully; api and migrate reach Postgres by service name; api publishes 3000 on 127.0.0.1 only (Nginx comes later); and no password or secret is written in the file. The VPS already has `./secrets/db_password.txt` and `./secrets/jwt_secret.txt`; postgres reads `POSTGRES_PASSWORD_FILE`, and the api's config loader (lesson 3) reads `DATABASE_PASSWORD_FILE` and `JWT_SECRET_FILE`, so `DATABASE_URL` keeps the user and host but no password. Run grades the file with a Compose simulator that boots the project, runs `down` + `up`, and lists the published ports.",
+      "difficulty": "medium",
+      "outcomes": ["compose-services"],
+      "points": 30,
+      "hints": [
+        "For each symptom, ask which container is involved and what it sees: what does `localhost` mean inside the api, what keeps the db files when its container is removed, and who can reach a port published without an address?",
+        "Look at the long form of `depends_on` (a map with `condition:` per dependency), the `healthcheck:` block of db, the `volumes:` entry of db plus the top-level `volumes:` key, and the top-level `secrets:` key with `file:`.",
+        "A worker service that waits for Redis and a one-shot seeder looks like: `depends_on: { redis: { condition: service_healthy }, seed: { condition: service_completed_successfully } }`, with `healthcheck: { test: [\"CMD\", \"redis-cli\", \"ping\"] }` on redis, `REDIS_URL: redis://redis:6379` and `ports: [\"127.0.0.1:8080:8080\"]` on the worker."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": "compose.yaml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The file parses and the api boots against a ready, migrated database",
+          "input": { "checks": ["parse", "boot"] },
+          "expected": { "parse": "ok", "boot": "connected" },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Postgres keeps its data across docker compose down, on a declared named volume",
+          "input": { "checks": ["data-after-down", "db-named-volume"] },
+          "expected": { "data-after-down": "kept", "db-named-volume": true },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Nothing is published on all interfaces (0.0.0.0)",
+          "input": { "checks": ["public-ports"] },
+          "expected": { "public-ports": [] },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "db has a pg_isready healthcheck; migrate waits for it; api waits for db and migrate",
+          "input": { "checks": ["db-healthcheck", "migrate-waits", "api-waits"] },
+          "expected": { "db-healthcheck": true, "migrate-waits": "service_healthy", "api-waits": { "db": "service_healthy", "migrate": "service_completed_successfully" } },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "api and migrate both reach Postgres at the service name db",
+          "input": { "checks": ["database-url-host"] },
+          "expected": { "database-url-host": { "api": "db", "migrate": "db" } },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "No password or secret is written inline, and every *_FILE path is a mounted secret",
+          "input": { "checks": ["parse", "no-inline-secrets", "secret-files-mounted"] },
+          "expected": { "parse": "ok", "no-inline-secrets": true, "secret-files-mounted": true },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

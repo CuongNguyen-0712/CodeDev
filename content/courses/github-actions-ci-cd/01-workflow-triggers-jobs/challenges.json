@@ -1,0 +1,281 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gha_111",
+      "name": "workflow-triggers-quiz",
+      "type": "quiz",
+      "title": "Read the first CI runs",
+      "description": "Three statements about what Rice Rocket saw in the Actions tab after copying a CI workflow from a blog post. Decide whether each one is true.",
+      "difficulty": "easy",
+      "outcomes": [
+        "pr-checks"
+      ],
+      "points": 10,
+      "hints": [
+        "A `pull_request` run does not test the head of the branch: look at which ref `actions/checkout` fetches for it, and at what a fork can and cannot trigger in the base repository.",
+        "Every job gets a fresh virtual machine. What does `needs:` change about when job B starts, and what does it not change about the files on job B's disk?",
+        "Read the GitHub docs on path filters and required status checks together: what state does a check stay in when its workflow never started?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Every commit pushed to an open pull request starts the workflow twice:\n\n```yaml\n# .github/workflows/ci.yml\non: [push, pull_request]\n```\n\n```text\nci  #212  feature/momo-pay  push           ✓ 3m 41s\nci  #213  feature/momo-pay  pull_request   ✓ 3m 39s\n```\n\nStatement: \"Removing `pull_request` and keeping `push` is the right fix: the push run already tests the same commit.\"",
+          "explanation": "False. The `pull_request` run checks out `refs/pull/<n>/merge`, the branch merged into the current `main`: the code that will land. The push run tests only the branch head, which can pass while the merge result fails. Pull requests from forks never trigger `push` in the base repository at all. The usual fix keeps `pull_request` and limits `push` to `branches: [main]`, so a feature branch push starts nothing and a merge to main runs once.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The workflow installs once and tests in a second job:\n\n```yaml\njobs:\n  install:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v5\n      - run: npm ci\n        working-directory: api\n  test:\n    needs: install\n    runs-on: ubuntu-24.04\n    steps:\n      - run: npm test\n        working-directory: api\n```\n\n```text\ntest  Run npm test\n  npm error code ENOENT\n  npm error path /home/runner/work/app/app/api/package.json\n```\n\nStatement: \"`needs` only orders the jobs. Each job runs on a fresh runner, so `test` has to check out the code and install the dependencies itself (or download an artifact that `install` uploaded).\"",
+          "explanation": "True. Jobs run on separate virtual machines; `needs: install` makes `test` wait for `install` to succeed and gives it access to `needs.install.outputs`, but no files. Steps share a workspace only within one job. Here `test` has not even checked out the repository, so `api/package.json` does not exist. The usual layout gives each job its own checkout + setup + `npm ci` (made fast by the cache in the next lesson).",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team added a path filter, and branch protection requires the `test` check. A pull request that only edits `docs/deploy.md` now shows:\n\n```yaml\non:\n  pull_request:\n    branches: [main]\n    paths-ignore: [\"docs/**\"]\n```\n\n```text\nSome checks haven't completed yet\n  ci / test   Expected — Waiting for status to be reported\nMerging is blocked\n```\n\nStatement: \"The workflow was skipped by the path filter, and a required check of a workflow that never ran stays pending, so this pull request cannot be merged as it is.\"",
+          "explanation": "True. GitHub documents this: when a workflow is skipped because of path filtering (or branch filtering, or a skip instruction in the commit message), its checks stay \"Pending\", and a pull request that requires them is blocked. Teams handle it by not requiring that check, by running a tiny always-on job that reports the status, or by filtering inside the job instead of in `on:`. The misconception is that a skipped workflow counts as passed.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_gha_112",
+      "name": "pull-request-workflow",
+      "type": "mini_coding",
+      "title": "Write the pull request workflow",
+      "description": "Rice Rocket's CI file came from a blog post: it ran on every push to every branch, twice per pull request, on docs-only changes, with a write-all token and no time limit. The editor holds the corrected `.github/workflows/ci.yml` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: the workflow runs for pull requests into `main` and for pushes to `main`, never for docs-only changes (`docs/**`, any `*.md`), feature branch pushes or tag pushes; the token can only read the repository; `lint` checks out the code, installs Node from `api/.nvmrc` and the locked dependencies with `npm ci`, and gives up after 10 minutes; `test` starts only after `lint` passed. Run grades the file with a simulator of GitHub's trigger filters and job graph.",
+      "difficulty": "easy",
+      "outcomes": [
+        "pr-checks"
+      ],
+      "points": 20,
+      "hints": [
+        "Each test names events: a pull request into main, a push to a feature branch, a tag push, a docs-only change. For each one, which key under `on:` decides whether the workflow starts?",
+        "Look at `branches:` and `paths-ignore:` under each event, the workflow-level `permissions:` map, `timeout-minutes:` on a job, and `needs:`.",
+        "A workflow for a `web/` folder that runs on pull requests into `develop` unless only images changed: `on: { pull_request: { branches: [develop], paths-ignore: [\"web/img/**\"] } }`, with `permissions: { contents: read }` and a job that starts with `actions/checkout`, then `actions/setup-node` with `node-version-file`, then `npm ci`."
+      ],
+      "coding": {
+        "language": "yaml",
+        "filePath": ".github/workflows/ci.yml",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Pull requests into main and pushes to main start the workflow",
+          "input": {
+            "checks": [
+              "parse",
+              "runs"
+            ],
+            "events": {
+              "pr-api": {
+                "name": "pull_request",
+                "base": "main",
+                "files": [
+                  "api/src/orders.js"
+                ]
+              },
+              "push-main": {
+                "name": "push",
+                "ref": "refs/heads/main",
+                "files": [
+                  "api/src/orders.js"
+                ]
+              }
+            }
+          },
+          "expected": {
+            "parse": "ok",
+            "runs": {
+              "pr-api": true,
+              "push-main": true
+            }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Docs-only changes, feature branch pushes and tag pushes start nothing",
+          "input": {
+            "checks": [
+              "runs"
+            ],
+            "events": {
+              "pr-docs": {
+                "name": "pull_request",
+                "base": "main",
+                "files": [
+                  "docs/deploy.md",
+                  "README.md"
+                ]
+              },
+              "push-feature": {
+                "name": "push",
+                "ref": "refs/heads/feature/momo-pay",
+                "files": [
+                  "api/src/pay.js"
+                ]
+              },
+              "push-tag": {
+                "name": "push",
+                "ref": "refs/tags/v1.4.0"
+              },
+              "push-main-docs": {
+                "name": "push",
+                "ref": "refs/heads/main",
+                "files": [
+                  "docs/runbook.md"
+                ]
+              }
+            }
+          },
+          "expected": {
+            "runs": {
+              "pr-docs": false,
+              "push-feature": false,
+              "push-tag": false,
+              "push-main-docs": false
+            }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "lint and test check out, install Node 24 and the locked dependencies, then run",
+          "input": {
+            "checks": [
+              "steps"
+            ]
+          },
+          "expected": {
+            "steps": {
+              "lint": [
+                "checkout",
+                "setup-node 24",
+                "api$ npm ci",
+                "api$ npm run lint"
+              ],
+              "test": [
+                "checkout",
+                "setup-node 24",
+                "api$ npm ci",
+                "api$ npm test"
+              ]
+            }
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "test waits for lint, and both jobs have a time limit",
+          "input": {
+            "checks": [
+              "needs",
+              "timeouts"
+            ]
+          },
+          "expected": {
+            "needs": {
+              "lint": [],
+              "test": [
+                "lint"
+              ]
+            },
+            "timeouts": {
+              "lint": 10,
+              "test": 15
+            }
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "The token can only read the repository",
+          "input": {
+            "checks": [
+              "token"
+            ]
+          },
+          "expected": {
+            "token": {
+              "lint": {
+                "contents": "read"
+              },
+              "test": {
+                "contents": "read"
+              }
+            }
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "A pull request into a release branch is skipped; one touching code and docs runs",
+          "input": {
+            "checks": [
+              "runs"
+            ],
+            "events": {
+              "pr-release": {
+                "name": "pull_request",
+                "base": "release/1.x",
+                "files": [
+                  "api/src/orders.js"
+                ]
+              },
+              "pr-mixed": {
+                "name": "pull_request",
+                "base": "main",
+                "files": [
+                  "docs/api.md",
+                  "api/src/routes.js"
+                ]
+              }
+            }
+          },
+          "expected": {
+            "runs": {
+              "pr-release": false,
+              "pr-mixed": true
+            }
+          },
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

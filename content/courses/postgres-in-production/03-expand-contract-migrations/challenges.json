@@ -1,0 +1,187 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pgp_131",
+      "name": "expand-contract-quiz",
+      "type": "quiz",
+      "title": "Read the phone column incident",
+      "description": "Three statements about the migration that renamed a column under a rolling update, and about the backfill that followed. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "safe-migrations"
+      ],
+      "points": 10,
+      "hints": [
+        "Separate how long the statement holds its lock from what it changes for the code that is still running. Which pods were still running when the migration finished?",
+        "Count the pods of each version in the rollout output, and ask which of them talk to the database between the migration and the end of the rollout.",
+        "A row updated inside a transaction stays locked until that transaction commits. How long did the one-statement backfill keep its transaction open?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The release ran this migration, then the rolling update started:\n\n```sql\nALTER TABLE orders RENAME COLUMN customer_phone TO phone_e164;\n-- ALTER TABLE  (Time: 4.112 ms)\n```\n\n```text\n09:14:02 api-6f9c7d-k2x8q  ERROR  column \"customer_phone\" does not exist\n09:14:02 api-6f9c7d-k2x8q  POST /orders 500\n...\n09:18:11 api-6f9c7d-p7d4w  ERROR  column \"customer_phone\" does not exist\n```\n\nStatement: \"`RENAME COLUMN` changes only the catalog and finished in 4 ms, so it is safe to run before a rolling update; the 4 minutes of errors must have another cause.\"",
+          "explanation": "False. The rename is fast, but speed is not the question: the old pods (`api-6f9c7d-*`) keep running until the rollout replaces them, and their SQL still names `customer_phone`, which no longer exists. Every request they served failed until the last old pod was gone. A rename is a breaking change for the code that is still running; expand and contract replaces it with an added column, a dual write and a later drop.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The rollout of the release, as `kubectl` showed it:\n\n```text\n$ kubectl -n rice-rocket rollout status deployment/api\nWaiting for deployment \"api\" rollout to finish: 2 out of 6 new replicas have been updated...\nWaiting for deployment \"api\" rollout to finish: 4 out of 6 new replicas have been updated...\nWaiting for deployment \"api\" rollout to finish: 1 old replicas are pending termination...\ndeployment \"api\" successfully rolled out      # 4 min 9 s after the start\n```\n\nStatement: \"For the whole rollout, old and new pods serve requests against the same database, so any schema change that runs before or during it has to work with both versions of the code.\"",
+          "explanation": "True. A rolling update replaces pods a few at a time; for minutes both versions handle traffic. The migration runs once, before or at the start of the rollout, so the schema it leaves behind must satisfy the old code (still reading and writing `customer_phone`) and the new code (using `phone_e164`). That is what the expand step guarantees; the contract step waits for a later release, when no old pod is left.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The backfill was first written as one statement over 18 million rows:\n\n```sql\nUPDATE orders SET phone_e164 = '+84' || substr(customer_phone, 2) WHERE phone_e164 IS NULL;\n```\n\n```text\n-- pg_stat_activity, 6 minutes in\n pid   | state  | wait_event_type | wait_event    | query\n 41822 | active |                 |               | UPDATE orders SET phone_e164 = ...\n 41907 | active | Lock            | transactionid | UPDATE orders SET status = 'delivered' WHERE id = $1\n 41911 | active | Lock            | transactionid | UPDATE orders SET status = 'picked_up' WHERE id = $1\n```\n\nStatement: \"Every row the big `UPDATE` has changed stays locked until its transaction commits, so status updates on those orders wait; batches of a few thousand rows, each committed on its own, release their rows within moments.\"",
+          "explanation": "True. Row locks taken by `UPDATE` are held until the end of the transaction. One statement over 18 million rows is one transaction that lasts minutes, and every courier status update on an already-backfilled order waits for it (`wait_event = transactionid`). It also keeps old row versions from being vacuumed for its whole lifetime. Small batches commit quickly, so each lock is short and the backfill can pause or resume at any batch.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pgp_132",
+      "name": "expand-contract-phone-column",
+      "type": "mini_coding",
+      "title": "Ship the phone column change in three releases",
+      "description": "Rice Rocket moves `orders.customer_phone` ('0903123456') to `orders.phone_e164` ('+84903123456') while old and new pods run side by side. The editor holds `migrations/phone_e164.py` with its key steps missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that: release 1 adds the new column (a trigger, already written, fills it for rows that app v1 inserts) and backfills existing rows in batches of at most `:batch` rows; release 2 changes nothing in the schema while app v2 (writes both columns, reads the new one) rolls out next to v1; and only after release 3 (app v3 uses the new column only) the trigger and the old column go away. Run replays the three releases on SQLite with live traffic from every app version between every step, and reports any failed query, wrong read, the backfill batch sizes and the final columns.",
+      "difficulty": "medium",
+      "outcomes": [
+        "safe-migrations"
+      ],
+      "points": 30,
+      "hints": [
+        "For each step, list the pods still running and the columns their SQL names. A step is safe only if every one of those queries still works right after it.",
+        "Look at what the release 1 statement does to the old column, at the `LIMIT` inside the backfill's subquery, and at which list (`RELEASE_2` or `CONTRACT`) may drop anything.",
+        "Moving `restaurants.hotline` to `restaurants.hotline_e164` the same way: release 1 `ALTER TABLE restaurants ADD COLUMN hotline_e164 TEXT` plus a sync trigger, a backfill `UPDATE restaurants SET hotline_e164 = ... WHERE id IN (SELECT id FROM restaurants WHERE hotline_e164 IS NULL ORDER BY id LIMIT :batch)` repeated until it changes 0 rows, nothing in release 2, and `DROP TRIGGER ...` then `ALTER TABLE restaurants DROP COLUMN hotline` only after the last release."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "migrations/phone_e164.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "50 orders: all three releases run with old and new pods side by side, no error",
+          "input": {
+            "existing": 50,
+            "batch": 500,
+            "ticks": 3
+          },
+          "expected": {
+            "errors": [],
+            "wrong_reads": 0,
+            "batches": 1,
+            "largest_batch": 50,
+            "columns": [
+              "id",
+              "restaurant",
+              "phone_e164"
+            ],
+            "missing_e164": 0
+          },
+          "hidden": false,
+          "score": 10
+        },
+        {
+          "name": "1200 orders are backfilled in batches of at most 500 while v1 keeps taking orders",
+          "input": {
+            "existing": 1200,
+            "batch": 500,
+            "ticks": 2
+          },
+          "expected": {
+            "errors": [],
+            "wrong_reads": 0,
+            "batches": 3,
+            "largest_batch": 500,
+            "columns": [
+              "id",
+              "restaurant",
+              "phone_e164"
+            ],
+            "missing_e164": 0
+          },
+          "hidden": false,
+          "score": 10
+        },
+        {
+          "name": "A fresh database with no orders yet goes through the same releases",
+          "input": {
+            "existing": 0,
+            "batch": 500,
+            "ticks": 2
+          },
+          "expected": {
+            "errors": [],
+            "wrong_reads": 0,
+            "batches": 0,
+            "largest_batch": 0,
+            "columns": [
+              "id",
+              "restaurant",
+              "phone_e164"
+            ],
+            "missing_e164": 0
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "1050 orders with batches of 100 and a longer rollout",
+          "input": {
+            "existing": 1050,
+            "batch": 100,
+            "ticks": 4
+          },
+          "expected": {
+            "errors": [],
+            "wrong_reads": 0,
+            "batches": 11,
+            "largest_batch": 100,
+            "columns": [
+              "id",
+              "restaurant",
+              "phone_e164"
+            ],
+            "missing_e164": 0
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

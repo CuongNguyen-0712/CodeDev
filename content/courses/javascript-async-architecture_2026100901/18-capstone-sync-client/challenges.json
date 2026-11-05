@@ -148,6 +148,7 @@
     },
     {
       "publicId": "chal_quiz_js_633",
+      "published": false,
       "name": "idempotent-mutation-id-quiz",
       "type": "quiz",
       "title": "The edit that vanished on retry",

@@ -115,6 +115,7 @@
     },
     {
       "publicId": "chal_fix_js_623",
+      "published": false,
       "name": "fix-stale-response-controller",
       "type": "fix_bug",
       "title": "Fix the controller that lets a stale response win",

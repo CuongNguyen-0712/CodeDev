@@ -1,0 +1,56 @@
+[
+  {
+    "id": "fits-on-node",
+    "label": "Bind the pod only if its requests fit what is left",
+    "code": "if (want.cpu > free.cpu) {\n    pending.push({ name: pod.name, reason: \"Insufficient cpu\" });\n    continue;\n}\nif (want.memory > free.memory) {\n    pending.push({ name: pod.name, reason: \"Insufficient memory\" });\n    continue;\n}\nfree.cpu -= want.cpu;\nfree.memory -= want.memory;"
+  },
+  {
+    "id": "parse-quantity",
+    "label": "Turn \"250m\", \"1\", \"512Mi\", \"512M\" into millicores and bytes",
+    "code": "function cpuMillis(q) {\n    const s = String(q ?? 0).trim();\n    return s.endsWith(\"m\") ? Number(s.slice(0, -1)) : Math.round(Number(s) * 1000);\n}\n\nfunction memoryBytes(q) {\n    const units = { Ki: 1024, Mi: 1024 ** 2, Gi: 1024 ** 3, Ti: 1024 ** 4, k: 1e3, M: 1e6, G: 1e9, T: 1e12 };\n    const m = String(q ?? 0).trim().match(/^([\\d.]+)([A-Za-z]*)$/);\n    return Math.round(Number(m[1]) * (units[m[2]] ?? 1));\n}"
+  },
+  {
+    "id": "effective-requests",
+    "label": "Sum the pod's requests; a limit alone is also the request",
+    "code": "function podRequests(pod) {\n    let cpu = 0;\n    let memory = 0;\n    for (const c of pod.containers) {\n        const { requests, limits } = resourcesOf(c);\n        cpu += cpuMillis(requests.cpu ?? limits.cpu ?? 0);\n        memory += memoryBytes(requests.memory ?? limits.memory ?? 0);\n    }\n    return { cpu, memory };\n}"
+  },
+  {
+    "id": "qos-class",
+    "label": "Guaranteed, Burstable or BestEffort for the whole pod",
+    "code": "function qosClass(pod) {\n    const all = pod.containers.map(resourcesOf);\n    if (all.every(({ requests, limits }) => !Object.keys(requests).length && !Object.keys(limits).length)) return \"BestEffort\";\n    const guaranteed = all.every(({ requests, limits }) => [\"cpu\", \"memory\"].every((r) => {\n        if (limits[r] === undefined) return false;\n        const request = requests[r] ?? limits[r];\n        return r === \"cpu\" ? cpuMillis(request) === cpuMillis(limits[r]) : memoryBytes(request) === memoryBytes(limits[r]);\n    }));\n    return guaranteed ? \"Guaranteed\" : \"Burstable\";\n}"
+  },
+  {
+    "id": "container-state",
+    "label": "Over the memory limit or over the CPU limit",
+    "code": "function containerState(c) {\n    const { limits } = resourcesOf(c);\n    const usage = c.usage || {};\n    if (limits.memory !== undefined && memoryBytes(usage.memory ?? 0) > memoryBytes(limits.memory)) return \"OOMKilled\";\n    if (limits.cpu !== undefined && cpuMillis(usage.cpu ?? 0) > cpuMillis(limits.cpu)) return \"Throttled\";\n    return \"Running\";\n}"
+  },
+  {
+    "id": "eviction-rank",
+    "label": "Order pods for eviction when the node runs out of memory",
+    "code": "function evictionOrder(pods) {\n    const ranked = pods.map((pod, arrival) => {\n        const requested = podRequests(pod).memory;\n        const used = pod.containers.reduce((sum, c) => sum + memoryBytes((c.usage && c.usage.memory) ?? 0), 0);\n        return { name: pod.name, arrival, over: used > requested, priority: pod.priority ?? 0, excess: used - requested };\n    });\n    ranked.sort((a, b) => (b.over - a.over) || (a.priority - b.priority) || (b.excess - a.excess) || (a.arrival - b.arrival));\n    return ranked.map((p) => p.name);\n}"
+  },
+  {
+    "id": "cpu-over-limit-oom",
+    "label": "Over the memory limit or over the CPU limit",
+    "code": "function containerState(c) {\n    const { limits } = resourcesOf(c);\n    const usage = c.usage || {};\n    const overMemory = limits.memory !== undefined && memoryBytes(usage.memory ?? 0) > memoryBytes(limits.memory);\n    const overCpu = limits.cpu !== undefined && cpuMillis(usage.cpu ?? 0) > cpuMillis(limits.cpu);\n    return overMemory || overCpu ? \"OOMKilled\" : \"Running\";\n}",
+    "distractor": true
+  },
+  {
+    "id": "fits-by-usage",
+    "label": "Bind the pod only if its requests fit what is left",
+    "code": "const used = pod.containers.reduce((sum, c) => ({\n    cpu: sum.cpu + cpuMillis((c.usage && c.usage.cpu) ?? 0),\n    memory: sum.memory + memoryBytes((c.usage && c.usage.memory) ?? 0),\n}), { cpu: 0, memory: 0 });\nif (used.cpu > free.cpu) {\n    pending.push({ name: pod.name, reason: \"Insufficient cpu\" });\n    continue;\n}\nif (used.memory > free.memory) {\n    pending.push({ name: pod.name, reason: \"Insufficient memory\" });\n    continue;\n}\nfree.cpu -= used.cpu;\nfree.memory -= used.memory;",
+    "distractor": true
+  },
+  {
+    "id": "qos-memory-only",
+    "label": "Guaranteed, Burstable or BestEffort for the whole pod",
+    "code": "function qosClass(pod) {\n    const all = pod.containers.map(resourcesOf);\n    if (all.every(({ requests, limits }) => !Object.keys(requests).length && !Object.keys(limits).length)) return \"BestEffort\";\n    // Requests equal to limits for memory: the pod cannot be OOMKilled for going over its request.\n    const guaranteed = all.every(({ requests, limits }) => limits.memory !== undefined\n        && memoryBytes(requests.memory ?? limits.memory) === memoryBytes(limits.memory));\n    return guaranteed ? \"Guaranteed\" : \"Burstable\";\n}",
+    "distractor": true
+  },
+  {
+    "id": "units-all-binary",
+    "label": "Turn \"250m\", \"1\", \"512Mi\", \"512M\" into millicores and bytes",
+    "code": "function cpuMillis(q) {\n    const s = String(q ?? 0).trim();\n    return s.endsWith(\"m\") ? Number(s.slice(0, -1)) : Math.round(Number(s) * 1000);\n}\n\nfunction memoryBytes(q) {\n    // M and Mi are the same thing, so are G and Gi.\n    const units = { K: 1024, M: 1024 ** 2, G: 1024 ** 3, T: 1024 ** 4 };\n    const m = String(q ?? 0).trim().match(/^([\\d.]+)([A-Za-z]?)/);\n    return Math.round(Number(m[1]) * (units[m[2].toUpperCase()] ?? 1));\n}",
+    "distractor": true
+  }
+]
