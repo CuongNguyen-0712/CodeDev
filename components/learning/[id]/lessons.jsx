@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import PortableTextRenderer from "../../ui/portableTextRenderer";
 import { useCourseSubmitLesson } from "@/mutations/course.mutation";
 import { useApp } from "@/contexts/appContext";
@@ -6,6 +6,7 @@ import { announceRewards } from "@/components/ui/level";
 import { askForRating } from "@/components/course/ratePromptDialog";
 import { useQuery } from "@tanstack/react-query";
 import { courseQueries } from "@/queries/course.query";
+import { EMPTY_PROGRESS, progressFor, useLessonProgressStore } from "@/stores/lessonProgressStore";
 import { ErrorReload } from "../../ui/error";
 import { cn } from "@/lib/utils";
 
@@ -167,11 +168,12 @@ export default function LearningLesson({
 
     const scrollRef = useRef(null);
 
-    // Challenge progress of the current lesson, reported by ChallengeSection. A challenge is
-    // resolved once passed or once all its attempts are used without a pass.
-    const [challengeProgress, setChallengeProgress] = useState({ lessonId: null, passed: 0, resolved: 0, total: 0 });
-    const requiredCount = (challenges || []).filter((c) => c?.status === "open").length;
-    const resolvedCount = challengeProgress.lessonId === lessonId ? challengeProgress.resolved : 0;
+    // Challenge progress of the current lesson (stores/lessonProgressStore.js). Only open challenges
+    // are required (same rule as the server); a challenge is resolved once passed or once all its
+    // attempts are used without a pass.
+    const requiredIds = (challenges || []).filter((c) => c?.status === "open").map((c) => c.id);
+    const progressEntry = useLessonProgressStore((s) => s.byLesson[lessonId] ?? EMPTY_PROGRESS);
+    const { resolved: resolvedCount, total: requiredCount } = progressFor(progressEntry, requiredIds);
     const challengesBlocking = !isSubmit && requiredCount > 0 && resolvedCount < requiredCount;
 
     useEffect(() => {
@@ -248,12 +250,7 @@ export default function LearningLesson({
                         <LessonBrief lessonId={lessonId} scenario={data?.scenario} environmentSetup={data?.environmentSetup} />
 
                         {/* Embedded challenges and the Practice section share one progress state. */}
-                        <ChallengeProgressProvider
-                            key={lessonId}
-                            challenges={challenges}
-                            onChallengeCompleted={() => onSubmitted?.()}
-                            onProgressChange={(progress) => setChallengeProgress({ lessonId, ...progress })}
-                        >
+                        <ChallengeProgressProvider key={lessonId} lessonId={lessonId} challenges={challenges}>
                             <div className="lesson-prose pt-6">
                                 <div className="portable_text_container">
                                     <PortableTextRenderer value={data?.content} types={lessonBlockTypes} />

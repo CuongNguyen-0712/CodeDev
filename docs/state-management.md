@@ -26,10 +26,11 @@ Không làm:
 | `useUiStore` | `stores/uiStore.js` | `isSidebarOpen` (localStorage `codedev_dashboard_state`) |
 | `useThemeStore` | `stores/themeStore.js` | `theme` (localStorage `theme`, cũng được `lib/themeScript.js` đọc trước khi paint), `toggleTheme` có View Transition |
 | `useRewardsStore` | `stores/rewardsStore.js` | `levelUp`, `ratePrompt`, `rewardsSeq`; selector `selectRatePromptOpen` |
+| `useLessonProgressStore` | `stores/lessonProgressStore.js` | `byLesson[lessonId] = { completed, exhausted }` của các challenge trong bài đang mở; hàm `progressFor` cho quy tắc "hoàn thành bài" |
 
 Hook tương thích: `useApp()` trong `contexts/appContext.jsx` chỉ còn `{ showAlert }` (hằng số, không subscription); `useTheme()` trong `contexts/themeContext.jsx` đọc `useThemeStore`. Code mới import `showAlert` từ `components/ui/alert.jsx` và dùng store trực tiếp.
 
-Chưa làm: tiến độ challenge của bài học (`ChallengeProgressProvider` trong `components/learning/[id]/challengeSection.jsx`) vẫn dùng context và callback. Kế hoạch chuyển sang `stores/lessonProgressStore.js` chờ đến khi phần coding-snippets trong `components/learning/[id]/challenges/` được commit.
+Tiến độ challenge của bài học: `ChallengeProgressProvider` (`components/learning/[id]/challengeSection.jsx`) chỉ còn mang dữ liệu tĩnh `{ lessonId, items }`, vì challenge nhúng trong nội dung bài được PortableText render, không có đường truyền prop. Kết quả pass / hết lượt nằm trong `useLessonProgressStore`; `lessons.jsx` đọc store để khoá nút "Mark as completed". Một lần pass mới ghi `#challenge-<id>` vào URL và invalidate `['user', 'learningProgress']` để syllabus cập nhật. Store xoá tiến độ của bài khi rời bài.
 
 ## 3. Tiêu chuẩn đặt tên và cấu trúc store
 

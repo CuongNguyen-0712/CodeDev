@@ -2,8 +2,11 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { useOpenHint } from "@/mutations/challenge.mutation";
+import { userKeys } from "@/keys/user.keys";
+import { EMPTY_PROGRESS, useLessonProgressStore } from "@/stores/lessonProgressStore";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -198,50 +201,43 @@ function ChallengeBody({ challenge, onPassed, onExhausted }) {
         : <CodingChallenge challenge={challenge} onPassed={onPassed} onExhausted={onExhausted} />;
 }
 
-// Pass / out-of-attempts state of every challenge of the lesson, shared by the challenges
-// embedded in the lesson content (InlineChallenge) and the Practice section at the end.
-const ChallengeProgressContext = createContext(null);
+// The lesson's challenges, for the challenges embedded in the lesson content (InlineChallenge, rendered
+// by PortableText without a prop path) and the Practice section. Pass / out-of-attempts state lives in
+// stores/lessonProgressStore.js, which lessons.jsx also reads for the "complete lesson" rule.
+const LessonChallengesContext = createContext(null);
 
-export function ChallengeProgressProvider({ challenges = [], onChallengeCompleted, onProgressChange, children }) {
+export function ChallengeProgressProvider({ lessonId, challenges = [], children }) {
     const items = (challenges || []).filter((c) => c && TYPE_META[c.type]);
-    // Only open challenges are required to complete the lesson (same rule as the server).
-    const requiredIds = items.filter((c) => c.status === "open").map((c) => c.id);
 
-    const [completed, setCompleted] = useState(() => new Set());
-    // All attempts used without a pass: does not block the next lesson any more.
-    const [exhausted, setExhausted] = useState(() => new Set());
+    // Progress lives as long as the lesson view, as the per-lesson state it replaces did.
+    useEffect(() => () => useLessonProgressStore.getState().reset(lessonId), [lessonId]);
 
-    const requiredPassed = requiredIds.filter((id) => completed.has(id)).length;
-    const requiredResolved = requiredIds.filter((id) => completed.has(id) || exhausted.has(id)).length;
+    return <LessonChallengesContext.Provider value={{ lessonId, items }}>{children}</LessonChallengesContext.Provider>;
+}
 
-    useEffect(() => {
-        onProgressChange?.({ passed: requiredPassed, resolved: requiredResolved, total: requiredIds.length });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [requiredPassed, requiredResolved, requiredIds.length]);
+function useChallengeProgress() {
+    const value = useContext(LessonChallengesContext);
+    if (!value) throw new Error("Challenge components must be rendered inside <ChallengeProgressProvider>");
+    const { lessonId, items } = value;
+    const { completed, exhausted } = useLessonProgressStore((s) => s.byLesson[lessonId] ?? EMPTY_PROGRESS);
+    const queryClient = useQueryClient();
 
     // `initial`: state loaded from an earlier visit only updates the badges; a fresh
     // result also marks the challenge in the URL as the one the learner just worked on.
     const handlePassed = (challengeId, { initial = false } = {}) => {
-        setCompleted((prev) => (prev.has(challengeId) ? prev : new Set(prev).add(challengeId)));
-        if (!initial) {
-            writeHashChallengeId(challengeId);
-            onChallengeCompleted?.(challengeId);
-        }
+        useLessonProgressStore.getState().markPassed(lessonId, challengeId);
+        if (initial) return;
+        writeHashChallengeId(challengeId);
+        // The syllabus shows lesson status and unlocks (studyingPage's learningProgress query).
+        queryClient.invalidateQueries({ queryKey: [...userKeys.all, "learningProgress"] });
     };
 
     const handleExhausted = (challengeId, { initial = false } = {}) => {
-        setExhausted((prev) => (prev.has(challengeId) ? prev : new Set(prev).add(challengeId)));
+        useLessonProgressStore.getState().markExhausted(lessonId, challengeId);
         if (!initial) writeHashChallengeId(challengeId);
     };
 
-    const value = { items, completed, exhausted, handlePassed, handleExhausted };
-    return <ChallengeProgressContext.Provider value={value}>{children}</ChallengeProgressContext.Provider>;
-}
-
-function useChallengeProgress() {
-    const value = useContext(ChallengeProgressContext);
-    if (!value) throw new Error("Challenge components must be rendered inside <ChallengeProgressProvider>");
-    return value;
+    return { items, completed, exhausted, handlePassed, handleExhausted };
 }
 
 // Deep link: scroll to the challenge named in `#challenge-<id>` once it is on the page.
