@@ -5,7 +5,8 @@ Source of truth for courses built with the content pipeline. Each course lives i
 
 | Where it ends up | What | Why there |
 |---|---|---|
-| Sanity (`lesson` documents) | Lesson narrative, diagrams (Cloudinary URLs), `challengeEmbed` blocks | Read by the browser |
+| Sanity (`lesson` documents) | Lesson narrative, diagrams (Cloudinary URLs), `challengeEmbed` blocks | Production and staging lesson store |
+| Local Payload CMS (`lessons`) | The same lesson documents, from `lesson.sanity.json` | Local development lesson store (docs/payload-cms.md) |
 | Postgres `challenge.*` | Quiz options with `is_correct`, test cases, coding configs | Answers stay server-side |
 | Object storage, public bucket | `challenges/<language>/<id>/starter.<ext>` (+ `harness.js` for javascript), lesson starter zips | Loaded by the editor and the browser sandbox |
 | Cloudinary | `diagrams/*.svg` rendered as PNG | Image delivery |
@@ -19,7 +20,9 @@ courses/<course>/
   <NN-lesson>/
     lesson.source.mjs            narrative (helpers: h2, p, code, callout, image, challenge ...)
     challenges.json              challenges, quiz questions, coding config and tests
-    challenges/<id>/             starter.<ext>, solution.<ext>, variants/*.<ext> (known-wrong answers), harness.js (javascript)
+    challenges/<id>/             solution.<ext> (with @piece blocks), starter.<ext> + pieces.json (written by build-pieces.mjs,
+                                 commit them), distractors/*.<ext> (wrong pieces), variants/*.<ext> (known-wrong answers),
+                                 harness.js (javascript and config files)
     diagrams/*.svg               lesson diagrams
     starter-template/            optional local lab (zipped and uploaded)
     assets.json                  written by upload-images.mjs (commit it)
@@ -69,21 +72,28 @@ V1.3 track courses: run `node content/tools/verify-course.mjs content/courses/<c
 
 Step by step, per lesson (`tools/`):
 
-1. `verify-challenges.mjs <lesson>`: starter fails, solution passes every test, variants fail.
+1. `build-pieces.mjs <lesson>`: writes `starter.<ext>` and `pieces.json` of piece-assembly challenges.
+   `verify-challenges.mjs <lesson>`: starter fails, solution passes every test, variants fail (pieces: the
+   generated files are current, base + pieces passes, each distractor in place of its piece fails).
 2. `upload-images.mjs <lesson>`: Cloudinary, writes `assets.json`.
 3. `upload-storage.mjs <lesson> [--env .env.production]`: object storage, writes `storage-manifest.json`.
 4. `build-lesson.mjs <lesson>`: writes `lesson.sanity.json`.
 5. `build-seed.mjs <course>`: writes `db/seeds/<course>.sql` (idempotent; also gives learners who
    enrolled earlier the history rows for new lessons).
-6. `push-lesson.mjs <lesson>`: writes the Sanity draft; publish it in the Studio (`/studio`).
+6. `push-lesson.mjs <lesson> --env .env.production`: writes the Sanity draft; publish it in the Studio
+   (`/studio`). It refuses an env file that is not production or staging.
 
 Roadmaps: `content/roadmaps.json` (one roadmap per career role, ordered nodes, linked course public ids) ->
 `node content/tools/build-roadmaps.mjs` -> `db/seeds/roadmaps.sql`. Apply it after the course seeds; draft courses
 stay off roadmap pages until they are published.
 
+Local development reads lesson bodies from the local Payload CMS only, production and staging from Sanity
+only (docs/payload-cms.md): `npm run cms:up`, then `npm run cms:sync` loads every course, or
+`build-course.mjs <course> --payload` one course.
+
 Apply a seed: `node content/tools/apply-seed.mjs db/seeds/<course>.sql [--env .env.production --yes]` (non-local
-targets need `--yes`). Sanity has one dataset for local and production: `build-course.mjs <course> --push --publish`
-writes published lesson documents (no draft to publish in the Studio).
+targets need `--yes`). `build-course.mjs <course> --push --publish` writes published Sanity lesson documents (production; the env
+file comes from `--push-env`, default `.env.production`).
 
 Production: upload storage first (`build-course.mjs <course> --storage-only --storage-env .env.production`),
 then apply `db/seeds/<course>.sql` (test it on a Neon branch first).
@@ -91,7 +101,7 @@ then apply `db/seeds/<course>.sql` (test it on a Neon branch first).
 ## Rules for challenges
 
 - Languages and file extensions: `tools/languages.mjs` (javascript, python, c, cpp, java, go, rust, php,
-  typescript, kotlin, csharp). TypeScript is type-checked with `tsc --strict`; Kotlin can use kotlinx.coroutines;
+  typescript, kotlin, csharp, plus the config languages dockerfile, nginx, yaml and hcl for Terraform). TypeScript is type-checked with `tsc --strict`; Kotlin can use kotlinx.coroutines;
   C# gets implicit usings (System, Collections.Generic, IO, Linq, Text, Threading.Tasks) and top-level statements.
   Every language except javascript is a `stdio` challenge that only runs in the code runner
   (`npm run services:up`, `CODE_RUNNER_URL`/`CODE_RUNNER_TOKEN` in `.env.local`; verify-challenges uses it too):
@@ -108,9 +118,34 @@ then apply `db/seeds/<course>.sql` (test it on a Neon branch first).
 - Question bank: `"displayCount": N` on a quiz shows each learner N of its questions (a fixed subset in a fixed
   shuffled order per learner, graded on that subset; migration `20261026_002`). Leave it out on scenario quizzes,
   whose statements follow the evidence in order. verify-course counts only the statements shown.
+- Catalog direction (2026-11): a course applies a current framework or engine (Docker, Nginx, Kubernetes,
+  CI, Postgres, Redis, Kafka, Next.js, ...) to a real production situation. New courses set
+  `"template": "core-first"` in `course.json`: each lesson teaches only the core it uses (Situation, The core
+  you need, Apply it in the project, Verify, Pitfalls), then its challenges (PROMPT_CONTEXT.md O2).
+- Every lesson has 1-2 published challenges; `tools/verify-course.mjs` refuses 0 or more than 2 (a warning
+  for `existing` courses). `"published": false` on a challenge keeps it in the files but out of the lesson
+  (`is_published = false`); the two courses written before the limit use it for their extra challenges.
+- Quiz evidence goes in a fenced block (```` ```sql ````, `text` for logs and tables) and identifiers in
+  backticks: the quiz renders fences as code blocks (`lib/challenges/quizText.js`). Older plain-text
+  evidence before `Statement:` still keeps its line breaks.
+- Pieces (every coding challenge of a `core-first` course): the learner assembles the solution instead of
+  typing it. Mark 3+ blocks of `solution.<ext>` with whole-line `// @piece <id>: <label>` ... `// @end`
+  (`#` for python, dockerfile, nginx, yaml, hcl); `build-pieces.mjs` cuts them out, leaving one `// [ ] <label>`
+  placeholder each, and writes `starter.<ext>` (the base) and `pieces.json`. Ids are kebab-case, labels are
+  unique, 1-60 characters and say what belongs there without giving the code away; no nesting; a piece does
+  not start or end with a blank line; a javascript entry function stays outside the pieces. Add 1-3
+  distractors (`distractors/<id>.<ext>`, first line `@piece <real id>: <same label>`, then a common wrong
+  version); at most 12 pieces in all. The list is shuffled per learner and never says which pieces are wrong.
+  The learner puts the caret on a line and clicks a piece (a `[ ]` line is replaced; with no caret yet the
+  piece goes to the start of the function body), or drags it onto a line on desktop, and
+  ticks the ones used. Stored in `challenge.coding_configs.snippets` (migration `20261104_019`); the
+  definition is cached 10 min. Older hand-written `coding.snippets` lists still work for existing courses.
+- Config-file challenges: `coding.language` `dockerfile`, `nginx` or `yaml` (`starter.Dockerfile`,
+  `starter.conf`, `starter.yml`). They run like javascript: the file text becomes the global `__source` and
+  `harness.js` parses and simulates it (no entry function, no real Docker or Nginx).
 - New courses: 1-2 challenges per lesson. Premium courses set `accessModel`, `offers` and usually
   `publishStatus: "draft"` in `course.json` (docs/course-catalog-plan.md).
-- javascript challenges run in a Web Worker: no DOM, no Node-only APIs, no imports. The entry is the
+- javascript (and config) challenges run in a Web Worker: no DOM, no Node-only APIs, no imports. The entry is the
   first function in `starter.js`; `harness.js` defines `async function __harness(input, ctx)`.
 - Deterministic harnesses (fake clocks, injected timers), well under `timeLimitMs`.
 - Never put quiz answers, test expectations or solutions in `lesson.source.mjs`.

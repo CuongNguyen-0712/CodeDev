@@ -28,6 +28,8 @@ const args = process.argv.slice(2);
 const envFile = args.includes("--env") ? args[args.indexOf("--env") + 1] : ".env.local";
 const dryRun = args.includes("--dry-run");
 require("dotenv").config({ path: path.join(root, envFile), quiet: true });
+// Shared values (.env) under the env file above, the order Next.js uses.
+require("dotenv").config({ path: path.join(root, ".env"), quiet: true });
 
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const { resolveStorageConfig, s3ClientOptions, describeStorage } = await import(pathToFileURL(path.join(root, "lib", "storageConfig.mjs")).href);
@@ -42,16 +44,18 @@ const files = [];
 for (const challenge of challenges.filter((c) => c.type !== "quiz")) {
     const language = challengeLanguage(challenge);
     const { ext, contentType } = LANGUAGES[language];
-    // The harness contract is javascript only.
-    for (const role of language === "javascript" ? ["starter", "harness"] : ["starter"]) {
-        const source = path.join(lessonDir, "challenges", challenge.publicId, `${role}.${ext}`);
+    // The harness contract is javascript and config files only.
+    for (const role of LANGUAGES[language].browser ? ["starter", "harness"] : ["starter"]) {
+        // The harness is javascript whatever the challenge language (config files have one too).
+        const file = role === "harness" ? "harness.js" : `starter.${ext}`;
+        const source = path.join(lessonDir, "challenges", challenge.publicId, file);
         if (!fs.existsSync(source)) continue;
         files.push({
             role,
             challengePublicId: challenge.publicId,
             source,
-            key: `challenges/${language}/${challenge.publicId}/${role}.${ext}`,
-            contentType,
+            key: `challenges/${language}/${challenge.publicId}/${file}`,
+            contentType: role === "harness" ? LANGUAGES.javascript.contentType : contentType,
             originalName: role === "starter" ? (challenge.coding?.filePath || `starter.${ext}`) : "harness.js",
         });
     }

@@ -22,6 +22,8 @@ const dotenv = require("dotenv");
 const args = process.argv.slice(2);
 const envIndex = args.indexOf("--env");
 dotenv.config({ path: path.resolve(root, envIndex >= 0 ? args[envIndex + 1] : ".env.local"), quiet: true, override: true });
+// Shared values (.env) under the env file above, the order Next.js uses.
+dotenv.config({ path: path.resolve(root, ".env"), quiet: true });
 
 const base = String(process.env.GRAFANA_URL || "").replace(/\/$/, "");
 const token = process.env.GRAFANA_TOKEN;

@@ -1,15 +1,19 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { highlightToHtml } from "@/lib/syntaxHighlighter";
-import { SiC, SiCplusplus, SiDotnet, SiGo, SiJavascript, SiKotlin, SiOpenjdk, SiPhp, SiPython, SiRust, SiTypescript } from "react-icons/si";
-import { LuAlignLeft, LuFileCode, LuKeyboard } from "react-icons/lu";
+import { insertSnippetText } from "@/lib/challenges/insertSnippet";
+import { commentToken as commentTokenOf, placeholderAt, replacePlaceholder } from "@/lib/challenges/pieces";
+import { SiC, SiCplusplus, SiDocker, SiDotnet, SiGo, SiJavascript, SiKotlin, SiNginx, SiOpenjdk, SiPhp, SiPython, SiRust, SiTerraform, SiTypescript, SiYaml } from "react-icons/si";
+import { LuAlignLeft, LuFileCode, LuKeyboard, LuRedo2, LuUndo2 } from "react-icons/lu";
 
 import { Button } from "@/components/shadcn/button";
 import { Kbd, KbdGroup } from "@/components/shadcn/kbd";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { syntaxTheme } from "@/lib/syntaxTheme";
 import { cn } from "@/lib/utils";
+
+import ResizeHandle from "./resizeHandle";
 
 const INDENT = "  ";
 // Must match the canvas: leading-6 and the p-3 padding of the textarea and the highlight layer.
@@ -54,6 +58,10 @@ const LANGUAGE_ICONS = {
     php: SiPhp,
     kotlin: SiKotlin, kt: SiKotlin,
     csharp: SiDotnet, cs: SiDotnet,
+    dockerfile: SiDocker, docker: SiDocker,
+    nginx: SiNginx, conf: SiNginx,
+    yaml: SiYaml, yml: SiYaml,
+    hcl: SiTerraform, tf: SiTerraform, terraform: SiTerraform,
 };
 
 function LanguageIcon({ language = "", fileName = "" }) {
@@ -61,6 +69,62 @@ function LanguageIcon({ language = "", fileName = "" }) {
         || LANGUAGE_ICONS[(fileName || "").toLowerCase().split(".").pop()]
         || LuFileCode;
     return <Icon className="size-3.5 shrink-0 text-editor-muted" aria-hidden="true" />;
+}
+
+// ------------------------------------------------------------------ canvas height
+
+const HEIGHT_KEY = "codedev:editor-height";
+const MIN_HEIGHT = 160;
+const maxHeight = () => Math.round((typeof window === "undefined" ? 900 : window.innerHeight) * 0.85);
+
+/** The learner's last canvas height (resize handle), else the old default clamp(15rem, 50svh, 36rem). */
+function initialHeight() {
+    if (typeof window === "undefined") return 360;
+    try {
+        const saved = Number(localStorage.getItem(HEIGHT_KEY));
+        if (saved >= MIN_HEIGHT) return Math.min(saved, maxHeight());
+    } catch {
+        // Storage blocked: use the default.
+    }
+    return Math.round(Math.min(576, Math.max(240, window.innerHeight * 0.5)));
+}
+
+// ------------------------------------------------------------------ drag and drop of pieces
+
+/** dataTransfer type a piece row sets (snippetPanel.jsx), with the piece id as its value. */
+export const PIECE_MIME = "application/x-codedev-piece";
+
+/**
+ * Index in the textarea's text under a client point. Uses the browser's own hit test when it
+ * resolves into the textarea (Chrome 128+, Firefox); otherwise the monospace grid of the canvas
+ * (LINE_HEIGHT rows, `charWidth` columns, PADDING inset, no wrapping).
+ */
+export function caretFromPoint(el, x, y, charWidth) {
+    const pos = typeof document !== "undefined" ? document.caretPositionFromPoint?.(x, y) : null;
+    if (pos && pos.offsetNode === el) return pos.offset;
+    const rect = el.getBoundingClientRect();
+    const lines = el.value.split("\n");
+    const clamp = (n, max) => (Number.isFinite(n) ? Math.min(max, Math.max(0, n)) : 0);
+    const line = clamp(Math.floor((y - rect.top + el.scrollTop - PADDING) / LINE_HEIGHT), lines.length - 1);
+    // shortcut: columns assume spaces; a tab in the line puts the drop a few columns off
+    const col = clamp(Math.round((x - rect.left + el.scrollLeft - PADDING) / charWidth), lines[line].length);
+    let index = col;
+    for (let i = 0; i < line; i++) index += lines[i].length + 1;
+    return index;
+}
+
+/** Width of one monospace character in the textarea's font (measured once per editor). */
+function measureCharWidth(el) {
+    const style = getComputedStyle(el);
+    const fallback = (parseFloat(style.fontSize) || 13) * 0.6;
+    try {
+        const ctx = document.createElement("canvas").getContext("2d");
+        if (!ctx) return fallback;
+        ctx.font = `${style.fontSize} ${style.fontFamily}`;
+        return ctx.measureText("M").width || fallback;
+    } catch {
+        return fallback; // jsdom has no canvas
+    }
 }
 
 // ------------------------------------------------------------------ text edits
@@ -254,11 +318,19 @@ export default function CodeEditor({
     ariaLabel = "Code editor",
     actions = null,
     status = null,
+    // insertAtCursor(code, fallbackIndex) -> { line } | null: used by the piece list (snippetPanel.jsx).
+    ref,
+    // Called with (piece id, { line }) after a piece is dropped on the editor.
+    onDropSnippet,
+    // Fill the parent's height (the expanded workspace) instead of the fixed canvas height.
+    expanded = false,
 }) {
     const hintId = useId();
     const textareaRef = useRef(null);
     const gutterRef = useRef(null);
     const tabReleasedRef = useRef(false);
+    // False until the learner focuses the editor: before that the textarea caret means nothing.
+    const touchedRef = useRef(false);
 
     // Undo history is kept here: programmatic edits would otherwise wipe the browser's own stack.
     const historyRef = useRef({ undo: [], redo: [], at: 0 });
@@ -267,11 +339,20 @@ export default function CodeEditor({
 
     const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
     const [scroll, setScroll] = useState({ top: 0, left: 0 });
+    const [canvasHeight, setCanvasHeight] = useState(initialHeight);
+    const resizeCanvas = (height) => {
+        setCanvasHeight(height);
+        try {
+            localStorage.setItem(HEIGHT_KEY, String(height));
+        } catch {
+            // Storage blocked: the size lasts for this page.
+        }
+    };
     // false on the server and during hydration; the platform never changes, so nothing to subscribe to.
     const isMac = useSyncExternalStore(noSubscription, () => /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || ""), () => false);
 
     const lineCount = Math.max(1, value.split("\n").length);
-    const commentToken = /py/i.test(language || "") ? "#" : "//";
+    const commentToken = commentTokenOf(language);
 
     const updateCursorPos = () => {
         const el = textareaRef.current;
@@ -280,6 +361,13 @@ export default function CodeEditor({
         selectionRef.current = { start: selStart, end: el.selectionEnd || 0 };
         const linesBefore = el.value.slice(0, selStart).split("\n");
         setCursorPos({ line: linesBefore.length, col: linesBefore[linesBefore.length - 1].length + 1 });
+    };
+
+    // How many steps the Undo / Redo buttons can take (the stacks live in historyRef).
+    const [historySize, setHistorySize] = useState({ undo: 0, redo: 0 });
+    const syncHistory = () => {
+        const { undo, redo } = historyRef.current;
+        setHistorySize((prev) => (prev.undo === undo.length && prev.redo === redo.length ? prev : { undo: undo.length, redo: redo.length }));
     };
 
     // Changes made outside the editor (reset, restore a submission) become one undo step.
@@ -293,6 +381,7 @@ export default function CodeEditor({
             lastValueRef.current = value;
         }
         updateCursorPos();
+        syncHistory();
     }, [value]);
 
     const record = (force) => {
@@ -306,6 +395,7 @@ export default function CodeEditor({
         history.undo.push({ value: lastValueRef.current, ...selectionRef.current });
         if (history.undo.length > HISTORY_LIMIT) history.undo.shift();
         history.at = force ? 0 : now;
+        syncHistory();
     };
 
     const select = (start, end = start, direction = "none") => {
@@ -328,6 +418,58 @@ export default function CodeEditor({
         if (edit) commit(edit.text, edit.start, edit.end);
     };
 
+    // Puts a piece at [start, end): a caret on a `[ ] ...` line takes that placeholder's place,
+    // anything else goes through insertSnippetText. One undo step; the caret ends after the piece.
+    // Returns { line } (1-based line where the piece starts).
+    const insertAt = (code, start, end = start, { fillPlaceholder = true } = {}) => {
+        const slot = fillPlaceholder && start === end ? placeholderAt(value, start) : null;
+        const edit = slot ? replacePlaceholder(value, slot, code) : insertSnippetText(value, start, end, code);
+        // Touch screens: no focus, so the on-screen keyboard does not cover the list.
+        if (window.matchMedia?.("(pointer: fine)").matches) textareaRef.current?.focus({ preventScroll: true });
+        touchedRef.current = true;
+        selectionRef.current = { start: edit.caret, end: edit.caret };
+        commit(edit.text, edit.caret);
+        const endLine = edit.text.slice(0, edit.caret).split("\n").length;
+        return { line: endLine - String(code).replace(/\s+$/, "").split("\n").length + 1 };
+    };
+
+    // No deps: the handle must see the current value.
+    useImperativeHandle(ref, () => ({
+        // At the caret once the learner has used the editor, else at fallbackIndex (the start of
+        // the function body). Never chosen by the piece itself: where it goes is the exercise.
+        insertAtCursor(code, fallbackIndex = 0) {
+            if (readOnly) return null;
+            if (touchedRef.current) return insertAt(code, selectionRef.current.start, selectionRef.current.end);
+            // No caret yet: above the first body line, never in place of a placeholder the learner did not pick.
+            return insertAt(code, fallbackIndex, fallbackIndex, { fillPlaceholder: false });
+        },
+    }));
+
+    // Drag and drop of a piece from the piece list (snippetPanel.jsx). Other drags keep the
+    // browser's own behaviour.
+    const charWidthRef = useRef(0);
+    const isPieceDrag = (event) => Array.from(event.dataTransfer?.types || []).includes(PIECE_MIME);
+    const pointIndex = (event) => {
+        const el = event.currentTarget;
+        charWidthRef.current ||= measureCharWidth(el);
+        return caretFromPoint(el, event.clientX, event.clientY, charWidthRef.current);
+    };
+    const handleDragOver = (event) => {
+        if (readOnly || !isPieceDrag(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+        const index = pointIndex(event);
+        event.currentTarget.setSelectionRange(index, index); // the active line follows the pointer
+        updateCursorPos();
+    };
+    const handleDrop = (event) => {
+        if (readOnly || !isPieceDrag(event)) return;
+        event.preventDefault(); // otherwise the textarea pastes the text/plain copy itself
+        const index = pointIndex(event);
+        const { line } = insertAt(event.dataTransfer.getData("text/plain"), index);
+        onDropSnippet?.(event.dataTransfer.getData(PIECE_MIME), { line });
+    };
+
     const travel = (from, to) => {
         const history = historyRef.current;
         const step = history[from].pop();
@@ -338,6 +480,7 @@ export default function CodeEditor({
         lastValueRef.current = step.value;
         onChange(step.value);
         select(step.start, step.end);
+        syncHistory();
     };
 
     const handleFormat = () => {
@@ -570,7 +713,7 @@ export default function CodeEditor({
     const modLabel = isMac ? "Cmd" : "Ctrl";
 
     return (
-        <div className={cn("flex flex-col", readOnly && "opacity-80")}>
+        <div className={cn("flex flex-col", expanded && "h-full min-h-0", readOnly && "opacity-80")}>
             {/* Toolbar */}
             <div className="flex min-h-10 flex-wrap items-center gap-2 border-b border-editor-border bg-editor-panel px-3 py-1.5">
                 <span className="flex min-w-0 items-center gap-2">
@@ -615,6 +758,31 @@ export default function CodeEditor({
                             </dl>
                         </PopoverContent>
                     </Popover>
+                    {/* Back / forward through the edits, the same steps as Ctrl+Z / Ctrl+Shift+Z. */}
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => travel("undo", "redo")}
+                        disabled={readOnly || historySize.undo === 0}
+                        aria-label="Undo"
+                        title={`Undo (${modLabel}+Z)`}
+                        className="size-7 sm:size-6 text-editor-muted hover:bg-editor-raised hover:text-editor-foreground"
+                    >
+                        <LuUndo2 />
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => travel("redo", "undo")}
+                        disabled={readOnly || historySize.redo === 0}
+                        aria-label="Redo"
+                        title={`Redo (${modLabel}+Shift+Z)`}
+                        className="size-7 sm:size-6 text-editor-muted hover:bg-editor-raised hover:text-editor-foreground"
+                    >
+                        <LuRedo2 />
+                    </Button>
                     <Button
                         type="button"
                         variant="ghost"
@@ -632,10 +800,16 @@ export default function CodeEditor({
             </div>
 
             {/* Editor canvas: line numbers, highlight layer, transparent textarea on top.
-                Height follows the stable small viewport (svh), so the on-screen keyboard
-                does not resize it. Phones get 16px text: globals.css forces 16px on
+                Height is a fixed pixel value (the resize handle below, first from the window
+                height), so the on-screen keyboard does not resize it. Phones get 16px text: globals.css forces 16px on
                 textareas up to 425px (iOS focus zoom), and both layers must match. */}
-            <div className="relative flex h-[clamp(15rem,50svh,36rem)] min-h-0 bg-editor font-mono text-[13px] leading-6 [font-variant-ligatures:none] focus-within:ring-2 focus-within:ring-editor-accent/40 focus-within:ring-inset max-[425px]:text-base">
+            <div
+                className={cn(
+                    "relative flex min-h-0 bg-editor font-mono text-[13px] leading-6 [font-variant-ligatures:none] focus-within:ring-2 focus-within:ring-editor-accent/40 focus-within:ring-inset max-[425px]:text-base",
+                    expanded && "flex-1"
+                )}
+                style={expanded ? undefined : { height: canvasHeight }}
+            >
                 <div
                     ref={gutterRef}
                     aria-hidden="true"
@@ -675,6 +849,9 @@ export default function CodeEditor({
                         onSelect={updateCursorPos}
                         onKeyDown={handleKeyDown}
                         onScroll={handleScroll}
+                        onFocus={() => { touchedRef.current = true; }}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
                         spellCheck={false}
                         autoCapitalize="off"
                         autoComplete="off"
@@ -686,6 +863,19 @@ export default function CodeEditor({
                     />
                 </div>
             </div>
+
+            {/* Drag (or arrow keys) to make the code area taller or shorter; the expanded workspace fills the window instead. */}
+            {!expanded && (
+                <ResizeHandle
+                    axis="y"
+                    value={canvasHeight}
+                    min={MIN_HEIGHT}
+                    max={maxHeight()}
+                    onChange={resizeCanvas}
+                    label="Resize the code editor"
+                    className="border-t border-editor-border"
+                />
+            )}
 
             {/* Status bar */}
             <div className="flex h-7 items-center gap-3 border-t border-editor-border bg-editor-panel px-3 font-mono text-[11px] text-editor-muted">

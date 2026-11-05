@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/ta
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/shadcn/alert-dialog";
 
 import { LuBug, LuCheck, LuCode, LuLightbulb, LuListChecks, LuLoaderCircle, LuLock } from "react-icons/lu";
+import QuizText from "./challenges/quizText";
 
 function ChallengeSkeleton() {
     return <Skeleton role="status" aria-label="Loading challenge" className="h-72 w-full rounded-lg" />;
@@ -92,7 +93,7 @@ function ChallengeHeader({ challenge, isDone, isExhausted }) {
             </div>
             <h2 className="text-lg font-semibold tracking-tight">{challenge.title}</h2>
             {challenge.description && (
-                <p className="max-w-[70ch] text-sm leading-relaxed text-muted-foreground">{challenge.description}</p>
+                <QuizText text={challenge.description} className="max-w-[70ch] text-sm leading-relaxed text-muted-foreground" />
             )}
         </div>
     );
@@ -112,7 +113,7 @@ function ChallengeHints({ challenge, isDone, legacyHint }) {
         return legacyHint ? (
             <details className="group rounded-md border border-dashed px-3 py-2 text-sm">
                 <summary className="cursor-pointer font-medium select-none">Need a hint?</summary>
-                <p className="mt-2 text-muted-foreground">{legacyHint}</p>
+                <QuizText text={legacyHint} className="mt-2 text-muted-foreground" />
             </details>
         ) : null;
     }
@@ -143,11 +144,12 @@ function ChallengeHints({ challenge, isDone, legacyHint }) {
             </div>
 
             {opened.length > 0 && (
-                <ol className="space-y-2">
+                // list-none: the "Hint N" label carries the number (the lesson's list styles add markers outside the box).
+                <ol className="list-none space-y-3 p-0">
                     {opened.map((hint) => (
-                        <li key={hint.level}>
+                        <li key={hint.level} className="m-0">
                             <p className="text-xs font-medium text-muted-foreground">Hint {hint.level}: {HINT_LABELS[hint.level]}</p>
-                            <p className="mt-0.5 whitespace-pre-wrap">{hint.body}</p>
+                            <QuizText text={hint.body} className="mt-0.5 leading-relaxed" />
                         </li>
                     ))}
                 </ol>

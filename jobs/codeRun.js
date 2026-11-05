@@ -30,7 +30,15 @@ export const codeRun = inngest.createFunction(
         const runId = event.data?.runId;
         if (!runId) throw new NonRetriableError("code/run.requested without a runId");
 
-        const executed = await step.run("execute", () => challengeService.executeCodeRun(runId));
+        const executed = await step.run("execute", async () => {
+            try {
+                return await challengeService.executeCodeRun(runId);
+            } catch (error) {
+                // Retrying cannot fix a refused request: fail now instead of after every backoff.
+                if (error?.permanent) throw new NonRetriableError(error.message, { cause: error });
+                throw error;
+            }
+        });
         if (executed.status !== "graded") return executed;
         return step.run("finalize", () => challengeService.finalizeCodeRun(runId));
     }

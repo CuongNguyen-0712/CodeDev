@@ -2,15 +2,19 @@
 /**
  * Runs the lesson pipeline for every lesson listed in content/courses/<course>/course.json:
  *
- *   verify-challenges -> upload-images -> upload-storage -> build-lesson   (per lesson)
+ *   build-pieces -> verify-challenges -> upload-images -> upload-storage -> build-lesson   (per lesson)
  *   build-seed                                                            (once, whole course)
  *   push-lesson                                                           (per lesson, with --push)
+ *   push-lesson-payload                                                   (per lesson, with --payload)
  *
  * Usage:
  *   node content/tools/build-course.mjs content/courses/<course>                 # local storage (.env.local)
- *   node content/tools/build-course.mjs content/courses/<course> --push          # also write Sanity drafts
+ *   node content/tools/build-course.mjs content/courses/<course> --payload       # also write the local Payload CMS
+ *   node content/tools/build-course.mjs content/courses/<course> --push          # also write Sanity drafts (production)
  *   node content/tools/build-course.mjs content/courses/<course> --push --publish   # write published Sanity documents
+ *   --push-env <file>  env file for push-lesson (default .env.production; must be production or staging)
  *   node content/tools/build-course.mjs content/courses/<course> --only 02-event-loop-async-pitfalls
+ *   --payload        also write the lessons to the local Payload CMS (docs/payload-cms.md)
  *   --skip-uploads   reuse assets.json / storage-manifest.json (no Cloudinary / S3 calls)
  *   --storage-env <file>   env file for upload-storage (default .env.local)
  *   --storage-only   only run upload-storage for every lesson (e.g. with --storage-env .env.production)
@@ -49,6 +53,7 @@ for (const lesson of lessons) {
     console.log(`\n=== ${lesson.module}.${lesson.orderIndex} ${lesson.title} (${lesson.folder})`);
     if (!fs.existsSync(path.join(dir, "lesson.source.mjs"))) throw new Error(`${lesson.folder}: lesson.source.mjs is missing`);
 
+    run("build-pieces.mjs", dir);
     run("verify-challenges.mjs", dir);
     if (!flag("--skip-uploads")) {
         if (fs.existsSync(path.join(dir, "diagrams"))) run("upload-images.mjs", dir);
@@ -59,6 +64,11 @@ for (const lesson of lessons) {
 
 run("build-seed.mjs", courseDir);
 
+if (flag("--payload")) {
+    run("push-lesson-payload.mjs", ...lessons.map((lesson) => path.join(courseDir, lesson.folder)));
+}
+
 if (flag("--push")) {
-    for (const lesson of lessons) run("push-lesson.mjs", path.join(courseDir, lesson.folder), ...(flag("--publish") ? ["--publish"] : []));
+    const pushEnv = option("--push-env", ".env.production");
+    for (const lesson of lessons) run("push-lesson.mjs", path.join(courseDir, lesson.folder), "--env", pushEnv, ...(flag("--publish") ? ["--publish"] : []));
 }

@@ -23,6 +23,8 @@ const envFile = option("--env", ".env.local");
 const to = option("--to");
 
 dotenv.config({ path: path.resolve(root, envFile), quiet: true, override: true });
+// Shared values (.env) under the env file above, the order Next.js uses.
+dotenv.config({ path: path.resolve(root, ".env"), quiet: true });
 
 const { mailConfig, describeMail } = await import("../lib/mailConfig.mjs");
 const { sendMail, verifyMail } = await import("../lib/mail.js");

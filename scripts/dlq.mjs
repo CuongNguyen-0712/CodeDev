@@ -23,6 +23,8 @@ const args = process.argv.slice(2);
 const envIndex = args.indexOf("--env");
 const envFile = envIndex >= 0 ? args.splice(envIndex, 2)[1] : null;
 dotenv.config({ path: path.resolve(root, envFile || ".env.local"), quiet: true, override: true });
+// Shared values (.env) under the env file above, the order Next.js uses.
+dotenv.config({ path: path.resolve(root, ".env"), quiet: true });
 const [command = "list", id, ...note] = args;
 
 if (!process.env.DATABASE_URL) {

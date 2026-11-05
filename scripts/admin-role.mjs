@@ -29,6 +29,8 @@ const take = (flag) => {
 const envFile = take("--env");
 const reason = take("--reason");
 dotenv.config({ path: path.resolve(root, envFile || ".env.local"), quiet: true, override: true });
+// Shared values (.env) under the env file above, the order Next.js uses.
+dotenv.config({ path: path.resolve(root, ".env"), quiet: true });
 const [command, email, roleCode] = args;
 
 const usage = () => {

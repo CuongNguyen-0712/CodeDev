@@ -26,13 +26,15 @@ const { challenges = [] } = JSON.parse(fs.readFileSync(path.join(lessonDir, "cha
 let counter = 0;
 const key = (salt = "") => createHash("sha1").update(`${++counter}:${salt}`).digest("hex").slice(0, 12);
 
-// "Plain `code` and **bold**" -> Portable Text spans
+// "Plain `code` and **bold**" -> Portable Text spans. Code inside bold ("**`npm ci` first**")
+// gets both marks.
 function spans(text) {
-    return String(text).split(/(`[^`]+`|\*\*[^*]+\*\*)/).filter(Boolean).map((part) => {
-        if (part.startsWith("`")) return { _type: "span", _key: key(part), text: part.slice(1, -1), marks: ["code"] };
-        if (part.startsWith("**")) return { _type: "span", _key: key(part), text: part.slice(2, -2), marks: ["strong"] };
-        return { _type: "span", _key: key(part), text: part, marks: [] };
-    });
+    const codeSpans = (part, marks) => part.split(/(`[^`]+`)/).filter(Boolean).map((piece) => (piece.startsWith("`") && piece.endsWith("`") && piece.length > 1
+        ? { _type: "span", _key: key(piece), text: piece.slice(1, -1), marks: [...marks, "code"] }
+        : { _type: "span", _key: key(piece), text: piece, marks }));
+    return String(text).split(/(\*\*[^*]+\*\*)/).filter(Boolean).flatMap((part) =>
+        part.startsWith("**") && part.endsWith("**") && part.length > 4 ? codeSpans(part.slice(2, -2), ["strong"]) : codeSpans(part, [])
+    );
 }
 
 const block = (style, text, extra = {}) => ({ _type: "block", _key: key(text), style, markDefs: [], children: spans(text), ...extra });

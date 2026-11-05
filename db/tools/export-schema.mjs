@@ -27,6 +27,8 @@ const { Client } = require("pg");
 const args = process.argv.slice(2);
 const envFile = args.includes("--env") ? args[args.indexOf("--env") + 1] : ".env.local";
 dotenv.config({ path: path.join(root, envFile), quiet: true });
+// Shared values (.env) under the env file above, the order Next.js uses.
+dotenv.config({ path: path.join(root, ".env"), quiet: true });
 
 const SCHEMAS = ["public", "identity", "profile", "catalog", "course", "learning", "challenge", "roadmap", "community", "commerce", "storage", "ops"];
 const DB_DIR = path.join(root, "db");

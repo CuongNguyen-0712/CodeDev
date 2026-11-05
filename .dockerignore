@@ -25,6 +25,7 @@ yarn-error.log*
 # not part of the app runtime
 sandbox
 content
+cms
 scripts
 docs
 __tests__

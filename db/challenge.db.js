@@ -289,6 +289,7 @@ export const challengeDb = {
                 cfg.memory_limit_mb,
                 cfg.max_attempts,
                 COALESCE(cfg.scoring_mode, 'all_or_nothing') AS scoring_mode,
+                cfg.snippets,
                 COALESCE((
                     SELECT json_agg(json_build_object(
                         'role', cf.file_role,

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
 import { Kbd } from "@/components/shadcn/kbd";
 import { Progress } from "@/components/shadcn/progress";
+import QuizText from "./quizText";
 
 import {
     LuArrowLeft,
@@ -99,7 +100,11 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
     const isRetaking = retaking && !state?.passed && Number(state?.attemptsLeft ?? 1) > 0;
     const isSubmitted = Boolean(state?.attempted) && !isRetaking;
     const result = isSubmitted ? state : null;
-    const answers = result?.answers || draftAnswers;
+    // Right in an earlier attempt (server-kept): shown as done, the next attempt does not ask them again.
+    const lockedIds = new Set((state?.lockedQuestionIds || []).map(String));
+    const lockedPrevious = Object.fromEntries(Object.entries(state?.answers || {}).filter(([qId]) => lockedIds.has(String(qId))));
+    const answers = result?.answers || { ...lockedPrevious, ...draftAnswers };
+    const isLocked = (question) => isRetaking && lockedIds.has(String(question.id));
     const isPassed = Boolean(state?.passed);
     const attemptsLeft = Number(state?.attemptsLeft ?? 0);
     const isSubmitting = submitQuiz.isPending;
@@ -168,7 +173,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
     const waitSeconds = Math.max(retrySecondsLeft, state?.canSubmit === false ? secondsLeft : 0);
 
     const handleSelectOption = (question, optionId) => {
-        if (isSubmitted || isSubmitting || isLoadingState) return;
+        if (isSubmitted || isSubmitting || isLoadingState || isLocked(question)) return;
 
         setAnswers((prev) => {
             if (question.type !== "multiple_choice") {
@@ -266,7 +271,8 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
         if (!state?.canSubmit) return;
         setAnswers({});
         setSubmitError(null);
-        setCurrentStep(0);
+        // Start at the first question still to answer.
+        setCurrentStep(Math.max(0, questions.findIndex((q) => !lockedIds.has(String(q.id)))));
         setRetaking(true);
     };
 
@@ -297,7 +303,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                 {questions.length > 1 && <nav aria-label="Questions" className="flex flex-wrap gap-1">
                     {questions.map((q, idx) => {
                         const isCurrent = idx === currentStep;
-                        const graded = result?.results?.[String(q.id)];
+                        const graded = result?.results?.[String(q.id)] || (isLocked(q) ? { isCorrect: true } : null);
                         return (
                             <button
                                 key={q.id}
@@ -333,11 +339,20 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
 
             <div className="space-y-4 p-4 sm:p-5">
                 <div className="space-y-1">
-                    <h3 className="text-base leading-snug font-medium text-foreground">{currentQuestion.content}</h3>
+                    {/* Not an <h3>: questions can hold code blocks. */}
+                    <div role="heading" aria-level={3} className="text-base leading-snug font-medium text-foreground">
+                        <QuizText text={currentQuestion.content} />
+                    </div>
                     <p className="text-xs text-muted-foreground">
                         {isMultiple ? 'Select all answers that apply.' : 'Select one answer.'}
                     </p>
                     {/* Before a pass the server grades whole questions, never single options. */}
+                    {isLocked(currentQuestion) && (
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-success">
+                            <LuCheck className="size-3.5" aria-hidden="true" />
+                            Correct in an earlier attempt: this answer is kept, nothing to do here.
+                        </p>
+                    )}
                     {isSubmitted && !isPassed && qResult && (
                         <p className={cn('flex items-center gap-1.5 text-xs font-medium', qResult.isCorrect ? 'text-success' : 'text-destructive')}>
                             {qResult.isCorrect ? <LuCheck className="size-3.5" aria-hidden="true" /> : <LuX className="size-3.5" aria-hidden="true" />}
@@ -368,7 +383,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                                 role={isMultiple ? "checkbox" : "radio"}
                                 aria-checked={selected}
                                 onClick={() => handleSelectOption(currentQuestion, option.id)}
-                                disabled={isSubmitted || isSubmitting || isLoadingState}
+                                disabled={isSubmitted || isSubmitting || isLoadingState || isLocked(currentQuestion)}
                                 className={cn(
                                     'flex w-full items-center gap-3 rounded-md border bg-background px-3 py-2.5 text-left text-sm transition-colors hover:border-primary/40 hover:bg-primary-soft/40 disabled:cursor-default',
                                     selected && !outcome && 'border-primary bg-primary-soft/60',
@@ -392,7 +407,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                                         : selected || outcome === 'missed' ? <LuCheck className="size-3" />
                                             : OPTION_KEYS[optIdx]}
                                 </span>
-                                <span className="min-w-0 flex-1">{option.content}</span>
+                                <QuizText text={option.content} inline className="min-w-0 flex-1" />
                                 {outcome === 'correct' && <span className="text-xs font-medium text-success">Correct</span>}
                                 {outcome === 'incorrect' && <span className="text-xs font-medium text-destructive">Incorrect</span>}
                                 {outcome === 'missed' && <span className="text-xs font-medium text-success">Correct answer</span>}
@@ -407,9 +422,9 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                 {isSubmitted && explanation && (
                     <div className="flex gap-2.5 rounded-md border bg-muted/60 p-3 text-sm">
                         <LuLightbulb className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
-                        <div className="space-y-0.5">
+                        <div className="min-w-0 space-y-0.5">
                             <p className="font-medium">Explanation</p>
-                            <p className="text-muted-foreground">{explanation}</p>
+                            <QuizText text={explanation} className="text-muted-foreground" />
                         </div>
                     </div>
                 )}
@@ -428,13 +443,15 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                 </p>
             )}
 
-            <div className="flex items-center justify-between gap-2 border-t px-4 py-3">
-                <Button variant="ghost" size="sm" onClick={handleBack} disabled={currentStep === 0 || isSubmitting}>
+            {/* Phones: the status line takes its own row above Back and the actions, so a long
+                "next attempt in" line never squeezes the buttons. */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
+                <Button variant="ghost" size="sm" onClick={handleBack} disabled={currentStep === 0 || isSubmitting} className="max-sm:mr-auto">
                     <LuArrowLeft />
                     Back
                 </Button>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 max-sm:contents">
                     {!isSubmitted && (
                         <span className="text-xs text-muted-foreground tabular max-sm:hidden">
                             {answeredCount}/{questions.length} answered · attempt {(state?.attemptsUsed ?? 0) + 1} of {state?.maxAttempts ?? 3}
@@ -446,7 +463,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                                 role="status"
                                 aria-live="polite"
                                 className={cn(
-                                    'flex items-center gap-1.5 text-xs font-medium tabular',
+                                    'flex items-center gap-1.5 text-xs font-medium tabular max-sm:order-first max-sm:basis-full',
                                     isPassed ? 'text-success' : 'text-muted-foreground'
                                 )}
                             >
@@ -463,7 +480,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                             </span>
                             {currentStep < questions.length - 1 && (
                                 <Button variant="ghost" size="sm" onClick={handleNext}>
-                                    Next question
+                                    Next <span className="max-sm:hidden">question</span>
                                     <LuArrowRight />
                                 </Button>
                             )}
@@ -489,7 +506,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                         <>
                             {/* A background refresh never hides the button while answering: it says why it waits. */}
                             {waitSeconds > 0 && !submitError && (
-                                <span role="status" className="flex items-center gap-1.5 text-xs text-muted-foreground tabular">
+                                <span role="status" className="flex items-center gap-1.5 text-xs text-muted-foreground tabular max-sm:order-first max-sm:basis-full">
                                     <LuClock className="size-3.5" aria-hidden="true" />
                                     Opens in {formatCountdown(waitSeconds)}
                                 </span>

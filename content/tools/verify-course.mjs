@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * Checks a course of the V1.3 architecture track against its Definition of Done
- * (docs/master-plan-v1.3-adaptation.md P5): course metadata, counts per tier, True/False balance,
- * the scenario, learning-outcome coverage, hints and hidden tests. Runs on the content files only;
- * verify-challenges.mjs still runs the code.
+ * Checks a course's content files (verify-challenges.mjs still runs the code).
+ *   Every course (checkLessons): 1-2 challenges per lesson, snippet lists (coding.snippets).
+ *   V1.3 architecture track (checkCourse): its Definition of Done (docs/master-plan-v1.3-adaptation.md
+ *   P5): course metadata, counts per tier, True/False balance, the scenario, learning-outcome
+ *   coverage, hints and hidden tests. A course with "template": "core-first" (content/README.md)
+ *   gets the per-challenge checks without the tier counts and the scenario.
  *
  * Usage: node content/tools/verify-course.mjs content/courses/<course>
  */
@@ -27,6 +29,62 @@ const isTrueFalse = (q) => q.type === "single_choice" && q.options?.length === 2
     && q.options.filter((o) => o.correct).length === 1;
 const nonEmpty = (s) => typeof s === "string" && s.trim() !== "";
 
+export const MAX_CHALLENGES_PER_LESSON = 2;
+export const MAX_SNIPPETS = 12;
+
+/**
+ * Generated piece list of a piece-assembly challenge (challenges/<id>/pieces.json, written by
+ * build-pieces.mjs), or null for a typed challenge.
+ */
+export function loadPieces(lessonDir, challenge) {
+    const file = path.join(lessonDir, "challenges", challenge.publicId, "pieces.json");
+    return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null;
+}
+
+/**
+ * Shape of the piece list stored in challenge.coding_configs.snippets: `challenge.pieces`
+ * (pieces.json) or the older hand-written coding.snippets. Returns error strings.
+ */
+export function snippetErrors(challenge) {
+    const id = challenge.publicId;
+    if (challenge.pieces && challenge.coding?.snippets) return [`${id}: coding.snippets and pieces.json: keep one`];
+    const snippets = challenge.pieces ?? challenge.coding?.snippets;
+    if (snippets === undefined || snippets === null) return [];
+    if (challenge.type === "quiz") return [`${id}: a quiz cannot have snippets`];
+    if (!Array.isArray(snippets) || !snippets.length) return [`${id}: "coding.snippets" must be a non-empty list (or left out)`];
+    const errors = [];
+    if (snippets.length > MAX_SNIPPETS) errors.push(`${id}: at most ${MAX_SNIPPETS} snippets (has ${snippets.length})`);
+    const seen = new Set();
+    snippets.forEach((sn, i) => {
+        const at = `${id}: snippet ${i + 1}`;
+        if (!sn || typeof sn !== "object") return errors.push(`${at} must be an object`);
+        if (!nonEmpty(sn.id)) errors.push(`${at} needs an "id"`);
+        else if (seen.has(sn.id)) errors.push(`${at}: duplicate id "${sn.id}"`);
+        seen.add(sn.id);
+        if (!nonEmpty(sn.label) || sn.label.length > 60) errors.push(`${at} needs a "label" of 1-60 characters`);
+        if (!nonEmpty(sn.code)) errors.push(`${at} needs "code"`);
+        if (sn.note !== undefined && typeof sn.note !== "string") errors.push(`${at}: "note" must be a string`);
+        if (sn.distractor !== undefined && sn.distractor !== true) errors.push(`${at}: "distractor" must be true when present`);
+        const extra = Object.keys(sn).filter((k) => !["id", "label", "code", "note", "distractor"].includes(k));
+        if (extra.length) errors.push(`${at}: unknown field(s) ${extra.join(", ")}`);
+    });
+    return errors;
+}
+
+/** Rules for every course: lessons: [{ folder, challenges }]. Returns { errors, warnings }. */
+export function checkLessons(lessons, { legacy = false } = {}) {
+    const errors = [];
+    const warnings = [];
+    for (const lesson of lessons) {
+        // "published": false (build-seed) keeps a challenge out of the lesson.
+        const n = lesson.challenges.filter((c) => c.published !== false).length;
+        if (n < 1) errors.push(`${lesson.folder}: a lesson needs at least 1 challenge`);
+        if (n > MAX_CHALLENGES_PER_LESSON) (legacy ? warnings : errors).push(`${lesson.folder}: ${n} challenges (at most ${MAX_CHALLENGES_PER_LESSON} per lesson)`);
+        for (const c of lesson.challenges) errors.push(...snippetErrors(c));
+    }
+    return { errors, warnings };
+}
+
 /**
  * course: parsed course.json; lessons: [{ folder, challenges }] in course order.
  * Returns { tier, errors, warnings, counts }.
@@ -37,6 +95,10 @@ export function checkCourse(course, lessons) {
     const tier = TIER_BY_LEVEL[course.level];
     if (!tier) return { tier, errors: [`unknown level "${course.level}"`], warnings, counts: null };
     const need = TIERS[tier];
+    const coreFirst = course.template === "core-first";
+    const lessonChecks = checkLessons(lessons, { legacy: Boolean(course.existing) });
+    errors.push(...lessonChecks.errors);
+    warnings.push(...lessonChecks.warnings);
 
     // Metadata (V1.3 §11.1). publishStatus and language cover status and sandbox runtime.
     if (!DOMAINS.includes(course.domain)) errors.push(`"domain" must be one of ${DOMAINS.join(", ")}`);
@@ -69,12 +131,12 @@ export function checkCourse(course, lessons) {
     const byBucket = {};
     for (const c of coding) byBucket[`${c.type}.${c.difficulty}`] = (byBucket[`${c.type}.${c.difficulty}`] || 0) + 1;
 
-    if (lessons.length < need.lessons) errors.push(`tier ${tier} needs ${need.lessons} lessons (has ${lessons.length})`);
+    if (!coreFirst && lessons.length < need.lessons) errors.push(`tier ${tier} needs ${need.lessons} lessons (has ${lessons.length})`);
     // A question bank (displayCount) only counts the statements a learner is shown.
     const shown = challenges.filter((c) => c.type === "quiz")
         .reduce((sum, c) => sum + Math.min(c.displayCount ?? Infinity, c.questions.filter(isTrueFalse).length), 0);
-    if (shown < need.trueFalse) errors.push(`tier ${tier} needs ${need.trueFalse} True/False statements shown to a learner (has ${shown})`);
-    for (const [type, levels] of Object.entries(need.coding)) {
+    if (!coreFirst && shown < need.trueFalse) errors.push(`tier ${tier} needs ${need.trueFalse} True/False statements shown to a learner (has ${shown})`);
+    for (const [type, levels] of Object.entries(coreFirst ? {} : need.coding)) {
         for (const [difficulty, min] of Object.entries(levels)) {
             const has = byBucket[`${type}.${difficulty}`] || 0;
             if (has < min) errors.push(`tier ${tier} needs ${min} ${difficulty} ${type} challenges (has ${has})`);
@@ -92,7 +154,9 @@ export function checkCourse(course, lessons) {
     // Scenario: >= 5 statements on one evidence pack + a fix-bug that reproduces the incident.
     const byId = new Map(challenges.map((c) => [c.publicId, c]));
     const scenario = course.scenario;
-    if (!scenario || !nonEmpty(scenario.title)) {
+    if (coreFirst) {
+        // Core-first courses have no course-wide scenario pack.
+    } else if (!scenario || !nonEmpty(scenario.title)) {
         errors.push(`"scenario" needs { title, quiz, fixBug }`);
     } else {
         const quiz = byId.get(scenario.quiz);
@@ -101,7 +165,7 @@ export function checkCourse(course, lessons) {
         else if (quiz.displayCount != null) errors.push(`scenario quiz ${quiz.publicId} must not use "displayCount": its statements follow the evidence in order`);
         if (byId.get(scenario.fixBug)?.type !== "fix_bug") errors.push(`scenario.fixBug "${scenario.fixBug}" is not a fix_bug challenge of this course`);
     }
-    if (!coding.some((c) => c.type === "fix_bug" && /^Spot the AI Mistake/i.test(c.title ?? ""))) {
+    if (!coreFirst && !coding.some((c) => c.type === "fix_bug" && /^Spot the AI Mistake/i.test(c.title ?? ""))) {
         errors.push(`no fix_bug challenge titled "Spot the AI Mistake: ..."`);
     }
 
@@ -114,6 +178,9 @@ export function checkCourse(course, lessons) {
         for (const t of c.tests ?? []) if (String(t.name ?? "").length > 100) errors.push(`${c.publicId}: test name over 100 characters: "${t.name}"`);
         // The code runner refuses a test input over 128 KB (sandbox/server.mjs MAX_INPUT_BYTES).
         for (const t of c.tests ?? []) if (Buffer.byteLength(JSON.stringify(t.input ?? null)) > 128 * 1024) errors.push(`${c.publicId}: test input over 128 KB: "${t.name}"`);
+        // Core-first courses: the learner assembles pieces cut from the solution (build-pieces.mjs).
+        if (coreFirst && !c.pieces) errors.push(`${c.publicId}: core-first coding challenges use pieces (mark @piece blocks in solution.<ext>, run build-pieces.mjs)`);
+        if (c.pieces && !c.pieces.some((p) => p.distractor)) warnings.push(`${c.publicId}: no distractor piece`);
     }
 
     // Every outcome is checked by at least one quiz and one coding challenge.
@@ -139,7 +206,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const course = JSON.parse(fs.readFileSync(path.join(courseDir, "course.json"), "utf8"));
     const lessons = (course.modules || []).flatMap((m) => m.lessons).map((l) => ({
         folder: l.folder,
-        challenges: JSON.parse(fs.readFileSync(path.join(courseDir, l.folder, "challenges.json"), "utf8")).challenges,
+        challenges: JSON.parse(fs.readFileSync(path.join(courseDir, l.folder, "challenges.json"), "utf8")).challenges
+            .map((c) => ({ ...c, pieces: loadPieces(path.join(courseDir, l.folder), c) })),
     }));
     const { tier, errors, warnings, counts } = checkCourse(course, lessons);
     console.log(`${course.publicId} (${course.level}, tier ${tier})`);

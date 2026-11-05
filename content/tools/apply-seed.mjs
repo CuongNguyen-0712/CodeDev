@@ -26,6 +26,8 @@ if (!files.length) throw new Error("usage: apply-seed.mjs <seed.sql> [...] [--en
 const explicitUrl = process.env.DATABASE_URL && !envFile ? process.env.DATABASE_URL : null;
 const env = {};
 if (!explicitUrl) require("dotenv").config({ path: path.resolve(root, envFile || ".env.local"), quiet: true, processEnv: env });
+// Shared values (.env) under the env file above, the order Next.js uses.
+if (!explicitUrl) require("dotenv").config({ path: path.resolve(root, ".env"), quiet: true, processEnv: env });
 const url = explicitUrl || env.DATABASE_URL_UNPOOLED || env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is not set");
 

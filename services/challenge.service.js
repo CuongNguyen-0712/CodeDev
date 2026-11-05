@@ -13,9 +13,10 @@ import { parseJsonSafe } from "@/lib/challenges/compare";
 import { executeTests, sandboxKey, serverExecutionEnabled, totalSlots } from "@/lib/challenges/codeRunner";
 import { isDeployedEnv } from "@/lib/appEnv.mjs";
 import { detectEntryName } from "@/lib/challenges/entry";
-import { pickQuestions } from "@/lib/challenges/questionBank";
+import { CONFIG_LANGUAGES, isBrowserLanguage, isConfigLanguage, runnerLanguage, toRunnableCode } from "@/lib/challenges/languages";
+import { dealPieces, pickQuestions } from "@/lib/challenges/questionBank";
 import {
-    MAX_QUIZ_ATTEMPTS, QUIZ_COOLDOWN_SECONDS, QUIZ_PASS_RATIO, evaluateQuizHistory, gradeQuiz, normaliseAnswer, quizStateView,
+    MAX_QUIZ_ATTEMPTS, QUIZ_COOLDOWN_SECONDS, QUIZ_PASS_RATIO, evaluateQuizHistory, gradeQuiz, lockedAnswers, normaliseAnswer, quizStateView,
 } from "@/lib/challenges/quiz";
 import { gradeTests, normaliseTestCases, summariseGrading, testView } from "@/lib/challenges/grading";
 import { normalizedCodeHash } from "@/lib/challenges/codeHash";
@@ -43,6 +44,7 @@ const LANGUAGE_FILES = {
     php: { ext: "php", mime: "text/x-php" },
     kotlin: { ext: "kt", mime: "text/x-kotlin" },
     csharp: { ext: "cs", mime: "text/x-csharp" },
+    ...CONFIG_LANGUAGES,
 };
 
 function codeRunnerRequired() {
@@ -195,7 +197,7 @@ function submissionView(row) {
  */
 async function runOnServer({ definition, code, testCases, sandbox = null }) {
     const language = codingLanguage(definition);
-    if (language !== "javascript") {
+    if (!isBrowserLanguage(language)) {
         return executeTests({
             language,
             sandbox,
@@ -214,19 +216,20 @@ async function runOnServer({ definition, code, testCases, sandbox = null }) {
         readStorageFile(harnessFile?.object_key),
     ]);
 
+    // Config challenges run as javascript: the file text becomes `__source` for the harness.
     return executeTests({
-        language,
+        language: runnerLanguage(language),
         sandbox,
-        code,
+        code: toRunnableCode(language, code),
         harness: harnessCode,
-        entry: detectEntryName(starterCode || code),
+        entry: isConfigLanguage(language) ? null : detectEntryName(starterCode || code),
         tests: testCases.map((tc) => ({ id: tc.id, input: tc.input })),
         timeLimitMs: Number(definition.time_limit_ms) || 2000,
         memoryLimitMb: Number(definition.memory_limit_mb) || 128,
     });
 }
 
-/** Language of a coding challenge (its starter file). Only javascript runs in the browser. */
+/** Language of a coding challenge (its starter file). javascript and config files run in the browser. */
 function codingLanguage(definition) {
     const starterFile = (definition.files || []).find((f) => f.role === "starter" || !f.role);
     return starterFile?.language || "javascript";
@@ -410,15 +413,18 @@ export const challengeService = {
             throw new ApiError("You have already passed this quiz", 409);
         }
 
+        // Questions right in an earlier attempt keep that answer, whatever the browser sends.
+        const merged = { ...(answers || {}), ...lockedAnswers(history) };
+
         // Partial submissions would waste an attempt: require an answer for every question.
-        const unanswered = questions.filter((q) => normaliseAnswer(q, answers?.[q.question_id]).length === 0);
+        const unanswered = questions.filter((q) => normaliseAnswer(q, merged[q.question_id]).length === 0);
         if (unanswered.length > 0) {
             throw new ApiError("Answer every question before submitting", 400, {
                 details: { missingQuestionIds: unanswered.map((q) => q.question_id) },
             });
         }
 
-        const graded = gradeQuiz(questions, answers || {});
+        const graded = gradeQuiz(questions, merged);
 
         // Attempt limit and cooldown are re-checked under a lock inside the transaction.
         const saved = await challengeDb.saveQuizAttempt({
@@ -531,6 +537,9 @@ export const challengeService = {
             executionMode: definition.execution_mode,
             timeLimitMs: Number(definition.time_limit_ms) || 2000,
             scoringMode: definition.scoring_mode,
+            // Pieces the learner assembles (content/README.md "Pieces"): a fixed shuffled order per
+            // learner, distractor flags removed. [] for a typed challenge.
+            snippets: dealPieces(definition.snippets, { userDbId: ctx.user_db_id, challengeId: ctx.id }),
             maxAttempts: maxCodingAttempts(definition),
             // The code runner grades Run (other languages) and Submit as queued runs (queueCodeRun).
             serverGraded: serverExecutionEnabled(),
@@ -573,9 +582,9 @@ export const challengeService = {
         // With a code runner configured, the server runs every test itself before an attempt is
         // used (a runner outage costs no attempt) and ignores the outputs the browser reported.
         const serverRun = serverExecutionEnabled();
-        // Only javascript runs in the browser; other languages cannot be graded without the runner.
+        // Only javascript and config files run in the browser; other languages need the runner.
         // Production never trusts browser-reported outputs: they can be forged for points and EXP.
-        if (!serverRun && (language !== "javascript" || isDeployedEnv())) throw codeRunnerRequired();
+        if (!serverRun && (!isBrowserLanguage(language) || isDeployedEnv())) throw codeRunnerRequired();
         const executed = serverRun ? await runOnServer({ definition, code, testCases }) : results;
 
         const publicGraded = gradeTests(publicCases, executed, language);
@@ -710,7 +719,7 @@ export const challengeService = {
         await admitCodeRun(kind);
         const language = codingLanguage(definition);
         const publicId = `run_${ulid().toLowerCase()}`;
-        const sandbox = sandboxKey(language, publicId);
+        const sandbox = sandboxKey(runnerLanguage(language), publicId);
         await codeRunDb.create({
             publicId,
             userDbId: ctx.user_db_id,

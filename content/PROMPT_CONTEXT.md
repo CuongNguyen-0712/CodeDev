@@ -18,6 +18,11 @@ CodeDev dạy developer giải bài toán kỹ thuật thực tế: chọn công
 bằng evidence (test pass, log, query plan, số đo). Catalog hiện có 46 course theo vai trò và ngôn ngữ;
 track kiến trúc V1.3 (A1–E7) được thêm dần (mapping: `docs/master-plan-v1.3-adaptation.md` §4).
 
+Định hướng catalog (từ 2026-11): mỗi course dạy cách **áp dụng một framework/engine đang dùng thật**
+(Docker, Nginx, Kubernetes, GitHub Actions, PostgreSQL, Redis, Kafka, Next.js, NestJS, OpenTelemetry…)
+vào một tình huống production cụ thể. Lý thuyết ngôn ngữ thuần chỉ là nền, không thành lesson riêng;
+không thêm course mới kiểu "học cú pháp ngôn ngữ X".
+
 Nguyên tắc nội dung:
 1. Bài toán trước, công cụ sau; giải thích vì sao và khi nào **không** nên trước cách làm.
 2. Kiến trúc đơn giản nhất chạy được trước; chỉ thêm cache, queue, service khi có lý do đo được.
@@ -57,6 +62,8 @@ coding challenge (theo tier) + từ advanced trở lên ≥1 bài coding hard. M
 | Hint tĩnh 3 cấp (`hints` trong `challenges.json`), mở lần lượt, server ghi lượt mở; mở cấp 3 trước khi pass = 50% EXP | |
 | Ngôn ngữ: javascript (function mode, chạy cả trên browser), typescript (`tsc --strict`), python, c, cpp, java, go, rust, php, kotlin, csharp (stdio, chỉ chạy trong code runner) | Gọi LLM/API thật |
 | SQL: Python + `sqlite3` (stdio), runner nạp bảng từ input test | `EXPLAIN` PostgreSQL |
+| File config `dockerfile`, `nginx`, `yaml`: học viên sửa file, `harness.js` parse và mô phỏng engine | Chạy Docker, Nginx, Kubernetes thật |
+| Ghép mảnh: lời giải được cắt thành mảnh, học viên ghép lại (bấm hoặc kéo thả), có mảnh nhiễu | |
 
 Thay thế: Redis = Map + mảng sắp xếp in-memory; LLM = fake model trả fixture theo script; thời gian =
 fake clock truyền vào; fetch = fake fetch; React = reducer/hook thuần.
@@ -82,7 +89,10 @@ Ngoài EXP, mỗi challenge có `points` (điểm thưởng): lấy theo course 
 | 3 | 10–12 | 25 | 0/4/2 | 0/2/1 |
 | 4 | 12–15 | 30 | 0/3/4 | 0/0/2 |
 
-Mỗi lesson: 1 quiz challenge (4–6 câu) + 0–1 coding challenge. Phân bổ sao cho tổng của course khớp bảng.
+Bảng trên chỉ áp dụng cho track V1.3 cũ (mỗi lesson 1 quiz 4–6 câu + 0–1 coding). Course mới theo khuôn
+**core-first** (`"template": "core-first"` trong `course.json`): mỗi lesson **1–2 challenge** (1 quiz 3–5
+câu và/hoặc 1 coding), ≥ 60% lesson có coding; `verify-course.mjs` báo lỗi khi lesson có 0 hoặc > 2
+challenge.
 Không thêm câu vào quiz đã có người làm: lượt cũ bị chấm lại theo bộ câu mới.
 
 </codedev_context>
@@ -108,6 +118,9 @@ dung chính xác kỹ thuật, chạy được ngay trên pipeline CodeDev.
 5. Coding: không mạng, không LLM/API thật, deterministic, xong xa dưới `timeLimitMs`.
    - javascript: Web Worker, không DOM, không API riêng Node, không import; entry = hàm đầu tiên trong
      `starter.js`; `harness.js` định nghĩa `async function __harness(input, ctx)` và trả JSON so với `expected`.
+   - file config (`dockerfile`, `nginx`, `yaml`): `starter.<ext>` là file config học viên sửa; khi chạy,
+     nội dung file thành biến toàn cục `__source` (string), không có entry; `harness.js` parse `__source`,
+     mô phỏng engine (layer cache, routing, upstream, depends_on…) và trả JSON so với `expected`.
    - ngôn ngữ khác: stdio; starter đọc một test case từ stdin (string giữ nguyên, còn lại là JSON), in kết
      quả; giữ runner nhỏ ở cuối file, học viên chỉ viết hàm.
    - Test ẩn phủ edge case, input lớn, input sai; với fix bug, test ẩn bắt đúng lỗi cài sẵn.
@@ -142,10 +155,16 @@ Metadata V1.3 §11.1 (bắt buộc với track kiến trúc, `content/tools/veri
 `scenario` (`{ "title": "…", "quiz": "<publicId quiz ≥5 câu Đ/S>", "fixBug": "<publicId fix_bug>" }`).
 Kèm bảng: lesson → outcome → số câu Đ/S → coding liên quan; scenario của course; phần not graded.
 
-### O2 — Lesson (`lesson.source.mjs`)
-Theo helper có sẵn (`h2`, `p`, `code`, `callout`, `image`, `challenge`). Thứ tự: Problem (tình huống) →
-Core idea (vì sao, khi nào không nên) → Example (code chạy được) → How to verify → Common mistakes (3–5,
-mỗi cái có cách phát hiện) → Summary (3 ý) → `challenge(...)` inline ở chỗ hợp lý.
+### O2 — Lesson (`lesson.source.mjs`), khuôn core-first
+Theo helper có sẵn (`h2`, `p`, `code`, `callout`, `image`, `challenge`). 12–18 phút, chỉ dạy phần lõi cần
+để làm được việc trong dự án thật. Thứ tự:
+1. **Situation**: 1 đoạn, sự cố hoặc yêu cầu thật trong bối cảnh course.
+2. **The core you need**: chỉ các khái niệm dùng ở bước 3 (không liệt kê tính năng).
+3. **Apply it in the project**: file thật (Dockerfile, nginx.conf, module code) theo cây thư mục dự án.
+4. **Verify**: lệnh chạy và output mong đợi.
+5. **Pitfalls**: tối đa 3, mỗi cái có cách phát hiện.
+6. `challenge(...)`: 1–2 challenge của lesson.
+Sơ đồ là tùy chọn. Track V1.3 cũ giữ thứ tự Problem → Core idea → Example → Verify → Mistakes → Summary.
 
 ### O3 — Quiz challenge (`challenges.json`)
 ```json
@@ -162,13 +181,15 @@ mỗi cái có cách phát hiện) → Summary (3 ý) → `challenge(...)` inlin
     {
       "type": "single_choice",
       "points": 5,
-      "question": "<evidence: code/log/query>\n\nStatement: \"…\"",
+      "question": "Một câu dẫn.\n\n```<lang>\n<evidence: code/log/query/config>\n```\n\nStatement: \"…\"",
       "explanation": "Vì sao True/False; hiểu lầm phổ biến.",
       "options": [{ "text": "True", "correct": false }, { "text": "False", "correct": true }]
     }
   ]
 }
 ```
+Evidence luôn nằm trong fence ```` ```<lang> ```` (`text` cho log, bảng); tên biến, lệnh, header trong câu
+dùng backtick. Quiz hiển thị fence thành code block có highlight (câu cũ không có fence vẫn giữ xuống dòng).
 
 ### O4 — Coding challenge (`challenges.json` + `challenges/<publicId>/`)
 ```json
@@ -186,8 +207,25 @@ mỗi cái có cách phát hiện) → Summary (3 ý) → `challenge(...)` inlin
   "tests": [{ "name": "mục đích test", "input": {}, "expected": null, "hidden": false, "score": 5 }]
 }
 ```
-javascript: `"executionMode": "browser"` + `harness.js`. File: `starter.<ext>`, `solution.<ext>`
-(nội bộ), `variants/*.<ext>`. Quiz và coding đều có `"hints"` (rule 8).
+javascript và file config: `"executionMode": "browser"` + `harness.js`. File: `starter.<ext>`,
+`solution.<ext>` (nội bộ), `variants/*.<ext>`. Quiz và coding đều có `"hints"` (rule 8).
+
+**Ghép mảnh (pieces, bắt buộc với course core-first)**: viết một `solution.<ext>` hoàn chỉnh pass mọi test,
+rồi đánh dấu 3–6 khối logic để cắt ra bằng dòng comment riêng:
+```
+// @piece parse-port: PORT: digits only, 1-65535
+…code…
+// @end
+```
+(`#` cho python, dockerfile, nginx, yaml, hcl). `node content/tools/build-pieces.mjs <lesson>` sinh `starter.<ext>`
+(lời giải bị cắt, mỗi khối còn một dòng `// [ ] <label>`) và `pieces.json`; không viết `starter` bằng tay.
+Thêm 1–3 mảnh nhiễu `distractors/<id>.<ext>`: dòng đầu `// @piece <id mảnh thật>: <đúng label đó>`, phần
+còn lại là phiên bản sai thường gặp (thay vào phải fail test). Quy tắc: id kebab-case; label duy nhất,
+≤ 60 ký tự, nói cần đặt gì chứ không lộ code; không lồng nhau; mảnh không bắt đầu/kết thúc bằng dòng
+trống; hàm entry javascript nằm ngoài các mảnh; tổng ≤ 12 mảnh kể cả mảnh nhiễu. Danh sách được xáo theo
+từng học viên; học viên đặt con trỏ vào dòng rồi bấm mảnh (dòng `[ ]` bị thay; chưa có con trỏ thì mảnh vào đầu
+thân hàm), hoặc kéo thả vào dòng trên desktop, và
+đánh dấu mảnh đã dùng.
 
 ### O5 — Scenario pack
 Tình huống + evidence đầy đủ (log, trace, query plan, metric, diff) → 5–8 câu Đ/S theo O3 (đọc evidence →

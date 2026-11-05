@@ -12,9 +12,13 @@ import { codeSubmissionKeys, codeSubmissionQueries } from "@/queries/codeSubmiss
 import { useRunCodingSamples, useSubmitCoding } from "@/mutations/challenge.mutation";
 import useCodeDraft from "@/hooks/useCodeDraft";
 import { detectEntryName, runTests, toSubmissionPayload } from "@/lib/challenges/runner";
+import { entryBodyStart } from "@/lib/challenges/entry";
+import { isBrowserLanguage, isConfigLanguage, toRunnableCode } from "@/lib/challenges/languages";
 import { cn } from "@/lib/utils";
 
 import CodeEditor from "./codeEditor";
+import SnippetPanel from "./snippetPanel";
+import ResizeHandle from "./resizeHandle";
 import SubmissionHistory from "./submissionHistory";
 import { ErrorReload } from "../../../ui/error";
 
@@ -44,6 +48,8 @@ import {
     LuListChecks,
     LuLoaderCircle,
     LuLock,
+    LuMaximize2,
+    LuMinimize2,
     LuPlay,
     LuRotateCcw,
     LuSave,
@@ -151,6 +157,47 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
     // Replacing the draft (reset to starter, restore a submission) is confirmed first.
     const [confirm, setConfirm] = useState(null); // { kind: "reset" } | { kind: "restore", code, attempt }
     const confirmTriggerRef = useRef(null);
+    const editorRef = useRef(null);
+    // Expanded: the workspace (editor, pieces, output) covers the whole window.
+    const [expanded, setExpanded] = useState(false);
+    // Width of the pieces column in the expanded workspace (desktop), remembered in this browser.
+    const [piecesWidth, setPiecesWidth] = useState(() => {
+        try {
+            const saved = Number(typeof window === "undefined" ? 0 : localStorage.getItem("codedev:pieces-width"));
+            return saved >= 260 ? saved : 416;
+        } catch {
+            return 416;
+        }
+    });
+    const resizePieces = (width) => {
+        setPiecesWidth(width);
+        try {
+            localStorage.setItem("codedev:pieces-width", String(width));
+        } catch {
+            // Storage blocked: the width lasts for this page.
+        }
+    };
+    // Height of the output panel (Output / Tests / Console / History), remembered in this browser.
+    const [outputHeight, setOutputHeight] = useState(() => {
+        if (typeof window === "undefined") return 240;
+        try {
+            const saved = Number(localStorage.getItem("codedev:output-height"));
+            if (saved >= 96) return saved;
+        } catch {
+            // Storage blocked: use the default.
+        }
+        return Math.round(Math.min(320, Math.max(160, window.innerHeight * 0.3)));
+    });
+    const resizeOutput = (height) => {
+        setOutputHeight(height);
+        try {
+            localStorage.setItem("codedev:output-height", String(height));
+        } catch {
+            // Storage blocked: the height lasts for this page.
+        }
+    };
+    // shortcut: used marks last one page load; persist them in draftStore if learners ask for it
+    const [usedSnippets, setUsedSnippets] = useState(() => new Set());
 
     // Sample tests only: hidden test inputs arrive from the server once a submission has started.
     const [hiddenTests, setHiddenTests] = useState([]);
@@ -158,7 +205,11 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
     // for exactly that code.
     const [lastRun, setLastRun] = useState(null);
 
-    const entry = useMemo(() => detectEntryName(workspace?.starterCode || ""), [workspace?.starterCode]);
+    // Config files (Dockerfile, nginx.conf, YAML) have no entry function: the harness reads `__source`.
+    const entry = useMemo(
+        () => (isConfigLanguage(workspace?.language) ? null : detectEntryName(workspace?.starterCode || "")),
+        [workspace?.starterCode, workspace?.language]
+    );
     const visibleTests = (workspace?.tests || []).filter((t) => !t.isHidden);
     const hiddenCount = Number(workspace?.hiddenCount) || hiddenTests.length;
     const maxAttempts = Number(workspace?.maxAttempts) || 5;
@@ -179,6 +230,22 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
         if (isExhausted) onExhausted?.(challenge.id, { initial: !submitCoding.isSuccess && !submitCoding.isError });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isExhausted, challenge.id]);
+
+    // Expanded workspace: the page behind does not scroll, and Esc leaves it. Inside the code
+    // editor Esc belongs to the editor (it releases Tab), so it only closes from elsewhere.
+    useEffect(() => {
+        if (!expanded) return;
+        const previous = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        const onKey = (event) => {
+            if (event.key === "Escape" && !event.defaultPrevented && event.target?.tagName !== "TEXTAREA") setExpanded(false);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => {
+            document.body.style.overflow = previous;
+            window.removeEventListener("keydown", onKey);
+        };
+    }, [expanded]);
 
     const consoleLines = useMemo(() => Object.values(testResults).flatMap((r) => [
         ...(r.logs || []).map((log) => ({ ...log, test: r.name })),
@@ -217,10 +284,11 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
             ...Object.fromEntries(testList.map((t) => [t.id, { id: t.id, name: t.name, isHidden: t.isHidden, status: "running" }])),
         }));
 
-        // Only javascript runs in the browser; other languages run their sample tests in the code runner.
-        const { value: results, duration } = await timed(async () => workspace.language === "javascript"
+        // javascript and config files run in the browser; other languages run their sample tests in the code runner.
+        const inBrowser = isBrowserLanguage(workspace.language);
+        const { value: results, duration } = await timed(async () => inBrowser
             ? runTests({
-                code: draft.code,
+                code: toRunnableCode(workspace.language, draft.code),
                 harness: workspace.harnessCode,
                 entry,
                 tests: testList,
@@ -230,7 +298,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
             : (await runSamples.mutateAsync({ challengeId: challenge.id, code: draft.code })).tests.map((t) => ({
                 ...t, logs: [], timedOut: t.status === "timeout",
             })));
-        if (workspace.language !== "javascript") {
+        if (!inBrowser) {
             setTestResults((prev) => ({ ...prev, ...Object.fromEntries(results.map((r) => [r.id, r])) }));
         }
         setLastRunMeta({
@@ -345,6 +413,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
             alert(200, `Submission #${confirm.attempt} restored to the editor. Run it again before submitting.`);
         } else {
             draft.resetToStarter();
+            setUsedSnippets(new Set());
         }
         setTestResults({});
         setSubmission(null);
@@ -352,8 +421,22 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
         setConfirm(null);
     };
 
-    // Only JavaScript runs (docs/sandbox.md), so there is no other default file name to offer.
+    // Every challenge has a starter file name; this fallback predates config challenges.
     const displayFile = workspace.filePath || "solution.js";
+    const snippets = workspace.snippets || [];
+
+    const toggleSnippet = (id) => setUsedSnippets((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+    });
+    const markUsed = (id) => setUsedSnippets((prev) => new Set(prev).add(id));
+    // At the caret once the learner has used the editor, else at the start of the function body
+    // (the top of a config file). The piece never picks its own place: that is the exercise.
+    const insertSnippet = (snippet) => {
+        if (editorRef.current?.insertAtCursor(snippet.code, entryBodyStart(draft.code) ?? 0)) markUsed(snippet.id);
+    };
     const ranVisible = visibleTests.filter((t) => testResults[t.id] && testResults[t.id].status !== "running");
     const passedVisible = ranVisible.filter((t) => testResults[t.id].status === "passed").length;
 
@@ -408,6 +491,22 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
                         type="button"
                         variant="ghost"
                         size="icon-xs"
+                        onClick={() => setExpanded((value) => !value)}
+                        aria-pressed={expanded}
+                        aria-label={expanded ? "Exit full screen" : "Expand the workspace"}
+                        className="size-7 sm:size-6 text-editor-muted hover:bg-editor-raised hover:text-editor-foreground"
+                    >
+                        {expanded ? <LuMinimize2 /> : <LuMaximize2 />}
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>{expanded ? "Exit full screen (Esc)" : "Expand the workspace"}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
                         onClick={(event) => openConfirm({ kind: "reset" }, event.currentTarget)}
                         disabled={isBusy}
                         aria-label="Reset to starter code"
@@ -449,23 +548,79 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
 
     return (
         <div className="space-y-3">
-            {/* Phones: bleed past the lesson's px-5 gutter so code gets the full screen width. */}
-            <div className="overflow-hidden rounded-lg border border-editor-border bg-editor text-editor-foreground max-sm:-mx-5 max-sm:rounded-none max-sm:border-x-0">
-                <CodeEditor
-                    value={draft.code}
-                    onChange={draft.setCode}
-                    onSave={draft.flush}
-                    onRun={handleRun}
-                    fileName={displayFile}
-                    language={workspace.language}
-                    readOnly={phase === "submitting"}
-                    ariaLabel={`Code editor for ${challenge.title}`}
-                    status={<DraftStatus draft={draft} />}
-                    actions={editorActions}
-                />
+            {/* Phones: bleed past the lesson's px-5 gutter so code gets the full screen width.
+                Expanded: the same workspace fixed over the whole window. */}
+            <div
+                role={expanded ? "dialog" : undefined}
+                aria-modal={expanded || undefined}
+                aria-label={expanded ? `${challenge.title}: workspace` : undefined}
+                className={cn(
+                    "overflow-hidden bg-editor text-editor-foreground",
+                    expanded
+                        ? "fixed inset-0 z-50 flex flex-col"
+                        : "rounded-lg border border-editor-border max-sm:-mx-5 max-sm:rounded-none max-sm:border-x-0"
+                )}
+            >
+                {/* Pieces: under the editor in the lesson; a column beside it when expanded (lg). */}
+                <div className={cn(expanded && "flex min-h-0 flex-1 flex-col lg:flex-row")}>
+                    <div className={cn(expanded && "flex min-h-0 min-w-0 flex-1 flex-col")}>
+                        <CodeEditor
+                            expanded={expanded}
+                            ref={editorRef}
+                            onDropSnippet={markUsed}
+                            value={draft.code}
+                            onChange={draft.setCode}
+                            onSave={draft.flush}
+                            onRun={handleRun}
+                            fileName={displayFile}
+                            language={workspace.language}
+                            readOnly={phase === "submitting"}
+                            ariaLabel={`Code editor for ${challenge.title}`}
+                            status={<DraftStatus draft={draft} />}
+                            actions={editorActions}
+                        />
+                    </div>
+                    {snippets.length > 0 && expanded && (
+                        <ResizeHandle
+                            axis="x"
+                            invert
+                            value={piecesWidth}
+                            min={260}
+                            max={720}
+                            onChange={resizePieces}
+                            label="Resize the pieces column"
+                            className="border-l border-editor-border max-lg:hidden"
+                        />
+                    )}
+                    {snippets.length > 0 && (
+                        <SnippetPanel
+                            snippets={snippets}
+                            used={usedSnippets}
+                            onToggle={toggleSnippet}
+                            onInsert={insertSnippet}
+                            disabled={phase === "submitting"}
+                            layout={expanded ? "column" : "grid"}
+                            className={cn(
+                                "border-t border-editor-border",
+                                expanded && "max-lg:max-h-[30svh] lg:w-(--pieces-width) lg:shrink-0 lg:border-t-0"
+                            )}
+                            style={expanded ? { "--pieces-width": `${piecesWidth}px` } : undefined}
+                        />
+                    )}
+                </div>
 
-                {/* Output panel */}
-                <Tabs value={activePanel} onValueChange={setActivePanel} className="gap-0 border-t border-editor-border">
+                {/* Output panel: drag the handle up for a taller panel (the expanded editor gives way). */}
+                <ResizeHandle
+                    axis="y"
+                    invert
+                    value={outputHeight}
+                    min={96}
+                    max={typeof window === "undefined" ? 600 : Math.round(window.innerHeight * 0.7)}
+                    onChange={resizeOutput}
+                    label="Resize the output panel"
+                    className="border-t border-editor-border"
+                />
+                <Tabs value={activePanel} onValueChange={setActivePanel} className="gap-0">
                     {/* Below sm the tabs show icon + count only; the label stays for screen readers. */}
                     <div className="flex items-center gap-x-3 bg-editor-panel pr-3">
                         <TabsList variant="line" className="h-9 min-w-0 justify-start overflow-x-auto overflow-y-hidden bg-transparent p-0">
@@ -501,7 +656,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
                         </div>
                     </div>
 
-                    <div className="h-[clamp(10rem,30svh,20rem)] overflow-auto font-mono text-xs leading-relaxed" aria-live="polite">
+                    <div className="overflow-auto font-mono text-xs leading-relaxed" style={{ height: outputHeight }} aria-live="polite">
                         <TabsContent value="output" className="p-3">
                             {phase === "running" ? (
                                 <p className="flex items-center gap-2 text-editor-muted">

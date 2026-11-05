@@ -3,9 +3,11 @@
 #   npm run services:up                     # dev: redis + minio + sandbox (+ loopback gateway) for `npm run dev`
 #   npm run services:down
 #   docker compose --env-file .env.local --profile db up -d postgres     # optional local PostgreSQL
+#   npm run cms:up                          # local Payload CMS, fallback for lesson bodies (docs/payload-cms.md)
 #   docker compose --env-file .env.production --profile app up -d --build  # production app container
 #
-# Images built here: codedev_app (./Dockerfile), codedev_sandbox (./sandbox/vercel/Dockerfile, target docker).
+# Images built here: codedev_app (./Dockerfile), codedev_sandbox (./sandbox/vercel/Dockerfile, target docker),
+# codedev_cms (./cms/Dockerfile).
 # Values are interpolated from the --env-file (or .env); no secret is baked into an image.
 # Services reach each other by service name; only loopback ports are published, except the app.
 name: codedev
@@ -101,6 +103,49 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
+  # ------------------------------------------------------------------ local CMS (lesson fallback)
+  # Payload CMS with its own PostgreSQL. Local development only: the app asks it for a lesson body
+  # when Sanity has none (lib/lessonContent.js). Values come from .env.local (CMS_* and PAYLOAD_SECRET).
+  cms-db:
+    profiles: [cms]
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: payload
+      POSTGRES_USER: payload
+      POSTGRES_PASSWORD: ${CMS_DB_PASSWORD:?set CMS_DB_PASSWORD in .env.local}
+    # Loopback only: `npm --prefix cms run migrate:create` connects from the host.
+    ports:
+      - "127.0.0.1:${CMS_DB_PORT:-5434}:5432"
+    volumes:
+      - cms-db-data:/var/lib/postgresql
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payload -d payload"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  cms:
+    profiles: [cms]
+    build: ./cms
+    image: codedev_cms
+    init: true
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      cms-db: { condition: service_healthy }
+    environment:
+      DATABASE_URI: postgres://payload:${CMS_DB_PASSWORD}@cms-db:5432/payload
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET:?set PAYLOAD_SECRET in .env.local}
+      CMS_ADMIN_EMAIL: ${CMS_ADMIN_EMAIL:-}
+      CMS_ADMIN_PASSWORD: ${CMS_ADMIN_PASSWORD:-}
+      CMS_API_KEY: ${CMS_API_KEY:-}
+    ports:
+      - "127.0.0.1:${CMS_PORT:-3010}:3000"
+    networks: [backend]
 
   # ------------------------------------------------------------------ code runner
   # Runs untrusted challenge code (docs/sandbox.md): javascript, python, c, cpp, java, go, rust, php, typescript, kotlin, csharp.
@@ -286,6 +331,8 @@ volumes:
     name: codedev-dev_minio-data
   postgres-data:
     name: codedev_postgres-data
+  cms-db-data:
+    name: codedev_cms-db-data
   grafana-data:
     name: codedev_grafana-data
   prometheus-data:

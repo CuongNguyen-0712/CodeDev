@@ -22,6 +22,10 @@ import { LANGUAGES, challengeLanguage } from "./languages.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const { outputsMatch, stdoutMatches } = await import(pathToFileURL(path.join(root, "lib", "challenges", "compare.js")).href);
+const { toRunnableCode } = await import(pathToFileURL(path.join(root, "lib", "challenges", "languages.js")).href);
+const { restore, stripMarkers } = await import(pathToFileURL(path.join(root, "lib", "challenges", "pieces.js")).href);
+const { generatePieces, piecesJson, usesPieces } = await import(pathToFileURL(path.join(root, "content", "tools", "build-pieces.mjs")).href);
+const norm = (text) => String(text ?? "").replace(/\r\n/g, "\n");
 
 const args = process.argv.slice(2);
 const lessonDir = path.resolve(args[0] || ".");
@@ -68,6 +72,8 @@ function codeRunner() {
     const require = createRequire(path.join(root, "package.json"));
     const env = {};
     require("dotenv").config({ path: path.join(root, envFile), quiet: true, processEnv: env });
+    // Shared values (.env) under the env file above, the order Next.js uses.
+    require("dotenv").config({ path: path.join(root, ".env"), quiet: true, processEnv: env });
     if (!env.CODE_RUNNER_URL || !env.CODE_RUNNER_TOKEN) {
         throw new Error(`CODE_RUNNER_URL and CODE_RUNNER_TOKEN must be set in ${envFile} to verify non-javascript challenges`);
     }
@@ -101,12 +107,39 @@ for (const challenge of challenges.filter((c) => c.type !== "quiz")) {
     const dir = path.join(lessonDir, "challenges", challenge.publicId);
     const read = (file) => (fs.existsSync(path.join(dir, file)) ? fs.readFileSync(path.join(dir, file), "utf8") : null);
     const starter = read(`starter.${ext}`);
-    const harness = language === "javascript" ? read("harness.js") : null;
-    const entry = language === "javascript" ? detectEntryName(starter) : null;
+    const { browser, config } = LANGUAGES[language];
+    const harness = browser ? read("harness.js") : null;
+    // Config files: the text is `__source` for the harness, no entry function.
+    const entry = browser && !config ? detectEntryName(starter) : null;
     const timeLimitMs = challenge.coding?.timeLimitMs || 2000;
     const memoryLimitMb = challenge.coding?.memoryLimitMb || 128;
 
     const variants = [["starter", starter, "fail"], ["solution", read(`solution.${ext}`), "pass"]];
+
+    // Piece-assembly challenge: the generated files are current, the pieces rebuild the solution,
+    // the assembled code passes, and every distractor in place of its real piece fails.
+    if (usesPieces(dir, ext)) {
+        const gen = generatePieces(dir, language);
+        const problems = [...gen.errors];
+        const solution = stripMarkers(read(`solution.${ext}`));
+        if (norm(starter) !== gen.base) problems.push(`starter.${ext} is stale: run build-pieces.mjs`);
+        if (read("pieces.json") === null || norm(read("pieces.json")) !== piecesJson(gen.pieces)) problems.push("pieces.json is stale: run build-pieces.mjs");
+        if (challenge.coding?.snippets) problems.push("coding.snippets and pieces.json: keep one");
+        if (!problems.length && !config && detectEntryName(gen.base) !== detectEntryName(solution)) {
+            problems.push("the entry function must stay outside the pieces");
+        }
+        if (!problems.length && restore(gen.base, gen.real) !== solution) problems.push("base + pieces does not rebuild the solution");
+        for (const p of problems) {
+            console.log(`\n${challenge.publicId}\n  BAD  ${p}`);
+            failures++;
+        }
+        if (problems.length) continue;
+        variants[1] = ["assembled (base + pieces)", restore(gen.base, gen.real), "pass"];
+        for (const d of gen.distractors) {
+            const swapped = gen.real.map((p) => (p.id === d.for ? { ...p, code: d.code } : p));
+            variants.push([`distractor:${d.id}`, restore(gen.base, swapped), "fail"]);
+        }
+    }
     const variantDir = path.join(dir, "variants");
     if (fs.existsSync(variantDir)) {
         for (const file of fs.readdirSync(variantDir).filter((f) => f.endsWith(`.${ext}`))) {
@@ -121,8 +154,8 @@ for (const challenge of challenges.filter((c) => c.type !== "quiz")) {
             failures++;
             continue;
         }
-        const outcomes = language === "javascript"
-            ? await runJavascript({ code, harness, entry, tests: challenge.tests, timeLimitMs })
+        const outcomes = browser
+            ? await runJavascript({ code: toRunnableCode(language, code), harness, entry, tests: challenge.tests, timeLimitMs })
             : await runStdio({ language, code, tests: challenge.tests, timeLimitMs, memoryLimitMb });
         const passedCount = outcomes.filter((o) => o.passed).length;
         const allPassed = passedCount === outcomes.length;

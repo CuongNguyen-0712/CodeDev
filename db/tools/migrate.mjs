@@ -43,6 +43,8 @@ const upTo = option("--to");
 const explicitUrl = process.env.DATABASE_URL && !envFile ? process.env.DATABASE_URL : null;
 if (!explicitUrl) {
     dotenv.config({ path: path.resolve(root, envFile || ".env.local"), quiet: true, override: true });
+    // Shared values (.env) under the env file above, the order Next.js uses.
+    dotenv.config({ path: path.resolve(root, ".env"), quiet: true });
 }
 // DDL goes over a direct connection when one is configured (Neon: no PgBouncer in between).
 const url = explicitUrl || process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;

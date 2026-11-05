@@ -23,6 +23,8 @@ export default defineConfig([
         // generated / third-party
         "sanity/**",
         "app/studio/**",
+        // separate Next app with its own config (local Payload CMS)
+        "cms/**",
         "public/**",
     ]),
 ]);

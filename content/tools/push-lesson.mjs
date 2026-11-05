@@ -3,8 +3,11 @@
  * Writes <lesson>/lesson.sanity.json to Sanity as a DRAFT (drafts.<_id>), replacing any
  * previous draft. Publish it afterwards in the Studio (/studio) or with the Sanity MCP.
  *
- * Usage: node content/tools/push-lesson.mjs <lesson folder> [--env .env.local] [--publish]
- * --publish writes the published document instead and removes any draft (local and production share one dataset).
+ * Usage: node content/tools/push-lesson.mjs <lesson folder> --env .env.production [--publish] [--force]
+ * --publish writes the published document instead and removes any draft.
+ * Sanity is the production lesson store (docs/payload-cms.md): the env file must say
+ * APP_ENV=production or staging. Local lessons go to Payload (push-lesson-payload.mjs, payload-sync.mjs);
+ * --force overrides the check.
  * Needs NEXT_PUBLIC_SANITY_PROJECT_ID, NEXT_PUBLIC_SANITY_DATASET and a write-capable SANITY_API_TOKEN.
  */
 import fs from "node:fs";
@@ -15,8 +18,16 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const require = createRequire(path.join(root, "package.json"));
 const args = process.argv.slice(2);
-const envFile = args.includes("--env") ? args[args.indexOf("--env") + 1] : ".env.local";
+const envFile = args.includes("--env") ? args[args.indexOf("--env") + 1] : ".env.production";
 require("dotenv").config({ path: path.join(root, envFile), quiet: true });
+// Shared values (.env) under the env file above, the order Next.js uses.
+require("dotenv").config({ path: path.join(root, ".env"), quiet: true });
+
+const { isDeployedEnv } = await import(new URL("../../lib/appEnv.mjs", import.meta.url).href);
+if (!isDeployedEnv() && !args.includes("--force")) {
+    console.error(`${envFile} is not a production or staging env (APP_ENV=${process.env.APP_ENV || "unset"}): lessons for local development go to the local Payload CMS (node content/tools/payload-sync.mjs). Use --force to write to Sanity anyway.`);
+    process.exit(1);
+}
 
 const { createClient } = require("@sanity/client");
 

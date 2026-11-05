@@ -5,6 +5,19 @@ Trạng thái (2026-10-21): **đang triển khai**. Đã có: hạ tầng chấm
 catalog dưới dạng **draft chỉ có đề cương** (`content/courses/<id>/course.json`, `modules: []` + `outline`),
 kèm role, skill, goal và prerequisite (§5.1). Tất cả chỉ ở local.
 
+**Cập nhật 2026-11-04 (định hướng framework/engine):**
+- Catalog chuyển sang course áp dụng framework/engine vào tình huống thật (Docker, Nginx, Kubernetes, CI,
+  Postgres, Kafka…), khuôn lesson core-first, 1–2 challenge mỗi lesson (`content/README.md`,
+  `content/PROMPT_CONTEXT.md`).
+- 14 course chỉ có đề cương thuần ngôn ngữ chuyển sang `archived` (`db/seeds/archive-courses.sql`).
+- Hai course JS cũ giữ nội dung nhưng tắt các challenge vượt giới hạn bằng `"published": false`.
+- Course mẫu theo khuôn mới: `docker-nginx-ship-a-service`. Đề cương mới: `kubernetes-deploy-and-operate`,
+  `github-actions-ci-cd`, `postgres-in-production`, `kafka-event-streaming`, `terraform-infra-as-code`.
+- Challenge mới: ghép mảnh (`@piece` trong `solution.<ext>`, `build-pieces.mjs` sinh `starter` + `pieces.json`,
+  có mảnh nhiễu, xáo theo học viên, bấm hoặc kéo thả) và file config (`dockerfile`, `nginx`, `yaml`).
+- Nội dung lesson: local đọc Payload CMS (`npm run cms:up`, `npm run cms:sync`), production đọc Sanity
+  (`docs/payload-cms.md`). Mỗi course mới có `cover.svg` và ảnh bìa trên Cloudinary.
+
 Dựa trên: khuôn lesson của `nodejs-high-performance` và `javascript-async-architecture`
 ([content/README.md](../content/README.md)), EXP và Level ([experience-leveling-design.md](experience-leveling-design.md)),
 commerce và premium ([premium-onboarding-design.md](premium-onboarding-design.md)), sandbox ([sandbox.md](sandbox.md)).

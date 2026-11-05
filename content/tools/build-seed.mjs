@@ -15,6 +15,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { loadPieces, snippetErrors } from "./verify-course.mjs";
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const courseDir = path.resolve(process.argv[2]);
 const course = JSON.parse(fs.readFileSync(path.join(courseDir, "course.json"), "utf8"));
@@ -187,13 +189,15 @@ WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = ${lit(lesso
 
         for (const ch of challenges) {
             const challengeId = `(SELECT id FROM challenge.challenges WHERE public_id = ${lit(ch.publicId)})`;
+            // "published": false keeps a challenge out of the lesson (over the 1-2 per lesson limit).
+            const published = lit(ch.published !== false);
             out.push(`-- challenge ${ch.publicId} (${ch.type})`);
             out.push(`INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
-VALUES (${lit(ch.publicId)}, ${courseId}, ${moduleId}, ${lessonId}, ${lit(ch.name)}, ${lit(ch.title)}, ${lit(ch.description)}, 'open', ${lit(ch.difficulty)}::difficulty_question, ${lit(ch.type)}, ${lit(ch.points)}, true, false)
+VALUES (${lit(ch.publicId)}, ${courseId}, ${moduleId}, ${lessonId}, ${lit(ch.name)}, ${lit(ch.title)}, ${lit(ch.description)}, 'open', ${lit(ch.difficulty)}::difficulty_question, ${lit(ch.type)}, ${lit(ch.points)}, ${published}, false)
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();`);
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();`);
 
             // Hints 1-3 (guiding question, where to look, similar example). hint_views has no foreign key
             // to them, so rewriting keeps what learners already opened.
@@ -230,11 +234,18 @@ FROM q, (VALUES
                 });
             } else {
                 const cfg = ch.coding;
-                out.push(`INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES (${challengeId}, ${lit(cfg.executionMode)}, ${cfg.timeLimitMs}, ${cfg.memoryLimitMb}, ${lit(cfg.maxAttempts)}, ${lit(cfg.scoringMode)})
+                // Piece list: pieces.json (build-pieces.mjs) or the older hand-written coding.snippets.
+                // Distractor flags are stored too; the service strips them (dealPieces).
+                const pieces = loadPieces(lessonDir, ch);
+                const snippets = pieces ?? cfg.snippets ?? null;
+                const badSnippets = snippetErrors({ ...ch, pieces });
+                if (badSnippets.length) throw new Error(badSnippets.join("; "));
+                // snippets: migration 20261104_019 (coding_configs.snippets, NULL = none).
+                out.push(`INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES (${challengeId}, ${lit(cfg.executionMode)}, ${cfg.timeLimitMs}, ${cfg.memoryLimitMb}, ${lit(cfg.maxAttempts)}, ${lit(cfg.scoringMode)}, ${snippets ? `${json(snippets)}::jsonb` : "NULL"})
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();`);
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();`);
                 out.push(`DELETE FROM challenge.challenge_test_cases WHERE challenge_id = ${challengeId};`);
                 // challenge_test_cases.name is varchar(100): fail here, not halfway through a production seed.
                 const longName = ch.tests.find((t) => String(t.name ?? "").length > 100);

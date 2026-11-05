@@ -18,6 +18,10 @@ decides which; `lib/appEnv.mjs` is the single definition used by the app, the te
 | Schema | `npm run db:migrate` | `npm run db:migrate:prod -- --yes`; `npm run db:compare` must report "in sync" |
 | Buckets | `public`, `private` | `public`, `private` |
 
+`.env` holds only the values that are the same locally and in production (Sanity, Cloudinary, S3 storage,
+Pusher cluster, ...); `.env.local` holds only local values. A key lives in exactly one of the two. Scripts
+read their env file (default `.env.local`, or `--env .env.production`) with `.env` under it, like Next.js.
+
 `.env.local` is loaded by `next start` too, and it sets `APP_ENV=development`: a production build
 run on this machine still uses the local services. `.dockerignore` keeps every `.env*` file out of
 the Docker build context (the container gets its configuration from `env_file` at run time, see

@@ -20,6 +20,8 @@ const require = createRequire(path.join(root, "package.json"));
 const args = process.argv.slice(2);
 const envFile = args.includes("--env") ? args[args.indexOf("--env") + 1] : ".env";
 require("dotenv").config({ path: path.join(root, envFile), quiet: true });
+// Shared values (.env) under the env file above, the order Next.js uses.
+require("dotenv").config({ path: path.join(root, ".env"), quiet: true });
 const { v2: cloudinary } = require("cloudinary");
 const sharp = require("sharp");
 

@@ -61,6 +61,8 @@ const QUERIES = {
 async function snapshot(envFile) {
     const env = {};
     dotenv.config({ path: path.resolve(root, envFile), processEnv: env, quiet: true });
+    // Shared values (.env) under the env file above, the order Next.js uses.
+    dotenv.config({ path: path.resolve(root, ".env"), processEnv: env, quiet: true });
     if (!env.DATABASE_URL) throw new Error(`${envFile}: DATABASE_URL is not set`);
     const client = new Client({ connectionString: env.DATABASE_URL, connectionTimeoutMillis: 20000 });
     await client.connect();

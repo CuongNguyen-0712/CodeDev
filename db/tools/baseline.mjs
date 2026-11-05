@@ -30,6 +30,8 @@ const limit = Number(option("--limit", 15)) || 15;
 
 if (!process.env.DATABASE_URL || args.includes("--env")) {
     dotenv.config({ path: path.resolve(root, option("--env", ".env.local")), quiet: true, override: true });
+    // Shared values (.env) under the env file above, the order Next.js uses.
+    dotenv.config({ path: path.resolve(root, ".env"), quiet: true });
 }
 if (!process.env.DATABASE_URL) {
     console.error("DATABASE_URL is not set");
