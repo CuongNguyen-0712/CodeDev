@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { LogoMark, LogoWordmark } from "@/components/ui/logo";
 import { usePathname } from "next/navigation";
 
-import { useAuth } from "@/contexts/authContext";
+import { useSession } from "next-auth/react";
 import { useQueryParams } from "@/router/useQueryParams";
 
 import {
@@ -69,7 +69,8 @@ function hrefFor(value, session) {
 }
 
 export default function Dashboard() {
-  const { session, status } = useAuth();
+  const { data, status } = useSession();
+  const session = data?.user ? data : null;
   const pathname = usePathname();
   const updateQuery = useQueryParams();
   const { isMobile, setOpenMobile } = useSidebar();

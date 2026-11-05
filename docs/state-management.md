@@ -18,6 +18,7 @@ Không làm:
 - Không copy dữ liệu server vào store Zustand. Cần dữ liệu đó ở nhiều nơi thì gọi cùng một `useQuery`.
 - Không tạo React Context mới để chia sẻ state hay đổi. Context chỉ dùng cho giá trị gần như cố định theo cây (ví dụ `AdminProvider` mang quyền của admin).
 - Không dùng `window.dispatchEvent` / `CustomEvent` làm kênh giữa component. Đặt state vào store.
+- Không bọc `useSession()` trong context hay store riêng: mọi component đọc phiên trực tiếp từ next-auth.
 
 ## 2. Store hiện có
 

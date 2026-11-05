@@ -2,7 +2,6 @@
 import { useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { SessionProvider } from "next-auth/react"
-import { AuthProvider } from "./authContext"
 import { QueryProvider } from "./queryContext"
 import { useThemeStore } from "@/stores/themeStore"
 import { useUiStore } from "@/stores/uiStore"
@@ -32,19 +31,17 @@ export function Provider({ children }) {
             refetchInterval={60}
             refetchOnWindowFocus={true}
         >
-            <AuthProvider>
-                <QueryProvider>
-                    <ClientStateBridge />
-                    <TooltipProvider delayDuration={300}>
-                        {children}
-                    </TooltipProvider>
-                    {/* The only toast region: survives navigation (see components/ui/alert.jsx). */}
-                    <AppToaster />
-                    <LevelUpDialog />
-                    <RatePromptDialog />
-                    <SignedIn><RankUpWatcher /></SignedIn>
-                </QueryProvider>
-            </AuthProvider>
+            <QueryProvider>
+                <ClientStateBridge />
+                <TooltipProvider delayDuration={300}>
+                    {children}
+                </TooltipProvider>
+                {/* The only toast region: survives navigation (see components/ui/alert.jsx). */}
+                <AppToaster />
+                <LevelUpDialog />
+                <RatePromptDialog />
+                <SignedIn><RankUpWatcher /></SignedIn>
+            </QueryProvider>
         </SessionProvider>
     )
 }
