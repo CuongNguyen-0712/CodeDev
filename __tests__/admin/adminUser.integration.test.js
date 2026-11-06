@@ -146,6 +146,16 @@ describe.skipIf(!hasDb)("admin overview figures (PostgreSQL)", () => {
         expect(rows.at(-1).submissions).toBe(figures.submissions_today);
     });
 
+    it("counts days and today in the viewer's time zone", async () => {
+        const { adminDashboardDb } = await import("@/db/adminDashboard.db");
+        const zone = "Pacific/Kiritimati"; // UTC+14: its date is ahead of UTC most of the day
+        const rows = await adminDashboardDb.activityByDay(14, zone);
+        expect(rows).toHaveLength(28);
+        expect(rows.at(-1).day).toBe(new Date().toLocaleDateString("en-CA", { timeZone: zone }));
+        const figures = await adminDashboardDb.figures(zone);
+        expect(rows.at(-1).submissions).toBe(figures.submissions_today);
+    });
+
     it("splits the activity into two equal windows and falls back to 14 days", async () => {
         const { adminDashboardService } = await import("@/services/adminDashboard.service");
         const result = await adminDashboardService.activity({ days: 7 });

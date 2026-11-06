@@ -3,8 +3,12 @@ import { redis } from "@/lib/cache";
 import { cacheKeys, TTL } from "@/lib/cacheKeys";
 import { appEnv } from "@/lib/appEnv.mjs";
 import { healthReport } from "@/services/health.service";
+import { isTimeZone } from "@/lib/timeZone";
 
 export const ACTIVITY_DAYS = [14, 30, 90];
+
+/** The viewer's zone when Intl knows it, else UTC (it goes into SQL as a parameter and into cache keys). */
+export const safeTimeZone = (tz) => (isTimeZone(tz) ? tz : "UTC");
 
 /** What is deployed (Vercel system environment variables; absent locally and in Docker). */
 function deployment(env = process.env) {
@@ -27,13 +31,15 @@ export const adminDashboardService = {
     /**
      * canReadAudit: the recent audit rows only for audit.read (the figures are shared by every admin).
      * fresh: the Refresh button recounts instead of serving the cached figures; measuredAt says how old they are.
+     * tz: the viewer's time zone, where "today" starts.
      */
-    overview: async ({ canReadAudit = false, fresh = false } = {}) => {
-        if (fresh) await redis.del(cacheKeys.adminDashboard(), ...ACTIVITY_DAYS.map((days) => cacheKeys.adminActivity(days))).catch(() => {});
+    overview: async ({ canReadAudit = false, fresh = false, tz = "UTC" } = {}) => {
+        const zone = safeTimeZone(tz);
+        if (fresh) await redis.del(cacheKeys.adminDashboard(zone), ...ACTIVITY_DAYS.map((days) => cacheKeys.adminActivity(days, zone))).catch(() => {});
         const [figures, health] = await Promise.all([
-            redis.remember(cacheKeys.adminDashboard(), TTL.ADMIN_DASHBOARD, async () => {
+            redis.remember(cacheKeys.adminDashboard(zone), TTL.ADMIN_DASHBOARD, async () => {
                 const [counts, topCourses, audit] = await Promise.all([
-                    adminDashboardDb.figures(),
+                    adminDashboardDb.figures(zone),
                     adminDashboardDb.topCourses(),
                     adminDashboardDb.recentAudit(),
                 ]);
@@ -45,12 +51,13 @@ export const adminDashboardService = {
     },
 
     /**
-     * Activity per UTC day for the Overview chart: `days` (14, 30 or 90) days and the same number before
-     * them, split into { current, previous } of equal length. Cached like the figures.
+     * Activity per day in the viewer's zone for the Overview chart: `days` (14, 30 or 90) days and the
+     * same number before them, split into { current, previous } of equal length. Cached like the figures.
      */
-    activity: async ({ days = 14 } = {}) => {
+    activity: async ({ days = 14, tz = "UTC" } = {}) => {
         const window = ACTIVITY_DAYS.includes(days) ? days : ACTIVITY_DAYS[0];
-        const rows = await redis.remember(cacheKeys.adminActivity(window), TTL.ADMIN_DASHBOARD, () => adminDashboardDb.activityByDay(window));
-        return { days: window, previous: rows.slice(0, rows.length - window), current: rows.slice(-window) };
+        const zone = safeTimeZone(tz);
+        const rows = await redis.remember(cacheKeys.adminActivity(window, zone), TTL.ADMIN_DASHBOARD, () => adminDashboardDb.activityByDay(window, zone));
+        return { days: window, timeZone: zone, previous: rows.slice(0, rows.length - window), current: rows.slice(-window) };
     },
 };

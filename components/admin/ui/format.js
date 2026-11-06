@@ -1,5 +1,8 @@
 // Formatting for the admin screens (docs/admin-panel-plan.md 5.6): numbers with separators,
 // ISO dates in tables, relative times for "last active", durations as "48 s" / "1 m 12 s".
+// Dates and times are shown in the viewer's admin time zone (lib/timeZone.js, Settings > Time zone).
+
+import { getDisplayTimeZone } from "@/lib/timeZone";
 
 const number = new Intl.NumberFormat("en-US");
 
@@ -8,14 +11,22 @@ export const formatNumber = (value) => (value == null || Number.isNaN(Number(val
 export function formatDate(value) {
     if (!value) return "—";
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? "—" : date.toISOString().slice(0, 10);
+    // en-CA writes YYYY-MM-DD.
+    return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-CA", { timeZone: getDisplayTimeZone() });
 }
 
 export function formatDateTime(value) {
     if (!value) return "—";
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "—";
-    return date.toLocaleString("en-GB", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleString("en-GB", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: getDisplayTimeZone() });
+}
+
+/** "14:05" in the admin time zone. */
+export function formatTime(value) {
+    if (!value) return "—";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "—" : date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: getDisplayTimeZone() });
 }
 
 export { formatRelative } from "@/lib/format";

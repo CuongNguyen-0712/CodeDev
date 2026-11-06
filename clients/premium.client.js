@@ -51,8 +51,8 @@ export const adminClient = {
     })).data,
     getContentKpis: async (courseId) => (await apiClient.get('/admin/content-kpis', { params: { course: courseId } })).data,
     getExpAudit: async () => (await apiClient.get('/admin/exp-audit')).data,
-    getActivity: async (days) => (await apiClient.get('/admin/dashboard/activity', { params: { days } })).data,
-    getDashboard: async ({ fresh = false } = {}) => (await apiClient.get('/admin/dashboard', { params: fresh ? { fresh: 1 } : {} })).data,
+    getActivity: async (days, tz) => (await apiClient.get('/admin/dashboard/activity', { params: { days, tz } })).data,
+    getDashboard: async ({ fresh = false, tz } = {}) => (await apiClient.get('/admin/dashboard', { params: { tz, ...(fresh ? { fresh: 1 } : {}) } })).data,
     listUsers: async ({ cursor, ...filters }) => (await apiClient.get('/admin/users/list', {
         params: Object.fromEntries(Object.entries({ ...filters, cursor }).filter(([, value]) => value)),
     })).data,

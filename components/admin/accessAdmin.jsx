@@ -18,11 +18,10 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import { Textarea } from "@/components/shadcn/textarea";
 import RowAction from "@/components/admin/ui/rowAction";
+import { formatDate } from "@/components/admin/ui/format";
 import { DateField, toLocalValue } from "@/components/admin/ui/dateField";
 
 import { LuBan } from "react-icons/lu";
-
-const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "-");
 
 export default function AccessAdmin() {
     const { can } = useAdmin();

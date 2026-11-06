@@ -14,6 +14,7 @@ import { TableSkeleton } from "@/components/admin/ui/adminSkeleton";
 import { Badge } from "@/components/shadcn/badge";
 import { Input } from "@/components/shadcn/input";
 import { cn } from "@/lib/utils";
+import TimeZoneSettings from "@/components/admin/settings/timeZoneSettings";
 
 import { LuCheck } from "react-icons/lu";
 
@@ -194,7 +195,7 @@ export default function SettingsPage({ section }) {
 
     return (
         <>
-            <PageHeader title="Settings" description="Read-only configuration of this deployment." />
+            <PageHeader title="Settings" description={current.key === "timezone" ? "Your display preference for the admin screens." : "Read-only configuration of this deployment."} />
             <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[12rem_minmax(0,1fr)] @2xl:gap-6">
                 <nav aria-label="Settings sections">
                     <ul className="flex list-none gap-1 overflow-x-auto [scrollbar-width:none] @2xl:flex-col [&::-webkit-scrollbar]:hidden">
@@ -215,7 +216,7 @@ export default function SettingsPage({ section }) {
                     </ul>
                 </nav>
                 <div className="min-w-0">
-                    {query.isPending ? <TableSkeleton rows={4} columns={2} label="Loading settings" /> : query.isError ? (
+                    {current.key === "timezone" ? <TimeZoneSettings Card={Card} /> : query.isPending ? <TableSkeleton rows={4} columns={2} label="Loading settings" /> : query.isError ? (
                         <p className="rounded-lg border border-border p-4 text-sm">Couldn&apos;t load the settings. <button type="button" className="font-medium text-primary-ink hover:underline" onClick={() => query.refetch()}>Retry</button></p>
                     ) : <Section section={current.key} data={query.data} />}
                 </div>

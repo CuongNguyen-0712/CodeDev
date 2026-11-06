@@ -5,12 +5,18 @@ import { LOW_RATING } from "@/lib/ratingRules";
 const NOT_STAFF = (userColumn) => `NOT EXISTS (SELECT 1 FROM identity.user_roles sr JOIN identity.roles r ON r.id = sr.role_id
                                    WHERE sr.user_id = ${userColumn} AND r.rank >= 30)`;
 
+// Stored timestamps are UTC without a zone (lib/db.js). The day a row falls on in the viewer's zone ($tz):
+const localDay = (column, tz) => `((${column} AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::date`;
+// Midnight of a local date in that zone, as a stored-style UTC timestamp to compare columns against.
+const utcStartOf = (localDate, tz) => `((${localDate})::timestamp AT TIME ZONE ${tz}) AT TIME ZONE 'UTC'`;
+
 /**
  * Admin Overview figures (docs/admin-panel-plan.md 01): one round trip, counted in the database.
- * "Today" and the daily series use the UTC day (sessions run in UTC, lib/db.js).
+ * "Today" and the daily series follow the viewer's time zone (an IANA name checked by the service).
  */
 export const adminDashboardDb = {
-    figures: async () => (await sql(`
+    figures: async (tz = "UTC") => (await sql(`
+        WITH t AS (SELECT ${utcStartOf("(now() AT TIME ZONE $1)::date", "$1")} AS today)
         SELECT
             (SELECT COUNT(*) FROM identity.users)::int AS users_total,
             (SELECT COUNT(*) FROM identity.users WHERE created_at > now() - interval '7 days')::int AS signups_7d,
@@ -30,39 +36,41 @@ export const adminDashboardDb = {
                 SELECT publish_status, COUNT(*)::int AS n FROM catalog.course WHERE is_deleted IS NOT TRUE OR publish_status = 'archived' GROUP BY publish_status) x) AS courses,
             (SELECT COUNT(*) FROM catalog.course WHERE is_deleted IS NOT TRUE AND access_model = 'premium')::int AS courses_premium,
             (SELECT COUNT(*) FROM challenge.challenges WHERE is_deleted IS NOT TRUE AND is_published IS TRUE AND status = 'open')::int AS challenges_open,
-            ((SELECT COUNT(*) FROM challenge.code_submissions WHERE submitted_at >= date_trunc('day', now()))
-             + (SELECT COUNT(*) FROM challenge.question_submissions WHERE created_at >= date_trunc('day', now())))::int AS submissions_today,
-            ((SELECT COUNT(*) FROM challenge.code_submissions WHERE submitted_at >= date_trunc('day', now()) - interval '1 day' AND submitted_at < date_trunc('day', now()))
-             + (SELECT COUNT(*) FROM challenge.question_submissions WHERE created_at >= date_trunc('day', now()) - interval '1 day' AND created_at < date_trunc('day', now())))::int AS submissions_yesterday,
-            (SELECT COUNT(*) FROM challenge.code_runs WHERE queued_at >= date_trunc('day', now()))::int AS runs_today,
-            (SELECT COUNT(*) FROM challenge.code_runs WHERE queued_at >= date_trunc('day', now()) AND status IN ('failed', 'timeout'))::int AS runs_failed_today,
+            ((SELECT COUNT(*) FROM challenge.code_submissions WHERE submitted_at >= t.today)
+             + (SELECT COUNT(*) FROM challenge.question_submissions WHERE created_at >= t.today))::int AS submissions_today,
+            ((SELECT COUNT(*) FROM challenge.code_submissions WHERE submitted_at >= t.today - interval '1 day' AND submitted_at < t.today)
+             + (SELECT COUNT(*) FROM challenge.question_submissions WHERE created_at >= t.today - interval '1 day' AND created_at < t.today))::int AS submissions_yesterday,
+            (SELECT COUNT(*) FROM challenge.code_runs WHERE queued_at >= t.today)::int AS runs_today,
+            (SELECT COUNT(*) FROM challenge.code_runs WHERE queued_at >= t.today AND status IN ('failed', 'timeout'))::int AS runs_failed_today,
             (SELECT COUNT(*) FROM challenge.code_runs WHERE status IN ('queued', 'running') AND deadline_at < now())::int AS runs_expired,
             (SELECT COUNT(*) FROM ops.dead_letters WHERE resolved_at IS NULL)::int AS dead_letters_open,
             (SELECT COUNT(*) FROM catalog.course WHERE is_deleted IS NOT TRUE AND rating_count >= ${LOW_RATING.minRatings} AND rating_avg < ${LOW_RATING.below})::int AS courses_low_rated,
             (SELECT COUNT(*) FROM community.feedback WHERE handled_at IS NULL)::int AS feedback_open,
             (SELECT COUNT(*) FROM identity.users WHERE purge_after IS NOT NULL AND email_verified IS NOT TRUE AND status = 'active' AND purge_after <= now() + interval '1 day')::int AS purge_soon
-    `)).rows[0],
+        FROM t
+    `, [tz])).rows[0],
 
     /**
-     * Activity per UTC day over 2 × `days` days (the window and the one before it), today last, zero days
+     * Activity per day in the zone `tz` over 2 × `days` days (the window and the one before it), today last, zero days
      * kept: submissions (code + quiz), sign-ups, practising learners (non-staff accounts with a submission
      * or code run that day) and code runs by outcome. Each table is scanned once from the window start.
      */
-    activityByDay: async (days) => (await sql(`
-        WITH bounds AS (SELECT date_trunc('day', now())::timestamp - ($1::int * 2 - 1) * interval '1 day' AS since),
-        days AS (SELECT d::date AS day FROM bounds, generate_series(bounds.since, date_trunc('day', now())::timestamp, interval '1 day') AS d),
+    activityByDay: async (days, tz = "UTC") => (await sql(`
+        WITH local AS (SELECT (now() AT TIME ZONE $2)::date AS today),
+        bounds AS (SELECT today, today - ($1::int * 2 - 1) AS first_day, ${utcStartOf("today - ($1::int * 2 - 1)", "$2")} AS since FROM local),
+        days AS (SELECT d::date AS day FROM bounds, generate_series(bounds.first_day::timestamp, bounds.today::timestamp, interval '1 day') AS d),
         subs AS (
-            SELECT submitted_at::date AS day, user_id FROM challenge.code_submissions, bounds WHERE submitted_at >= bounds.since
+            SELECT ${localDay("submitted_at", "$2")} AS day, user_id FROM challenge.code_submissions, bounds WHERE submitted_at >= bounds.since
             UNION ALL
-            SELECT created_at::date, user_id FROM challenge.question_submissions, bounds WHERE created_at >= bounds.since
+            SELECT ${localDay("created_at", "$2")}, user_id FROM challenge.question_submissions, bounds WHERE created_at >= bounds.since
         ),
-        runs AS (SELECT queued_at::date AS day, user_id, status FROM challenge.code_runs, bounds WHERE queued_at >= bounds.since),
+        runs AS (SELECT ${localDay("queued_at", "$2")} AS day, user_id, status FROM challenge.code_runs, bounds WHERE queued_at >= bounds.since),
         practising AS (
             SELECT day, COUNT(DISTINCT user_id)::int AS n FROM (SELECT day, user_id FROM subs UNION ALL SELECT day, user_id FROM runs) x
             WHERE ${NOT_STAFF("x.user_id")} GROUP BY day
         ),
         sub_counts AS (SELECT day, COUNT(*)::int AS n FROM subs GROUP BY day),
-        signup_counts AS (SELECT u.created_at::date AS day, COUNT(*)::int AS n FROM identity.users u, bounds WHERE u.created_at >= bounds.since GROUP BY 1),
+        signup_counts AS (SELECT ${localDay("u.created_at", "$2")} AS day, COUNT(*)::int AS n FROM identity.users u, bounds WHERE u.created_at >= bounds.since GROUP BY 1),
         run_counts AS (
             SELECT day,
                    COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
@@ -83,7 +91,7 @@ export const adminDashboardDb = {
         LEFT JOIN practising p ON p.day = d.day
         LEFT JOIN run_counts r ON r.day = d.day
         ORDER BY d.day
-    `, [days])).rows,
+    `, [days, tz])).rows,
 
     /**
      * The 5 courses with the most new registrations in the last 30 days, with how many of those finished;

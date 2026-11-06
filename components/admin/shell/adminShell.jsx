@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { leaveSignedOut, LANDING_PATH } from "@/lib/authNavigation";
 import { useLogOut } from "@/mutations/auth.mutation";
 import { useApp } from "@/contexts/appContext";
+import { useAdminTimeZoneStore } from "@/stores/adminTimeZoneStore";
 
 import {
     LuActivity, LuArrowLeft, LuBookOpen, LuTags, LuClipboardList, LuKeyRound, LuLayoutDashboard, LuLoaderCircle,
@@ -148,6 +149,9 @@ export default function AdminShell({ permissions, environment, user, children })
     const visible = (items) => items.filter((item) => [].concat(item.permission).some((code) => granted.has(code)));
     const activeKey = activeNavKey(pathname);
     const [paletteOpen, setPaletteOpen] = useState(false);
+    // The viewer's time zone is read after mount (the server renders UTC); dates re-render when it changes.
+    const zone = useAdminTimeZoneStore((s) => s.zone);
+    useEffect(() => useAdminTimeZoneStore.getState().hydrate(), []);
 
     return (
         <AdminProvider permissions={permissions} environment={environment}>
@@ -219,7 +223,7 @@ export default function AdminShell({ permissions, environment, user, children })
                         </span>
                     </header>
                     <main id="admin-main" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">
-                        <div key={pathname} data-admin-view className="@container mx-auto w-full max-w-[1280px] px-4 py-6 md:px-6">{children}</div>
+                        <div key={`${pathname}|${zone}`} data-admin-view className="@container mx-auto w-full max-w-[1280px] px-4 py-6 md:px-6">{children}</div>
                     </main>
                 </SidebarInset>
             </SidebarProvider>

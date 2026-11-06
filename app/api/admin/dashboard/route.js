@@ -6,8 +6,9 @@ import { adminDashboardService } from "@/services/adminDashboard.service";
 export const GET = apiRoute(
     async ({ req, userId }) => {
         const actor = await requirePermission(userId, "admin.read");
-        const fresh = new URL(req.url).searchParams.get("fresh") === "1";
-        return adminDashboardService.overview({ canReadAudit: actor.permissions.has("audit.read"), fresh });
+        const params = new URL(req.url).searchParams;
+        const fresh = params.get("fresh") === "1";
+        return adminDashboardService.overview({ canReadAudit: actor.permissions.has("audit.read"), fresh, tz: params.get("tz") || "UTC" });
     },
     { context: "api/admin/dashboard" }
 );

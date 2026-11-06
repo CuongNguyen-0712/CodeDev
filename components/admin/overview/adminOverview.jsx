@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { adminClient } from "@/clients/premium.client";
 import { adminQueries } from "@/queries/premium.query";
+import { adminKeys } from "@/keys/admin.keys";
 import { LOW_RATING } from "@/lib/ratingRules";
 import { useAdmin } from "@/components/admin/adminContext";
 import PageHeader from "@/components/admin/shell/pageHeader";
@@ -14,13 +15,15 @@ import TabBar from "@/components/admin/ui/tabBar";
 import { useUrlFilters } from "@/components/admin/ui/useUrlFilters";
 import Finding, { plural } from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
-import { formatChange, formatDuration, formatNumber, formatRelative } from "@/components/admin/ui/format";
+import { formatChange, formatDuration, formatNumber, formatRelative, formatTime } from "@/components/admin/ui/format";
 import { StripSkeleton, TableSkeleton } from "@/components/admin/ui/adminSkeleton";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { cn } from "@/lib/utils";
+import { offsetLabel } from "@/lib/timeZone";
+import { useAdminTimeZoneStore } from "@/stores/adminTimeZoneStore";
 
 import { LuArrowRight, LuCopy, LuRefreshCw } from "react-icons/lu";
 
@@ -172,7 +175,9 @@ const METRICS = [
 function ActivityPanel() {
     const [{ range, metric }, update] = useUrlFilters({ range: RANGES, metric: METRICS.map((item) => item.key) }, { range: "14", metric: "submissions" });
     const days = Number(range);
-    const query = useQuery(adminQueries.activity(days));
+    const zone = useAdminTimeZoneStore((s) => s.zone);
+    const ready = useAdminTimeZoneStore((s) => s.ready);
+    const query = useQuery({ ...adminQueries.activity(days, zone), enabled: ready });
     const chosen = METRICS.find((item) => item.key === metric) || METRICS[0];
     const current = query.data?.current || [];
     const previous = query.data?.previous || [];
@@ -202,7 +207,7 @@ function ActivityPanel() {
             ) : (
                 <>
                     <p className="mb-2 text-xs text-muted-foreground">
-                        {chosen.note} · {formatChange(totals[chosen.key], previousTotal, `vs the ${days} days before`) || "—"} · days in UTC
+                        {chosen.note} · {formatChange(totals[chosen.key], previousTotal, `vs the ${days} days before`) || "—"} · days in {zone === "UTC" ? "UTC" : `${zone} (${offsetLabel(zone)})`}
                     </p>
                     <BarChart
                         data={data}
@@ -261,12 +266,18 @@ function OverviewSkeleton() {
 export default function AdminOverview() {
     const { can } = useAdmin();
     const queryClient = useQueryClient();
-    const { data, isPending, isError, refetch, isFetching } = useQuery(adminQueries.dashboard());
+    // "Today" in the KPIs starts at midnight in the viewer's time zone (Settings > Time zone).
+    const zone = useAdminTimeZoneStore((s) => s.zone);
+    const ready = useAdminTimeZoneStore((s) => s.ready);
+    const { data, isPending, isError, refetch, isFetching } = useQuery({ ...adminQueries.dashboard(zone), enabled: ready });
     // Refresh recounts on the server; the automatic refetch may serve figures cached up to 60 s.
-    const recount = () => queryClient.fetchQuery({ ...adminQueries.dashboard(), queryFn: () => adminClient.getDashboard({ fresh: true }), staleTime: 0 });
+    const recount = () => {
+        queryClient.fetchQuery({ ...adminQueries.dashboard(zone), queryFn: () => adminClient.getDashboard({ fresh: true, tz: zone }), staleTime: 0 });
+        queryClient.invalidateQueries({ queryKey: [...adminKeys.all, "dashboard", "activity"] });
+    };
 
     // When the figures were counted (they are cached on the server), not when the browser fetched them.
-    const updated = data?.measuredAt ? new Date(data.measuredAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : null;
+    const updated = data?.measuredAt ? formatTime(data.measuredAt) : null;
     const actions = (
         <>
             {updated && <span className="text-xs text-muted-foreground">Updated {updated}</span>}

@@ -6,8 +6,8 @@ import { adminDashboardService } from "@/services/adminDashboard.service";
 export const GET = apiRoute(
     async ({ req, userId }) => {
         await requirePermission(userId, "admin.read");
-        const days = Number(new URL(req.url).searchParams.get("days")) || 14;
-        return adminDashboardService.activity({ days });
+        const params = new URL(req.url).searchParams;
+        return adminDashboardService.activity({ days: Number(params.get("days")) || 14, tz: params.get("tz") || "UTC" });
     },
     { context: "api/admin/dashboard/activity" }
 );

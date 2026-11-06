@@ -13,7 +13,7 @@ import { QueueStrip } from "@/components/admin/runs/runList";
 import PageHeader from "@/components/admin/shell/pageHeader";
 import Finding from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
-import { formatNumber, formatRelative } from "@/components/admin/ui/format";
+import { formatNumber, formatRelative, formatTime } from "@/components/admin/ui/format";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -88,7 +88,7 @@ export default function SystemPage() {
         onSettled: () => queryClient.invalidateQueries({ queryKey: adminKeys.all }),
     });
 
-    const updated = query.dataUpdatedAt ? new Date(query.dataUpdatedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : null;
+    const updated = query.dataUpdatedAt ? formatTime(query.dataUpdatedAt) : null;
     const data = query.data;
     const actions = (
         <>
