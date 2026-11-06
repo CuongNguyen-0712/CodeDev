@@ -122,13 +122,36 @@ describe.skipIf(!hasDb)("admin user rules (PostgreSQL)", () => {
 });
 
 describe.skipIf(!hasDb)("admin overview figures (PostgreSQL)", () => {
-    it("counts in one query and keeps zero days in the 14-day series", async () => {
+    it("counts in one query and keeps zero days in the activity series", async () => {
         const { adminDashboardDb } = await import("@/db/adminDashboard.db");
         const figures = await adminDashboardDb.figures();
         expect(figures.users_total).toBeGreaterThan(0);
         expect(typeof figures.submissions_today).toBe("number");
-        const series = await adminDashboardDb.submissionsByDay();
-        expect(series).toHaveLength(14);
         expect((await adminDashboardDb.recentAudit()).length).toBeLessThanOrEqual(5);
+        expect((await adminDashboardDb.topCourses()).length).toBeLessThanOrEqual(5);
+    });
+
+    it("returns the window and the one before it, one row per UTC day ending today", async () => {
+        const { adminDashboardDb } = await import("@/db/adminDashboard.db");
+        const rows = await adminDashboardDb.activityByDay(14);
+        expect(rows).toHaveLength(28);
+        const days = rows.map((row) => Date.parse(`${row.day}T00:00:00Z`));
+        days.slice(1).forEach((day, index) => expect(day - days[index]).toBe(86_400_000));
+        expect(rows.at(-1).day).toBe(new Date().toISOString().slice(0, 10));
+        for (const key of ["submissions", "signups", "learners", "runs_completed", "runs_failed", "runs_timeout"]) {
+            expect(typeof rows[0][key]).toBe("number");
+        }
+        // Today's submissions agree with the KPI the figures count.
+        const figures = await adminDashboardDb.figures();
+        expect(rows.at(-1).submissions).toBe(figures.submissions_today);
+    });
+
+    it("splits the activity into two equal windows and falls back to 14 days", async () => {
+        const { adminDashboardService } = await import("@/services/adminDashboard.service");
+        const result = await adminDashboardService.activity({ days: 7 });
+        expect(result.days).toBe(14);
+        expect(result.current).toHaveLength(14);
+        expect(result.previous).toHaveLength(14);
+        expect(result.previous.at(-1).day < result.current[0].day).toBe(true);
     });
 });

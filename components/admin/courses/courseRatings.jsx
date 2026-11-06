@@ -13,6 +13,7 @@ import { useAdmin } from "@/components/admin/adminContext";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import { useAdminSetRatingHidden } from "@/mutations/premium.mutation";
 import BarChart from "@/components/admin/ui/barChart";
+import HBar from "@/components/admin/ui/hBar";
 import Finding from "@/components/admin/ui/finding";
 import RowAction from "@/components/admin/ui/rowAction";
 import { TableSkeleton } from "@/components/admin/ui/adminSkeleton";
@@ -22,6 +23,7 @@ import { Badge } from "@/components/shadcn/badge";
 import { LuEye, LuEyeOff, LuStar } from "react-icons/lu";
 
 const starsLabel = (stars) => (stars === 1 ? "1 star" : `${stars} stars`);
+const weekLabel = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /** One-line reading of the ratings, in the words the Overview findings use. */
 function ratingFinding(data) {
@@ -60,12 +62,29 @@ export default function CourseRatings({ courseId }) {
                     <h2 id="course-ratings-heading" className="text-sm font-semibold">Ratings</h2>
                     <p className="text-xs text-muted-foreground">{ratingFinding(data)}</p>
                 </header>
-                <div className="p-5">
-                    <BarChart
-                        data={data.histogram.map((row) => ({ label: starsLabel(row.stars), value: row.count }))}
-                        label="Visible ratings by number of stars"
-                        height={160}
-                    />
+                <div className="grid gap-6 p-5 @3xl:grid-cols-2">
+                    <div className="min-w-0">
+                        <h3 className="mb-3 text-xs text-muted-foreground">Visible ratings by stars</h3>
+                        <HBar
+                            rows={[...data.histogram].reverse().map((row) => ({
+                                key: row.stars,
+                                label: starsLabel(row.stars),
+                                value: row.count,
+                                detail: data.count ? `${Math.round((row.count / data.count) * 100)}%` : null,
+                            }))}
+                            label="Visible ratings by number of stars"
+                        />
+                    </div>
+                    <div className="min-w-0">
+                        <h3 className="mb-1 text-xs text-muted-foreground">Ratings given or changed per week, last 12 weeks</h3>
+                        <BarChart
+                            data={(data.weekly || []).map((row) => ({ label: row.week, value: row.count }))}
+                            label="Visible ratings given or changed per week, last 12 weeks"
+                            height={150}
+                            unit="weeks"
+                            formatLabel={weekLabel}
+                        />
+                    </div>
                 </div>
             </section>
 

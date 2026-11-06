@@ -130,6 +130,15 @@ export const adminQueries = {
         refetchIntervalInBackground: false,
         retry: retryTransient,
     }),
+    activity: (days) => ({
+        queryKey: adminKeys.activity(days),
+        queryFn: () => adminClient.getActivity(days),
+        ...QUERY_TIMES.live,
+        placeholderData: (previous) => previous,
+        refetchInterval: 60_000,
+        refetchIntervalInBackground: false,
+        retry: retryTransient,
+    }),
     user: (userId) => ({
         queryKey: adminKeys.user(userId),
         queryFn: () => adminClient.getUser(userId),

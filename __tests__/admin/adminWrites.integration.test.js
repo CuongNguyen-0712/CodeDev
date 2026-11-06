@@ -5,7 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 const TAG = `aw${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")}`;
-const COURSE = "c-systems-programming"; // a premium draft with prices in the local seed
+// Picked in beforeAll: a course with an active points price (a draft first), since seed courses come and go.
+let COURSE;
 const reason = "admin write round-trip test";
 
 describe.skipIf(!hasDb)("admin writes persist (PostgreSQL)", () => {
@@ -30,10 +31,13 @@ describe.skipIf(!hasDb)("admin writes persist (PostgreSQL)", () => {
         ({ adminOpsService } = await import("@/services/adminOps.service"));
         ({ adminRunService } = await import("@/services/adminRun.service"));
         course = (await sql(
-            `SELECT c.id::text AS id, c.level::text AS level, c.publish_status::text AS status,
+            `SELECT c.id::text AS id, c.public_id, c.level::text AS level, c.publish_status::text AS status,
                     (SELECT amount::int FROM commerce.offer o WHERE o.course_id = c.id AND o.is_active AND o.price_type = 'points') AS points
-             FROM catalog.course c WHERE c.public_id = $1`, [COURSE]
+             FROM catalog.course c
+             WHERE c.is_deleted IS NOT TRUE AND EXISTS (SELECT 1 FROM commerce.offer o WHERE o.course_id = c.id AND o.is_active AND o.price_type = 'points')
+             ORDER BY (c.publish_status = 'draft') DESC, c.id LIMIT 1`
         )).rows[0];
+        COURSE = course?.public_id;
         for (const user of [actor, learner]) {
             user.id = (await sql(`SELECT id::text FROM identity.users WHERE public_id = $1`, [user.publicId])).rows[0]?.id;
             if (!user.id) {

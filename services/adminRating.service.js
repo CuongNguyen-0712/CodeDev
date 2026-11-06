@@ -24,6 +24,7 @@ export const adminRatingService = {
             histogram,
             recent: { average: summary.recent_average, count: summary.recent_count },
             items: await adminRatingDb.list(summary.course_id),
+            weekly: await adminRatingDb.weekly(summary.course_id),
         };
     },
 

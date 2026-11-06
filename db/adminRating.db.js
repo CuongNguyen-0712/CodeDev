@@ -26,6 +26,16 @@ export const adminRatingDb = {
         [courseDbId]
     )).rows,
 
+    /** Visible ratings given or changed per week, the last 12 weeks (this week last), empty weeks kept. */
+    weekly: async (courseDbId) => (await sql(
+        `SELECT w::date::text AS week,
+                (SELECT COUNT(*) FROM community.course_rating r
+                 WHERE r.course_id = $1 AND NOT r.is_hidden AND r.updated_at >= w AND r.updated_at < w + interval '7 days')::int AS count
+         FROM generate_series(date_trunc('week', now()) - interval '11 weeks', date_trunc('week', now()), interval '1 week') AS w
+         ORDER BY w`,
+        [courseDbId]
+    )).rows,
+
     lock: async (client, { courseDbId, userPublicId }) => (await client.query(
         `SELECT r.user_id, r.stars, r.is_hidden FROM community.course_rating r
          JOIN identity.users u ON u.id = r.user_id

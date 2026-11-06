@@ -43,13 +43,58 @@ export const adminDashboardDb = {
             (SELECT COUNT(*) FROM identity.users WHERE purge_after IS NOT NULL AND email_verified IS NOT TRUE AND status = 'active' AND purge_after <= now() + interval '1 day')::int AS purge_soon
     `)).rows[0],
 
-    /** Submissions (code + quiz) per day for the last 14 days, today included, zero days kept. */
-    submissionsByDay: async () => (await sql(`
-        SELECT d::date::text AS day,
-               ((SELECT COUNT(*) FROM challenge.code_submissions WHERE submitted_at >= d AND submitted_at < d + interval '1 day')
-                + (SELECT COUNT(*) FROM challenge.question_submissions WHERE created_at >= d AND created_at < d + interval '1 day'))::int AS count
-        FROM generate_series(date_trunc('day', now()) - interval '13 days', date_trunc('day', now()), interval '1 day') AS d
-        ORDER BY d
+    /**
+     * Activity per UTC day over 2 × `days` days (the window and the one before it), today last, zero days
+     * kept: submissions (code + quiz), sign-ups, practising learners (non-staff accounts with a submission
+     * or code run that day) and code runs by outcome. Each table is scanned once from the window start.
+     */
+    activityByDay: async (days) => (await sql(`
+        WITH bounds AS (SELECT date_trunc('day', now())::timestamp - ($1::int * 2 - 1) * interval '1 day' AS since),
+        days AS (SELECT d::date AS day FROM bounds, generate_series(bounds.since, date_trunc('day', now())::timestamp, interval '1 day') AS d),
+        subs AS (
+            SELECT submitted_at::date AS day, user_id FROM challenge.code_submissions, bounds WHERE submitted_at >= bounds.since
+            UNION ALL
+            SELECT created_at::date, user_id FROM challenge.question_submissions, bounds WHERE created_at >= bounds.since
+        ),
+        runs AS (SELECT queued_at::date AS day, user_id, status FROM challenge.code_runs, bounds WHERE queued_at >= bounds.since),
+        practising AS (
+            SELECT day, COUNT(DISTINCT user_id)::int AS n FROM (SELECT day, user_id FROM subs UNION ALL SELECT day, user_id FROM runs) x
+            WHERE ${NOT_STAFF("x.user_id")} GROUP BY day
+        ),
+        sub_counts AS (SELECT day, COUNT(*)::int AS n FROM subs GROUP BY day),
+        signup_counts AS (SELECT u.created_at::date AS day, COUNT(*)::int AS n FROM identity.users u, bounds WHERE u.created_at >= bounds.since GROUP BY 1),
+        run_counts AS (
+            SELECT day,
+                   COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
+                   COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+                   COUNT(*) FILTER (WHERE status IN ('timeout', 'cancelled'))::int AS timeout
+            FROM runs GROUP BY day
+        )
+        SELECT d.day::text AS day,
+               COALESCE(s.n, 0) AS submissions,
+               COALESCE(g.n, 0) AS signups,
+               COALESCE(p.n, 0) AS learners,
+               COALESCE(r.completed, 0) AS runs_completed,
+               COALESCE(r.failed, 0) AS runs_failed,
+               COALESCE(r.timeout, 0) AS runs_timeout
+        FROM days d
+        LEFT JOIN sub_counts s ON s.day = d.day
+        LEFT JOIN signup_counts g ON g.day = d.day
+        LEFT JOIN practising p ON p.day = d.day
+        LEFT JOIN run_counts r ON r.day = d.day
+        ORDER BY d.day
+    `, [days])).rows,
+
+    /** The 5 courses with the most new registrations in the last 30 days, with how many of those finished. */
+    topCourses: async () => (await sql(`
+        SELECT c.public_id AS id, c.title, COUNT(*)::int AS registrations,
+               COUNT(*) FILTER (WHERE reg.status = 'completed')::int AS completed
+        FROM learning.register reg JOIN catalog.course c ON c.id = reg.course_id
+        WHERE reg.created_at > now() - interval '30 days' AND reg.is_deleted IS NOT TRUE AND c.is_deleted IS NOT TRUE
+          AND ${NOT_STAFF("reg.user_id")}
+        GROUP BY c.id
+        ORDER BY registrations DESC, c.title
+        LIMIT 5
     `)).rows,
 
     recentAudit: async () => (await sql(`

@@ -48,6 +48,7 @@ export const adminClient = {
     })).data,
     getContentKpis: async (courseId) => (await apiClient.get('/admin/content-kpis', { params: { course: courseId } })).data,
     getExpAudit: async () => (await apiClient.get('/admin/exp-audit')).data,
+    getActivity: async (days) => (await apiClient.get('/admin/dashboard/activity', { params: { days } })).data,
     getDashboard: async ({ fresh = false } = {}) => (await apiClient.get('/admin/dashboard', { params: fresh ? { fresh: 1 } : {} })).data,
     listUsers: async ({ tab, q, role, cursor }) =>
         (await apiClient.get('/admin/users/list', { params: { tab, q: q || undefined, role: role || undefined, cursor: cursor || undefined } })).data,

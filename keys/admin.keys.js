@@ -8,6 +8,7 @@ export const adminKeys = {
     contentKpis: (courseId) => [...adminKeys.all, 'contentKpis', courseId],
     expAudit: () => [...adminKeys.all, 'expAudit'],
     dashboard: () => [...adminKeys.all, 'dashboard'],
+    activity: (days) => [...adminKeys.all, 'dashboard', 'activity', days],
     userList: (filters) => [...adminKeys.all, 'userList', filters],
     user: (userId) => [...adminKeys.all, 'user', userId],
     userActivity: (userId, kinds) => [...adminKeys.all, 'userActivity', userId, kinds],

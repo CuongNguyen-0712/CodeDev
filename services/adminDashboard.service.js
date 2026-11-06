@@ -4,6 +4,8 @@ import { cacheKeys, TTL } from "@/lib/cacheKeys";
 import { appEnv } from "@/lib/appEnv.mjs";
 import { healthReport } from "@/services/health.service";
 
+export const ACTIVITY_DAYS = [14, 30, 90];
+
 /** What is deployed (Vercel system environment variables; absent locally and in Docker). */
 function deployment(env = process.env) {
     const sha = env.VERCEL_GIT_COMMIT_SHA || null;
@@ -27,18 +29,28 @@ export const adminDashboardService = {
      * fresh: the Refresh button recounts instead of serving the cached figures; measuredAt says how old they are.
      */
     overview: async ({ canReadAudit = false, fresh = false } = {}) => {
-        if (fresh) await redis.del(cacheKeys.adminDashboard()).catch(() => {});
+        if (fresh) await redis.del(cacheKeys.adminDashboard(), ...ACTIVITY_DAYS.map((days) => cacheKeys.adminActivity(days))).catch(() => {});
         const [figures, health] = await Promise.all([
             redis.remember(cacheKeys.adminDashboard(), TTL.ADMIN_DASHBOARD, async () => {
-                const [counts, series, audit] = await Promise.all([
+                const [counts, topCourses, audit] = await Promise.all([
                     adminDashboardDb.figures(),
-                    adminDashboardDb.submissionsByDay(),
+                    adminDashboardDb.topCourses(),
                     adminDashboardDb.recentAudit(),
                 ]);
-                return { counts, series, audit, measuredAt: new Date().toISOString() };
+                return { counts, topCourses, audit, measuredAt: new Date().toISOString() };
             }),
             healthReport(),
         ]);
         return { ...figures, audit: canReadAudit ? figures.audit : [], health, deployment: deployment() };
+    },
+
+    /**
+     * Activity per UTC day for the Overview chart: `days` (14, 30 or 90) days and the same number before
+     * them, split into { current, previous } of equal length. Cached like the figures.
+     */
+    activity: async ({ days = 14 } = {}) => {
+        const window = ACTIVITY_DAYS.includes(days) ? days : ACTIVITY_DAYS[0];
+        const rows = await redis.remember(cacheKeys.adminActivity(window), TTL.ADMIN_DASHBOARD, () => adminDashboardDb.activityByDay(window));
+        return { days: window, previous: rows.slice(0, rows.length - window), current: rows.slice(-window) };
     },
 };

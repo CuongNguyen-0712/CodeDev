@@ -9,6 +9,9 @@ import { LOW_RATING } from "@/lib/ratingRules";
 import { useAdmin } from "@/components/admin/adminContext";
 import PageHeader from "@/components/admin/shell/pageHeader";
 import BarChart from "@/components/admin/ui/barChart";
+import HBar from "@/components/admin/ui/hBar";
+import TabBar from "@/components/admin/ui/tabBar";
+import { useUrlFilters } from "@/components/admin/ui/useUrlFilters";
 import Finding from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
 import { formatChange, formatDuration, formatNumber, formatRelative } from "@/components/admin/ui/format";
@@ -16,6 +19,7 @@ import { StripSkeleton, TableSkeleton } from "@/components/admin/ui/adminSkeleto
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { cn } from "@/lib/utils";
 
 import { LuArrowRight, LuCopy, LuRefreshCw } from "react-icons/lu";
@@ -64,7 +68,7 @@ function DeploymentCard({ deployment, health }) {
                 <p className="text-sm text-muted-foreground capitalize">{deployment.environment}</p>
                 {deployment.message ? (
                     <>
-                        <p className="text-base font-semibold leading-snug">{deployment.message}</p>
+                        <p className="text-base font-semibold leading-snug break-words">{deployment.message}</p>
                         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                             {deployment.branch && <span>{deployment.branch}</span>}
                             {deployment.shortSha && (
@@ -147,6 +151,93 @@ function NeedsAttention({ counts, can }) {
 
 const dayLabel = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
+const RANGES = ["14", "30", "90"];
+// One series per metric; code runs stack their outcomes, each in its status hue with a word in the legend.
+const METRICS = [
+    { key: "submissions", label: "Submissions", note: "Code and quiz answers", value: (row) => row.submissions },
+    { key: "learners", label: "Practising learners", note: "Learners who submitted or ran code that day, staff left out", value: (row) => row.learners },
+    { key: "signups", label: "Sign-ups", note: "New accounts", value: (row) => row.signups },
+    {
+        key: "runs", label: "Code runs", note: "Runs and submits by how they ended",
+        value: (row) => row.runs_completed + row.runs_failed + row.runs_timeout,
+        series: [
+            { key: "runs_completed", label: "Completed", className: "fill-primary-ink" },
+            { key: "runs_failed", label: "Failed", className: "fill-destructive" },
+            { key: "runs_timeout", label: "Timed out or cancelled", className: "fill-warning" },
+        ],
+    },
+];
+
+/** Activity per UTC day: a metric, a 14/30/90-day window, and the window before it as dashed outlines. */
+function ActivityPanel() {
+    const [{ range, metric }, update] = useUrlFilters({ range: RANGES, metric: METRICS.map((item) => item.key) }, { range: "14", metric: "submissions" });
+    const days = Number(range);
+    const query = useQuery(adminQueries.activity(days));
+    const chosen = METRICS.find((item) => item.key === metric) || METRICS[0];
+    const current = query.data?.current || [];
+    const previous = query.data?.previous || [];
+    const totals = Object.fromEntries(METRICS.map((item) => [item.key, current.reduce((sum, row) => sum + item.value(row), 0)]));
+    const previousTotal = previous.reduce((sum, row) => sum + chosen.value(row), 0);
+    const data = current.map((row) => ({
+        label: row.day,
+        value: chosen.value(row),
+        parts: chosen.series ? Object.fromEntries(chosen.series.map((part) => [part.key, row[part.key]])) : undefined,
+    }));
+
+    return (
+        <Panel
+            title="Activity"
+            className="min-w-0 @4xl:col-span-2"
+            action={
+                <ToggleGroup type="single" variant="outline" size="sm" value={range} onValueChange={(value) => value && update({ range: value })} aria-label="Days shown">
+                    {RANGES.map((value) => <ToggleGroupItem key={value} value={value} className="px-2.5 text-xs">{value} days</ToggleGroupItem>)}
+                </ToggleGroup>
+            }
+        >
+            <TabBar tabs={METRICS} value={chosen.key} onChange={(key) => update({ metric: key })} counts={query.data ? totals : undefined} label="Metric" />
+            {query.isPending ? (
+                <Skeleton className="h-44 w-full" />
+            ) : query.isError ? (
+                <p className="text-sm">Couldn&apos;t load the activity. <button type="button" className="font-medium text-primary-ink hover:underline" onClick={() => query.refetch()}>Retry</button></p>
+            ) : (
+                <>
+                    <p className="mb-2 text-xs text-muted-foreground">
+                        {chosen.note} · {formatChange(totals[chosen.key], previousTotal, `vs the ${days} days before`) || "—"} · days in UTC
+                    </p>
+                    <BarChart
+                        data={data}
+                        compare={previous.map((row) => chosen.value(row))}
+                        compareLabel={`the ${days} days before`}
+                        series={chosen.series}
+                        label={`${chosen.label} per day, last ${days} days`}
+                        unit="days"
+                        height={170}
+                        formatLabel={dayLabel}
+                    />
+                </>
+            )}
+        </Panel>
+    );
+}
+
+/** The courses most registered in the last 30 days, each with how many of those registrations finished. */
+function TopCourses({ courses, can }) {
+    if (!courses?.length) return <p className="text-sm text-muted-foreground">No course had a new registration in the last 30 days.</p>;
+    return (
+        <HBar
+            label="Courses with the most new registrations, last 30 days"
+            rows={courses.map((course) => ({
+                key: course.id,
+                label: can("admin.read")
+                    ? <Link href={`/admin/courses/${encodeURIComponent(course.id)}`} className="hover:underline">{course.title}</Link>
+                    : course.title,
+                value: course.registrations,
+                detail: `${formatNumber(course.completed)} finished`,
+            }))}
+        />
+    );
+}
+
 function OverviewSkeleton() {
     return (
         <div className="space-y-4" aria-busy="true" aria-label="Loading overview">
@@ -192,9 +283,8 @@ export default function AdminOverview() {
         );
     }
 
-    const { counts, series, audit, health, deployment } = data;
+    const { counts, topCourses, audit, health, deployment } = data;
     const staff = counts.staff || {};
-    const chartData = series.map((point) => ({ label: point.day, value: point.count }));
 
     return (
         <>
@@ -207,11 +297,7 @@ export default function AdminOverview() {
                 <Kpis counts={counts} />
 
                 <div className="grid gap-4 @4xl:grid-cols-3">
-                    <Panel title="Submissions, last 14 days" className="@4xl:col-span-2" action={<span className="text-xs text-muted-foreground">Code and quiz</span>}>
-                        {/* The SVG scales with its viewBox, so phones get a narrower one to keep the ticks readable. */}
-                        <BarChart data={chartData} label="Submissions per day, last 14 days" width={320} height={150} className="@xl:hidden" formatLabel={dayLabel} />
-                        <BarChart data={chartData} label="Submissions per day, last 14 days" height={140} className="@max-xl:hidden" formatLabel={dayLabel} />
-                    </Panel>
+                    <ActivityPanel />
                     <Panel
                         title="Needs attention"
                         badge={<AttentionBadge counts={counts} />}
@@ -225,7 +311,10 @@ export default function AdminOverview() {
                     </Panel>
                 </div>
 
-                <div className="grid gap-4 @3xl:grid-cols-2">
+                <div className="grid gap-4 @3xl:grid-cols-2 @6xl:grid-cols-3">
+                    <Panel title="Top courses, last 30 days" action={<span className="text-xs text-muted-foreground">New registrations</span>}>
+                        <TopCourses courses={topCourses} can={can} />
+                    </Panel>
                     <Panel title="Catalog and people" action={can("admin.read") && <Link href="/admin/courses" className="text-sm text-primary-ink hover:underline">Courses</Link>}>
                         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                             {PUBLISH_ORDER.map((status) => (
