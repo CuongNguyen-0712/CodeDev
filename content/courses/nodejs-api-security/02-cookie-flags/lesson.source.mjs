@@ -108,7 +108,7 @@ if (process.env.NODE_ENV === "production" && cookieConfig.environment === "local
 }`, "auth.controller.ts"),
         h3("Clearing a cookie means naming the same cookie"),
         p("A browser identifies a stored cookie by name, domain and path. A `Set-Cookie` replaces a stored cookie only when all three match (RFC 6265, section 5.3, step 11). So a clearing cookie must repeat the Path and the Domain (or the absence of Domain) of the original. Express's `res.clearCookie(name)` defaults to `Path=/`, so called without a path it does not touch a refresh cookie set on `/auth/refresh`. Building the clearing values in the same function as the originals makes that mistake impossible."),
-        p("Now write that function. The starter lists the exact validation rules, their order and the attribute order of each header; the tests run it against production, the local-http mode, invalid configs and a fake clock."),
+        p("Now assemble that function. The starter lists the exact validation rules, their order and the attribute order of each header; the tests run it against production, the local-http mode, invalid configs and a fake clock."),
         challenge("chal_coding_nas_122"),
 
         h2("5. How to verify"),

@@ -1,30 +1,55 @@
-"""Offline retrieval metrics over a golden set: recall@k, MRR@k and hit rate@k."""
+"""
+Offline retrieval metrics over a golden set.
+
+Each result is {"query", "retrieved": ids in rank order, "relevant": ids a human marked as
+correct}. The dashboard shows three averages over the queries - and they look wrong: recall
+moves when k changes even though nothing is found, a document ranked 20th improves MRR@5, a
+retriever that returns the same document twice scores better than one that does not, and
+adding unlabelled queries to the golden set drags every metric down.
+
+Intended behaviour, for each query with at least one relevant id:
+  - top-k = the first k retrieved ids, as returned (a repeated id still takes a slot).
+  - recall@k  = relevant ids found in the top-k / number of relevant ids
+                (a relevant id counts once, however often it appears).
+  - MRR@k     = 1 / rank of the first relevant id in the top-k (rank 1 = first), else 0.
+  - hit rate  = 1 if any relevant id is in the top-k, else 0.
+Queries without relevant ids are left out of the averages. With no query left, every metric
+is 0.0. Averages are rounded to 4 decimals.
+"""
 import json
 import sys
 
 
 def evaluate(results: list[dict], k: int) -> dict:
-    recalls: list[float] = []
-    reciprocal_ranks: list[float] = []
-    hits: list[float] = []
-
+    recall_sum = rr_sum = hit_sum = 0.0
     for result in results:
+        # @piece which-queries: Decide whether a query can be scored
         relevant = set(result["relevant"])
         if not relevant:
-            continue  # nothing to find: the query cannot be scored
-        top = result["retrieved"][:k]  # what the model would see, duplicates included
+            continue
+        # @end
+        top = result["retrieved"][:k]
+        # @piece recall: Recall of one query
         found = relevant.intersection(top)
-        recalls.append(len(found) / len(relevant))
-        reciprocal_ranks.append(next((1 / rank for rank, doc_id in enumerate(top, start=1) if doc_id in relevant), 0.0))
-        hits.append(1.0 if found else 0.0)
+        recall_sum += len(found) / len(relevant)
+        # @end
+        # @piece reciprocal-rank: Reciprocal rank of the first relevant document
+        for rank, doc_id in enumerate(top, start=1):
+            if doc_id in relevant:
+                rr_sum += 1 / rank
+                break
+        # @end
+        hit_sum += 1.0 if found else 0.0
 
-    if not recalls:
+    # @piece query-count: How many queries the averages divide by
+    n = sum(1 for result in results if result["relevant"])
+    # @end
+    if n == 0:
         return {"recall_at_k": 0.0, "mrr": 0.0, "hit_rate": 0.0}
-    n = len(recalls)
     return {
-        "recall_at_k": round(sum(recalls) / n, 4),
-        "mrr": round(sum(reciprocal_ranks) / n, 4),
-        "hit_rate": round(sum(hits) / n, 4),
+        "recall_at_k": round(recall_sum / n, 4),
+        "mrr": round(rr_sum / n, 4),
+        "hit_rate": round(hit_sum / n, 4),
     }
 
 

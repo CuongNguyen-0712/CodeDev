@@ -36,7 +36,8 @@ import { readFileSync } from "node:fs";
 //     verbosityRate = longerWins / consistent. verbosityBias: longerWins / consistent > 0.5.
 //   - flipRate and verbosityRate are null when their denominator is 0, and then the flag is false.
 // Round observed, expected, kappa, flipRate and verbosityRate with Math.round(x * 1000) / 1000.
-// Write compare (add helpers as you like). Do not change the types or the test runner.
+// Fill every [ ] line of compare and its helpers with a piece (some pieces are wrong). Do not change the
+// types or the test runner.
 
 type Label = string | number;
 type Item = { id: string; slice?: string; judge?: Label | null; human?: Label | null };
@@ -65,8 +66,35 @@ type Bias = {
 };
 type Report = { overall: Overall; slices: SliceAgreement[]; bias: Bias } | { error: "bad_categories" };
 
+const round3 = (x: number): number => Math.round(x * 1000) / 1000;
+
+function agreement(categories: Label[], items: Item[]): Overall {
+    const k = categories.length;
+    const matrix = categories.map(() => categories.map(() => 0));
+    let n = 0;
+    let skipped = 0;
+    // [ ] Fill the confusion matrix, skipping unusable items
+    if (n === 0) return { n, skipped, observed: null, expected: null, kappa: null, reason: "no_items", matrix };
+    // [ ] Observed and chance agreement, then kappa
+}
+
+function bias(swaps: Swap[]): Bias {
+    const winners = ["A", "B", "tie"];
+    let pairs = 0;
+    let skipped = 0;
+    let flips = 0;
+    let first = 0;
+    let second = 0;
+    let longerWins = 0;
+    // [ ] Count flips, positions and longer-answer wins
+    // [ ] Report the rates and the two bias flags
+}
+
 function compare(categories: Label[], items: Item[], swaps: Swap[]): Report {
-    return { error: "bad_categories" };
+    // [ ] Reject a bad category list
+
+    // [ ] Group items by slice and score each slice
+    return { overall: agreement(categories, items), slices, bias: bias(swaps) };
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

@@ -15,8 +15,13 @@
  * @returns {(key: string) => Promise<T>}
  */
 function singleFlight(fn) {
-  // TODO: keep track of the in-flight promise per key
-  return async function load(key) {
-    return fn(key);
+  // [ ] Where the in-flight promise of each key is kept
+
+  return function load(key) {
+    // [ ] Join a load that is already running
+
+    // [ ] Start the load and forget the key when it settles
+
+    // [ ] Remember the load for later callers
   };
 }

@@ -1,0 +1,49 @@
+[
+  {
+    "id": "state",
+    "label": "Burst state: timer, latest arguments, times",
+    "code": "const maxWait = typeof options.maxWait === \"number\" ? Math.max(options.maxWait, waitMs) : null;\nlet timerId = null;     // non-null while a burst is active\nlet pendingArgs = null; // args of the latest call that has not been invoked yet\nlet lastCallTime = 0;\nlet anchorTime = 0;     // burst start or last invocation (for maxWait)"
+  },
+  {
+    "id": "invoke-and-end",
+    "label": "Invoke fn, and end a burst",
+    "code": "function invoke(time) {\n  const args = pendingArgs;\n  pendingArgs = null;\n  anchorTime = time;\n  fn(...args);\n}\n\nfunction endBurst() {\n  if (timerId !== null) timers.clearTimeout(timerId);\n  timerId = null;\n  pendingArgs = null;\n}"
+  },
+  {
+    "id": "schedule",
+    "label": "Set the timer for the next due time",
+    "code": "function schedule(time) {\n  let due = lastCallTime + waitMs;\n  if (maxWait !== null) due = Math.min(due, anchorTime + maxWait);\n  timerId = timers.setTimeout(onTimer, Math.max(0, due - time));\n}"
+  },
+  {
+    "id": "on-timer",
+    "label": "When the timer fires",
+    "code": "function onTimer() {\n  const time = timers.now();\n  timerId = null;\n  if (time >= lastCallTime + waitMs) {\n    if (trailing && pendingArgs) invoke(time);\n    pendingArgs = null;\n    return;\n  }\n  if (pendingArgs) invoke(time);\n  else anchorTime = time;\n  schedule(time);\n}"
+  },
+  {
+    "id": "call",
+    "label": "Start or extend the burst on every call",
+    "code": "const time = timers.now();\nlastCallTime = time;\npendingArgs = args;\n\nif (timerId === null) {\n  anchorTime = time;\n  if (leading) invoke(time);\n} else {\n  timers.clearTimeout(timerId);\n}\nschedule(time);"
+  },
+  {
+    "id": "cancel",
+    "label": "Drop the pending call",
+    "code": "endBurst();"
+  },
+  {
+    "id": "flush",
+    "label": "Run the pending call now",
+    "code": "if (timerId === null) return;\nconst time = timers.now();\nif (trailing && pendingArgs) invoke(time);\nendBurst();"
+  },
+  {
+    "id": "call-keeps-first-args",
+    "label": "Start or extend the burst on every call",
+    "code": "const time = timers.now();\nlastCallTime = time;\nif (pendingArgs === null) pendingArgs = args;\n\nif (timerId === null) {\n  anchorTime = time;\n  if (leading) invoke(time);\n} else {\n  timers.clearTimeout(timerId);\n}\nschedule(time);",
+    "distractor": true
+  },
+  {
+    "id": "schedule-no-max-wait",
+    "label": "Set the timer for the next due time",
+    "code": "function schedule(time) {\n  timerId = timers.setTimeout(onTimer, Math.max(0, lastCallTime + waitMs - time));\n}",
+    "distractor": true
+  }
+]

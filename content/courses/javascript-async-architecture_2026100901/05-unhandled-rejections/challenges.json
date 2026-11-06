@@ -15,10 +15,22 @@
           "question": "A \"Save all\" button runs:\n\nasync function saveAll(drafts) {\n  try {\n    drafts.forEach(async (draft) => {\n      await api.save(draft);   // the 2nd save rejects with HTTP 409\n    });\n    toast(\"All drafts saved\");\n  } catch (error) {\n    toast(\"Saving failed: \" + error.message);\n  }\n}\n\nWhat does the user see, and what happens to the 409?",
           "explanation": "forEach calls the async callback for each draft and throws away the promises it returns - it never waits for them. saveAll reaches toast(\"All drafts saved\") synchronously, before any save has finished, and the try block is already left when the 409 arrives. That callback's promise rejects with no handler attached: the browser fires an unhandledrejection event (and logs \"Uncaught (in promise)\"), and Node.js would by default terminate the process. Use Promise.all(drafts.map(...)) and await it, so the error reaches the catch.",
           "options": [
-            { "text": "\"Saving failed: HTTP 409\" - the catch block receives the error from the callback.", "correct": false },
-            { "text": "\"All drafts saved\", shown before any save has finished; the 409 becomes an unhandled rejection.", "correct": true },
-            { "text": "\"All drafts saved\", shown after all saves finished; the 409 is silently ignored by forEach.", "correct": false },
-            { "text": "Nothing - forEach stops at the first rejected callback and saveAll never resumes.", "correct": false }
+            {
+              "text": "\"Saving failed: HTTP 409\" - the catch block receives the error from the callback.",
+              "correct": false
+            },
+            {
+              "text": "\"All drafts saved\", shown before any save has finished; the 409 becomes an unhandled rejection.",
+              "correct": true
+            },
+            {
+              "text": "\"All drafts saved\", shown after all saves finished; the 409 is silently ignored by forEach.",
+              "correct": false
+            },
+            {
+              "text": "Nothing - forEach stops at the first rejected callback and saveAll never resumes.",
+              "correct": false
+            }
           ]
         },
         {
@@ -27,13 +39,31 @@
           "question": "send() returns a promise that rejects after 100 ms. Which snippets end up reporting an unhandled rejection? (Select all that apply.)",
           "explanation": "void only discards the value - it attaches no handler. The DOM ignores whatever an event listener returns, so the promise returned by an async listener is never observed by anyone. A promise that rejects while you are still awaiting something else has no handler at that moment: the runtime reports it at the end of that task, and attaching the handler 2 seconds later only produces a rejectionhandled event afterwards. .catch() attaches a handler immediately, and Promise.all attaches handlers to every input, so the rejection is delivered to the await.",
           "options": [
-            { "text": "void send();", "correct": true },
-            { "text": "send().catch(reportError);", "correct": false },
-            { "text": "button.addEventListener(\"click\", async () => { await send(); });  // then the button is clicked", "correct": true },
-            { "text": "const p = send(); await otherWork(); /* takes 2 s */ await p;", "correct": true },
-            { "text": "await Promise.all([send(), otherWork()]);  // inside try/catch", "correct": false }
+            {
+              "text": "void send();",
+              "correct": true
+            },
+            {
+              "text": "send().catch(reportError);",
+              "correct": false
+            },
+            {
+              "text": "button.addEventListener(\"click\", async () => { await send(); });  // then the button is clicked",
+              "correct": true
+            },
+            {
+              "text": "const p = send(); await otherWork(); /* takes 2 s */ await p;",
+              "correct": true
+            },
+            {
+              "text": "await Promise.all([send(), otherWork()]);  // inside try/catch",
+              "correct": false
+            }
           ]
         }
+      ],
+      "outcomes": [
+        "promise-composition"
       ]
     },
     {
@@ -41,7 +71,7 @@
       "name": "fix-fire-and-forget-checkout",
       "type": "fix_bug",
       "title": "Fix the fire-and-forget checkout",
-      "description": "placeOrder() tracks analytics, prefetches the receipt template, creates the order and reserves stock. In production it floods error tracking with unhandled rejections, confirms orders whose reservations failed and leaves the spinner running after errors. Fix it so every promise has a handler from the moment it exists, the order waits for all reservations, optional work falls back instead of failing, and the spinner always stops. The tests run the checkout on a virtual clock and count every unhandled rejection the runtime reports.",
+      "description": "placeOrder() tracks analytics, prefetches the receipt template, creates the order and reserves stock. In production it floods error tracking with unhandled rejections, confirms orders whose reservations failed and leaves the spinner running after errors. Fix it so every promise has a handler from the moment it exists, the order waits for all reservations, optional work falls back instead of failing, and the spinner always stops. The tests run the checkout on a virtual clock and count every unhandled rejection the runtime reports.\n\nSelect the faulty lines and replace them with the right fix; some fixes are wrong on purpose.",
       "difficulty": "medium",
       "points": 20,
       "coding": {
@@ -56,10 +86,19 @@
       "tests": [
         {
           "name": "Happy path: the order is confirmed only after every reservation",
-          "input": { "items": ["sku-1", "sku-2", "sku-3"] },
+          "input": {
+            "items": [
+              "sku-1",
+              "sku-2",
+              "sku-3"
+            ]
+          },
           "expected": {
             "outcome": "confirmed",
-            "value": { "orderId": "ord-1001", "template": "receipt-v2" },
+            "value": {
+              "orderId": "ord-1001",
+              "template": "receipt-v2"
+            },
             "at": 400,
             "reservedBeforeConfirm": 3,
             "spinner": "hidden",
@@ -70,10 +109,19 @@
         },
         {
           "name": "Ad blocker: analytics rejects, the order goes through without an error report",
-          "input": { "items": ["sku-1", "sku-2"], "trackFails": "Failed to fetch" },
+          "input": {
+            "items": [
+              "sku-1",
+              "sku-2"
+            ],
+            "trackFails": "Failed to fetch"
+          },
           "expected": {
             "outcome": "confirmed",
-            "value": { "orderId": "ord-1001", "template": "receipt-v2" },
+            "value": {
+              "orderId": "ord-1001",
+              "template": "receipt-v2"
+            },
             "at": 350,
             "reservedBeforeConfirm": 2,
             "spinner": "hidden",
@@ -84,7 +132,16 @@
         },
         {
           "name": "Out of stock: the order fails and the spinner stops",
-          "input": { "items": ["sku-1", "sku-2", "sku-3"], "outOfStock": { "sku-2": "OUT_OF_STOCK sku-2" } },
+          "input": {
+            "items": [
+              "sku-1",
+              "sku-2",
+              "sku-3"
+            ],
+            "outOfStock": {
+              "sku-2": "OUT_OF_STOCK sku-2"
+            }
+          },
           "expected": {
             "outcome": "failed",
             "error": "OUT_OF_STOCK sku-2",
@@ -96,10 +153,18 @@
         },
         {
           "name": "Receipt template service down: confirm with the plain template",
-          "input": { "items": ["sku-1"], "templateFails": "HTTP 502" },
+          "input": {
+            "items": [
+              "sku-1"
+            ],
+            "templateFails": "HTTP 502"
+          },
           "expected": {
             "outcome": "confirmed",
-            "value": { "orderId": "ord-1001", "template": "plain" },
+            "value": {
+              "orderId": "ord-1001",
+              "template": "plain"
+            },
             "at": 300,
             "reservedBeforeConfirm": 1,
             "spinner": "hidden",
@@ -110,7 +175,14 @@
         },
         {
           "name": "createOrder fails while analytics and the template fail too",
-          "input": { "items": ["sku-1"], "createFails": "HTTP 500", "trackFails": "Failed to fetch", "templateFails": "HTTP 502" },
+          "input": {
+            "items": [
+              "sku-1"
+            ],
+            "createFails": "HTTP 500",
+            "trackFails": "Failed to fetch",
+            "templateFails": "HTTP 502"
+          },
           "expected": {
             "outcome": "failed",
             "error": "HTTP 500",
@@ -120,6 +192,14 @@
           "hidden": true,
           "score": 4
         }
+      ],
+      "outcomes": [
+        "promise-composition"
+      ],
+      "hints": [
+        "Every promise that can reject needs a handler attached at the moment it is created, not later in the function.",
+        "`.catch(() => {})` for fire-and-forget work, `.catch(() => fallback)` for optional work started early, `Promise.all` over the reservations, and `try { ... } finally { ui.setBusy(false) }`.",
+        "Analogy: an upload page starts a thumbnail render early (optional, falls back to a placeholder) and sends a telemetry ping (ignored on failure), yet still awaits every chunk upload with Promise.all and hides the progress bar in finally."
       ]
     }
   ]

@@ -51,6 +51,7 @@ class SubmissionRateLimiter {
     }
 
     private inForce(limit: Limit, now: number): { capacity: number; rate: number } {
+        // @piece limits-in-force: The capacity and refill rate in force right now
         const exam = this.config.examDay;
         let capacity = limit.capacity;
         let perSec = limit.refillPerSec;
@@ -59,21 +60,27 @@ class SubmissionRateLimiter {
             perSec = Math.min(perSec, exam.refillPerSec);
         }
         return { capacity: capacity * TOKEN, rate: Math.round(perSec * 1000) };
+        // @end
     }
 
     private refilled(bucket: Bucket, now: number): number {
+        // @piece refill: Tokens in a bucket after refilling until now
         const { capacity, rate } = this.inForce(bucket.limit, now);
         return Math.min(capacity, bucket.tokens + (now - bucket.last) * rate);
+        // @end
     }
 
     check(req: SubmitRequest, now: number): Decision {
+        // @piece evict-idle: Forget idle buckets that are already full
         for (const [key, bucket] of this.buckets) {
             const full = this.refilled(bucket, now) >= this.inForce(bucket.limit, now).capacity;
             if (now - bucket.last >= this.config.idleTtlMs && full) this.buckets.delete(key);
         }
+        // @end
 
         let key: string;
         let limit: Limit;
+        // @piece pick-bucket: Whose bucket this request uses, and its limit
         if (typeof req.userId === "string" && req.userId !== "") {
             key = `user:${req.userId}`;
             limit = this.config.user;
@@ -83,7 +90,9 @@ class SubmissionRateLimiter {
         } else {
             return { status: 400, retryAfterSec: null, remaining: 0 };
         }
+        // @end
 
+        // @piece load-bucket: Create or refill the bucket
         const { capacity, rate } = this.inForce(limit, now);
         let bucket = this.buckets.get(key);
         if (bucket === undefined) {
@@ -93,13 +102,16 @@ class SubmissionRateLimiter {
             bucket.tokens = this.refilled(bucket, now);
             bucket.last = now;
         }
+        // @end
 
+        // @piece take-token: Take a token, or answer 429 with Retry-After
         if (bucket.tokens >= TOKEN) {
             bucket.tokens -= TOKEN;
             return { status: 200, retryAfterSec: null, remaining: Math.floor(bucket.tokens / TOKEN) };
         }
         const waitMs = Math.ceil((TOKEN - bucket.tokens) / rate);
         return { status: 429, retryAfterSec: Math.ceil(waitMs / 1000), remaining: Math.floor(bucket.tokens / TOKEN) };
+        // @end
     }
 
     size(): number {

@@ -60,14 +60,22 @@ type Validation =
     | { ok: true; id: string; familyId: string; userId: string; deviceId: string; expiresAt: number }
     | { ok: false; reason: "malformed" | "unknown" | "revoked" | "expired" };
 
+const TOKEN_FORMAT = /^[A-Za-z0-9_-]{43}$/;
+const sha256Hex = (value: string): string => createHash("sha256").update(value).digest("hex");
+
 function issueRefreshToken(deps: Deps, userId: string, deviceId: string): Issued {
-    // TODO: random token, one row with only its SHA-256 hash, one log event
-    return { token: "", id: "", familyId: "", expiresAt: 0 };
+    // [ ] Create the token and store only its hash
+    // [ ] Log the issue and return the result
 }
 
 function validateRefreshToken(deps: Deps, presented: unknown): Validation {
-    // TODO: format, hash lookup + timingSafeEqual, revoked, expired - and a log event for each result
-    return { ok: false, reason: "unknown" };
+    const reject = (reason: "malformed" | "unknown" | "revoked" | "expired", id?: string): Validation => {
+        deps.log(id ? { event: "refresh_token.rejected", reason, id } : { event: "refresh_token.rejected", reason });
+        return { ok: false, reason };
+    };
+    // [ ] Check the format, then find the row by hash
+    // [ ] Revoked and expired rows
+    // [ ] Accept: log and return the session
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

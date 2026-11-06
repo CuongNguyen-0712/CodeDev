@@ -25,6 +25,11 @@ import sqlite3
 import sys
 
 
+def escape_like(text):
+    # Backslash first, so the escapes added for % and _ are not escaped again.
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def search_courses(db, q, level=None):
     q = q.strip()
     if not q:

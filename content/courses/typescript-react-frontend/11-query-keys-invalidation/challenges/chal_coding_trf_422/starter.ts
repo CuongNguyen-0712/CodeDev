@@ -24,28 +24,40 @@ type Mutation =
     | { type: "edit"; courseId: string }
     | { type: "publish"; courseId: string };
 
+const CATEGORIES: readonly unknown[] = ["react", "node", "sql", "python", "devops"];
+const LEVELS: readonly unknown[] = ["beginner", "intermediate", "advanced"];
+const SORTS: readonly unknown[] = ["popular", "newest", "rating"];
+
+const isCategory = (v: unknown): v is Category => CATEGORIES.includes(v);
+const isLevel = (v: unknown): v is Level => LEVELS.includes(v);
+const isSort = (v: unknown): v is Sort => SORTS.includes(v);
+
 function normalizeFilters(filters: Filters): NormalizedFilters {
-    // keep only valid, non-default values, in alphabetical order of the property names
-    return {};
+    // [ ] Keep valid, non-default filters in a fixed order
 }
 
 const courseKeys = {
     all: ["courses"] as const,
-    lists: (): QueryKey => [],
-    list: (filters: Filters): QueryKey => [],
-    details: (): QueryKey => [],
-    detail: (id: string): QueryKey => [],
+    // [ ] The course query keys
 };
 
 const enrollmentKeys = {
     all: ["enrollments"] as const,
-    byUser: (userId: string): QueryKey => [],
+    // [ ] The enrollments of one user
 };
 
+/** The keys (used as prefixes) that a mutation makes stale. */
+function targets(mutation: Mutation): QueryKey[] {
+    // [ ] Keys each mutation makes stale
+}
+
+/** True when every element of prefix equals the element at the same position of key. */
+function matchesPrefix(prefix: QueryKey, key: QueryKey): boolean {
+    // [ ] Does a key start with the prefix?
+}
+
 function keysToInvalidate(cachedKeys: QueryKey[], mutation: Mutation): QueryKey[] {
-    // 1. which keys does this mutation make stale? (see the table in the description)
-    // 2. keep the cached keys that start with one of them, element by element
-    return [];
+    // [ ] The cached keys to invalidate
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

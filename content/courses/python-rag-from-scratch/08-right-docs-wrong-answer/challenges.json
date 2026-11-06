@@ -105,6 +105,9 @@
             }
           ]
         }
+      ],
+      "outcomes": [
+        "retrieval-evaluation"
       ]
     },
     {
@@ -112,7 +115,7 @@
       "name": "citation-check",
       "type": "fix_bug",
       "title": "Fix the citation check that passed the wrong answer",
-      "description": "check_citations(context, answer) is the guard that runs after every answer of the support assistant. The context is the packed prompt context (lines \"[n] text\", where n is the source's citation number; two chunks of one source share n). In the \"Right Docs, Wrong Answer?\" incident it reported \"2/2 sentences supported\" for \"The refund arrives within 30 days [4].\" although source [4] never mentions 30 days. Support has found more: it accepts \"3 days [1]\" when source 1 says 30 days, and it flags correct sentences when the number is in the first of two chunks from the same source. Fix it so that, for each sentence of the answer (numbered from 1, split by the given split_sentences()), with citations = the [n] markers and facts = the numbers matched by NUMBER in the sentence without its markers: the problem is \"unknown_source\" if a cited n has no line in the context; otherwise \"uncited\" if there are facts but no citation; otherwise \"unsupported\" if a fact is not one of the numbers found in all lines of the cited sources, compared as whole numbers. Return one {\"sentence\", \"problem\"} per sentence with a problem, in sentence order; an empty answer returns [].",
+      "description": "check_citations(context, answer) is the guard that runs after every answer of the support assistant. The context is the packed prompt context (lines \"[n] text\", where n is the source's citation number; two chunks of one source share n). In the \"Right Docs, Wrong Answer?\" incident it reported \"2/2 sentences supported\" for \"The refund arrives within 30 days [4].\" although source [4] never mentions 30 days. Support has found more: it accepts \"3 days [1]\" when source 1 says 30 days, and it flags correct sentences when the number is in the first of two chunks from the same source. Fix it so that, for each sentence of the answer (numbered from 1, split by the given split_sentences()), with citations = the [n] markers and facts = the numbers matched by NUMBER in the sentence without its markers: the problem is \"unknown_source\" if a cited n has no line in the context; otherwise \"uncited\" if there are facts but no citation; otherwise \"unsupported\" if a fact is not one of the numbers found in all lines of the cited sources, compared as whole numbers. Return one {\"sentence\", \"problem\"} per sentence with a problem, in sentence order; an empty answer returns [].\n\nSelect the faulty lines and replace them with the right fix; some fixes are wrong on purpose.",
       "difficulty": "medium",
       "points": 30,
       "hints": [
@@ -715,6 +718,9 @@
           "hidden": true,
           "score": 3
         }
+      ],
+      "outcomes": [
+        "retrieval-evaluation"
       ]
     }
   ]

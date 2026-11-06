@@ -135,7 +135,7 @@ async purge(queue: string, olderThanDays: number): Promise<number> {
         p("The validation is not decoration. A purge with `olderThanDays: 0` deletes every entry, including the ones that arrived five minutes ago and that nobody has looked at. That is exactly the kind of command someone types at 3 a.m."),
 
         h2("5. The challenge: a DLQ you can redrive and purge"),
-        p("The challenge gives you a main queue and a DLQ in memory, a clock in minutes and a handler whose failures you can switch off with a `deploy` command. You write the three functions that make the DLQ usable:"),
+        p("The challenge gives you a main queue and a DLQ in memory, a clock in minutes and a handler whose failures you can switch off with a `deploy` command. You assemble the three functions that make the DLQ usable:"),
         bullets([
             "**`tick`**: one minute. Move up to `redrivePerTick` messages back (skipping any whose id is already in the main queue), then deliver one message; dead-letter it with its metadata when it reaches `maxAttempts`.",
             "**`redrive`**: select by ids or by last error, refuse what is not in the DLQ or has an unsupported schema, and queue the rest. Nothing moves here; `tick` does the moving, at the limited rate.",

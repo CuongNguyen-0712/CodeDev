@@ -167,7 +167,7 @@ it.each([
             "**Wrong or double decoding.** `+` left as a plus, or a value decoded twice. Spot it: searches for \"c++\" or \"node js\" behave differently from the web app's search box; values containing `%25` change meaning.",
             "**No caps.** Spot it: no test sends 5,000 values, 400 sort fields or a 30 KB search string; the slow-query log shows giant `IN` lists.",
         ]),
-        p("Now write the parser for the public catalog. The starter gives you the allowlist of GET /courses (fields, types, operators, the error text each type expects, the sortable fields and the caps). Your function returns the plan or every error, and the tests include the incident, encoded and malformed query strings, and a 60 KB query."),
+        p("Now assemble the parser for the public catalog. The starter gives you the allowlist of GET /courses (fields, types, operators, the error text each type expects, the sortable fields and the caps). Your function returns the plan or every error, and the tests include the incident, encoded and malformed query strings, and a 60 KB query."),
         challenge("chal_coding_adp_232"),
 
         h2("7. Summary"),

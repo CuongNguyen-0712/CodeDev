@@ -1,0 +1,55 @@
+[
+  {
+    "id": "parse-or-stop",
+    "label": "Stop at once when there is no frontmatter",
+    "code": "const parsed = parseSkill(file.content);\nif (parsed === null) return [\"missing frontmatter\"];"
+  },
+  {
+    "id": "name-checks",
+    "label": "Checks on the name",
+    "code": "const name = parsed.frontmatter.get(\"name\") ?? \"\";\nif (name === \"\") {\n    errors.push(\"name: missing\");\n} else {\n    if (!NAME_PATTERN.test(name)) errors.push(\"name: invalid characters\");\n    if (name.length > NAME_MAX) errors.push(\"name: too long\");\n    if (name !== file.folder) errors.push(`name: does not match folder \"${file.folder}\"`);\n}"
+  },
+  {
+    "id": "description-checks",
+    "label": "Checks on the description",
+    "code": "const description = parsed.frontmatter.get(\"description\") ?? \"\";\nif (description === \"\") {\n    errors.push(\"description: missing\");\n} else {\n    if (description.length > DESCRIPTION_MAX) errors.push(\"description: too long\");\n    if (!description.toLowerCase().includes(\"use when\")) errors.push(\"description: does not say when to use the skill\");\n}"
+  },
+  {
+    "id": "body-check",
+    "label": "Check on the body",
+    "code": "if (parsed.body.trim() === \"\") errors.push(\"body: empty\");"
+  },
+  {
+    "id": "name-pattern",
+    "label": "The allowed shape of a skill name",
+    "code": "const NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;"
+  },
+  {
+    "id": "unquote",
+    "label": "Helper: drop matching quotes around a value",
+    "code": "function unquote(value: string): string {\n    if (value.length >= 2) {\n        const first = value[0];\n        if ((first === '\"' || first === \"'\") && value[value.length - 1] === first) return value.slice(1, -1);\n    }\n    return value;\n}"
+  },
+  {
+    "id": "parse-skill",
+    "label": "Split SKILL.md into frontmatter and body",
+    "code": "function parseSkill(content: string): { frontmatter: Map<string, string>; body: string } | null {\n    const lines = content.replace(/\\r\\n/g, \"\\n\").split(\"\\n\");\n    if (lines[0].trimEnd() !== \"---\") return null;\n    const end = lines.findIndex((line, i) => i > 0 && line.trimEnd() === \"---\");\n    if (end === -1) return null;\n    const frontmatter = new Map<string, string>();\n    for (const line of lines.slice(1, end)) {\n        const trimmed = line.trim();\n        if (trimmed === \"\" || trimmed.startsWith(\"#\") || /^\\s/.test(line)) continue;\n        const colon = line.indexOf(\":\");\n        if (colon === -1) continue;\n        frontmatter.set(line.slice(0, colon).trim(), unquote(line.slice(colon + 1).trim()));\n    }\n    return { frontmatter, body: lines.slice(end + 1).join(\"\\n\") };\n}"
+  },
+  {
+    "id": "description-case-sensitive",
+    "label": "Checks on the description",
+    "code": "const description = parsed.frontmatter.get(\"description\") ?? \"\";\nif (description === \"\") {\n    errors.push(\"description: missing\");\n} else {\n    if (description.length > DESCRIPTION_MAX) errors.push(\"description: too long\");\n    if (!description.includes(\"Use when\")) errors.push(\"description: does not say when to use the skill\");\n}",
+    "distractor": true
+  },
+  {
+    "id": "name-checks-off-by-one",
+    "label": "Checks on the name",
+    "code": "const name = parsed.frontmatter.get(\"name\") ?? \"\";\nif (name === \"\") {\n    errors.push(\"name: missing\");\n} else {\n    if (!NAME_PATTERN.test(name)) errors.push(\"name: invalid characters\");\n    if (name.length >= NAME_MAX) errors.push(\"name: too long\");\n    if (name !== file.folder) errors.push(`name: does not match folder \"${file.folder}\"`);\n}",
+    "distractor": true
+  },
+  {
+    "id": "parse-skill-keeps-quotes",
+    "label": "Split SKILL.md into frontmatter and body",
+    "code": "function parseSkill(content: string): { frontmatter: Map<string, string>; body: string } | null {\n    const lines = content.replace(/\\r\\n/g, \"\\n\").split(\"\\n\");\n    if (lines[0].trimEnd() !== \"---\") return null;\n    const end = lines.findIndex((line, i) => i > 0 && line.trimEnd() === \"---\");\n    if (end === -1) return null;\n    const frontmatter = new Map<string, string>();\n    for (const line of lines.slice(1, end)) {\n        const trimmed = line.trim();\n        if (trimmed === \"\" || trimmed.startsWith(\"#\") || /^\\s/.test(line)) continue;\n        const colon = line.indexOf(\":\");\n        if (colon === -1) continue;\n        frontmatter.set(line.slice(0, colon).trim(), line.slice(colon + 1).trim());\n    }\n    return { frontmatter, body: lines.slice(end + 1).join(\"\\n\") };\n}",
+    "distractor": true
+  }
+]

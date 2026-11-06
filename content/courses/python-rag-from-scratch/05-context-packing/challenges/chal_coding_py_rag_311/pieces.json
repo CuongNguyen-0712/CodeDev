@@ -1,0 +1,40 @@
+[
+  {
+    "id": "skip",
+    "label": "Skip repeated text and sources that already have enough",
+    "code": "if text in seen_text or per_source.get(source, 0) >= max_per_source:\n    continue"
+  },
+  {
+    "id": "number",
+    "label": "The citation number of this chunk",
+    "code": "number = numbers.get(source, len(numbers) + 1)"
+  },
+  {
+    "id": "over-budget",
+    "label": "A chunk that does not fit",
+    "code": "if tokens + cost > budget:\n    continue  # too big - a later, shorter chunk may still fit"
+  },
+  {
+    "id": "keep",
+    "label": "Record a packed chunk",
+    "code": "numbers.setdefault(source, number)\nper_source[source] = per_source.get(source, 0) + 1\nseen_text.add(text)\nlines.append(line)\nused.append(chunk[\"id\"])\ntokens += cost"
+  },
+  {
+    "id": "number-per-chunk",
+    "label": "The citation number of this chunk",
+    "code": "number = len(lines) + 1",
+    "distractor": true
+  },
+  {
+    "id": "over-budget-stop",
+    "label": "A chunk that does not fit",
+    "code": "if tokens + cost > budget:\n    break",
+    "distractor": true
+  },
+  {
+    "id": "skip-repeated-text-only",
+    "label": "Skip repeated text and sources that already have enough",
+    "code": "if text in seen_text:\n    continue",
+    "distractor": true
+  }
+]

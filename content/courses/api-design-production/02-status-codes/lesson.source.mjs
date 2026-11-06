@@ -175,7 +175,7 @@ publishWrongMethod(@Res({ passthrough: true }) res: Response) {
         ]),
 
         h2("7. Write the table"),
-        p("In the exercise you write the function every CodeDev handler goes through: an HTTP method and a business outcome in, a status code and the required headers out. The description lists the table exactly, including the default `Retry-After`, the order of methods in `Allow`, and what to do with a handler that forgot its `Location`:"),
+        p("In the exercise you assemble the function every CodeDev handler goes through: an HTTP method and a business outcome in, a status code and the required headers out. The description lists the table exactly, including the default `Retry-After`, the order of methods in `Allow`, and what to do with a handler that forgot its `Location`:"),
         code("typescript", `
 function chooseResponse(method: string, outcome: Outcome): { status: number; headers: Record<string, string> } {
   // 1. normalise the method

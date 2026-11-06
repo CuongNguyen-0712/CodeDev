@@ -1,0 +1,35 @@
+[
+  {
+    "id": "my-courses-filter",
+    "label": "Only this learner's live enrollments, in title order",
+    "code": "WHERE e.user_id = :user_id\n  AND e.status <> 'cancelled'\nORDER BY c.title, c.course_id"
+  },
+  {
+    "id": "enroll",
+    "label": "Insert one active enrollment",
+    "code": "INSERT INTO enrollments (user_id, course_id, enrolled_at, status)\nVALUES (:user_id, :course_id, :enrolled_at, 'active')"
+  },
+  {
+    "id": "cancel-filter",
+    "label": "Exactly the enrollment to cancel",
+    "code": "WHERE user_id = :user_id\n  AND course_id = :course_id\n  AND status = 'active'"
+  },
+  {
+    "id": "cancel-filter-any-status",
+    "label": "Exactly the enrollment to cancel",
+    "code": "WHERE user_id = :user_id\n  AND course_id = :course_id",
+    "distractor": true
+  },
+  {
+    "id": "cancel-filter-every-course",
+    "label": "Exactly the enrollment to cancel",
+    "code": "WHERE user_id = :user_id\n  AND status = 'active'",
+    "distractor": true
+  },
+  {
+    "id": "my-courses-filter-keeps-cancelled",
+    "label": "Only this learner's live enrollments, in title order",
+    "code": "WHERE e.user_id = :user_id\nORDER BY c.title, c.course_id",
+    "distractor": true
+  }
+]

@@ -38,6 +38,7 @@ import { readFileSync } from "node:fs";
 type Point = { metric: string; value: number; labels?: Record<string, string> };
 
 function routeTemplate(path: string): string {
+    // @piece route-template: Turn a raw path into its route template
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const segments = path
         .split(/[?#]/)[0]
@@ -45,6 +46,7 @@ function routeTemplate(path: string): string {
         .filter((s) => s !== "")
         .map((s) => (/^\d+$/.test(s) ? ":id" : uuid.test(s) ? ":uuid" : s));
     return "/" + segments.join("/");
+    // @end
 }
 
 function statusClass(status: string): string {
@@ -63,6 +65,7 @@ function recordAll(points: Point[], maxValuesPerLabel: number): string[] {
             rejected++;
             continue;
         }
+        // @piece normalize-labels: Keep and rewrite the labels of one point
         const raw = p.labels ?? {};
         const labels = new Map<string, string>();
         for (const [name, value] of Object.entries(raw)) {
@@ -75,6 +78,8 @@ function recordAll(points: Point[], maxValuesPerLabel: number): string[] {
                 labels.set(name, value);
             }
         }
+        // @end
+        // @piece cap-values: Cap the distinct values of each label
         if (!capped.has(p.metric)) capped.set(p.metric, new Set());
         for (const [name, value] of labels) {
             const key = `${p.metric}\u0000${name}`;
@@ -87,11 +92,13 @@ function recordAll(points: Point[], maxValuesPerLabel: number): string[] {
                 capped.get(p.metric)!.add(name);
             }
         }
+        // @end
         const names = [...labels.keys()].sort();
         const text = names.length ? `${p.metric}{${names.map((n) => `${n}="${labels.get(n)}"`).join(",")}}` : p.metric;
         series.set(text, (series.get(text) ?? 0) + p.value);
     }
 
+    // @piece summary-lines: Print the series and the per-metric summary
     const lines = [...series.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).map((text) => `${text} ${series.get(text)}`);
     for (const metric of [...capped.keys()].sort()) {
         const n = [...series.keys()].filter((text) => text === metric || text.startsWith(`${metric}{`)).length;
@@ -100,6 +107,7 @@ function recordAll(points: Point[], maxValuesPerLabel: number): string[] {
     }
     lines.push(`# total: ${series.size} series, ${rejected} rejected`);
     return lines;
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

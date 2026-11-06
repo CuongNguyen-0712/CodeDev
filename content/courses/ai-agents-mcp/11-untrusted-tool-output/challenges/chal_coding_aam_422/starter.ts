@@ -32,22 +32,27 @@ type Message = { role: "user" | "assistant" | "tool"; content: string };
 
 const REMOVED = "[removed: instruction-like text]";
 
+function isInstructionLike(line: string): boolean {
+    // [ ] Does a line read like an instruction to the model
+}
+
 function wrapToolResult(spec: ToolSpec, callId: string, text: string): string {
-    // TODO: delimit, filter instruction-like lines, escape the rest (rule 1 above).
-    return text;
+    // [ ] Filter, escape and delimit the tool's text
 }
 
 class TaintGuard {
+    private tainted = new Map<string, string>();
+
     recordResult(sessionId: string, callId: string, spec: ToolSpec): void {
-        // TODO: an untrusted result taints this session (rule 2 above).
+        // [ ] An untrusted result taints this session
     }
 
     check(sessionId: string, spec: ToolSpec): "allow" | "needs_approval" {
-        return "allow";
+        // [ ] Writes need approval in a tainted session
     }
 
     taintedBy(sessionId: string): string | null {
-        return null;
+        // [ ] Which call tainted the session
     }
 }
 

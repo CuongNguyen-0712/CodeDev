@@ -59,9 +59,18 @@ type HttpResponse = { status: number; headers: Record<string, string>; body: Rec
 // "Anything else" includes a plain Error, a thrown string or null, an object that only looks like a domain
 // error, and a DomainError subclass that is not in the table. A 500 body never contains the error's message.
 // ValidationFailed errors may carry the rejected value: copy only field and message.
-// Do not change the domain errors, the types or the test runner.
+// Fill every [ ] line with the right piece. Do not change the domain errors, the types or the test runner.
+// [ ] The problem type base and a safe correlation id
+
 function toProblemResponse(error: unknown, req: ProblemRequest, newId: () => string): HttpResponse {
-    return { status: 500, headers: {}, body: {} };
+    // [ ] Pick the correlation id
+
+    // [ ] Build one problem+json response
+
+    // [ ] Course not found, already enrolled
+    // [ ] Missing prerequisites, invalid fields
+    // [ ] Not allowed, payment required
+    // [ ] Anything else
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

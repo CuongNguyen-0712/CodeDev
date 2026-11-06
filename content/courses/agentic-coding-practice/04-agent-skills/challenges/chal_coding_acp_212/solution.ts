@@ -1,14 +1,61 @@
 import { readFileSync } from "node:fs";
 
 // CodeDev skill check (CI): validates one SKILL.md before an agent ever sees it.
-// Reference solution.
+//
+// SKILL.md = "---" line, frontmatter (key: value lines), "---" line, markdown body.
+// The full rules (parsing, check order, exact messages) are in the challenge description.
+//
+// validateSkill(file) returns the errors in this order, [] when the skill is valid:
+//   "missing frontmatter"  (alone: no other checks)
+//   "name: missing" | "name: invalid characters", "name: too long", "name: does not match folder \"<folder>\""
+//   "description: missing" | "description: too long", "description: does not say when to use the skill"
+//   "body: empty"
+// No libraries: parse the small YAML subset yourself.
 
 type SkillFile = { folder: string; content: string };
 
 const NAME_MAX = 64;
 const DESCRIPTION_MAX = 1024;
-const NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
+function validateSkill(file: SkillFile): string[] {
+    // @piece parse-or-stop: Stop at once when there is no frontmatter
+    const parsed = parseSkill(file.content);
+    if (parsed === null) return ["missing frontmatter"];
+    // @end
+    const errors: string[] = [];
+
+    // @piece name-checks: Checks on the name
+    const name = parsed.frontmatter.get("name") ?? "";
+    if (name === "") {
+        errors.push("name: missing");
+    } else {
+        if (!NAME_PATTERN.test(name)) errors.push("name: invalid characters");
+        if (name.length > NAME_MAX) errors.push("name: too long");
+        if (name !== file.folder) errors.push(`name: does not match folder "${file.folder}"`);
+    }
+    // @end
+
+    // @piece description-checks: Checks on the description
+    const description = parsed.frontmatter.get("description") ?? "";
+    if (description === "") {
+        errors.push("description: missing");
+    } else {
+        if (description.length > DESCRIPTION_MAX) errors.push("description: too long");
+        if (!description.toLowerCase().includes("use when")) errors.push("description: does not say when to use the skill");
+    }
+    // @end
+
+    // @piece body-check: Check on the body
+    if (parsed.body.trim() === "") errors.push("body: empty");
+    // @end
+    return errors;
+}
+
+// @piece name-pattern: The allowed shape of a skill name
+const NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+// @end
+
+// @piece unquote: Helper: drop matching quotes around a value
 function unquote(value: string): string {
     if (value.length >= 2) {
         const first = value[0];
@@ -16,7 +63,9 @@ function unquote(value: string): string {
     }
     return value;
 }
+// @end
 
+// @piece parse-skill: Split SKILL.md into frontmatter and body
 function parseSkill(content: string): { frontmatter: Map<string, string>; body: string } | null {
     const lines = content.replace(/\r\n/g, "\n").split("\n");
     if (lines[0].trimEnd() !== "---") return null;
@@ -32,32 +81,7 @@ function parseSkill(content: string): { frontmatter: Map<string, string>; body: 
     }
     return { frontmatter, body: lines.slice(end + 1).join("\n") };
 }
-
-function validateSkill(file: SkillFile): string[] {
-    const parsed = parseSkill(file.content);
-    if (parsed === null) return ["missing frontmatter"];
-    const errors: string[] = [];
-
-    const name = parsed.frontmatter.get("name") ?? "";
-    if (name === "") {
-        errors.push("name: missing");
-    } else {
-        if (!NAME_PATTERN.test(name)) errors.push("name: invalid characters");
-        if (name.length > NAME_MAX) errors.push("name: too long");
-        if (name !== file.folder) errors.push(`name: does not match folder "${file.folder}"`);
-    }
-
-    const description = parsed.frontmatter.get("description") ?? "";
-    if (description === "") {
-        errors.push("description: missing");
-    } else {
-        if (description.length > DESCRIPTION_MAX) errors.push("description: too long");
-        if (!description.toLowerCase().includes("use when")) errors.push("description: does not say when to use the skill");
-    }
-
-    if (parsed.body.trim() === "") errors.push("body: empty");
-    return errors;
-}
+// @end
 
 // ---------------------------------------------------------------- test runner (do not change)
 const input: SkillFile = JSON.parse(readFileSync(0, "utf8"));

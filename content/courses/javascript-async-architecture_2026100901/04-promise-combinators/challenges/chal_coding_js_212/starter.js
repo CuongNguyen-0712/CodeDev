@@ -27,6 +27,16 @@
  * @returns {Promise<{ data: Record<string, any>, errors: Record<string, string> }>}
  */
 async function loadDashboard(sources, timers) {
-  // TODO: start all sources, give each one its own timeout, apply the
-  //       required / optional policy and build { data, errors }.
+  // [ ] Load one source, with its own timeout
+
+  const attempts = sources.map(attempt);
+
+  // [ ] Fail fast when a required source fails
+
+  // [ ] Wait for every source to settle
+
+  const data = {};
+  const errors = {};
+  // [ ] Fill data and errors from the outcomes
+  return { data, errors };
 }

@@ -92,17 +92,22 @@ function compiles(pattern: string): boolean {
 
 function registerTool(registry: Registry, spec: ToolSpec): string[] {
     const errors: string[] = [];
+    // @piece name-check: Name: snake_case and not taken
     if (spec.name.length > 64 || !NAME.test(spec.name)) {
         errors.push(`name must be snake_case, 1-64 characters (got ${JSON.stringify(spec.name)})`);
     } else if (registry.has(spec.name)) {
         errors.push(`name "${spec.name}" is already registered`);
     }
+    // @end
+    // @piece description-check: Description length and parameters type
     const description = typeof spec.description === "string" ? spec.description.trim() : "";
     if (description === "") errors.push("description is required");
     else if (description.length < 20) errors.push("description is shorter than 20 characters");
     else if (description.length > 300) errors.push("description is longer than 300 characters");
     if (spec.parameters.type !== "object") errors.push(`parameters must have type "object"`);
+    // @end
 
+    // @piece property-checks: Each parameter, the required list, then register
     for (const [p, s] of Object.entries(spec.parameters.properties)) {
         if (typeof s.description !== "string" || s.description.trim() === "") errors.push(`parameter "${p}" needs a description`);
         if (!TYPES.includes(s.type)) errors.push(`parameter "${p}" has unsupported type "${s.type}"`);
@@ -118,10 +123,12 @@ function registerTool(registry: Registry, spec: ToolSpec): string[] {
         if (!Object.hasOwn(spec.parameters.properties, r)) errors.push(`required "${r}" is not a declared parameter`);
     }
     if (errors.length === 0) registry.set(spec.name, spec);
+    // @end
     return errors;
 }
 
 function listTools(registry: Registry): ModelTool[] {
+    // @piece listing: The tools as the model receives them
     return [...registry.values()].map((spec) => {
         const properties: Record<string, Record<string, unknown>> = {};
         for (const [p, s] of Object.entries(spec.parameters.properties)) {
@@ -135,9 +142,11 @@ function listTools(registry: Registry): ModelTool[] {
             parameters: { type: "object", properties, required: [...spec.parameters.required], additionalProperties: false },
         };
     });
+    // @end
 }
 
 function hasType(value: unknown, type: string): boolean {
+    // @piece type-match: Does a value have a parameter's type
     switch (type) {
         case "string":
             return typeof value === "string";
@@ -150,6 +159,7 @@ function hasType(value: unknown, type: string): boolean {
         default:
             return false;
     }
+    // @end
 }
 
 function validateCall(registry: Registry, call: ToolCall): string[] {
@@ -160,6 +170,7 @@ function validateCall(registry: Registry, call: ToolCall): string[] {
     const { properties, required } = tool.parameters;
     const errors: string[] = [];
 
+    // @piece argument-checks: Check each declared argument
     for (const [p, s] of Object.entries(properties)) {
         if (!Object.hasOwn(args, p)) {
             if (required.includes(p)) errors.push(`missing required argument "${p}"`);
@@ -183,9 +194,12 @@ function validateCall(registry: Registry, call: ToolCall): string[] {
             if (s.pattern !== undefined && !new RegExp(s.pattern).test(value)) errors.push(`"${p}" does not match pattern ${s.pattern}`);
         }
     }
+    // @end
+    // @piece unexpected-args: Reject arguments the tool does not declare
     for (const key of Object.keys(args)) {
         if (!Object.hasOwn(properties, key)) errors.push(`unexpected argument "${key}"`);
     }
+    // @end
     return errors;
 }
 

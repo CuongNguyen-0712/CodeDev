@@ -1,0 +1,24 @@
+[
+  {
+    "id": "max-attempts",
+    "label": "How many attempts a message gets",
+    "code": "const MAX_ATTEMPTS = 3;"
+  },
+  {
+    "id": "on-failure",
+    "label": "What happens after a failed attempt",
+    "code": "if (head.attempts >= MAX_ATTEMPTS) {\n    // poison: park it with the evidence, alert on DLQ depth, and let the next message run\n    w.queue.shift();\n    w.dlq.push({ id: head.id, attempts: head.attempts, lastError: head.lastError, at: now });\n    return;\n}\nhead.notBefore = now + RETRY_DELAY_SECONDS;"
+  },
+  {
+    "id": "on-failure-move-to-tail",
+    "label": "What happens after a failed attempt",
+    "code": "// let the others go first: move the failing message to the tail and retry it later\nw.queue.shift();\nw.queue.push(head);",
+    "distractor": true
+  },
+  {
+    "id": "on-failure-off-by-one",
+    "label": "What happens after a failed attempt",
+    "code": "if (head.attempts > MAX_ATTEMPTS) {\n    w.queue.shift();\n    w.dlq.push({ id: head.id, attempts: head.attempts, lastError: head.lastError, at: now });\n    return;\n}\nhead.notBefore = now + RETRY_DELAY_SECONDS;",
+    "distractor": true
+  }
+]

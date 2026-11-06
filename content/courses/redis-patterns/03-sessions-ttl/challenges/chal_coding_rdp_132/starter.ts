@@ -28,24 +28,30 @@ const ABSOLUTE_LIFETIME_SECONDS = 43200; // 12 hours after sign-in, however acti
 const sessionKey = (id: string): string => `sess:${id}`;
 const indexKey = (userId: string): string => `user:${userId}:sessions`;
 
+function readSession(r: FakeRedis, id: string): Session | null {
+    const h = r.hgetall(sessionKey(id));
+    if (h.userId === undefined) return null;
+    return { id, userId: h.userId, device: h.device, createdAt: Number(h.createdAt) };
+}
+
 function createSession(r: FakeRedis, clock: FakeClock, sessionId: string, userId: string, device: string): boolean {
-    return false;
+    // [ ] Store a new session and index it under its user
 }
 
 function touchSession(r: FakeRedis, clock: FakeClock, sessionId: string): Session | null {
-    return null;
+    // [ ] Extend a session, never past its absolute lifetime
 }
 
 function deleteSession(r: FakeRedis, sessionId: string): boolean {
-    return false;
+    // [ ] Delete one session and its index entry
 }
 
 function deleteAllSessions(r: FakeRedis, userId: string): number {
-    return 0;
+    // [ ] Delete every session of a user
 }
 
 function listSessions(r: FakeRedis, userId: string): Session[] {
-    return [];
+    // [ ] List a user's live sessions, dropping dead ids
 }
 
 // ---------------------------------------------------------------- in-memory Redis (do not change)

@@ -20,24 +20,37 @@ type Origin = { fetch(key: string): Promise<string> };
 type Status = "HIT" | "STALE" | "MISS";
 type Served = { status: Status; value: string | null; error: string | null; fetchesStarted: number };
 
+type Entry = { value: string; fetchedAt: number };
+
 class SwrCache {
+    private readonly entries = new Map<string, Entry>();
+    private readonly inFlight = new Map<string, Promise<string>>();
     private readonly maxAge: number;
     private readonly staleWhileRevalidate: number;
     private readonly clock: Clock;
     private readonly origin: Origin;
 
     constructor(maxAge: number, staleWhileRevalidate: number, clock: Clock, origin: Origin) {
+        // [ ] Refuse an invalid configuration
         this.maxAge = maxAge;
         this.staleWhileRevalidate = staleWhileRevalidate;
         this.clock = clock;
         this.origin = origin;
     }
 
+    // One fetch per key: everyone who needs the key while it runs shares this promise.
+    private startFetch(key: string): Promise<string> {
+        // [ ] Start the fetch and store its result
+    }
+
     async get(key: string): Promise<Served> {
-        // 1. how old is the stored value of this key, if there is one?
-        // 2. HIT, STALE (answer now, revalidate once in the background) or MISS (wait for a fetch)?
-        // 3. never two fetches for the same key at the same time
-        return { status: "MISS", value: null, error: "not implemented", fetchesStarted: 0 };
+        // [ ] How old is the stored value?
+
+        // [ ] Fresh: answer from the cache
+
+        // [ ] Stale: answer now, revalidate in the background
+
+        // [ ] Miss: wait for this key's fetch
     }
 }
 

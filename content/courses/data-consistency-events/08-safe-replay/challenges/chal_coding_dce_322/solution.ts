@@ -101,9 +101,12 @@ class LeaderboardStore {
     }
 
     apply(version: string, event: PointsEvent): "applied" | "skipped" | "rejected" {
+        // @piece validate: Reject a malformed event
         const { p, o, learner, points } = event;
         if (!Number.isInteger(p) || p < 0 || !Number.isInteger(o) || o < 0) return "rejected";
         if (typeof learner !== "string" || learner === "" || !Number.isInteger(points)) return "rejected";
+        // @end
+        // @piece apply-once: Apply the event once per partition offset
         // The offset check and both writes in ONE transaction: a crash or a second deliverer
         // can never see the score without the offset that explains it.
         return this.db.tx((tx): "applied" | "skipped" => {
@@ -115,9 +118,11 @@ class LeaderboardStore {
             tx.put("offsets", offsetKey, o);
             return "applied";
         });
+        // @end
     }
 
     switchTo(version: string): boolean {
+        // @piece switch-version: Switch only to a version that has caught up
         return this.db.tx((tx) => {
             const current = tx.get<string>("meta", "active") ?? "v1";
             if (version === current) return true;
@@ -129,6 +134,7 @@ class LeaderboardStore {
             tx.put("meta", "active", version);
             return true;
         });
+        // @end
     }
 
     active(): string {
@@ -144,12 +150,14 @@ class LeaderboardStore {
     }
 
     private read(table: string, version: string): Record<string, number> {
+        // @piece read-rows: Read one version's rows
         const prefix = `${version}/`;
         const out: Record<string, number> = {};
         for (const [key, value] of this.db.tx((tx) => tx.rows<number>(table))) {
             if (key.startsWith(prefix)) out[key.slice(prefix.length)] = value;
         }
         return out;
+        // @end
     }
 }
 

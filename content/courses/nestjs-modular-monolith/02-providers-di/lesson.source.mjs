@@ -5,7 +5,7 @@ export default ({ h2, h3, p, bullets, numbered, code, callout, challenge }) => (
     title: "Providers & dependency injection: constructor injection and fakes",
     slug: { _type: "slug", current: "providers-dependency-injection-fakes" },
     description:
-        "EnrollmentService created its own PgEnrollmentRepository and read the time with new Date() inside its methods, so its unit tests needed a real Postgres and one of them failed almost every night when the run crossed midnight. Learn what a NestJS provider is, how Nest injects constructor parameters by token, how to bind a token to an implementation with useClass, useValue and useFactory, why an interface cannot be a token, and how to test a service with an in-memory repository and a fixed clock. You then write such a service yourself.",
+        "EnrollmentService created its own PgEnrollmentRepository and read the time with new Date() inside its methods, so its unit tests needed a real Postgres and one of them failed almost every night when the run crossed midnight. Learn what a NestJS provider is, how Nest injects constructor parameters by token, how to bind a token to an implementation with useClass, useValue and useFactory, why an interface cannot be a token, and how to test a service with an in-memory repository and a fixed clock. You then assemble such a service in the challenge.",
     estimatedTime: 25,
 
     scenario: {

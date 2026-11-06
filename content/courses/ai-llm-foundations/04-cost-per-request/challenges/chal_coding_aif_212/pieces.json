@@ -1,0 +1,55 @@
+[
+  {
+    "id": "request-cost",
+    "label": "The cost of one request in USD",
+    "code": "const cachedPrice = price.cachedInputPer1M ?? price.inputPer1M;\nconst uncached = r.inputTokens - r.cachedInputTokens;\nreturn (uncached * price.inputPer1M + r.cachedInputTokens * cachedPrice + r.outputTokens * price.outputPer1M) / 1_000_000;"
+  },
+  {
+    "id": "unknown-model",
+    "label": "A model missing from the price table",
+    "code": "const price = Object.hasOwn(input.prices, r.model) ? input.prices[r.model] : undefined;\nif (!price) {\n    errors++;\n    lines.push(`#${i + 1} ${r.model} error: unknown model`);\n    return;\n}"
+  },
+  {
+    "id": "invalid-tokens",
+    "label": "Token counts that make no sense",
+    "code": "if (!isCount(r.inputTokens) || !isCount(r.cachedInputTokens) || !isCount(r.outputTokens) || r.cachedInputTokens > r.inputTokens) {\n    errors++;\n    lines.push(`#${i + 1} ${r.model} error: invalid tokens`);\n    return;\n}"
+  },
+  {
+    "id": "price-request",
+    "label": "Price the request and add it up",
+    "code": "const cost = requestCost(price, r);\nlines.push(`#${i + 1} ${r.model} ${cost.toFixed(6)}`);\nconst m = perModel.get(r.model) ?? { count: 0, cost: 0 };\nm.count++;\nm.cost += cost;\nperModel.set(r.model, m);\ncount++;\ntotal += cost;"
+  },
+  {
+    "id": "per-model",
+    "label": "One line per model",
+    "code": "for (const name of [...perModel.keys()].sort()) {\n    const m = perModel.get(name)!;\n    lines.push(`model ${name} count=${m.count} cost=${m.cost.toFixed(6)}`);\n}"
+  },
+  {
+    "id": "totals",
+    "label": "The total and the monthly projection",
+    "code": "lines.push(`total count=${count} errors=${errors} cost=${total.toFixed(6)}`);\nconst monthlyRequests = input.requestsPerDay * input.daysPerMonth;\nconst monthly = count === 0 ? 0 : (total / count) * monthlyRequests;\nlines.push(`monthly requests=${monthlyRequests} cost=${monthly.toFixed(2)}`);"
+  },
+  {
+    "id": "is-count",
+    "label": "Helper: is a value a whole number >= 0",
+    "code": "const isCount = (n: unknown): boolean => typeof n === \"number\" && Number.isInteger(n) && n >= 0;"
+  },
+  {
+    "id": "invalid-tokens-negatives-only",
+    "label": "Token counts that make no sense",
+    "code": "if (r.inputTokens < 0 || r.cachedInputTokens < 0 || r.outputTokens < 0) {\n    errors++;\n    lines.push(`#${i + 1} ${r.model} error: invalid tokens`);\n    return;\n}",
+    "distractor": true
+  },
+  {
+    "id": "request-cost-cached-full-price",
+    "label": "The cost of one request in USD",
+    "code": "const cachedPrice = price.inputPer1M;\nconst uncached = r.inputTokens - r.cachedInputTokens;\nreturn (uncached * price.inputPer1M + r.cachedInputTokens * cachedPrice + r.outputTokens * price.outputPer1M) / 1_000_000;",
+    "distractor": true
+  },
+  {
+    "id": "totals-sample-total",
+    "label": "The total and the monthly projection",
+    "code": "lines.push(`total count=${count} errors=${errors} cost=${total.toFixed(6)}`);\nconst monthlyRequests = input.requestsPerDay * input.daysPerMonth;\nconst monthly = count === 0 ? 0 : total * monthlyRequests;\nlines.push(`monthly requests=${monthlyRequests} cost=${monthly.toFixed(2)}`);",
+    "distractor": true
+  }
+]

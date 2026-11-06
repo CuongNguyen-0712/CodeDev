@@ -124,7 +124,7 @@ if [ "$files" -gt 10 ]; then
   echo "agent PR changes $files files (limit 10): split it or widen the task on purpose"
   exit 1
 fi`, "ci step"),
-        p("Now write the check itself: the glob subset, renames as two paths, invalid paths, forbidden patterns that a task may or may not lift, and a sorted report:"),
+        p("Now assemble the check itself: the glob subset, renames as two paths, invalid paths, forbidden patterns that a task may or may not lift, and a sorted report:"),
         challenge("chal_coding_acp_322"),
 
         h2("6. How to verify the scope check"),

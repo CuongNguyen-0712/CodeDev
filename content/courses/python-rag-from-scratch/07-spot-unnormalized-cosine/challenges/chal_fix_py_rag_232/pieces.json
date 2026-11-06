@@ -1,0 +1,25 @@
+[
+  {
+    "id": "score",
+    "label": "Score one chunk against the query",
+    "code": "score = round(dot(query, vector) / (math.hypot(*query) * math.hypot(*vector)), 4)"
+  },
+  {
+    "id": "score-chunk-length-only",
+    "label": "Score one chunk against the query",
+    "code": "score = round(dot(query, vector) / math.hypot(*vector), 4)",
+    "distractor": true
+  },
+  {
+    "id": "score-l1-lengths",
+    "label": "Score one chunk against the query",
+    "code": "score = round(dot(query, vector) / (sum(map(abs, query)) * sum(map(abs, vector))), 4)",
+    "distractor": true
+  },
+  {
+    "id": "score-query-length-only",
+    "label": "Score one chunk against the query",
+    "code": "score = round(dot(query, vector) / math.hypot(*query), 4)",
+    "distractor": true
+  }
+]

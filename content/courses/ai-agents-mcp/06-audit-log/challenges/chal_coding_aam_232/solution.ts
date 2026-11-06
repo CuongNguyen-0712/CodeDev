@@ -78,12 +78,14 @@ const MAX_STRING = 64;
 const MAX_SUMMARY = 200;
 
 function canonicalJson(value: unknown): string {
+    // @piece canonical: One JSON text per value, whatever the key order
     if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
     if (value !== null && typeof value === "object") {
         const obj = value as Record<string, unknown>;
         return `{${Object.keys(obj).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`).join(",")}}`;
     }
     return JSON.stringify(value) ?? "null"; // undefined (no args) -> null
+    // @end
 }
 
 function cut(text: string): string {
@@ -91,6 +93,7 @@ function cut(text: string): string {
 }
 
 function clean(value: unknown): unknown {
+    // @piece clean: Shorten long strings, hide secret-looking keys
     if (typeof value === "string") return cut(value);
     if (Array.isArray(value)) return value.map(clean);
     if (value !== null && typeof value === "object") {
@@ -102,16 +105,21 @@ function clean(value: unknown): unknown {
         return out;
     }
     return value;
+    // @end
 }
 
 function summarizeArgs(args: unknown): string {
+    // @piece summary: The arguments as a short, safe summary
     const json = canonicalJson(clean(args));
     return json.length > MAX_SUMMARY ? `${json.slice(0, MAX_SUMMARY)}...(truncated)` : json;
+    // @end
 }
 
 function hashRecord(record: Omit<AuditRecord, "hash">): string {
+    // @piece record-hash: Hash a record together with the previous hash
     const { prevHash, ...fields } = record;
     return createHash("sha256").update(`${prevHash}\n${canonicalJson(fields)}`).digest("hex");
+    // @end
 }
 
 class AuditedExecutor {
@@ -124,6 +132,7 @@ class AuditedExecutor {
     ) {}
 
     execute(ctx: CallContext, tool: string, args: unknown): CallResult {
+        // @piece outcome: Decide the outcome and run the tool if allowed
         const start = this.clock.now();
         let result: CallResult;
         if (!Object.prototype.hasOwnProperty.call(this.tools, tool)) {
@@ -137,6 +146,8 @@ class AuditedExecutor {
                 result = { outcome: "error", message: thrown instanceof Error ? thrown.message : String(thrown) };
             }
         }
+        // @end
+        // @piece append-record: Append the record that chains to the last one
         const prevHash = this.records.length === 0 ? GENESIS : this.records[this.records.length - 1].hash;
         const body: Omit<AuditRecord, "hash"> = {
             seq: this.records.length + 1,
@@ -151,11 +162,13 @@ class AuditedExecutor {
             prevHash,
         };
         this.records.push({ ...body, hash: hashRecord(body) });
+        // @end
         return result;
     }
 }
 
 function verifyChain(records: AuditRecord[]): ChainCheck {
+    // @piece verify: Check every record's link and hash
     for (let i = 0; i < records.length; i++) {
         const record = records[i];
         const expectedPrev = i === 0 ? GENESIS : records[i - 1].hash;
@@ -164,6 +177,7 @@ function verifyChain(records: AuditRecord[]): ChainCheck {
         if (hash !== hashRecord(body)) return { ok: false, brokenAt: record.seq, reason: "hash" };
     }
     return { ok: true };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

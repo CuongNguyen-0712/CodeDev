@@ -36,20 +36,28 @@ type RankResult = { rank: number; score: number; around: Entry[] } | null;
 const ALL_TIME = "lb:all";
 const DAY_MS = 86_400_000;
 
+function weekStart(ts: number): number {
+    const day = Math.floor(ts / DAY_MS) * DAY_MS;
+    const mondayOffset = (new Date(day).getUTCDay() + 6) % 7; // Monday 0 ... Sunday 6
+    return day - mondayOffset * DAY_MS;
+}
+
 function weekKey(ts: number): string {
-    return "lb:week:";
+    // [ ] The ISO week key of a timestamp
 }
 
 function recordScore(redis: FakeRedis, event: ScoreEvent, now: number): boolean {
-    return false;
+    // [ ] Refuse an event with a bad learner, points or time
+
+    // [ ] Add the points to all-time and to the event's week
 }
 
 function topN(redis: FakeRedis, key: string, n: number): Entry[] {
-    return [];
+    // [ ] The first n entries, highest score first
 }
 
 function rankOf(redis: FakeRedis, key: string, learnerId: string): RankResult {
-    return null;
+    // [ ] A learner's rank with two neighbours on each side
 }
 
 // ---------------------------------------------------------------- in-memory Redis model (do not change)

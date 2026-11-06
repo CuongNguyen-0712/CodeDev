@@ -1,0 +1,40 @@
+[
+  {
+    "id": "validate",
+    "label": "Reject a malformed event",
+    "code": "const { p, o, learner, points } = event;\nif (!Number.isInteger(p) || p < 0 || !Number.isInteger(o) || o < 0) return \"rejected\";\nif (typeof learner !== \"string\" || learner === \"\" || !Number.isInteger(points)) return \"rejected\";"
+  },
+  {
+    "id": "apply-once",
+    "label": "Apply the event once per partition offset",
+    "code": "// The offset check and both writes in ONE transaction: a crash or a second deliverer\n// can never see the score without the offset that explains it.\nreturn this.db.tx((tx): \"applied\" | \"skipped\" => {\n    const offsetKey = `${version}/${p}`;\n    const last = tx.get<number>(\"offsets\", offsetKey);\n    if (last !== undefined && o <= last) return \"skipped\";\n    const scoreKey = `${version}/${learner}`;\n    tx.put(\"scores\", scoreKey, (tx.get<number>(\"scores\", scoreKey) ?? 0) + points);\n    tx.put(\"offsets\", offsetKey, o);\n    return \"applied\";\n});"
+  },
+  {
+    "id": "switch-version",
+    "label": "Switch only to a version that has caught up",
+    "code": "return this.db.tx((tx) => {\n    const current = tx.get<string>(\"meta\", \"active\") ?? \"v1\";\n    if (version === current) return true;\n    for (const [key, offset] of tx.rows<number>(\"offsets\")) {\n        if (!key.startsWith(`${current}/`)) continue;\n        const target = tx.get<number>(\"offsets\", `${version}/${key.slice(current.length + 1)}`);\n        if (target === undefined || target < offset) return false;\n    }\n    tx.put(\"meta\", \"active\", version);\n    return true;\n});"
+  },
+  {
+    "id": "read-rows",
+    "label": "Read one version's rows",
+    "code": "const prefix = `${version}/`;\nconst out: Record<string, number> = {};\nfor (const [key, value] of this.db.tx((tx) => tx.rows<number>(table))) {\n    if (key.startsWith(prefix)) out[key.slice(prefix.length)] = value;\n}\nreturn out;"
+  },
+  {
+    "id": "apply-offsets-shared",
+    "label": "Apply the event once per partition offset",
+    "code": "// The offset check and both writes in ONE transaction: a crash or a second deliverer\n// can never see the score without the offset that explains it.\nreturn this.db.tx((tx): \"applied\" | \"skipped\" => {\n    const offsetKey = `v1/${p}`;\n    const last = tx.get<number>(\"offsets\", offsetKey);\n    if (last !== undefined && o <= last) return \"skipped\";\n    const scoreKey = `${version}/${learner}`;\n    tx.put(\"scores\", scoreKey, (tx.get<number>(\"scores\", scoreKey) ?? 0) + points);\n    tx.put(\"offsets\", offsetKey, o);\n    return \"applied\";\n});",
+    "distractor": true
+  },
+  {
+    "id": "apply-skip-only-older",
+    "label": "Apply the event once per partition offset",
+    "code": "// The offset check and both writes in ONE transaction: a crash or a second deliverer\n// can never see the score without the offset that explains it.\nreturn this.db.tx((tx): \"applied\" | \"skipped\" => {\n    const offsetKey = `${version}/${p}`;\n    const last = tx.get<number>(\"offsets\", offsetKey);\n    if (last !== undefined && o < last) return \"skipped\";\n    const scoreKey = `${version}/${learner}`;\n    tx.put(\"scores\", scoreKey, (tx.get<number>(\"scores\", scoreKey) ?? 0) + points);\n    tx.put(\"offsets\", offsetKey, o);\n    return \"applied\";\n});",
+    "distractor": true
+  },
+  {
+    "id": "switch-without-catch-up",
+    "label": "Switch only to a version that has caught up",
+    "code": "return this.db.tx((tx) => {\n    const current = tx.get<string>(\"meta\", \"active\") ?? \"v1\";\n    if (version === current) return true;\n    for (const [key, offset] of tx.rows<number>(\"offsets\")) {\n        if (!key.startsWith(`${current}/`)) continue;\n        const target = tx.get<number>(\"offsets\", `${version}/${key.slice(current.length + 1)}`);\n        if (target === undefined && offset < 0) return false;\n    }\n    tx.put(\"meta\", \"active\", version);\n    return true;\n});",
+    "distractor": true
+  }
+]

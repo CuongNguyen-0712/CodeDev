@@ -1,0 +1,45 @@
+[
+  {
+    "id": "valid-samples",
+    "label": "Keep only well-formed samples",
+    "code": "def is_number(x):\n    return isinstance(x, (int, float)) and not isinstance(x, bool)\n\n\ndef valid_samples(samples):\n    valid = []\n    for s in samples:\n        if isinstance(s, list) and len(s) == 2 and is_number(s[0]) and is_number(s[1]) and s[0] >= 0 and s[1] > 0:\n            valid.append((s[0], s[1]))\n    return valid"
+  },
+  {
+    "id": "window-p95s",
+    "label": "The p95 of every time window",
+    "code": "windows = {}\nfor t, latency in samples:\n    windows.setdefault(int(t // window_ms), []).append(latency)\nkeys = sorted(windows)\np95s = [percentile(windows[k], 95) for k in keys]"
+  },
+  {
+    "id": "steady-start",
+    "label": "Walk back from the end while windows stay in the band",
+    "code": "reference = statistics.median(p95s[n // 2:])\nstart = n\nwhile start > 0 and abs(p95s[start - 1] - reference) <= band * reference:\n    start -= 1"
+  },
+  {
+    "id": "enough-steady",
+    "label": "The warm-up end, only with enough steady windows",
+    "code": "if n - start < MIN_STEADY_WINDOWS:\n    return None\nreturn keys[start] * window_ms"
+  },
+  {
+    "id": "steady-part",
+    "label": "The samples after the warm-up",
+    "code": "end = warmup_end(valid, window_ms, band)\nsteady = [latency for t, latency in valid if end is not None and t >= end]"
+  },
+  {
+    "id": "enough-steady-any-window",
+    "label": "The warm-up end, only with enough steady windows",
+    "code": "if start == n:\n    return None\nreturn keys[start] * window_ms",
+    "distractor": true
+  },
+  {
+    "id": "steady-start-all-windows",
+    "label": "Walk back from the end while windows stay in the band",
+    "code": "reference = statistics.median(p95s)\nstart = n\nwhile start > 0 and abs(p95s[start - 1] - reference) <= band * reference:\n    start -= 1",
+    "distractor": true
+  },
+  {
+    "id": "steady-start-first-in-band",
+    "label": "Walk back from the end while windows stay in the band",
+    "code": "reference = statistics.median(p95s[n // 2:])\n# the warm-up is over as soon as one window is inside the band\nstart = next((i for i, v in enumerate(p95s) if abs(v - reference) <= band * reference), n)",
+    "distractor": true
+  }
+]

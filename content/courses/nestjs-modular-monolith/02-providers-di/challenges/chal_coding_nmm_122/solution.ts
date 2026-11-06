@@ -28,7 +28,7 @@ import { readFileSync } from "node:fs";
 //
 // Plain TypeScript, no Nest: the test runner calls the constructor itself, the way a unit test does,
 // so EnrollmentRepository and Clock can stay interfaces here.
-// Do not change the types, the constants or the test runner.
+// Fill every [ ] line with the right piece. Do not change the types, the constants or the test runner.
 
 type Enrollment = { userId: string; courseId: string; enrolledAt: string; expiresAt: string };
 
@@ -45,15 +45,20 @@ const ACCESS_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 class EnrollmentService {
+    // @piece wire-dependencies: Keep what the service depends on
     constructor(
         private readonly repo: EnrollmentRepository,
         private readonly clock: Clock,
     ) {}
+    // @end
 
     enroll(userId: string, courseId: string): Enrollment {
+        // @piece enroll-validate: Refuse an enrollment without ids
         if (userId.trim() === "" || courseId.trim() === "") {
             throw new Error("userId and courseId are required");
         }
+        // @end
+        // @piece enroll-reuse-or-create: Reuse an active enrollment or start a new one
         const current = this.repo.findOne(userId, courseId);
         const now = this.clock.now();
         if (current && now.getTime() < Date.parse(current.expiresAt)) return current;
@@ -65,17 +70,22 @@ class EnrollmentService {
         };
         this.repo.save(enrollment);
         return enrollment;
+        // @end
     }
 
     hasAccess(userId: string, courseId: string): boolean {
+        // @piece has-access: Whether the learner can open the course now
         return this.daysLeft(userId, courseId) > 0;
+        // @end
     }
 
     daysLeft(userId: string, courseId: string): number {
+        // @piece days-left: Whole days of access left
         const current = this.repo.findOne(userId, courseId);
         if (!current) return 0;
         const remaining = Date.parse(current.expiresAt) - this.clock.now().getTime();
         return remaining > 0 ? Math.ceil(remaining / DAY_MS) : 0;
+        // @end
     }
 }
 

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "record-submission",
+    "label": "Count the submission and record who sent it",
+    "code": "// Bounded labels only: a handful of routes x methods x 5 status classes, whatever the traffic.\nthis.submissions.add(1, {\n    route: req.route,\n    method: req.method,\n    status_class: `${Math.floor(status / 100)}xx`,\n});\n// Per-learner detail is an event, not a label.\nif (req.userId !== null) {\n    this.analytics.track({\n        name: \"submission_created\",\n        userId: req.userId,\n        properties: { challengeId: req.challengeId, status },\n    });\n}"
+  },
+  {
+    "id": "top-learners",
+    "label": "Answer which learners submit the most",
+    "code": "// \"Which learners submit the most\": answered by the analytics pipeline.\ntopLearners(n: number): Array<{ userId: string; count: number }> {\n    return this.analytics.topUsers(\"submission_created\", n);\n}"
+  },
+  {
+    "id": "record-anonymous-too",
+    "label": "Count the submission and record who sent it",
+    "code": "// Bounded labels only: a handful of routes x methods x 5 status classes, whatever the traffic.\nthis.submissions.add(1, {\n    route: req.route,\n    method: req.method,\n    status_class: `${Math.floor(status / 100)}xx`,\n});\n// Per-learner detail is an event, not a label.\nthis.analytics.track({\n    name: \"submission_created\",\n    userId: req.userId ?? \"anonymous\",\n    properties: { challengeId: req.challengeId, status },\n});",
+    "distractor": true
+  },
+  {
+    "id": "record-exact-status",
+    "label": "Count the submission and record who sent it",
+    "code": "// Bounded labels only: a handful of routes x methods x 5 status classes, whatever the traffic.\nthis.submissions.add(1, {\n    route: req.route,\n    method: req.method,\n    status_class: String(status),\n});\n// Per-learner detail is an event, not a label.\nif (req.userId !== null) {\n    this.analytics.track({\n        name: \"submission_created\",\n        userId: req.userId,\n        properties: { challengeId: req.challengeId, status },\n    });\n}",
+    "distractor": true
+  }
+]

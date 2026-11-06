@@ -19,7 +19,7 @@ import { readFileSync } from "node:fs";
 //   When an event moves coursePercent from below 100 to 100, publish exactly one
 //   { type: "course.completed", userId, courseId } and return courseCompleted: true; otherwise courseCompleted: false.
 //
-// Do not change the types, the stores or the test runner.
+// Fill every [ ] line with the right piece. Do not change the types, the stores or the test runner.
 
 type ProgressEvent = { eventId: string; userId: string; courseId: string; lessonId: string; percent: number };
 type CourseCompleted = { type: "course.completed"; userId: string; courseId: string };
@@ -58,6 +58,7 @@ class ProgressService {
     }
 
     record(event: ProgressEvent): RecordResult {
+        // @piece validate-event: Reject an event that names nothing real
         const { eventId, userId, courseId, lessonId, percent } = event;
         if (typeof eventId !== "string" || eventId === "" || typeof userId !== "string" || userId === "") {
             return { status: "invalid" };
@@ -65,26 +66,35 @@ class ProgressService {
         const lessons = typeof courseId === "string" ? this.catalog.lessonIds(courseId) : undefined;
         if (!lessons || !lessons.includes(lessonId)) return { status: "invalid" };
         if (!Number.isInteger(percent) || percent < 0 || percent > 100) return { status: "invalid" };
+        // @end
 
+        // @piece dedupe-event: Handle each event id once
         if (this.processed.has(eventId)) return { status: "duplicate" };
         this.processed.add(eventId);
+        // @end
 
+        // @piece stale-progress: Ignore progress that is not higher
         const before = this.coursePercent(userId, courseId, lessons);
         const stored = this.progress.get(userId, courseId, lessonId) ?? 0;
         if (percent <= stored) return { status: "stale", lessonPercent: stored, coursePercent: before };
+        // @end
 
+        // @piece apply-progress: Store it and announce a newly completed course
         this.progress.set(userId, courseId, lessonId, percent);
         const after = this.coursePercent(userId, courseId, lessons);
         const courseCompleted = before < 100 && after === 100;
         if (courseCompleted) this.bus.publish({ type: "course.completed", userId, courseId });
         return { status: "applied", lessonPercent: percent, coursePercent: after, courseCompleted };
+        // @end
     }
 
+    // @piece course-percent: The course percent from its lessons
     private coursePercent(userId: string, courseId: string, lessons: string[]): number {
         let sum = 0;
         for (const id of lessons) sum += this.progress.get(userId, courseId, id) ?? 0;
         return Math.floor(sum / lessons.length);
     }
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

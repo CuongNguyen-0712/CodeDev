@@ -126,7 +126,7 @@ export async function POST(req: Request) {
             "**A fake network.** `browserFetch` sends the session cookie only to same-origin paths such as `/api/outline`; the fake AI vendor accepts only the server's key and counts who called it.",
             "**A bundle scanner** in the test runner prints what it finds in the client code after inlining, and every browser request that carries the key is marked in the output - the same evidence as `grep` on `.next/static` and the Network panel.",
         ]),
-        p("Run the starter first and read its output: the key is in every browser request, and the scanner finds it in the bundle. Then fix both sections as the description specifies."),
+        p("Run the starter first and read its output: the key is in every browser request, and the scanner finds it in the bundle. Then fix both sections as the description specifies: select the lines of a section and click the fix that replaces them (or drop it on them). Some fixes are wrong on purpose."),
         challenge("chal_coding_acp_422"),
 
         h2("6. How to verify"),

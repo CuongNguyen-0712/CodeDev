@@ -101,6 +101,9 @@ function validateHint(text: string): string[] {
 }
 
 async function getHint(req: HintRequest, llm: Llm, clock: Clock, opts: Options): Promise<HintResult> {
+    // Send hintMessages(req), retry transient errors with backoff on the clock, repair an invalid
+    // reply at most opts.maxRepairs times, otherwise return FALLBACK_HINT - and count calls and tokens.
+    // @piece counters: Start the conversation and the counters
     let messages = hintMessages(req);
     let repairs = 0;
     let retries = 0;
@@ -108,8 +111,11 @@ async function getHint(req: HintRequest, llm: Llm, clock: Clock, opts: Options):
     let inputTokens = 0;
     let outputTokens = 0;
     const fallback = (reason: string): HintResult => ({ source: "fallback", hint: FALLBACK_HINT, reason, calls, inputTokens, outputTokens });
+    // @end
 
-    for (;;) {
+    // Bounded: a wrong retry rule must not keep a request (and the runner) busy forever.
+    for (let turn = 0; turn < 50; turn++) {
+        // @piece call-with-retry: Call the model, retrying only transient errors
         let reply: Reply;
         calls++;
         try {
@@ -121,8 +127,12 @@ async function getHint(req: HintRequest, llm: Llm, clock: Clock, opts: Options):
             await clock.sleep(opts.baseDelayMs * 2 ** (retries - 1));
             continue;
         }
+        // @end
+        // @piece count-tokens: Add the reply's token usage
         inputTokens += reply.usage.inputTokens;
         outputTokens += reply.usage.outputTokens;
+        // @end
+        // @piece accept-or-repair: Accept a valid reply or ask for a repair
         const errors = validateHint(reply.text);
         if (errors.length === 0) {
             return { source: repairs === 0 ? "model" : "repair", hint: JSON.parse(reply.text) as Hint, reason: null, calls, inputTokens, outputTokens };
@@ -130,7 +140,9 @@ async function getHint(req: HintRequest, llm: Llm, clock: Clock, opts: Options):
         if (repairs >= opts.maxRepairs) return fallback("invalid output");
         repairs++;
         messages = repairMessages(reply.text, errors);
+        // @end
     }
+    throw new Error("no answer after 50 model turns");
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

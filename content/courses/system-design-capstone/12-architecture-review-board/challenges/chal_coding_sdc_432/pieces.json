@@ -1,0 +1,30 @@
+[
+  {
+    "id": "cache-read",
+    "label": "Read the cache, protected from a slow or failing Redis",
+    "code": "if (!this.breaker.allowRequest()) return this.loadOnce(key);\nlet cached: string | null;\ntry {\n    cached = await withTimeout(this.cache.get(key), CACHE_TIMEOUT_MS, this.clock);\n    this.breaker.recordSuccess();\n} catch {\n    this.breaker.recordFailure();\n    return this.loadOnce(key);\n}\nif (cached !== null) return cached;"
+  },
+  {
+    "id": "load-and-fill",
+    "label": "Load from PostgreSQL and fill the cache",
+    "code": "const value = await this.loadOnce(key);\nthis.cache.set(key, value).catch(() => {});\nreturn value;"
+  },
+  {
+    "id": "cache-read-no-timeout",
+    "label": "Read the cache, protected from a slow or failing Redis",
+    "code": "if (!this.breaker.allowRequest()) return this.loadOnce(key);\nlet cached: string | null;\ntry {\n    cached = await this.cache.get(key);\n    this.breaker.recordSuccess();\n} catch {\n    this.breaker.recordFailure();\n    return this.loadOnce(key);\n}\nif (cached !== null) return cached;",
+    "distractor": true
+  },
+  {
+    "id": "load-and-fill-await-set",
+    "label": "Load from PostgreSQL and fill the cache",
+    "code": "const value = await this.loadOnce(key);\nawait this.cache.set(key, value).catch(() => {});\nreturn value;",
+    "distractor": true
+  },
+  {
+    "id": "load-and-fill-direct-load",
+    "label": "Load from PostgreSQL and fill the cache",
+    "code": "const value = await this.store.load(key);\nthis.cache.set(key, value).catch(() => {});\nreturn value;",
+    "distractor": true
+  }
+]

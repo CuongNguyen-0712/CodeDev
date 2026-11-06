@@ -1,0 +1,50 @@
+[
+  {
+    "id": "test-file",
+    "label": "Is a changed file a test file",
+    "code": "const segments = path.split(\"/\");\nconst name = segments[segments.length - 1];\nconst folders = segments.slice(0, -1);\nreturn name.includes(\".test.\") || name.includes(\".spec.\")\n    || folders.some((f) => f === \"test\" || f === \"tests\" || f === \"__tests__\");"
+  },
+  {
+    "id": "allowed",
+    "label": "Is a path covered by the allowed list",
+    "code": "return allowedPaths.some((entry) => (entry.endsWith(\"/\") ? path.startsWith(entry) : path === entry));"
+  },
+  {
+    "id": "dependency-names",
+    "label": "Every dependency the manifest declares",
+    "code": "return new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.devDependencies ?? {})]);"
+  },
+  {
+    "id": "tests-and-deps",
+    "label": "Untested source changes and new dependencies",
+    "code": "const present = pr.files.filter((f) => f.status !== \"removed\");\n\nconst sources = present.filter((f) => isSourceFile(f.path)).map((f) => f.path);\nconst testsChanged = present.some((f) => isTestFile(f.path));\n\nconst before = dependencyNames(pr.packageJson.before);\nconst known = new Set(pr.policy.knownDependencies);\nconst unknown = [...dependencyNames(pr.packageJson.after)].filter((name) => !before.has(name) && !known.has(name));"
+  },
+  {
+    "id": "markers",
+    "label": "Debug markers in added lines",
+    "code": "const markers: string[] = [];\nfor (const file of present) {\n    for (const marker of MARKERS) {\n        if (file.addedLines.some((line) => line.includes(marker))) markers.push(`${file.path}: ${marker}`);\n    }\n}"
+  },
+  {
+    "id": "paths-and-size",
+    "label": "Paths outside the allowed list, and the PR size",
+    "code": "const outside = pr.files.filter((f) => !isAllowed(f.path, pr.policy.allowedPaths)).map((f) => f.path);\n\nconst total = pr.files\n    .filter((f) => !LOCK_FILES.has(fileName(f.path)))\n    .reduce((sum, f) => sum + f.additions + f.deletions, 0);\nconst max = pr.policy.maxChangedLines;"
+  },
+  {
+    "id": "allowed-prefix-only",
+    "label": "Is a path covered by the allowed list",
+    "code": "return allowedPaths.some((entry) => path.startsWith(entry));",
+    "distractor": true
+  },
+  {
+    "id": "dependency-names-runtime-only",
+    "label": "Every dependency the manifest declares",
+    "code": "return new Set(Object.keys(manifest.dependencies ?? {}));",
+    "distractor": true
+  },
+  {
+    "id": "paths-and-size-with-lock-files",
+    "label": "Paths outside the allowed list, and the PR size",
+    "code": "const outside = pr.files.filter((f) => !isAllowed(f.path, pr.policy.allowedPaths)).map((f) => f.path);\n\nconst total = pr.files\n    .reduce((sum, f) => sum + f.additions + f.deletions, 0);\nconst max = pr.policy.maxChangedLines;",
+    "distractor": true
+  }
+]

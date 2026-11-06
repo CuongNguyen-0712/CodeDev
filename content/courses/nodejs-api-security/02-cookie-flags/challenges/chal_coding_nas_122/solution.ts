@@ -55,19 +55,25 @@ type AuthCookies = { ok: true; login: string[]; logout: string[] } | { ok: false
 const EPOCH = "Thu, 01 Jan 1970 00:00:00 GMT";
 
 function validate(c: CookieConfig, secure: boolean, accessToken: string, refreshToken: string): string | null {
+    // @piece lifetime-and-path-rules: Rules 1-2: lifetimes and the refresh path
     const ttlOk = (n: number) => Number.isInteger(n) && n >= 1;
     if (!ttlOk(c.accessTtlSeconds) || !ttlOk(c.refreshTtlSeconds) || c.refreshTtlSeconds <= c.accessTtlSeconds) {
         return "invalid ttl";
     }
     if (!/^\/[A-Za-z0-9\/_-]+$/.test(c.refreshPath)) return "invalid refresh path";
+    // @end
+    // @piece secure-rules: Rules 3-4: settings that need Secure
     if (c.sameSite === "None" && !secure) return "SameSite=None requires Secure";
     const names = [c.accessName, c.refreshName];
     const prefixed = (n: string) => n.startsWith("__Host-") || n.startsWith("__Secure-");
     if (!secure && names.some(prefixed)) return "cookie prefix requires Secure";
+    // @end
+    // @piece host-and-token-rules: Rules 5-7: __Host- names and token values
     if (c.domain !== null && names.some((n) => n.startsWith("__Host-"))) return "__Host- cookie must not have Domain";
     if (c.refreshName.startsWith("__Host-")) return "__Host- cookie requires Path=/";
     const valueOk = (v: string) => /^[A-Za-z0-9._-]+$/.test(v);
     if (!valueOk(accessToken) || !valueOk(refreshToken)) return "invalid token value";
+    // @end
     return null;
 }
 
@@ -76,6 +82,7 @@ function buildAuthCookies(config: CookieConfig, nowMs: number, accessToken: stri
     const error = validate(config, secure, accessToken, refreshToken);
     if (error) return { ok: false, error };
 
+    // @piece header-builder: Build one Set-Cookie value
     const header = (name: string, value: string, maxAge: number, expires: string, path: string, sameSite: string) =>
         [
             `${name}=${value}`,
@@ -88,7 +95,9 @@ function buildAuthCookies(config: CookieConfig, nowMs: number, accessToken: stri
             `SameSite=${sameSite}`,
         ].join("; ");
     const at = (ttl: number) => new Date(nowMs + ttl * 1000).toUTCString();
+    // @end
 
+    // @piece cookie-list: Login cookies and their clearing cookies
     return {
         ok: true,
         login: [
@@ -100,6 +109,7 @@ function buildAuthCookies(config: CookieConfig, nowMs: number, accessToken: stri
             header(config.refreshName, "", 0, EPOCH, config.refreshPath, "Strict"),
         ],
     };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

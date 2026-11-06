@@ -25,8 +25,8 @@ const NOT_FOUND_TTL_SECONDS = 30;
 type Deps = { redis: FakeRedis; db: FakeDb; random: () => number };
 
 function getCourse(id: string, deps: Deps): Course | null {
-    // TODO: cache-aside on "course:<id>". Today every request goes straight to PostgreSQL.
-    return deps.db.findCourseById(id);
+    // [ ] Answer from Redis when the copy is readable
+    // [ ] Load from PostgreSQL and keep a copy
 }
 
 // ---------------------------------------------------------------- in-memory Redis and database (do not change)

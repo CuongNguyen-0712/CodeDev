@@ -37,15 +37,21 @@ function createFakeClock(startTime = 0) {
   /** @type {Map<number, Timer>} */
   const timers = new Map();
 
+  // [ ] Register a timer and return its id
+
+  // [ ] Pick the next timer that is due
+
+  // [ ] Fire one timer
+
   return {
     now: () => current,
 
     setTimeout(fn, ms) {
-      // TODO: register a one-shot timer due at current + delay, return its id
+      // [ ] Register a one-shot timer
     },
 
     setInterval(fn, ms) {
-      // TODO: register a repeating timer
+      // [ ] Register a repeating timer
     },
 
     clearTimeout(id) {
@@ -57,13 +63,11 @@ function createFakeClock(startTime = 0) {
     },
 
     tick(ms) {
-      // TODO: fire every timer due up to current + ms (earliest first, ties by id),
-      // including timers scheduled by the callbacks themselves, then set current = old + ms
+      // [ ] Advance the clock and fire what is due
     },
 
     runAll(limit = 1000) {
-      // TODO: fire everything that is pending, guarded by `limit`
-      return 0;
+      // [ ] Fire everything pending, within the limit
     },
   };
 }

@@ -21,28 +21,18 @@
  * @param {{ capacity: number }} options capacity >= 1
  */
 function createAsyncQueue({ capacity }) {
-  // TODO: keep the buffered items, the producers waiting for room,
-  // the consumers waiting for an item, and whether the queue is closed.
+  // [ ] Buffered items, waiting producers and consumers
+
+  // [ ] Add an item, or wait for room
+
+  // [ ] Take an item, or wait for one
+
+  // [ ] Close the queue
 
   return {
-    /** @param {T} item @returns {Promise<void>} */
-    push(item) {
-      // TODO
-      return Promise.resolve();
-    },
-
-    /** @returns {Promise<{ value: T, done: false } | { value: undefined, done: true }>} */
-    pull() {
-      // TODO
-      return new Promise(() => {});
-    },
-
-    close() {
-      // TODO
-    },
-
-    [Symbol.asyncIterator]() {
-      // TODO: return an async iterator whose next() is based on pull()
-    },
+    push,
+    pull,
+    close,
+    // [ ] Iterate the queue with for await
   };
 }

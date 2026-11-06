@@ -17,7 +17,8 @@ import { readFileSync } from "node:fs";
 //      (same id: there is never a second row for one user and one course)
 //   7. otherwise create one with enrollments.create(userId, courseId), outcome "created"
 //
-// Do not change the types, the error classes, the repositories or the test runner.
+// Fill every [ ] line with the right piece. Do not change the types, the error classes, the repositories
+// or the test runner.
 
 type Course = { id: string; published: boolean; premium: boolean; prerequisites: string[] };
 type EnrollmentStatus = "active" | "cancelled";
@@ -88,27 +89,34 @@ class EnrollmentService {
     }
 
     enroll(userId: string, courseId: string): EnrollResult {
+        // @piece find-course: The course must exist
         const course = this.courses.findById(courseId);
         if (!course) throw new CourseNotFoundError(courseId);
-
+        // @end
+        // @piece already-active: An active enrollment is returned as it is
         const current = this.enrollments.findByUserAndCourse(userId, courseId);
         if (current && current.status === "active") return { outcome: "existing", enrollment: current };
-
+        // @end
+        // @piece must-be-published: Only published courses take enrollments
         if (!course.published) throw new CourseNotPublishedError(courseId);
-
+        // @end
+        // @piece prerequisites: Every prerequisite completed
         const missing = course.prerequisites.filter((id) => !this.completions.hasCompleted(userId, id));
         if (missing.length > 0) throw new PrerequisitesMissingError(courseId, missing);
-
+        // @end
+        // @piece premium-entitlement: Premium courses need an entitlement
         if (course.premium && !this.entitlements.hasEntitlement(userId, courseId)) {
             throw new EntitlementRequiredError(courseId);
         }
-
+        // @end
+        // @piece save-enrollment: Reactivate the old enrollment or create one
         if (current) {
             const reactivated: Enrollment = { ...current, status: "active" };
             this.enrollments.save(reactivated);
             return { outcome: "reactivated", enrollment: reactivated };
         }
         return { outcome: "created", enrollment: this.enrollments.create(userId, courseId) };
+        // @end
     }
 }
 

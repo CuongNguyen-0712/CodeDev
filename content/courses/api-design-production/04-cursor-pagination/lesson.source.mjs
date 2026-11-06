@@ -185,7 +185,7 @@ it("walks the catalog without duplicates or gaps while courses are published", a
             "**\"Full page means there is more\".** Spot it: `next_cursor` is computed from `rows.length === limit`; the client makes an extra request that returns an empty page.",
             "**Changing the format without a version.** A new default sort ships, old cursors are read as the new format and return the wrong rows. Spot it: there is no version field, or the decoder does not check it.",
         ]),
-        p("Now write the cursor and the page logic yourself. The challenge keeps the table in memory instead of PostgreSQL: your comparison plays the role of the `WHERE` and the `ORDER BY`. The test runner publishes courses between requests and follows `next_cursor` like the search sync does."),
+        p("Now assemble the cursor and the page logic. The challenge keeps the table in memory instead of PostgreSQL: your comparison plays the role of the `WHERE` and the `ORDER BY`. The test runner publishes courses between requests and follows `next_cursor` like the search sync does."),
         challenge("chal_coding_adp_212"),
 
         h2("7. Summary"),

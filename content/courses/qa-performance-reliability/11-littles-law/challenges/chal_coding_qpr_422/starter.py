@@ -40,11 +40,34 @@ import sys
 from fractions import Fraction
 
 
+def differs(a, b, tolerance_pct):
+    return abs(a - b) * 100 > tolerance_pct * b
+
+
 def check_report(case):
-    # {"throughput_rps", "in_flight", "closed_limit_rps", "resources": [{"name", "needed",
-    #  "utilization_pct", "min_size"}], "findings": [...], "verdict": ...} or {"error": ...}
-    return {"throughput_rps": 0, "in_flight": 0, "closed_limit_rps": None,
-            "resources": [], "findings": [], "verdict": "consistent"}
+    report, resources = case["report"], case["resources"]
+    tol, target = case["tolerance_pct"], case["target_utilization_pct"]
+    # [ ] Reject impossible report and resource values
+
+    # [ ] Throughput from the raw counts, and requests in flight
+    findings = []
+
+    if report["throughput_rps"] is not None and differs(Fraction(report["throughput_rps"]), x, tol):
+        findings.append("throughput_mismatch")
+
+    # [ ] The rate a closed model can reach, and how it compares
+
+    if report["mean_in_flight"] is not None and differs(Fraction(report["mean_in_flight"]), in_flight, tol):
+        findings.append("in_flight_mismatch")
+
+    sized = []
+    for res in resources:
+        # [ ] How busy one resource is, and the size it needs
+
+    # [ ] The overall verdict from the findings
+    return {"throughput_rps": round(float(x), 1), "in_flight": round(float(in_flight), 1),
+            "closed_limit_rps": None if closed_limit is None else round(float(closed_limit), 1),
+            "resources": sized, "findings": findings, "verdict": verdict}
 
 
 # ---------------------------------------------------------------- test runner (do not change)

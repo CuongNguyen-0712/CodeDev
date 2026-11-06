@@ -28,7 +28,7 @@ import { readFileSync } from "node:fs";
 //
 // Plain TypeScript, no Nest: the test runner calls the constructor itself, the way a unit test does,
 // so EnrollmentRepository and Clock can stay interfaces here.
-// Do not change the types, the constants or the test runner.
+// Fill every [ ] line with the right piece. Do not change the types, the constants or the test runner.
 
 type Enrollment = { userId: string; courseId: string; enrolledAt: string; expiresAt: string };
 
@@ -45,18 +45,19 @@ const ACCESS_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 class EnrollmentService {
-    constructor(repo: EnrollmentRepository, clock: Clock) {}
+    // [ ] Keep what the service depends on
 
     enroll(userId: string, courseId: string): Enrollment {
-        throw new Error("not implemented");
+        // [ ] Refuse an enrollment without ids
+        // [ ] Reuse an active enrollment or start a new one
     }
 
     hasAccess(userId: string, courseId: string): boolean {
-        return false;
+        // [ ] Whether the learner can open the course now
     }
 
     daysLeft(userId: string, courseId: string): number {
-        return 0;
+        // [ ] Whole days of access left
     }
 }
 

@@ -1,7 +1,25 @@
 import { readFileSync } from "node:fs";
 
-// Reference solution: write PostgreSQL, then invalidate (INCR <key>:ver, DEL <key>);
-// a fill SETs only when <key>:ver did not change while it was loading.
+// CodeDev catalog: CatalogService of the NestJS API, as plain TypeScript.
+// PostgreSQL (FakeDb) is the source of truth. Redis (FakeRedis) keeps copies for CACHE_TTL_SECONDS:
+//   course:<id>                   one course, as JSON (the course page)
+//   courses:category:<category>   the courses of one category, as a JSON array (the category page)
+//
+// Bug report: an admin lowered "Redis Patterns" from 249000 to 199000 VND. The course page and the
+// category page kept showing 249000 for about an hour. A later edit was followed by a manual DEL of
+// the key, yet a few seconds after it the course page showed the old price again: a catalog request
+// that had loaded the row before the edit stored it in Redis after the edit.
+//
+// Fix the service with this protocol (the tests replay slow requests and check exactly this):
+//   - updateCoursePrice writes PostgreSQL first; once the UPDATE has answered it invalidates
+//     course:<id> and courses:category:<category of that course>. Invalidating a key means
+//     INCR "<key>:ver", then DEL <key>. The update path never SETs a cached value.
+//   - a cache fill (a miss in getCourse or listCategory) reads "<key>:ver" before it queries
+//     PostgreSQL, and after the query answers it SETs the key (EX CACHE_TTL_SECONDS) only if
+//     "<key>:ver" has not changed. Either way the request returns what it loaded.
+//   - keep the validation: a price that is not a whole number >= 0, or an unknown course id,
+//     returns false and changes nothing.
+// Do not change the Course type, the constant or anything below the "do not change" line.
 
 type Course = { id: string; title: string; category: string; priceVnd: number };
 
@@ -26,27 +44,30 @@ class CatalogService {
     async updateCoursePrice(id: string, priceVnd: number): Promise<boolean> {
         if (!Number.isInteger(priceVnd) || priceVnd < 0) return false;
         const row = await this.db.updatePrice(id, priceVnd);
+        // @piece after-update: After the price is saved
         if (row === null) return false;
-        this.invalidate(`course:${id}`);
-        this.invalidate(`courses:category:${row.category}`);
+        // Invalidate: bump the version, then drop the copy (a fill that started earlier will not SET it back).
+        for (const key of [`course:${id}`, `courses:category:${row.category}`]) {
+            this.redis.incr(`${key}:ver`);
+            this.redis.del(key);
+        }
         return true;
+        // @end
     }
 
+    // Cache-aside: GET; on a miss, load from PostgreSQL and SET with a TTL.
     private async cached<T>(key: string, load: () => Promise<T>): Promise<T> {
         const hit = this.redis.get(key);
         if (hit !== null) return JSON.parse(hit) as T;
+        // @piece fill-cache: Load on a miss and store the copy
         const version = this.redis.get(`${key}:ver`);
         const value = await load();
         // An invalidation ran while we were loading: our value may be older than the database.
         if (this.redis.get(`${key}:ver`) === version) {
             this.redis.set(key, JSON.stringify(value), { ex: CACHE_TTL_SECONDS });
         }
+        // @end
         return value;
-    }
-
-    private invalidate(key: string): void {
-        this.redis.incr(`${key}:ver`);
-        this.redis.del(key);
     }
 }
 

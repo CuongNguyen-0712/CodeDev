@@ -43,6 +43,7 @@ function canonical(value: unknown): string {
 }
 
 function runSupportAgent(transcript: Message[], model: Model, tools: Tools, clock: Clock, policy: Policy): Outcome {
+    // @piece loop-state: What the run keeps track of between steps
     let steps = 0;
     let lastKey = "";
     let sameInARow = 0;
@@ -52,14 +53,17 @@ function runSupportAgent(transcript: Message[], model: Model, tools: Tools, cloc
         reason,
         summary: `${reason} after ${steps} steps; last error: ${lastError ?? "none"}`,
     });
-
+    // @end
     for (;;) {
+        // @piece next-step: Ask the model for its next step
         if (steps >= policy.maxSteps) return escalate("max_steps");
         const turn = model.next(transcript);
         steps++;
+        // @end
         if ("final" in turn) return { status: "answered", answer: turn.final };
 
         const call = turn.toolCall;
+        // @piece run-call: Run the proposed call and give the model its result
         const key = `${call.name} ${canonical(call.args)}`;
         sameInARow = key === lastKey ? sameInARow + 1 : 1;
         lastKey = key;
@@ -83,6 +87,7 @@ function runSupportAgent(transcript: Message[], model: Model, tools: Tools, cloc
             }
         }
         transcript.push({ role: "tool", content });
+        // @end
     }
 }
 

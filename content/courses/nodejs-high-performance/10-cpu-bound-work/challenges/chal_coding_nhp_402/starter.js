@@ -24,12 +24,12 @@
  * @returns {Promise<R[]>}
  */
 async function processInChunks(items, chunkSize, fn, yieldToLoop) {
-  const results = [];
+  // [ ] Room for one result per item
 
-  // TODO: this loop runs the whole batch in one go and blocks the event loop.
-  // Split it into chunks of chunkSize items and await yieldToLoop() between chunks.
-  for (let i = 0; i < items.length; i++) {
-    results.push(fn(items[i], i));
+  for (let start = 0; start < items.length; start += chunkSize) {
+    // [ ] Give the event loop a turn between two chunks
+
+    // [ ] Score the items of this chunk
   }
 
   return results;

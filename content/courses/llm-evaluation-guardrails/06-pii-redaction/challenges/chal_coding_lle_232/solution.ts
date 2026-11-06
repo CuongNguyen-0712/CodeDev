@@ -29,25 +29,34 @@ type PiiType = "EMAIL" | "NATIONAL_ID" | "PHONE" | "NAME";
 type Redaction = { text: string; counts: Record<PiiType, number> };
 type Input = { roster: string[]; text: string };
 
+// @piece fold-name: Compare names without case or accents
 const fold = (s: string): string =>
     s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
+// @end
 
 function redact(text: string, roster: string[]): Redaction {
     const counts: Record<PiiType, number> = { EMAIL: 0, NATIONAL_ID: 0, PHONE: 0, NAME: 0 };
     const numbers = new Map<string, number>();
+    // @piece numbering: Number each distinct value per type
     const label = (type: PiiType, key: string): string => {
         const id = `${type}:${key}`;
         if (!numbers.has(id)) numbers.set(id, [...numbers.keys()].filter((k) => k.startsWith(type + ":")).length + 1);
         counts[type]++;
         return `[${type}_${numbers.get(id)}]`;
     };
+    // @end
 
+    // @piece email-and-id: Redact emails, then national IDs
     let out = text.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g, (m) => label("EMAIL", m.toLowerCase()));
     out = out.replace(/(?<![A-Za-z0-9_-])\d{12}(?![A-Za-z0-9_-])/g, (m) => label("NATIONAL_ID", m));
+    // @end
+    // @piece phone: Redact phone numbers in any format
     out = out.replace(/(?<![A-Za-z0-9_-])(?:\+84|0)(?:[ .]?\d){9}(?![A-Za-z0-9_-])/g, (m) =>
         label("PHONE", "0" + m.replace(/\D/g, "").slice(-9)),
     );
+    // @end
 
+    // @piece names: Redact roster names as whole words
     const names = [...new Set(roster.map((r) => fold(r.trim())).filter((r) => r.length > 0))].sort((a, b) => b.length - a.length);
     const folded = fold(out);
     const isWordChar = (c: string | undefined) => c !== undefined && /[a-z0-9]/.test(c);
@@ -63,6 +72,7 @@ function redact(text: string, roster: string[]): Redaction {
             i++;
         }
     }
+    // @end
     return { text: result, counts };
 }
 

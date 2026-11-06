@@ -67,6 +67,7 @@ type GateReport =
 function regressionGate(input: GateInput): GateReport {
     const { baseline, candidate, config } = input;
     const problems: string[] = [];
+    // @piece index-runs: Index each run by caseId, noting duplicates
     const byId = (run: EvalRun, label: string): Map<string, CaseResult> => {
         const map = new Map<string, CaseResult>();
         for (const r of run.results) {
@@ -77,7 +78,9 @@ function regressionGate(input: GateInput): GateReport {
     };
     const base = byId(baseline, "baseline");
     const cand = byId(candidate, "candidate");
+    // @end
 
+    // @piece pair-cases: Pair the runs and check their slices
     const pairs: { slice: string; before: boolean; after: boolean }[] = [];
     for (const [id, b] of base) {
         const c = cand.get(id);
@@ -86,9 +89,11 @@ function regressionGate(input: GateInput): GateReport {
         pairs.push({ slice: b.slice, before: b.pass, after: c.pass });
     }
     if (problems.length > 0) return { decision: "invalid", reasons: problems };
+    // @end
 
     const reasons: string[] = [];
     const evaluate = (group: typeof pairs, label: string, limit: number, paired: boolean): GroupStats => {
+        // @piece group-counts: Count passes, flips, rates and the change
         const n = group.length;
         const bp = group.filter((p) => p.before).length;
         const cp = group.filter((p) => p.after).length;
@@ -96,6 +101,8 @@ function regressionGate(input: GateInput): GateReport {
         const failToPass = group.filter((p) => !p.before && p.after).length;
         const rate = (passes: number) => (n === 0 ? null : Math.round((1000 * passes) / n) / 10);
         const delta = n === 0 ? null : Math.round((1000 * (cp - bp)) / n) / 10;
+        // @end
+        // @piece group-status: Decide the group's status and reasons
         let status: Status = "ok";
         if (n < config.minSampleSize) {
             status = "insufficient data";
@@ -112,16 +119,20 @@ function regressionGate(input: GateInput): GateReport {
                 reasons.push(`${label}: significant regression (${passToFail} pass->fail vs ${failToPass} fail->pass, critical ${critical})`);
             }
         }
+        // @end
         return { n, baseline: rate(bp), candidate: rate(cp), delta, passToFail, failToPass, status };
     };
 
+    // @piece overall-and-slices: Evaluate overall, then each slice by name
     const overall = evaluate(pairs, "overall", config.maxOverallDropPp, true);
     const names = [...new Set(pairs.map((p) => p.slice))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     const slices = names.map((name) => ({
         slice: name,
         ...evaluate(pairs.filter((p) => p.slice === name), `slice ${name}`, config.maxSliceDropPp, false),
     }));
+    // @end
 
+    // @piece decision: Pick the decision and build the report
     const groups = [overall, ...slices];
     const decision = groups.some((g) => g.status === "regressed")
         ? "fail"
@@ -129,6 +140,7 @@ function regressionGate(input: GateInput): GateReport {
           ? "review"
           : "pass";
     return { decision, paired: pairs.length, unpaired: base.size + cand.size - 2 * pairs.length, overall, slices, reasons };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

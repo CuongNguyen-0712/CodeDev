@@ -49,14 +49,18 @@ type RefreshResult =
 const TOKEN_FORMAT = /^[A-Za-z0-9_-]{43}$/;
 const sha256Hex = (value: string): string => createHash("sha256").update(value).digest("hex");
 
+function issue(deps: Deps, id: string, familyId: string, userId: string, deviceId: string, familyExpiresAt: number): Session {
+    // [ ] Store a hashed token that ends with its family
+}
+
 function login(deps: Deps, userId: string, deviceId: string): Session {
-    // TODO: start a new family with its first token (only the hash goes into the store)
-    return { token: "", id: "", familyId: "", userId, deviceId, expiresAt: 0, familyExpiresAt: 0 };
+    // [ ] Start a family with its first token
 }
 
 function refresh(deps: Deps, presented: unknown): RefreshResult {
-    // TODO: find the token by its hash, check it, then rotate it inside its family
-    return { ok: false, reason: "unknown" };
+    // [ ] Find the token and check its state
+    // [ ] Family lifetime, then idle timeout
+    // [ ] Rotate to the next token in the family
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

@@ -1,0 +1,45 @@
+[
+  {
+    "id": "new-token-row",
+    "label": "Create the token and store only its hash",
+    "code": "const token = deps.randomBytes(32).toString(\"base64url\");\nconst id = deps.newId(\"rt\");\nconst familyId = deps.newId(\"fam\");\nconst createdAt = deps.now();\nconst expiresAt = createdAt + deps.ttlMs;\ndeps.store.insert({\n    id, familyId, userId, deviceId,\n    tokenHash: sha256Hex(token),\n    createdAt, expiresAt,\n    usedAt: null, revokedAt: null, replacedBy: null,\n});"
+  },
+  {
+    "id": "issue-log-return",
+    "label": "Log the issue and return the result",
+    "code": "deps.log({ event: \"refresh_token.issued\", id, userId, deviceId });\nreturn { token, id, familyId, expiresAt };"
+  },
+  {
+    "id": "format-and-lookup",
+    "label": "Check the format, then find the row by hash",
+    "code": "if (typeof presented !== \"string\" || !TOKEN_FORMAT.test(presented)) return reject(\"malformed\");\nconst hash = sha256Hex(presented);\nconst row = deps.store.findByHash(hash);\nif (!row || !timingSafeEqual(Buffer.from(row.tokenHash, \"hex\"), Buffer.from(hash, \"hex\"))) return reject(\"unknown\");"
+  },
+  {
+    "id": "state-checks",
+    "label": "Revoked and expired rows",
+    "code": "if (row.revokedAt !== null) return reject(\"revoked\", row.id);\nif (deps.now() >= row.expiresAt) return reject(\"expired\", row.id);"
+  },
+  {
+    "id": "accept",
+    "label": "Accept: log and return the session",
+    "code": "deps.log({ event: \"refresh_token.accepted\", id: row.id });\nreturn { ok: true, id: row.id, familyId: row.familyId, userId: row.userId, deviceId: row.deviceId, expiresAt: row.expiresAt };"
+  },
+  {
+    "id": "accept-whole-row",
+    "label": "Accept: log and return the session",
+    "code": "deps.log({ event: \"refresh_token.accepted\", id: row.id });\nreturn { ok: true, ...row };",
+    "distractor": true
+  },
+  {
+    "id": "format-length-only",
+    "label": "Check the format, then find the row by hash",
+    "code": "if (typeof presented !== \"string\") return reject(\"malformed\");\nconst hash = sha256Hex(presented);\nconst row = deps.store.findByHash(hash);\nif (!row || !timingSafeEqual(Buffer.from(row.tokenHash, \"hex\"), Buffer.from(hash, \"hex\"))) return reject(\"unknown\");",
+    "distractor": true
+  },
+  {
+    "id": "state-expired-first",
+    "label": "Revoked and expired rows",
+    "code": "if (deps.now() >= row.expiresAt) return reject(\"expired\", row.id);\nif (row.revokedAt !== null) return reject(\"revoked\", row.id);",
+    "distractor": true
+  }
+]

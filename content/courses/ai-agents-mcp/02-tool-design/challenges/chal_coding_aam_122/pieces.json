@@ -1,0 +1,55 @@
+[
+  {
+    "id": "name-check",
+    "label": "Name: snake_case and not taken",
+    "code": "if (spec.name.length > 64 || !NAME.test(spec.name)) {\n    errors.push(`name must be snake_case, 1-64 characters (got ${JSON.stringify(spec.name)})`);\n} else if (registry.has(spec.name)) {\n    errors.push(`name \"${spec.name}\" is already registered`);\n}"
+  },
+  {
+    "id": "description-check",
+    "label": "Description length and parameters type",
+    "code": "const description = typeof spec.description === \"string\" ? spec.description.trim() : \"\";\nif (description === \"\") errors.push(\"description is required\");\nelse if (description.length < 20) errors.push(\"description is shorter than 20 characters\");\nelse if (description.length > 300) errors.push(\"description is longer than 300 characters\");\nif (spec.parameters.type !== \"object\") errors.push(`parameters must have type \"object\"`);"
+  },
+  {
+    "id": "property-checks",
+    "label": "Each parameter, the required list, then register",
+    "code": "for (const [p, s] of Object.entries(spec.parameters.properties)) {\n    if (typeof s.description !== \"string\" || s.description.trim() === \"\") errors.push(`parameter \"${p}\" needs a description`);\n    if (!TYPES.includes(s.type)) errors.push(`parameter \"${p}\" has unsupported type \"${s.type}\"`);\n    if (s.minimum !== undefined && s.maximum !== undefined && s.minimum > s.maximum) {\n        errors.push(`parameter \"${p}\" has minimum greater than maximum`);\n    }\n    if (s.minLength !== undefined && s.maxLength !== undefined && s.minLength > s.maxLength) {\n        errors.push(`parameter \"${p}\" has minLength greater than maxLength`);\n    }\n    if (s.pattern !== undefined && !compiles(s.pattern)) errors.push(`parameter \"${p}\" has an invalid pattern`);\n}\nfor (const r of spec.parameters.required) {\n    if (!Object.hasOwn(spec.parameters.properties, r)) errors.push(`required \"${r}\" is not a declared parameter`);\n}\nif (errors.length === 0) registry.set(spec.name, spec);"
+  },
+  {
+    "id": "listing",
+    "label": "The tools as the model receives them",
+    "code": "return [...registry.values()].map((spec) => {\n    const properties: Record<string, Record<string, unknown>> = {};\n    for (const [p, s] of Object.entries(spec.parameters.properties)) {\n        const out: Record<string, unknown> = { type: s.type, description: (s.description ?? \"\").trim() };\n        for (const k of KEYWORDS) if (s[k] !== undefined) out[k] = s[k];\n        properties[p] = out;\n    }\n    return {\n        name: spec.name,\n        description: (spec.description ?? \"\").trim(),\n        parameters: { type: \"object\", properties, required: [...spec.parameters.required], additionalProperties: false },\n    };\n});"
+  },
+  {
+    "id": "type-match",
+    "label": "Does a value have a parameter's type",
+    "code": "switch (type) {\n    case \"string\":\n        return typeof value === \"string\";\n    case \"integer\":\n        return typeof value === \"number\" && Number.isInteger(value);\n    case \"number\":\n        return typeof value === \"number\" && Number.isFinite(value);\n    case \"boolean\":\n        return typeof value === \"boolean\";\n    default:\n        return false;\n}"
+  },
+  {
+    "id": "argument-checks",
+    "label": "Check each declared argument",
+    "code": "for (const [p, s] of Object.entries(properties)) {\n    if (!Object.hasOwn(args, p)) {\n        if (required.includes(p)) errors.push(`missing required argument \"${p}\"`);\n        continue;\n    }\n    const value = args[p];\n    if (!hasType(value, s.type)) {\n        errors.push(`\"${p}\" must be ${s.type}`);\n        continue;\n    }\n    if (s.enum !== undefined && !s.enum.some((allowed) => allowed === value)) {\n        errors.push(`\"${p}\" must be one of ${s.enum.map((v) => JSON.stringify(v)).join(\", \")}`);\n    }\n    if (typeof value === \"number\") {\n        if (s.minimum !== undefined && value < s.minimum) errors.push(`\"${p}\" must be >= ${s.minimum}`);\n        if (s.maximum !== undefined && value > s.maximum) errors.push(`\"${p}\" must be <= ${s.maximum}`);\n    }\n    if (typeof value === \"string\") {\n        if (s.minLength !== undefined && value.length < s.minLength) errors.push(`\"${p}\" must be at least ${s.minLength} characters`);\n        if (s.maxLength !== undefined && value.length > s.maxLength) errors.push(`\"${p}\" must be at most ${s.maxLength} characters`);\n        if (s.pattern !== undefined && !new RegExp(s.pattern).test(value)) errors.push(`\"${p}\" does not match pattern ${s.pattern}`);\n    }\n}"
+  },
+  {
+    "id": "unexpected-args",
+    "label": "Reject arguments the tool does not declare",
+    "code": "for (const key of Object.keys(args)) {\n    if (!Object.hasOwn(properties, key)) errors.push(`unexpected argument \"${key}\"`);\n}"
+  },
+  {
+    "id": "integer-any-number",
+    "label": "Does a value have a parameter's type",
+    "code": "switch (type) {\n    case \"string\":\n        return typeof value === \"string\";\n    case \"integer\":\n        return typeof value === \"number\";\n    case \"number\":\n        return typeof value === \"number\" && Number.isFinite(value);\n    case \"boolean\":\n        return typeof value === \"boolean\";\n    default:\n        return false;\n}",
+    "distractor": true
+  },
+  {
+    "id": "listing-copy-spec",
+    "label": "The tools as the model receives them",
+    "code": "return [...registry.values()].map((spec) => {\n    const properties: Record<string, Record<string, unknown>> = {};\n    for (const [p, s] of Object.entries(spec.parameters.properties)) {\n        properties[p] = { ...s };\n    }\n    return {\n        name: spec.name,\n        description: (spec.description ?? \"\").trim(),\n        parameters: { type: \"object\", properties, required: [...spec.parameters.required], additionalProperties: false },\n    };\n});",
+    "distractor": true
+  },
+  {
+    "id": "register-even-rejected",
+    "label": "Each parameter, the required list, then register",
+    "code": "for (const [p, s] of Object.entries(spec.parameters.properties)) {\n    if (typeof s.description !== \"string\" || s.description.trim() === \"\") errors.push(`parameter \"${p}\" needs a description`);\n    if (!TYPES.includes(s.type)) errors.push(`parameter \"${p}\" has unsupported type \"${s.type}\"`);\n    if (s.minimum !== undefined && s.maximum !== undefined && s.minimum > s.maximum) {\n        errors.push(`parameter \"${p}\" has minimum greater than maximum`);\n    }\n    if (s.minLength !== undefined && s.maxLength !== undefined && s.minLength > s.maxLength) {\n        errors.push(`parameter \"${p}\" has minLength greater than maxLength`);\n    }\n    if (s.pattern !== undefined && !compiles(s.pattern)) errors.push(`parameter \"${p}\" has an invalid pattern`);\n}\nfor (const r of spec.parameters.required) {\n    if (!Object.hasOwn(spec.parameters.properties, r)) errors.push(`required \"${r}\" is not a declared parameter`);\n}\nif (!registry.has(spec.name)) registry.set(spec.name, spec);",
+    "distractor": true
+  }
+]

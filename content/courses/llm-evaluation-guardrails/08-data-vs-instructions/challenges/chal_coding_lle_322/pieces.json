@@ -1,0 +1,50 @@
+[
+  {
+    "id": "check-inputs",
+    "label": "Reject bad names, duplicates and budgets",
+    "code": "const seen = new Set<string>();\nfor (const input of request.inputs) {\n    if (!/^[a-z][a-z0-9_-]{0,31}$/.test(input.name)) throw new Error(`invalid name \"${input.name}\"`);\n    if (seen.has(input.name)) throw new Error(`duplicate name \"${input.name}\"`);\n    seen.add(input.name);\n    if (!Number.isInteger(input.maxChars) || input.maxChars < 1) throw new Error(`invalid maxChars for \"${input.name}\"`);\n}"
+  },
+  {
+    "id": "boundary",
+    "label": "Pick a boundary id not used in this prompt",
+    "code": "let boundary = nextId();\nwhile (used.has(boundary)) boundary = nextId();\nused.add(boundary);"
+  },
+  {
+    "id": "neutralise",
+    "label": "Neutralise the content the model will read",
+    "code": "// Normalise first: the model folds look-alikes such as \"＜\" into \"<\", so escape what it will read.\nconst normalisedText = input.content.normalize(\"NFKC\");\nconst escaped = (normalisedText.match(/[<>]/g) ?? []).length;\nconst safe = normalisedText.replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\");"
+  },
+  {
+    "id": "budget",
+    "label": "Cut the content to its character budget",
+    "code": "const points = Array.from(safe);\nconst truncated = points.length > input.maxChars;\nconst kept = truncated ? points.slice(0, input.maxChars) : points;"
+  },
+  {
+    "id": "data-block",
+    "label": "Write the data block lines",
+    "code": "lines.push(`<<<DATA name=${input.name} boundary=${boundary}>>>`, kept.join(\"\"));\nif (truncated) lines.push(`[truncated: kept ${input.maxChars} of ${points.length} characters]`);\nlines.push(`<<<END boundary=${boundary}>>>`);"
+  },
+  {
+    "id": "manifest-entry",
+    "label": "Record the input in the manifest",
+    "code": "manifest.push({\n    name: input.name,\n    boundary,\n    chars: Array.from(input.content).length,\n    sentChars: kept.length,\n    truncated,\n    escaped,\n    normalised: normalisedText !== input.content,\n});"
+  },
+  {
+    "id": "boundary-first-id",
+    "label": "Pick a boundary id not used in this prompt",
+    "code": "let boundary = nextId();\n\nused.add(boundary);",
+    "distractor": true
+  },
+  {
+    "id": "neutralise-own-end-only",
+    "label": "Neutralise the content the model will read",
+    "code": "// Normalise first: the model folds look-alikes such as \"＜\" into \"<\", so escape what it will read.\nconst normalisedText = input.content.normalize(\"NFKC\");\nconst escaped = (normalisedText.match(/[<>]/g) ?? []).length;\nconst safe = normalisedText.split(`<<<END boundary=${boundary}>>>`).join(`&lt;&lt;&lt;END boundary=${boundary}&gt;&gt;&gt;`);",
+    "distractor": true
+  },
+  {
+    "id": "neutralise-raw",
+    "label": "Neutralise the content the model will read",
+    "code": "// Normalise first: the model folds look-alikes such as \"＜\" into \"<\", so escape what it will read.\nconst normalisedText = input.content;\nconst escaped = (normalisedText.match(/[<>]/g) ?? []).length;\nconst safe = normalisedText.replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\");",
+    "distractor": true
+  }
+]

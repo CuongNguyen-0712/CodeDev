@@ -38,15 +38,33 @@ import { readFileSync } from "node:fs";
 type Point = { metric: string; value: number; labels?: Record<string, string> };
 
 function routeTemplate(path: string): string {
-    return path;
+    // [ ] Turn a raw path into its route template
 }
 
 function statusClass(status: string): string {
-    return status;
+    return /^[1-5]\d\d$/.test(status) ? `${status[0]}xx` : "unknown";
 }
 
 function recordAll(points: Point[], maxValuesPerLabel: number): string[] {
-    return [];
+    const FORBIDDEN = new Set(["user_id", "email", "session_id"]);
+    const kept = new Map<string, Set<string>>(); // "metric\u0000label" -> values kept so far
+    const capped = new Map<string, Set<string>>(); // metric -> capped label names
+    const series = new Map<string, number>(); // series text -> total
+    let rejected = 0;
+
+    for (const p of points) {
+        if (typeof p.metric !== "string" || p.metric === "" || typeof p.value !== "number" || !Number.isFinite(p.value) || p.value < 0) {
+            rejected++;
+            continue;
+        }
+        // [ ] Keep and rewrite the labels of one point
+        // [ ] Cap the distinct values of each label
+        const names = [...labels.keys()].sort();
+        const text = names.length ? `${p.metric}{${names.map((n) => `${n}="${labels.get(n)}"`).join(",")}}` : p.metric;
+        series.set(text, (series.get(text) ?? 0) + p.value);
+    }
+
+    // [ ] Print the series and the per-metric summary
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

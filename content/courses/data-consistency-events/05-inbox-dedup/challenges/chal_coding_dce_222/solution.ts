@@ -31,8 +31,11 @@ class InboxConsumer {
     }
 
     handle(msg: Message, now: number): Outcome {
+        // @piece validate: Refuse a message without an id or course
         const valid = (s: unknown): boolean => typeof s === "string" && s !== "";
         if (!valid(msg.id) || !valid(msg.payload?.courseId)) return "invalid";
+        // @end
+        // @piece handle-once: Count the certificate once per message id
         return this.db.tx((t): Outcome => {
             if (t.inbox.has(msg.id)) return "duplicate";
             t.inbox.set(msg.id, { processedAt: now });
@@ -40,9 +43,11 @@ class InboxConsumer {
             t.counters.set(course, (t.counters.get(course) ?? 0) + 1);
             return "processed";
         });
+        // @end
     }
 
     cleanup(now: number, retentionMs: number): number {
+        // @piece cleanup: Delete inbox rows past the retention window
         return this.db.tx((t) => {
             let removed = 0;
             for (const [id, row] of t.inbox) {
@@ -53,6 +58,7 @@ class InboxConsumer {
             }
             return removed;
         });
+        // @end
     }
 }
 // ------------------------------------------------------------ building blocks (do not change)

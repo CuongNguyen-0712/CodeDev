@@ -1,0 +1,56 @@
+[
+  {
+    "id": "validate-params",
+    "label": "Check each assertion type's parameters",
+    "code": "switch (a.type) {\n    case \"is_json\":\n        return null;\n    case \"json_schema\":\n        return validSchema(a.schema) ? null : \"bad_definition\";\n    case \"contains\":\n    case \"not_contains\":\n        return typeof a.value === \"string\" && a.value !== \"\" && (a.ignoreCase === undefined || typeof a.ignoreCase === \"boolean\")\n            ? null : \"bad_definition\";\n    case \"regex\": {\n        if (typeof a.pattern !== \"string\" || a.pattern === \"\") return \"bad_definition\";\n        const flags = a.flags === undefined ? \"\" : a.flags;\n        if (typeof flags !== \"string\" || !/^[ims]*$/.test(flags) || new Set(flags).size !== flags.length) return \"bad_definition\";\n        try {\n            new RegExp(a.pattern, flags);\n        } catch {\n            return \"bad_definition\";\n        }\n        return null;\n    }\n    case \"max_length\":\n        return Number.isInteger(a.value) && (a.value as number) >= 0 ? null : \"bad_definition\";\n    case \"equals_field\":\n        return validPath(a.path) && \"value\" in a ? null : \"bad_definition\";\n    case \"score_in_range\":\n        return validPath(a.path) && isFiniteNumber(a.min) && isFiniteNumber(a.max) && a.min <= a.max ? null : \"bad_definition\";\n}"
+  },
+  {
+    "id": "check-assertion",
+    "label": "Run one assertion against the output",
+    "code": "function check(a: Assertion, output: string | null): boolean {\n    if (output === null) return false;\n    switch (a.type) {\n        case \"is_json\":\n            return parse(output).ok;\n        case \"json_schema\": {\n            const p = parse(output);\n            return p.ok && matches(a.schema as Record<string, unknown>, p.value);\n        }\n        case \"contains\":\n        case \"not_contains\": {\n            const value = a.value as string;\n            const found = a.ignoreCase === true ? output.toLowerCase().includes(value.toLowerCase()) : output.includes(value);\n            return a.type === \"contains\" ? found : !found;\n        }\n        case \"regex\":\n            return new RegExp(a.pattern as string, (a.flags as string | undefined) ?? \"\").test(output);\n        case \"max_length\":\n            return Array.from(output).length <= (a.value as number);\n        case \"equals_field\": {\n            const f = field(output, a.path as string);\n            return f.found && deepEqual(f.value, a.value);\n        }\n        case \"score_in_range\": {\n            const f = field(output, a.path as string);\n            return f.found && typeof f.value === \"number\" && f.value >= (a.min as number) && f.value <= (a.max as number);\n        }\n    }\n    return false;\n}"
+  },
+  {
+    "id": "case-problems",
+    "label": "Collect the case's definition problems",
+    "code": "const problems: Problem[] = [];\nconst w = c.weight === undefined ? 1 : c.weight;\nif (!isFiniteNumber(w) || w <= 0) problems.push({ id: c.id, at: null, reason: \"bad_weight\" });\nconst assertions = Array.isArray(c.assertions) ? (c.assertions as unknown[]) : [];\nif (assertions.length === 0) problems.push({ id: c.id, at: null, reason: \"no_assertions\" });\nassertions.forEach((a, i) => {\n    const reason = validate(a);\n    if (reason) problems.push({ id: c.id, at: i, reason });\n});"
+  },
+  {
+    "id": "skip-invalid",
+    "label": "Leave an invalid case out of the totals",
+    "code": "if (problems.length > 0) {\n    invalid.push(...problems);\n    results.push({ id: c.id, status: \"invalid\", failed: [] });\n    continue;\n}"
+  },
+  {
+    "id": "count-result",
+    "label": "Record the result, slice counts and weights",
+    "code": "const failed = (assertions as Assertion[])\n    .filter((a) => !check(a, c.output))\n    .map((a) => (typeof a.name === \"string\" && a.name !== \"\" ? a.name : (a.type as string)));\nconst pass = failed.length === 0;\nresults.push({ id: c.id, status: pass ? \"pass\" : \"fail\", failed });\ns.total++;\nweightAll += w as number;\nif (pass) {\n    s.passed++;\n    weightPassed += w as number;\n}"
+  },
+  {
+    "id": "slices-and-score",
+    "label": "Build the slice list and the score",
+    "code": "const sliceList = [...slices.entries()]\n    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))\n    .map(([slice, s]) => ({ slice, passed: s.passed, total: s.total, rate: s.total === 0 ? null : round3(s.passed / s.total) }));\nreturn { cases: results, invalid, slices: sliceList, score: weightAll === 0 ? null : round3(weightPassed / weightAll) };"
+  },
+  {
+    "id": "check-null-as-empty",
+    "label": "Run one assertion against the output",
+    "code": "function check(a: Assertion, recorded: string | null): boolean {\n    const output = recorded ?? \"\";\n    switch (a.type) {\n        case \"is_json\":\n            return parse(output).ok;\n        case \"json_schema\": {\n            const p = parse(output);\n            return p.ok && matches(a.schema as Record<string, unknown>, p.value);\n        }\n        case \"contains\":\n        case \"not_contains\": {\n            const value = a.value as string;\n            const found = a.ignoreCase === true ? output.toLowerCase().includes(value.toLowerCase()) : output.includes(value);\n            return a.type === \"contains\" ? found : !found;\n        }\n        case \"regex\":\n            return new RegExp(a.pattern as string, (a.flags as string | undefined) ?? \"\").test(output);\n        case \"max_length\":\n            return Array.from(output).length <= (a.value as number);\n        case \"equals_field\": {\n            const f = field(output, a.path as string);\n            return f.found && deepEqual(f.value, a.value);\n        }\n        case \"score_in_range\": {\n            const f = field(output, a.path as string);\n            return f.found && typeof f.value === \"number\" && f.value >= (a.min as number) && f.value <= (a.max as number);\n        }\n    }\n    return false;\n}",
+    "distractor": true
+  },
+  {
+    "id": "count-result-unweighted",
+    "label": "Record the result, slice counts and weights",
+    "code": "const failed = (assertions as Assertion[])\n    .filter((a) => !check(a, c.output))\n    .map((a) => (typeof a.name === \"string\" && a.name !== \"\" ? a.name : (a.type as string)));\nconst pass = failed.length === 0;\nresults.push({ id: c.id, status: pass ? \"pass\" : \"fail\", failed });\ns.total++;\nweightAll += 1;\nif (pass) {\n    s.passed++;\n    weightPassed += 1;\n}",
+    "distractor": true
+  },
+  {
+    "id": "skip-invalid-counted",
+    "label": "Leave an invalid case out of the totals",
+    "code": "if (problems.length > 0) {\n    invalid.push(...problems);\n    results.push({ id: c.id, status: \"invalid\", failed: [] });\n    s.total++;\n    weightAll += isFiniteNumber(w) && w > 0 ? w : 1;\n    continue;\n}",
+    "distractor": true
+  },
+  {
+    "id": "validate-params-lenient",
+    "label": "Check each assertion type's parameters",
+    "code": "switch (a.type) {\n    case \"is_json\":\n        return null;\n    case \"json_schema\":\n        return validSchema(a.schema) ? null : \"bad_definition\";\n    case \"contains\":\n    case \"not_contains\":\n        return typeof a.value === \"string\" && (a.ignoreCase === undefined || typeof a.ignoreCase === \"boolean\")\n            ? null : \"bad_definition\";\n    case \"regex\": {\n        if (typeof a.pattern !== \"string\" || a.pattern === \"\") return \"bad_definition\";\n        const flags = a.flags === undefined ? \"\" : a.flags;\n        if (typeof flags !== \"string\" || !/^[ims]*$/.test(flags) || new Set(flags).size !== flags.length) return \"bad_definition\";\n        return null;\n    }\n    case \"max_length\":\n        return Number.isInteger(a.value) && (a.value as number) >= 0 ? null : \"bad_definition\";\n    case \"equals_field\":\n        return validPath(a.path) && \"value\" in a ? null : \"bad_definition\";\n    case \"score_in_range\":\n        return validPath(a.path) && isFiniteNumber(a.min) && isFiniteNumber(a.max) && a.min <= a.max ? null : \"bad_definition\";\n}",
+    "distractor": true
+  }
+]

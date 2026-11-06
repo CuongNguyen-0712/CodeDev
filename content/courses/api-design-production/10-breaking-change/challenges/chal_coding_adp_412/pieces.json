@@ -1,0 +1,29 @@
+[
+  {
+    "id": "course-dto",
+    "label": "The fields a course response carries",
+    "code": "type CourseDto = {\n    id: string;\n    slug: string;\n    title: string;\n    /** @deprecated use averageRating */\n    rating: number | null;\n    averageRating: number | null;\n    ratingCount: number;\n    /** @deprecated use teacher */\n    instructor: Person;\n    teacher: Person;\n    /** @deprecated use priceAmount */\n    price: number;\n    priceAmount: string;\n};"
+  },
+  {
+    "id": "course-mapper",
+    "label": "Map a course row to the response",
+    "code": "return {\n    id: row.id,\n    slug: row.slug,\n    title: row.title,\n    rating: row.ratingAvg,\n    averageRating: row.ratingAvg,\n    ratingCount: row.ratingCount,\n    instructor: { id: row.instructorId, name: row.instructorName },\n    teacher: { id: row.instructorId, name: row.instructorName },\n    price: row.priceVnd,\n    priceAmount: String(row.priceVnd),\n};"
+  },
+  {
+    "id": "deprecation-headers",
+    "label": "Announce the deprecated fields",
+    "code": "const MIN_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;\nconst deprecatedMs = Date.parse(policy.deprecatedAt);\nif (Number.isNaN(deprecatedMs)) throw new Error(`invalid deprecatedAt: ${policy.deprecatedAt}`);\nconst headers: Record<string, string> = { Deprecation: `@${Math.floor(deprecatedMs / 1000)}` };\nif (policy.sunsetAt === null) return headers;\nconst sunsetMs = Date.parse(policy.sunsetAt);\nif (Number.isNaN(sunsetMs)) throw new Error(`invalid sunsetAt: ${policy.sunsetAt}`);\nif (sunsetMs < deprecatedMs + MIN_WINDOW_MS) throw new Error(\"sunset is less than 14 days after deprecation\");\nheaders.Sunset = new Date(sunsetMs).toUTCString();\nreturn headers;"
+  },
+  {
+    "id": "course-mapper-price-string",
+    "label": "Map a course row to the response",
+    "code": "return {\n    id: row.id,\n    slug: row.slug,\n    title: row.title,\n    rating: row.ratingAvg,\n    averageRating: row.ratingAvg,\n    ratingCount: row.ratingCount,\n    instructor: { id: row.instructorId, name: row.instructorName },\n    teacher: { id: row.instructorId, name: row.instructorName },\n    price: String(row.priceVnd) as unknown as number,\n    priceAmount: String(row.priceVnd),\n};",
+    "distractor": true
+  },
+  {
+    "id": "deprecation-headers-iso-sunset",
+    "label": "Announce the deprecated fields",
+    "code": "const MIN_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;\nconst deprecatedMs = Date.parse(policy.deprecatedAt);\nif (Number.isNaN(deprecatedMs)) throw new Error(`invalid deprecatedAt: ${policy.deprecatedAt}`);\nconst headers: Record<string, string> = { Deprecation: `@${Math.floor(deprecatedMs / 1000)}` };\nif (policy.sunsetAt === null) return headers;\nconst sunsetMs = Date.parse(policy.sunsetAt);\nif (Number.isNaN(sunsetMs)) throw new Error(`invalid sunsetAt: ${policy.sunsetAt}`);\nif (sunsetMs < deprecatedMs + MIN_WINDOW_MS) throw new Error(\"sunset is less than 14 days after deprecation\");\nheaders.Sunset = new Date(sunsetMs).toISOString();\nreturn headers;",
+    "distractor": true
+  }
+]

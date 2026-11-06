@@ -1,0 +1,24 @@
+[
+  {
+    "id": "slice-start",
+    "label": "Remember when the current slice started",
+    "code": "let sliceStart = host.now();"
+  },
+  {
+    "id": "end-slice",
+    "label": "Hand the main thread back once the budget is spent",
+    "code": "if (remaining > 0 && host.now() - sliceStart >= budgetMs) {\n  await host.yieldToMain();\n  sliceStart = host.now();\n}"
+  },
+  {
+    "id": "end-slice-no-await",
+    "label": "Hand the main thread back once the budget is spent",
+    "code": "if (remaining > 0 && host.now() - sliceStart >= budgetMs) {\n  host.yieldToMain();\n  sliceStart = host.now();\n}",
+    "distractor": true
+  },
+  {
+    "id": "end-slice-no-reset",
+    "label": "Hand the main thread back once the budget is spent",
+    "code": "if (remaining > 0 && host.now() - sliceStart >= budgetMs) {\n  await host.yieldToMain();\n}",
+    "distractor": true
+  }
+]

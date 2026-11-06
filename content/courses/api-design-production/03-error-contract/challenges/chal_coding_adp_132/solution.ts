@@ -27,6 +27,9 @@ import { readFileSync } from "node:fs";
 // - title is TITLES[status], or "Error" for a status not in the table.
 // - traceId is ctx.traceId when it is a non-empty string, otherwise "unknown"; instance is ctx.path.
 // - headers: exactly { "Content-Type": "application/problem+json" }.
+//
+// Complete formatError: fill every [ ] line with the right piece. Do not change the classes, the types,
+// the constants or the test runner.
 
 type FieldError = { field: string; code: string; message: string };
 
@@ -69,27 +72,15 @@ const TITLES: Record<number, string> = {
     502: "Bad Gateway", 503: "Service Unavailable", 504: "Gateway Timeout",
 };
 
-const validStatus = (s: number) => Number.isInteger(s) && s >= 400 && s <= 599;
-
-function toDetails(list: unknown[]): FieldError[] {
-    const clean: FieldError[] = [];
-    for (const d of list) {
-        if (typeof d !== "object" || d === null) continue;
-        const { field, code, message } = d as Record<string, unknown>;
-        if (typeof field !== "string") continue;
-        clean.push({ field, code: typeof code === "string" ? code : "", message: typeof message === "string" ? message : "" });
-    }
-    const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-    clean.sort((a, b) => cmp(a.field, b.field) || cmp(a.code, b.code));
-    return clean.length > MAX_DETAILS ? [...clean.slice(0, MAX_DETAILS), { ...TRUNCATION_MARKER }] : clean;
-}
-
 function formatError(thrown: unknown, ctx: RequestContext): ErrorResponse {
+    // @piece safe-defaults: What an unknown failure answers
     let status = 500;
     let code = "INTERNAL_ERROR";
     let message = "server.error";
     let details: FieldError[] = [];
+    // @end
 
+    // @piece classify-thrown: Map each kind of thrown value to the contract
     if (thrown instanceof AppError && validStatus(thrown.status)) {
         ({ status, code, message } = thrown);
         details = toDetails(thrown.details);
@@ -103,11 +94,15 @@ function formatError(thrown: unknown, ctx: RequestContext): ErrorResponse {
         code = `HTTP_${status}`;
         message = thrown.message;
     }
+    // @end
+    // @piece hide-server-errors: What a 5xx may reveal
     if (status >= 500) {
         message = "server.error";
         details = [];
     }
+    // @end
 
+    // @piece problem-response: The problem+json response
     return {
         status,
         headers: { "Content-Type": "application/problem+json" },
@@ -122,7 +117,27 @@ function formatError(thrown: unknown, ctx: RequestContext): ErrorResponse {
             instance: ctx.path,
         },
     };
+    // @end
 }
+
+// @piece valid-status: Statuses a handler may set
+const validStatus = (s: number) => Number.isInteger(s) && s >= 400 && s <= 599;
+// @end
+
+// @piece to-details: Clean, sort and cap the field errors
+function toDetails(list: unknown[]): FieldError[] {
+    const clean: FieldError[] = [];
+    for (const d of list) {
+        if (typeof d !== "object" || d === null) continue;
+        const { field, code, message } = d as Record<string, unknown>;
+        if (typeof field !== "string") continue;
+        clean.push({ field, code: typeof code === "string" ? code : "", message: typeof message === "string" ? message : "" });
+    }
+    const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+    clean.sort((a, b) => cmp(a.field, b.field) || cmp(a.code, b.code));
+    return clean.length > MAX_DETAILS ? [...clean.slice(0, MAX_DETAILS), { ...TRUNCATION_MARKER }] : clean;
+}
+// @end
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { cases: [{ thrown, ctx }] }. thrown describes what the handler threw:

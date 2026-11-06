@@ -1,0 +1,19 @@
+[
+  {
+    "id": "give-up",
+    "label": "Decide whether to try again",
+    "code": "// Could the same request succeed later? Permanent errors fail the job at once.\nconst permanent = error instanceof ValidationError\n    || (error instanceof HttpError && !(error.status >= 500 || error.status === 408 || error.status === 429))\n    || (error as SystemError).code === \"ENOENT\";\nif (attempt === MAX_ATTEMPTS || permanent) break;"
+  },
+  {
+    "id": "give-up-all-4xx",
+    "label": "Decide whether to try again",
+    "code": "// Could the same request succeed later? Permanent errors fail the job at once.\nconst permanent = error instanceof ValidationError\n    || (error instanceof HttpError && error.status < 500)\n    || (error as SystemError).code === \"ENOENT\";\nif (attempt === MAX_ATTEMPTS || permanent) break;",
+    "distractor": true
+  },
+  {
+    "id": "give-up-only-5xx",
+    "label": "Decide whether to try again",
+    "code": "// Could the same request succeed later? Permanent errors fail the job at once.\nconst permanent = error instanceof HttpError && error.status < 500;\nif (attempt === MAX_ATTEMPTS || permanent) break;",
+    "distractor": true
+  }
+]

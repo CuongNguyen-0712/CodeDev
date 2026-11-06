@@ -1,0 +1,29 @@
+[
+  {
+    "id": "collect-sources",
+    "label": "Keep the text of one packed line",
+    "code": "sources.setdefault(int(match.group(1)), []).append(match.group(2))"
+  },
+  {
+    "id": "source-numbers",
+    "label": "The numbers each source states",
+    "code": "numbers = {n: set(NUMBER.findall(\" \".join(lines))) for n, lines in sources.items()}"
+  },
+  {
+    "id": "check-support",
+    "label": "Flag numbers the cited sources do not state",
+    "code": "elif any(all(fact not in numbers[n] for n in cited) for fact in facts):\n    problems.append({\"sentence\": index, \"problem\": \"unsupported\"})"
+  },
+  {
+    "id": "check-support-any-source",
+    "label": "Flag numbers the cited sources do not state",
+    "code": "elif any(all(fact not in numbers[n] for n in sources) for fact in facts):\n    problems.append({\"sentence\": index, \"problem\": \"unsupported\"})",
+    "distractor": true
+  },
+  {
+    "id": "source-numbers-substring",
+    "label": "The numbers each source states",
+    "code": "numbers = {n: \" \".join(lines) for n, lines in sources.items()}",
+    "distractor": true
+  }
+]

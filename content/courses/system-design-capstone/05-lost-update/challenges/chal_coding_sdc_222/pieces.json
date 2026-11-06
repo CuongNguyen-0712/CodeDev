@@ -1,0 +1,25 @@
+[
+  {
+    "id": "write-progress",
+    "label": "Load, check and save the progress, then announce it",
+    "code": "for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {\n    const doc = await db.load(req.userId, req.courseId);\n    const current = doc.lessons[req.lessonId] ?? 0;\n    if (percent <= current) return { status: \"unchanged\", lessonPercent: current };\n\n    const lessons = { ...doc.lessons, [req.lessonId]: percent };\n    const next: ProgressDoc = { version: doc.version + 1, lessons, coursePercent: coursePercent(lessons, courseLessons) };\n    if (!(await db.saveIfVersion(req.userId, req.courseId, doc.version, next))) continue;\n\n    bus.publish({\n        type: \"progress.updated\",\n        userId: req.userId,\n        courseId: req.courseId,\n        lessonId: req.lessonId,\n        lessonPercent: percent,\n        coursePercent: next.coursePercent,\n        version: next.version,\n    });\n    return { status: \"applied\", version: next.version, coursePercent: next.coursePercent };\n}\nreturn { status: \"rejected\", error: \"CONFLICT\" };"
+  },
+  {
+    "id": "write-progress-check-once",
+    "label": "Load, check and save the progress, then announce it",
+    "code": "let doc = await db.load(req.userId, req.courseId);\nconst current = doc.lessons[req.lessonId] ?? 0;\nif (percent <= current) return { status: \"unchanged\", lessonPercent: current };\nfor (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {\n    if (attempt > 1) doc = await db.load(req.userId, req.courseId);\n\n    const lessons = { ...doc.lessons, [req.lessonId]: percent };\n    const next: ProgressDoc = { version: doc.version + 1, lessons, coursePercent: coursePercent(lessons, courseLessons) };\n    if (!(await db.saveIfVersion(req.userId, req.courseId, doc.version, next))) continue;\n\n    bus.publish({\n        type: \"progress.updated\",\n        userId: req.userId,\n        courseId: req.courseId,\n        lessonId: req.lessonId,\n        lessonPercent: percent,\n        coursePercent: next.coursePercent,\n        version: next.version,\n    });\n    return { status: \"applied\", version: next.version, coursePercent: next.coursePercent };\n}\nreturn { status: \"rejected\", error: \"CONFLICT\" };",
+    "distractor": true
+  },
+  {
+    "id": "write-progress-no-retry",
+    "label": "Load, check and save the progress, then announce it",
+    "code": "for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {\n    const doc = await db.load(req.userId, req.courseId);\n    const current = doc.lessons[req.lessonId] ?? 0;\n    if (percent <= current) return { status: \"unchanged\", lessonPercent: current };\n\n    const lessons = { ...doc.lessons, [req.lessonId]: percent };\n    const next: ProgressDoc = { version: doc.version + 1, lessons, coursePercent: coursePercent(lessons, courseLessons) };\n    if (!(await db.saveIfVersion(req.userId, req.courseId, doc.version, next))) return { status: \"rejected\", error: \"CONFLICT\" };\n\n    bus.publish({\n        type: \"progress.updated\",\n        userId: req.userId,\n        courseId: req.courseId,\n        lessonId: req.lessonId,\n        lessonPercent: percent,\n        coursePercent: next.coursePercent,\n        version: next.version,\n    });\n    return { status: \"applied\", version: next.version, coursePercent: next.coursePercent };\n}\nreturn { status: \"rejected\", error: \"CONFLICT\" };",
+    "distractor": true
+  },
+  {
+    "id": "write-progress-publish-first",
+    "label": "Load, check and save the progress, then announce it",
+    "code": "for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {\n    const doc = await db.load(req.userId, req.courseId);\n    const current = doc.lessons[req.lessonId] ?? 0;\n    if (percent <= current) return { status: \"unchanged\", lessonPercent: current };\n\n    const lessons = { ...doc.lessons, [req.lessonId]: percent };\n    const next: ProgressDoc = { version: doc.version + 1, lessons, coursePercent: coursePercent(lessons, courseLessons) };\n    bus.publish({\n        type: \"progress.updated\",\n        userId: req.userId,\n        courseId: req.courseId,\n        lessonId: req.lessonId,\n        lessonPercent: percent,\n        coursePercent: next.coursePercent,\n        version: next.version,\n    });\n    if (!(await db.saveIfVersion(req.userId, req.courseId, doc.version, next))) continue;\n    return { status: \"applied\", version: next.version, coursePercent: next.coursePercent };\n}\nreturn { status: \"rejected\", error: \"CONFLICT\" };",
+    "distractor": true
+  }
+]

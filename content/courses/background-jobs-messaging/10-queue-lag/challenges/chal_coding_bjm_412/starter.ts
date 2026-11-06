@@ -54,15 +54,34 @@ interface Report {
 const TYPES = new Set(["enqueue", "dequeue", "complete"]);
 
 function parseLine(line: string): LogEvent | null {
-    return null;
+    // [ ] Parse one log line, refusing malformed ones
 }
 
 function nearestRank(sorted: number[], p: number): number | null {
-    return null;
+    // [ ] Nearest-rank percentile of sorted values
 }
 
 function queueLag(sloSeconds: number, lines: string[]): Report {
-    return { skippedLines: 0, windows: [] };
+    let skippedLines = 0;
+    const jobs = new Map<string, { queue: string; enqueue?: number; dequeue?: number; complete?: number }>();
+    const queues = new Set<string>();
+    let first = Infinity;
+    let last = -Infinity;
+    // [ ] Read the lines into one record per job
+    const windows: Window[] = [];
+    if (queues.size === 0) return { skippedLines, windows };
+    const firstMinute = Math.floor(first / 60) * 60;
+    const lastMinute = Math.floor(last / 60) * 60;
+    const known = [...jobs.values()].filter((j) => j.enqueue !== undefined);
+    for (const queue of [...queues].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))) {
+        const qJobs = known.filter((j) => j.queue === queue);
+        for (let start = firstMinute; start <= lastMinute; start += 60) {
+            const end = start + 60;
+            // [ ] Jobs still waiting at the end of the minute
+            // [ ] Wait and processing times, then the row
+        }
+    }
+    return { skippedLines, windows };
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

@@ -1,27 +1,54 @@
 import { readFileSync } from "node:fs";
 
-// Reference solution: fixed window (INCR, EXPIRE only when the key has no TTL) and the two-window
-// weighted sliding estimate, in integer milliseconds.
+// CodeDev login protection: POST /auth/login is limited per key ("ip:<address>" or "user:<id>").
+// A brute-force burst at a window boundary got 9 password guesses through a "5 per minute" limit,
+// so the API team wants two limiters on Redis with the same contract:
+//   { allowed, remaining, retryAfter }   retryAfter in whole seconds (0 when allowed), remaining 0 when denied.
+// Both throw a RangeError when limit or windowSeconds is not a whole number >= 1.
+//
+// fixedWindow(redis, key, limit, windowSeconds) - one counter, "rl:fixed:<key>":
+//   count = INCR. If the key has no expiry after the INCR (ttl -1: a new key, or one left without a TTL
+//   by a process that crashed between INCR and EXPIRE), EXPIRE it for windowSeconds. Never EXPIRE a key
+//   that already has a TTL. Allowed when count <= limit, remaining = limit - count. Denied requests are
+//   counted too; their retryAfter is the TTL of the key.
+//
+// slidingWindow(redis, clock, key, limit, windowSeconds) - approximate sliding window from two fixed
+// windows aligned to the clock, in integer milliseconds:
+//   W = windowSeconds * 1000, index = Math.floor(clock.now / W), elapsed = clock.now - index * W
+//   curr = value of "rl:sliding:<key>:<index>", prev = value of "rl:sliding:<key>:<index - 1>" (missing = 0)
+//   weighted = prev * (W - elapsed) + curr * W        (the estimated number of requests, times W)
+//   Allowed when weighted + W <= limit * W: INCR the current key (EXPIRE it for 2 * windowSeconds when
+//     the INCR returns 1), remaining = Math.floor((limit * W - weighted - W) / W).
+//   Denied: write nothing; retryAfter = Math.ceil(waitMs / 1000), where waitMs is the time until the
+//     same request would be allowed:
+//     if curr + 1 <= limit:  waitMs = W - Math.floor((limit - curr - 1) * W / prev) - elapsed
+//     otherwise:             waitMs = (W - elapsed) + (W - Math.floor((limit - 1) * W / curr))
+// Do not change the Decision type or anything below the "do not change" line.
 
 type Decision = { allowed: boolean; remaining: number; retryAfter: number };
 
 function checkConfig(limit: number, windowSeconds: number): void {
+    // @piece check-config: Refuse a limit or window that is not a whole number >= 1
     if (!Number.isInteger(limit) || limit < 1 || !Number.isInteger(windowSeconds) || windowSeconds < 1) {
         throw new RangeError("limit and windowSeconds must be whole numbers >= 1");
     }
+    // @end
 }
 
 function fixedWindow(redis: FakeRedis, key: string, limit: number, windowSeconds: number): Decision {
     checkConfig(limit, windowSeconds);
+    // @piece fixed-count: Count the request in the fixed window and decide
     const k = `rl:fixed:${key}`;
     const count = redis.incr(k);
     if (redis.ttl(k) === -1) redis.expire(k, windowSeconds);
     if (count <= limit) return { allowed: true, remaining: limit - count, retryAfter: 0 };
     return { allowed: false, remaining: 0, retryAfter: redis.ttl(k) };
+    // @end
 }
 
 function slidingWindow(redis: FakeRedis, clock: FakeClock, key: string, limit: number, windowSeconds: number): Decision {
     checkConfig(limit, windowSeconds);
+    // @piece sliding-estimate: Estimate the requests of the sliding window
     const W = windowSeconds * 1000;
     const index = Math.floor(clock.now / W);
     const elapsed = clock.now - index * W;
@@ -29,15 +56,20 @@ function slidingWindow(redis: FakeRedis, clock: FakeClock, key: string, limit: n
     const curr = Number(redis.get(currentKey) ?? 0);
     const prev = Number(redis.get(`rl:sliding:${key}:${index - 1}`) ?? 0);
     const weighted = prev * (W - elapsed) + curr * W;
+    // @end
+    // @piece sliding-allow: Allow the request and count it
     if (weighted + W <= limit * W) {
         if (redis.incr(currentKey) === 1) redis.expire(currentKey, 2 * windowSeconds);
         return { allowed: true, remaining: Math.floor((limit * W - weighted - W) / W), retryAfter: 0 };
     }
+    // @end
+    // @piece sliding-deny: Deny the request with the time until it would pass
     const waitMs =
         curr + 1 <= limit
             ? W - Math.floor(((limit - curr - 1) * W) / prev) - elapsed
             : W - elapsed + (W - Math.floor(((limit - 1) * W) / curr));
     return { allowed: false, remaining: 0, retryAfter: Math.ceil(waitMs / 1000) };
+    // @end
 }
 
 // ---------------------------------------------------------------- in-memory Redis and database (do not change)

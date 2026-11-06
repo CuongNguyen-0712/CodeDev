@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-// Reference solution. The Confident Wrong Answer. A learner asked the CodeDev support bot how to submit a lesson
+// The Confident Wrong Answer. A learner asked the CodeDev support bot how to submit a lesson
 // whose hidden test still fails, and the bot answered: call submitLesson({ lessonId, force: true }).
 // No version of the @codedev/lab SDK ever had a `force` option. Since lab 2.0 (September 2025)
 // the call is submitLesson({ lessonId, attemptId }), and tests can never be skipped. The provider
@@ -19,6 +19,7 @@ type Doc = { id: string; title: string; text: string };
 type Options = { maxDocs: number };
 
 function buildPrompt(question: string, docs: Doc[], options: Options): string {
+    // @piece prompt: Build the prompt sent to the support model
     const sources = docs.slice(0, Math.max(0, options.maxDocs));
     return [
         "You are the CodeDev support assistant.",
@@ -30,6 +31,7 @@ function buildPrompt(question: string, docs: Doc[], options: Options): string {
         "",
         `Question: ${question}`,
     ].join("\n");
+    // @end
 }
 
 // ---------------------------------------------------------------- fake model (do not change)

@@ -32,21 +32,25 @@
 function createEventLoop() {
   let clock = 0;
 
+  // [ ] Timer and microtask queues
+
+  // [ ] Run callbacks safely and drain the microtasks
+
   return {
     now() {
       return clock;
     },
     setTimeout(cb, ms) {
-      // TODO: remember the callback, its due time and its scheduling order; return an id.
+      // [ ] Schedule the callback as a timer task
     },
     clearTimeout(id) {
-      // TODO
+      // [ ] Cancel a pending timer
     },
     queueMicrotask(cb) {
-      // TODO
+      // [ ] Queue a microtask
     },
     run(main, onError) {
-      // TODO: task -> microtask checkpoint -> next timer -> checkpoint -> ...
+      // [ ] Run main, then every timer in due order
     },
   };
 }

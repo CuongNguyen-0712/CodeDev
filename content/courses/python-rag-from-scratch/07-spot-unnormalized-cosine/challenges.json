@@ -41,6 +41,9 @@
             }
           ]
         }
+      ],
+      "outcomes": [
+        "retrieval-ranking"
       ]
     },
     {
@@ -48,7 +51,7 @@
       "name": "spot-the-ai-mistake-unnormalized-cosine",
       "type": "fix_bug",
       "title": "Spot the AI Mistake: cosine similarity without normalization",
-      "description": "The support assistant's team sent this request to an AI assistant: \"Write vector_search(query, chunks, top) for our support assistant. Rank the chunks by cosine similarity between their embedding and the query embedding and return the best `top` as {'id', 'score'}, with the score rounded to 4 decimals. Highest score first, ties by id. A chunk whose vector is all zeros has no direction: skip it. If the query vector is all zeros, return an empty list.\" The AI's code passed review and the public tests, which use the unit-length vectors of the embeddings API. Since the PDF import stores one vector per page (the sum of its paragraph vectors), \"sync error E1042\" returns the 4,000-word refund policy first, with a score of 4.92. Fix vector_search() so that it does what the request says: score = dot(query, vector) / (|query| * |vector|) rounded to 4 decimals, zero vectors skipped, an all-zero query returns [], sorted by score descending then id ascending, at most `top` results. All vectors in one call have the same dimension. The public tests pass on the AI's code; the hidden tests use vectors of different lengths.",
+      "description": "The support assistant's team sent this request to an AI assistant: \"Write vector_search(query, chunks, top) for our support assistant. Rank the chunks by cosine similarity between their embedding and the query embedding and return the best `top` as {'id', 'score'}, with the score rounded to 4 decimals. Highest score first, ties by id. A chunk whose vector is all zeros has no direction: skip it. If the query vector is all zeros, return an empty list.\" The AI's code passed review and the public tests, which use the unit-length vectors of the embeddings API. Since the PDF import stores one vector per page (the sum of its paragraph vectors), \"sync error E1042\" returns the 4,000-word refund policy first, with a score of 4.92. Fix vector_search() so that it does what the request says: score = dot(query, vector) / (|query| * |vector|) rounded to 4 decimals, zero vectors skipped, an all-zero query returns [], sorted by score descending then id ascending, at most `top` results. All vectors in one call have the same dimension. The public tests pass on the AI's code; the hidden tests use vectors of different lengths.\n\nSelect the faulty lines and replace them with the right fix; some fixes are wrong on purpose.",
       "difficulty": "medium",
       "points": 30,
       "hints": [
@@ -10714,6 +10717,9 @@
           "hidden": true,
           "score": 3
         }
+      ],
+      "outcomes": [
+        "retrieval-ranking"
       ]
     }
   ]

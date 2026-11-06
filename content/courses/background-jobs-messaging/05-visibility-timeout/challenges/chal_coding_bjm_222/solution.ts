@@ -35,10 +35,13 @@ class VisibilityQueue {
     constructor(private readonly visibilityTimeoutMs: number) {}
 
     send(messageId: string, body: string, now: number): void {
+        // @piece send: Store a new message, visible at once
         this.messages.set(messageId, { id: messageId, body, seq: this.sent++, visibleAt: now, receiveCount: 0, receipt: null });
+        // @end
     }
 
     receive(now: number): Delivery | null {
+        // @piece receive: Hand out the oldest visible message
         let next: Stored | undefined;
         for (const m of this.messages.values()) {
             if (m.visibleAt > now) continue;
@@ -49,27 +52,34 @@ class VisibilityQueue {
         next.receipt = `${next.id}#${next.receiveCount}`; // every earlier handle stops being current
         next.visibleAt = now + this.visibilityTimeoutMs;
         return { messageId: next.id, body: next.body, receiptHandle: next.receipt, receiveCount: next.receiveCount };
+        // @end
     }
 
     /** The message this handle belongs to, only while the handle is the latest one issued. */
     private current(receiptHandle: string): Stored | undefined {
+        // @piece current-handle: The message, only for its latest handle
         const m = this.messages.get(receiptHandle.slice(0, receiptHandle.lastIndexOf("#")));
         return m !== undefined && m.receipt === receiptHandle ? m : undefined;
+        // @end
     }
 
     ack(receiptHandle: string, now: number): boolean {
+        // @piece ack: Delete the message for a current handle
         const m = this.current(receiptHandle);
         if (!m) return false;
         this.messages.delete(m.id);
         return true;
+        // @end
     }
 
     extendVisibility(receiptHandle: string, timeoutMs: number, now: number): boolean {
+        // @piece extend: Hide an in-flight message for longer
         const m = this.current(receiptHandle);
         if (!m || now >= m.visibleAt) return false; // not in flight any more
         if (!Number.isInteger(timeoutMs) || timeoutMs < 0 || timeoutMs > MAX_VISIBILITY_MS) return false;
         m.visibleAt = now + timeoutMs; // counted from now, not from the old deadline
         return true;
+        // @end
     }
 }
 

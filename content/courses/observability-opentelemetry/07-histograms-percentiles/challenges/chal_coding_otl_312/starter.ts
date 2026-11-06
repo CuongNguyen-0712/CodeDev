@@ -30,15 +30,16 @@ type Bucket = { le: number; count: number }; // le: upper bound in seconds, Infi
 type Instance = { instance: string; start: Bucket[]; end: Bucket[] };
 
 function counterIncrease(start: number, end: number): number {
-    return 0;
+    // [ ] How much one counter grew between two scrapes
 }
 
 function mergeIncreases(instances: Instance[]): Bucket[] {
-    return [];
+    // [ ] Add up the increases of every instance per bucket
 }
 
 function histogramQuantile(q: number, buckets: Bucket[]): number {
-    return NaN;
+    // [ ] Answer the cases with no usable data
+    // [ ] Find the bucket and interpolate inside it
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

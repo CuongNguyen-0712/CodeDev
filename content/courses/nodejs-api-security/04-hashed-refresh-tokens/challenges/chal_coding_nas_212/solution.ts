@@ -64,6 +64,7 @@ const TOKEN_FORMAT = /^[A-Za-z0-9_-]{43}$/;
 const sha256Hex = (value: string): string => createHash("sha256").update(value).digest("hex");
 
 function issueRefreshToken(deps: Deps, userId: string, deviceId: string): Issued {
+    // @piece new-token-row: Create the token and store only its hash
     const token = deps.randomBytes(32).toString("base64url");
     const id = deps.newId("rt");
     const familyId = deps.newId("fam");
@@ -75,8 +76,11 @@ function issueRefreshToken(deps: Deps, userId: string, deviceId: string): Issued
         createdAt, expiresAt,
         usedAt: null, revokedAt: null, replacedBy: null,
     });
+    // @end
+    // @piece issue-log-return: Log the issue and return the result
     deps.log({ event: "refresh_token.issued", id, userId, deviceId });
     return { token, id, familyId, expiresAt };
+    // @end
 }
 
 function validateRefreshToken(deps: Deps, presented: unknown): Validation {
@@ -84,14 +88,20 @@ function validateRefreshToken(deps: Deps, presented: unknown): Validation {
         deps.log(id ? { event: "refresh_token.rejected", reason, id } : { event: "refresh_token.rejected", reason });
         return { ok: false, reason };
     };
+    // @piece format-and-lookup: Check the format, then find the row by hash
     if (typeof presented !== "string" || !TOKEN_FORMAT.test(presented)) return reject("malformed");
     const hash = sha256Hex(presented);
     const row = deps.store.findByHash(hash);
     if (!row || !timingSafeEqual(Buffer.from(row.tokenHash, "hex"), Buffer.from(hash, "hex"))) return reject("unknown");
+    // @end
+    // @piece state-checks: Revoked and expired rows
     if (row.revokedAt !== null) return reject("revoked", row.id);
     if (deps.now() >= row.expiresAt) return reject("expired", row.id);
+    // @end
+    // @piece accept: Accept: log and return the session
     deps.log({ event: "refresh_token.accepted", id: row.id });
     return { ok: true, id: row.id, familyId: row.familyId, userId: row.userId, deviceId: row.deviceId, expiresAt: row.expiresAt };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

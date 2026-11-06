@@ -25,6 +25,10 @@ type Decision = { submissionId: string; outcome: "accepted" | "review"; reason: 
 
 const MAX_ABOVE_TESTS = 2;
 
+function rejectionReason(job: GradingJob, output: unknown): string | null {
+    return null;
+}
+
 function handleGradingResult(job: GradingJob, db: GradingDb): void {
     const output = JSON.parse(job.modelOutput);
     db.updateAiScore(job.submissionId, output.score, output.feedback);

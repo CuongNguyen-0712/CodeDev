@@ -1,0 +1,50 @@
+[
+  {
+    "id": "caret-tilde",
+    "label": "Caret and tilde ranges",
+    "code": "if (spec.startsWith(\"^\") || spec.startsWith(\"~\")) {\n    const v = full(spec.slice(1));\n    if (!v) return null;\n    if (spec[0] === \"~\") return { lower: at(v), upper: at([v[0], v[1] + 1, 0], false) };\n    const upper: V = v[0] > 0 ? [v[0] + 1, 0, 0] : v[1] > 0 ? [0, v[1] + 1, 0] : [0, 0, v[2] + 1];\n    return { lower: at(v), upper: at(upper, false) };\n}"
+  },
+  {
+    "id": "comparators",
+    "label": "Ranges written with comparators",
+    "code": "if (/^[<>]/.test(spec)) {\n    const parts = spec.split(/\\s+/);\n    if (parts.length > 2) return null;\n    let lower: Bound = null;\n    let upper: Bound = null;\n    for (const part of parts) {\n        const m = /^(>=|>|<=|<)(.*)$/.exec(part);\n        const v = m ? full(m[2]) : null;\n        if (!m || !v) return null;\n        if (m[1].startsWith(\">\")) {\n            if (lower) return null;\n            lower = at(v, m[1] === \">=\");\n        } else {\n            if (upper) return null;\n            upper = at(v, m[1] === \"<=\");\n        }\n    }\n    return { lower, upper };\n}"
+  },
+  {
+    "id": "in-range",
+    "label": "Is a locked version inside the range?",
+    "code": "const v = full(version);\nif (!v) return false; // prerelease or not a version\nif (range.lower) {\n    const c = cmp(v, range.lower.v);\n    if (c < 0 || (c === 0 && !range.lower.inclusive)) return false;\n}\nif (range.upper) {\n    const c = cmp(v, range.upper.v);\n    if (c > 0 || (c === 0 && !range.upper.inclusive)) return false;\n}\nreturn true;"
+  },
+  {
+    "id": "lockfile-shape",
+    "label": "Refuse a lockfile of an unknown shape",
+    "code": "if (lock.lockfileVersion !== 2 && lock.lockfileVersion !== 3) {\n    return [{ kind: \"unsupported-lockfile\", package: \"package-lock.json\", detail: `lockfileVersion ${lock.lockfileVersion ?? \"missing\"}` }];\n}\nconst packages = lock.packages;\nif (!packages || typeof packages !== \"object\") {\n    return [{ kind: \"unsupported-lockfile\", package: \"package-lock.json\", detail: \"no packages map\" }];\n}"
+  },
+  {
+    "id": "declared-deps",
+    "label": "Check every declared dependency",
+    "code": "for (const [name, spec] of Object.entries(specs)) {\n    const entry = packages[`node_modules/${name}`];\n    const range = parseRange(spec);\n    if (!range) findings.push({ kind: \"wide-range\", package: name, detail: `${spec} (not a version range)` });\n    else if (!range.upper) findings.push({ kind: \"wide-range\", package: name, detail: `${spec} (no upper bound)` });\n    if (!entry || typeof entry.version !== \"string\") {\n        findings.push({ kind: \"missing\", package: name, detail: spec });\n    } else if (range && range.upper && !satisfies(entry.version, range)) {\n        findings.push({ kind: \"mismatch\", package: name, detail: `${spec} but locked ${entry.version}` });\n    }\n}"
+  },
+  {
+    "id": "installed-entries",
+    "label": "Check every installed entry",
+    "code": "for (const [key, entry] of Object.entries(packages)) {\n    if (!key.includes(\"node_modules/\") || entry.link === true) continue;\n    const name = key.replace(/^node_modules\\//, \"\");\n    const resolved = entry.resolved;\n    if (typeof resolved !== \"string\" || !policy.allowedRegistries.some((r) => resolved.startsWith(r))) {\n        findings.push({ kind: \"registry\", package: name, detail: typeof resolved === \"string\" ? resolved : \"no resolved URL\" });\n    }\n    if (typeof entry.integrity !== \"string\" || entry.integrity === \"\") {\n        findings.push({ kind: \"integrity\", package: name, detail: \"missing\" });\n    }\n}"
+  },
+  {
+    "id": "caret-same-for-zero",
+    "label": "Caret and tilde ranges",
+    "code": "if (spec.startsWith(\"^\") || spec.startsWith(\"~\")) {\n    const v = full(spec.slice(1));\n    if (!v) return null;\n    if (spec[0] === \"~\") return { lower: at(v), upper: at([v[0], v[1] + 1, 0], false) };\n    const upper: V = [v[0] + 1, 0, 0];\n    return { lower: at(v), upper: at(upper, false) };\n}",
+    "distractor": true
+  },
+  {
+    "id": "in-range-prerelease",
+    "label": "Is a locked version inside the range?",
+    "code": "const v = full(version.split(\"-\")[0]);\nif (!v) return false;\nif (range.lower) {\n    const c = cmp(v, range.lower.v);\n    if (c < 0 || (c === 0 && !range.lower.inclusive)) return false;\n}\nif (range.upper) {\n    const c = cmp(v, range.upper.v);\n    if (c > 0 || (c === 0 && !range.upper.inclusive)) return false;\n}\nreturn true;",
+    "distractor": true
+  },
+  {
+    "id": "installed-registry-anywhere",
+    "label": "Check every installed entry",
+    "code": "for (const [key, entry] of Object.entries(packages)) {\n    if (!key.includes(\"node_modules/\") || entry.link === true) continue;\n    const name = key.replace(/^node_modules\\//, \"\");\n    const resolved = entry.resolved;\n    if (typeof resolved !== \"string\" || !policy.allowedRegistries.some((r) => resolved.includes(r))) {\n        findings.push({ kind: \"registry\", package: name, detail: typeof resolved === \"string\" ? resolved : \"no resolved URL\" });\n    }\n    if (typeof entry.integrity !== \"string\" || entry.integrity === \"\") {\n        findings.push({ kind: \"integrity\", package: name, detail: \"missing\" });\n    }\n}",
+    "distractor": true
+  }
+]

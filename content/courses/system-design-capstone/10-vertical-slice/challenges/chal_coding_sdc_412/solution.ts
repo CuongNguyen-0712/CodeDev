@@ -60,16 +60,23 @@ type Ctx = { store: ProgressStore; bus: EventBus; board: Leaderboard; lessonPoin
 const isId = (value: unknown): value is string => typeof value === "string" && value.length > 0;
 
 function completeLesson(req: CompleteLessonRequest, ctx: Ctx): ApiResponse {
+    // @piece validate-request: Reject a request without ids
     if (!req || !isId(req.requestId) || !isId(req.userId) || !isId(req.lessonId)) {
         return { status: 400, error: "invalid_request" };
     }
+    // @end
+    // @piece request-key: The idempotency key of this request
     const { requestId, userId, lessonId } = req;
     const key = `${userId}/${requestId}`;
+    // @end
     return ctx.store.transaction((tx): ApiResponse => {
+        // @piece replay-saved: Replay a saved answer, refuse a reused id or unknown lesson
         const saved = tx.getRequest(key);
         if (saved) return saved.lessonId === lessonId ? saved.response : { status: 422, error: "request_id_reused" };
         if (!Object.prototype.hasOwnProperty.call(ctx.lessonPoints, lessonId)) return { status: 404, error: "unknown_lesson" };
+        // @end
 
+        // @piece record-completion: Complete the lesson and add its event to the outbox
         const progress = tx.getProgress(userId) ?? { completed: [], points: 0 };
         let response: ApiResponse;
         if (progress.completed.includes(lessonId)) {
@@ -81,23 +88,30 @@ function completeLesson(req: CompleteLessonRequest, ctx: Ctx): ApiResponse {
             tx.appendOutbox({ eventId: `lesson-completed:${userId}:${lessonId}`, userId, lessonId, points });
             response = { status: 200, lessonId, newlyCompleted: true, totalPoints: next.points };
         }
+        // @end
+        // @piece save-response: Save the answer for later retries
         tx.putRequest(key, { lessonId, response });
         return response;
+        // @end
     });
 }
 
 function relayOutbox(ctx: Ctx): void {
+    // @piece relay-outbox: Publish the unpublished outbox rows in order
     for (const row of ctx.store.unpublished()) {
         ctx.bus.publish(row.event);
         ctx.store.markPublished(row.seq);
     }
+    // @end
 }
 
 function onLessonCompleted(event: LessonCompleted, ctx: Ctx): void {
     ctx.board.atomically((board) => {
+        // @piece consume-once: Add the points once per event
         if (board.isProcessed(event.eventId)) return;
         board.markProcessed(event.eventId);
         board.incrementBy(event.userId, event.points);
+        // @end
     });
 }
 

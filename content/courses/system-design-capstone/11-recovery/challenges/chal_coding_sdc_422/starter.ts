@@ -46,6 +46,11 @@ class LeaderboardService {
     private cache: Cache;
     private snapshot: Snapshot;
     private batchSize: number;
+    private status: "ready" | "rebuilding" = "rebuilding";
+    private building = 0; // version of the keys being rebuilt
+    private live = 0; // version of the keys readers use
+    private cursor = 0; // last seq the rebuild has read
+    private appliedSeq = 0; // last seq in the live board
 
     constructor(log: EventLog, cache: Cache, snapshot: Snapshot, batchSize: number) {
         this.log = log;
@@ -55,20 +60,20 @@ class LeaderboardService {
     }
 
     startRebuild(): void {
-        // TODO: start over: new keys, cursor back to the beginning
+        // [ ] Start over with new keys from the beginning of the log
     }
 
     step(): void {
-        // TODO: one batch from the log into the new keys; switch when caught up with the head
+        // [ ] Copy one batch of the log into the new keys
+        // [ ] Switch readers to the new keys once caught up
     }
 
     onEvent(event: ProgressEvent): void {
-        // TODO: when ready, apply each new seq once to the live board
+        // [ ] Apply a new event once to the live board
     }
 
     read(board: string, n: number): BoardRead {
-        // TODO: validate, then the live board or the snapshot
-        return { status: "rebuilding", asOfSeq: this.snapshot.asOfSeq, top: [] };
+        // [ ] Validate, then read the live board or the snapshot
     }
 
     private key(version: number, board: string): string {

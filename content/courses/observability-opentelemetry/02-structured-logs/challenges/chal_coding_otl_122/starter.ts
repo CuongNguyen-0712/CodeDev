@@ -42,14 +42,25 @@ interface Logger {
 }
 
 const LEVELS: Record<string, number> = { trace: 10, debug: 20, info: 30, warn: 40, error: 50, fatal: 60 };
+const RESERVED = new Set(["time", "level", "msg", "trace_id", "span_id"]);
+
+function levelValue(level: string): number {
+    if (!Object.prototype.hasOwnProperty.call(LEVELS, level)) throw new Error(`unknown level: ${level}`);
+    return LEVELS[level];
+}
+
 function createLogger(options: LoggerOptions, bindings: Fields = {}): Logger {
-    // TODO: this is the logger that shipped: a text line, no trace ids, no redaction, every level.
+    // [ ] Read the level, redaction and length options once
+
+    // [ ] Make one value safe to log
+    // [ ] Clean every field of an object
+
     return {
         log(level: string, msg: string, fields: Fields = {}): void {
-            options.write(`${new Date(options.now()).toISOString()} ${level.toUpperCase()} ${msg} ${JSON.stringify({ ...bindings, ...fields })}`);
+            // [ ] Build and write one JSON record
         },
         child(more: Fields): Logger {
-            return createLogger(options, { ...bindings, ...more });
+            // [ ] Bind the extra fields of a child logger
         },
     };
 }

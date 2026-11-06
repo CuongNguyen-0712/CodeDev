@@ -44,11 +44,13 @@ type AttemptLog = {
 };
 
 function planRetries(job: JobRun, policy: RetryPolicy, random: () => number): AttemptLog[] {
+    // @piece validate-policy: Check the policy and work out the deadline
     const { baseDelayMs, maxDelayMs, maxAttempts, deadlineMs } = policy;
     if (!(baseDelayMs > 0) || !(maxDelayMs >= baseDelayMs) || !Number.isInteger(maxAttempts) || maxAttempts < 1 || !(deadlineMs > 0)) {
         throw new Error("invalid policy");
     }
     const deadlineAt = job.firstAttemptAt + deadlineMs;
+    // @end
     const log: AttemptLog[] = [];
     let startAt = job.firstAttemptAt;
     for (let n = 1; n <= job.attempts.length; n++) {
@@ -58,6 +60,7 @@ function planRetries(job: JobRun, policy: RetryPolicy, random: () => number): At
             log.push({ attempt: n, startAt, endAt, outcome: "succeeded" });
             break;
         }
+        // @piece stop-early: Stop on a permanent error or the last attempt
         if (!error.retryable) {
             log.push({ attempt: n, startAt, endAt, outcome: "permanent" });
             break;
@@ -66,14 +69,19 @@ function planRetries(job: JobRun, policy: RetryPolicy, random: () => number): At
             log.push({ attempt: n, startAt, endAt, outcome: "max-attempts" });
             break;
         }
+        // @end
+        // @piece delay: Pick the delay for the next attempt
         const capped = Math.min(maxDelayMs, baseDelayMs * 2 ** (n - 1));
         let delayMs = Math.floor(random() * capped);
         if (error.retryAfterMs !== undefined && error.retryAfterMs > delayMs) delayMs = error.retryAfterMs;
+        // @end
+        // @piece deadline-check: Give up if the retry would miss the deadline
         const retryAt = endAt + delayMs;
         if (retryAt > deadlineAt) {
             log.push({ attempt: n, startAt, endAt, outcome: "deadline", delayMs, retryAt });
             break;
         }
+        // @end
         log.push({ attempt: n, startAt, endAt, outcome: "retry", delayMs, retryAt });
         startAt = retryAt;
     }

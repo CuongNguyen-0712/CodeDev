@@ -32,20 +32,36 @@ type Limits = { maxSteps: number; maxSameCall: number; maxNoProgress: number };
 type StopReason = "final" | "max_steps" | "repeated_call" | "no_progress" | "no_final_answer";
 type RunResult = { reason: StopReason; steps: number; answer: string | null; partial: string[] };
 
+function canonical(value: unknown): string {
+    // [ ] One text per argument value, whatever the key order
+}
+
+function asToolCall(raw: unknown): ToolCall | null {
+    // [ ] Read a tool call out of the model's reply
+}
+
 function runAgent(question: string, model: Model, limits: Limits): RunResult {
     const transcript: Message[] = [{ role: "user", content: question }];
+    const seen = new Set<string>();
+    const partial: string[] = [];
     let steps = 0;
+    let lastKey = "";
+    let sameInARow = 0;
+    let noProgress = 0;
+    const stop = (reason: StopReason, answer: string | null = null): RunResult => ({ reason, steps, answer, partial });
 
-    // TODO: stop conditions. As written, the loop only ends when the model gives a final answer.
     for (;;) {
-        const turn = model.next(transcript) as ModelTurn;
-        steps++;
+        // [ ] Ask the model again unless the step budget is spent
 
-        if ("final" in turn) return { reason: "final", steps, answer: turn.final, partial: [] };
+        // [ ] A reply that is not a tool call must be a real answer
 
-        const call = turn.toolCall;
-        transcript.push({ role: "assistant", content: `call ${call.name} ${JSON.stringify(call.args)}` });
-        transcript.push({ role: "tool", content: callTool(call) });
+        // [ ] Stop when the same call keeps repeating
+
+        transcript.push({ role: "assistant", content: `call ${key}` });
+        const result = callTool(call);
+        transcript.push({ role: "tool", content: result });
+
+        // [ ] Count tool results that bring nothing new
     }
 }
 

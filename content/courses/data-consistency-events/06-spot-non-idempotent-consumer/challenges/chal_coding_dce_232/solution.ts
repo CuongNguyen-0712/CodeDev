@@ -31,13 +31,16 @@ class WalletConsumer {
         this.db = db;
     }
 
-    /** Adds the points of one points.awarded event to the user's wallet, once per event id. */
+    /** Adds the points of one points.awarded event to the user's wallet. */
     handle(msg: Message): Outcome {
         const { userId, amount } = msg.payload;
+        // @piece validate: Refuse a message that cannot be applied
         if (typeof msg.id !== "string" || msg.id === "") return "invalid";
         if (typeof userId !== "string" || userId === "" || !Number.isInteger(amount) || amount <= 0) {
             return "invalid";
         }
+        // @end
+        // @piece apply-once: Apply the points to the wallet
         // the dedup check, the inbox row and the balance change commit together or not at all
         return this.db.tx((t): Outcome => {
             if (t.processed_events.has(msg.id)) return "duplicate";
@@ -46,6 +49,7 @@ class WalletConsumer {
             t.wallets.set(userId, balance + amount);
             return "applied";
         });
+        // @end
     }
 }
 // ------------------------------------------------------------ building blocks (do not change)

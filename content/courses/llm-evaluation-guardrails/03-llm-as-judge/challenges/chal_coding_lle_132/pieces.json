@@ -1,0 +1,62 @@
+[
+  {
+    "id": "count-pairs",
+    "label": "Fill the confusion matrix, skipping unusable items",
+    "code": "for (const it of items) {\n    const h = categories.indexOf(it.human as Label);\n    const j = categories.indexOf(it.judge as Label);\n    if (h < 0 || j < 0) {\n        skipped++;\n        continue;\n    }\n    matrix[h][j]++;\n    n++;\n}"
+  },
+  {
+    "id": "kappa",
+    "label": "Observed and chance agreement, then kappa",
+    "code": "let diag = 0;\nlet pe = 0;\nlet used = 0;\nfor (let c = 0; c < k; c++) {\n    diag += matrix[c][c];\n    const row = matrix[c].reduce((a, b) => a + b, 0);\n    const col = matrix.reduce((a, r) => a + r[c], 0);\n    pe += (row / n) * (col / n);\n    if (row + col > 0) used++;\n}\nconst po = diag / n;\nif (used === 1) return { n, skipped, observed: round3(po), expected: round3(pe), kappa: null, reason: \"single_category\", matrix };\nreturn { n, skipped, observed: round3(po), expected: round3(pe), kappa: round3((po - pe) / (1 - pe)), reason: null, matrix };"
+  },
+  {
+    "id": "count-flips",
+    "label": "Count flips, positions and longer-answer wins",
+    "code": "for (const s of swaps) {\n    if (!winners.includes(s.original as string) || !winners.includes(s.swapped as string) || (s.longer !== \"A\" && s.longer !== \"B\")) {\n        skipped++;\n        continue;\n    }\n    pairs++;\n    if (s.original !== s.swapped) {\n        flips++;\n        if (s.original === \"A\" && s.swapped === \"B\") first++;\n        if (s.original === \"B\" && s.swapped === \"A\") second++;\n    } else if (s.original === s.longer) {\n        longerWins++;\n    }\n}"
+  },
+  {
+    "id": "bias-report",
+    "label": "Report the rates and the two bias flags",
+    "code": "const consistent = pairs - flips;\nreturn {\n    pairs,\n    skipped,\n    flips,\n    flipRate: pairs === 0 ? null : round3(flips / pairs),\n    preferredPosition: first > second ? \"first\" : second > first ? \"second\" : null,\n    positionBias: pairs > 0 && flips / pairs > 0.2,\n    consistent,\n    longerWins,\n    verbosityRate: consistent === 0 ? null : round3(longerWins / consistent),\n    verbosityBias: consistent > 0 && longerWins / consistent > 0.5,\n};"
+  },
+  {
+    "id": "check-categories",
+    "label": "Reject a bad category list",
+    "code": "const okCategories = Array.isArray(categories) && categories.length > 0\n    && categories.every((c) => typeof c === \"string\" || typeof c === \"number\")\n    && new Set(categories).size === categories.length;\nif (!okCategories) return { error: \"bad_categories\" };"
+  },
+  {
+    "id": "slice-groups",
+    "label": "Group items by slice and score each slice",
+    "code": "const groups = new Map<string, Item[]>();\nfor (const it of items) {\n    const slice = typeof it.slice === \"string\" && it.slice !== \"\" ? it.slice : \"(none)\";\n    if (!groups.has(slice)) groups.set(slice, []);\n    groups.get(slice)!.push(it);\n}\nconst slices = [...groups.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).map((slice) => {\n    const { matrix, ...rest } = agreement(categories, groups.get(slice)!);\n    return { slice, ...rest };\n});"
+  },
+  {
+    "id": "count-flips-reversed",
+    "label": "Count flips, positions and longer-answer wins",
+    "code": "for (const s of swaps) {\n    if (!winners.includes(s.original as string) || !winners.includes(s.swapped as string) || (s.longer !== \"A\" && s.longer !== \"B\")) {\n        skipped++;\n        continue;\n    }\n    pairs++;\n    if (s.original !== s.swapped) {\n        flips++;\n        if (s.original === \"A\" && s.swapped === \"B\") second++;\n        if (s.original === \"B\" && s.swapped === \"A\") first++;\n    } else if (s.original === s.longer) {\n        longerWins++;\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "count-pairs-missing-disagree",
+    "label": "Fill the confusion matrix, skipping unusable items",
+    "code": "for (const it of items) {\n    const h = categories.indexOf(it.human as Label);\n    const j = categories.indexOf(it.judge as Label);\n    if (h < 0 || j < 0) {\n        n++;\n        continue;\n    }\n    matrix[h][j]++;\n    n++;\n}",
+    "distractor": true
+  },
+  {
+    "id": "count-pairs-transposed",
+    "label": "Fill the confusion matrix, skipping unusable items",
+    "code": "for (const it of items) {\n    const h = categories.indexOf(it.human as Label);\n    const j = categories.indexOf(it.judge as Label);\n    if (h < 0 || j < 0) {\n        skipped++;\n        continue;\n    }\n    matrix[j][h]++;\n    n++;\n}",
+    "distractor": true
+  },
+  {
+    "id": "kappa-no-single-check",
+    "label": "Observed and chance agreement, then kappa",
+    "code": "let diag = 0;\nlet pe = 0;\nlet used = 0;\nfor (let c = 0; c < k; c++) {\n    diag += matrix[c][c];\n    const row = matrix[c].reduce((a, b) => a + b, 0);\n    const col = matrix.reduce((a, r) => a + r[c], 0);\n    pe += (row / n) * (col / n);\n    if (row + col > 0) used++;\n}\nconst po = diag / n;\nreturn { n, skipped, observed: round3(po), expected: round3(pe), kappa: round3((po - pe) / (1 - pe)), reason: null, matrix };",
+    "distractor": true
+  },
+  {
+    "id": "kappa-uniform-chance",
+    "label": "Observed and chance agreement, then kappa",
+    "code": "let diag = 0;\nlet pe = 0;\nlet used = 0;\nfor (let c = 0; c < k; c++) {\n    diag += matrix[c][c];\n    const row = matrix[c].reduce((a, b) => a + b, 0);\n    const col = matrix.reduce((a, r) => a + r[c], 0);\n    pe += 1 / (k * k);\n    if (row + col > 0) used++;\n}\nconst po = diag / n;\nif (used === 1) return { n, skipped, observed: round3(po), expected: round3(pe), kappa: null, reason: \"single_category\", matrix };\nreturn { n, skipped, observed: round3(po), expected: round3(pe), kappa: round3((po - pe) / (1 - pe)), reason: null, matrix };",
+    "distractor": true
+  }
+]

@@ -58,10 +58,24 @@ const SORTABLE = ["title", "rating", "price", "published_at"];
 const MAX_LIST = 10;
 const MAX_SORT = 3;
 
-// Write parseListQuery (helpers are welcome). Do not change the types, FILTERS, SORTABLE, the limits or the test runner.
+// Complete parseListQuery: fill every [ ] line with the right piece. Do not change the types, FILTERS,
+// SORTABLE, the limits or the test runner.
 function parseListQuery(query: string): Result {
-    return { status: 200, plan: { filters: [], sort: [], q: null } };
+    // [ ] Start: default sort, no errors, no names seen
+    for (const part of query.split("&")) {
+        // [ ] Read one name=value pair and reject bad names
+        // [ ] Send each parameter to its own rules
+    }
+    return errors.length > 0 ? { status: 400, errors } : { status: 200, plan };
 }
+
+// [ ] Decode a percent-encoded name or value
+
+// [ ] Turn a raw value into the filter's type
+
+// [ ] Check one filter and add it to the plan
+
+// [ ] Check the sort list and add the id tie-break
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { "queries": ["<query string without ?>", ...] }. Prints one result per query, as JSON.

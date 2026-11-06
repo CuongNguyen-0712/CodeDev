@@ -18,8 +18,22 @@ const NAME_MAX = 64;
 const DESCRIPTION_MAX = 1024;
 
 function validateSkill(file: SkillFile): string[] {
-    return [];
+    // [ ] Stop at once when there is no frontmatter
+    const errors: string[] = [];
+
+    // [ ] Checks on the name
+
+    // [ ] Checks on the description
+
+    // [ ] Check on the body
+    return errors;
 }
+
+// [ ] The allowed shape of a skill name
+
+// [ ] Helper: drop matching quotes around a value
+
+// [ ] Split SKILL.md into frontmatter and body
 
 // ---------------------------------------------------------------- test runner (do not change)
 const input: SkillFile = JSON.parse(readFileSync(0, "utf8"));

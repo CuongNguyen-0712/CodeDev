@@ -23,21 +23,33 @@ type GoodEvent =
     | { eventId: string; type: "progress.updated"; userId: string; learnerSeq: number; week: string; lessonPercent: number; coursePercent: number };
 
 // ---------------------------------------------------------------- your code
+// Rules (see the challenge description for the full text):
+//   - invalid event -> "invalid"; eventId already accepted -> "duplicate";
+//     learnerSeq already applied or already waiting for that learner -> "stale"; else "accepted".
+//   - an accepted event is applied when it is the learner's next learnerSeq (1, 2, 3, ...); otherwise
+//     it waits until the missing ones arrive, then they are applied in learnerSeq order.
+//   - points: challenge.passed = points; progress.updated = 10 if lessonPercent is 100, plus 50 if
+//     coursePercent is 100. Points go to "all-time" and to the board of the event's week.
+//   - order: more points first; on a tie, the learner whose points on that board changed earlier.
 const isText = (v: unknown): v is string => typeof v === "string" && v.length > 0;
 const isInt = (v: unknown, min: number, max: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
 
 function parse(raw: unknown): GoodEvent | null {
+    // @piece parse-body: Turn a raw event into a valid event, or null
     if (typeof raw !== "object" || raw === null) return null;
     const e = raw as Record<string, unknown>;
     if (!isText(e.eventId) || !isText(e.userId) || !isText(e.week) || !isInt(e.learnerSeq, 1, Number.MAX_SAFE_INTEGER)) return null;
     if (e.type === "challenge.passed" && isInt(e.points, 1, 500)) return e as GoodEvent;
     if (e.type === "progress.updated" && isInt(e.lessonPercent, 0, 100) && isInt(e.coursePercent, 0, 100)) return e as GoodEvent;
     return null;
+    // @end
 }
 
 function pointsOf(e: GoodEvent): number {
+    // @piece points-of: Points an event is worth
     if (e.type === "challenge.passed") return e.points;
     return (e.lessonPercent === 100 ? 10 : 0) + (e.coursePercent === 100 ? 50 : 0);
+    // @end
 }
 
 type Score = { points: number; since: number };
@@ -50,6 +62,7 @@ class ProjectionLeaderboard implements Leaderboard {
     private counter = 0;
 
     apply(raw: unknown): Outcome {
+        // @piece accept-event: Classify the event and keep an accepted one waiting
         const e = parse(raw);
         if (!e) return "invalid";
         if (this.seen.has(e.eventId)) return "duplicate";
@@ -59,6 +72,8 @@ class ProjectionLeaderboard implements Leaderboard {
         this.seen.add(e.eventId);
         waiting.set(e.learnerSeq, e);
         this.buffered.set(e.userId, waiting);
+        // @end
+        // @piece apply-in-order: Apply the learner's waiting events in sequence
         let next = last + 1;
         while (waiting.has(next)) {
             this.score(waiting.get(next)!);
@@ -66,10 +81,12 @@ class ProjectionLeaderboard implements Leaderboard {
             this.applied.set(e.userId, next);
             next++;
         }
+        // @end
         return "accepted";
     }
 
     private score(e: GoodEvent): void {
+        // @piece score-boards: Add the points to all-time and the week's board
         this.counter++;
         const points = pointsOf(e);
         if (points === 0) return;
@@ -79,6 +96,7 @@ class ProjectionLeaderboard implements Leaderboard {
             board.set(e.userId, { points: old + points, since: this.counter });
             this.boards.set(name, board);
         }
+        // @end
     }
 
     waiting(): number {
@@ -88,9 +106,11 @@ class ProjectionLeaderboard implements Leaderboard {
     }
 
     private ordered(board: string): Entry[] {
+        // @piece order-board: Rank a board: more points first, earlier on a tie
         const rows = [...(this.boards.get(board) ?? new Map<string, Score>()).entries()];
         rows.sort(([ua, a], [ub, b]) => b.points - a.points || a.since - b.since || (ua < ub ? -1 : ua > ub ? 1 : 0));
         return rows.map(([userId, s], i) => ({ rank: i + 1, userId, points: s.points }));
+        // @end
     }
 
     top(board: string, n: number): Entry[] {

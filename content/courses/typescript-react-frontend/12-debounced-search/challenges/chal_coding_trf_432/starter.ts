@@ -52,13 +52,22 @@ type SearchBox = {
 
 // ---------------------------------------------------------------- your code
 function createDebouncedSearch({ clock, debounceMs, search, show, showError }: SearchDeps): SearchBox {
-    // keep the pending timer, the in-flight controller and the id of the latest request here
+    // [ ] The pending timer, the request in flight, the latest id
+
+    // [ ] Cancel a scheduled search
+
+    // [ ] Abort the request in flight
+
+    function send(query: string): void {
+        // [ ] Send one request; show only the latest answer
+    }
+
     return {
         onInput(text: string): void {
-            // wait debounceMs without typing, then search(text.trim(), signal) and show the results
+            // [ ] Wait for a pause in typing
         },
         dispose(): void {
-            // the component unmounts
+            // [ ] Stop everything when the box goes away
         },
     };
 }

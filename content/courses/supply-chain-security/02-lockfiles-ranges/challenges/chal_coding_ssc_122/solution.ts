@@ -62,6 +62,7 @@ const at = (v: V, inclusive = true): Bound => ({ v, inclusive });
 function parseRange(raw: string): Range | null {
     const spec = raw.trim();
     if (spec === "" || spec === "*" || spec === "x" || spec === "X") return { lower: null, upper: null };
+    // @piece caret-tilde: Caret and tilde ranges
     if (spec.startsWith("^") || spec.startsWith("~")) {
         const v = full(spec.slice(1));
         if (!v) return null;
@@ -69,6 +70,8 @@ function parseRange(raw: string): Range | null {
         const upper: V = v[0] > 0 ? [v[0] + 1, 0, 0] : v[1] > 0 ? [0, v[1] + 1, 0] : [0, 0, v[2] + 1];
         return { lower: at(v), upper: at(upper, false) };
     }
+    // @end
+    // @piece comparators: Ranges written with comparators
     if (/^[<>]/.test(spec)) {
         const parts = spec.split(/\s+/);
         if (parts.length > 2) return null;
@@ -88,6 +91,7 @@ function parseRange(raw: string): Range | null {
         }
         return { lower, upper };
     }
+    // @end
     // exact, or partial with x / * wildcards: 1, 1.2, 1.x, 1.2.*, 1.x.x
     const m = /^(\d+)(?:\.(\d+|x|X|\*))?(?:\.(\d+|x|X|\*))?$/.exec(spec);
     if (!m) return null;
@@ -104,6 +108,7 @@ function parseRange(raw: string): Range | null {
 }
 
 function satisfies(version: string, range: Range): boolean {
+    // @piece in-range: Is a locked version inside the range?
     const v = full(version);
     if (!v) return false; // prerelease or not a version
     if (range.lower) {
@@ -115,9 +120,11 @@ function satisfies(version: string, range: Range): boolean {
         if (c > 0 || (c === 0 && !range.upper.inclusive)) return false;
     }
     return true;
+    // @end
 }
 
 function checkLockfile(manifest: Manifest, lock: Lockfile, policy: Policy): Finding[] {
+    // @piece lockfile-shape: Refuse a lockfile of an unknown shape
     if (lock.lockfileVersion !== 2 && lock.lockfileVersion !== 3) {
         return [{ kind: "unsupported-lockfile", package: "package-lock.json", detail: `lockfileVersion ${lock.lockfileVersion ?? "missing"}` }];
     }
@@ -125,8 +132,10 @@ function checkLockfile(manifest: Manifest, lock: Lockfile, policy: Policy): Find
     if (!packages || typeof packages !== "object") {
         return [{ kind: "unsupported-lockfile", package: "package-lock.json", detail: "no packages map" }];
     }
+    // @end
     const findings: Finding[] = [];
     const specs = { ...manifest.dependencies, ...manifest.devDependencies };
+    // @piece declared-deps: Check every declared dependency
     for (const [name, spec] of Object.entries(specs)) {
         const entry = packages[`node_modules/${name}`];
         const range = parseRange(spec);
@@ -138,6 +147,8 @@ function checkLockfile(manifest: Manifest, lock: Lockfile, policy: Policy): Find
             findings.push({ kind: "mismatch", package: name, detail: `${spec} but locked ${entry.version}` });
         }
     }
+    // @end
+    // @piece installed-entries: Check every installed entry
     for (const [key, entry] of Object.entries(packages)) {
         if (!key.includes("node_modules/") || entry.link === true) continue;
         const name = key.replace(/^node_modules\//, "");
@@ -149,6 +160,7 @@ function checkLockfile(manifest: Manifest, lock: Lockfile, policy: Policy): Find
             findings.push({ kind: "integrity", package: name, detail: "missing" });
         }
     }
+    // @end
     return findings.sort((a, b) =>
         a.package < b.package ? -1 : a.package > b.package ? 1 : ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
 }

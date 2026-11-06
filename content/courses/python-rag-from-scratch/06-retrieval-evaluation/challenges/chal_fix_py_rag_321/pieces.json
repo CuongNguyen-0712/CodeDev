@@ -1,0 +1,34 @@
+[
+  {
+    "id": "which-queries",
+    "label": "Decide whether a query can be scored",
+    "code": "relevant = set(result[\"relevant\"])\nif not relevant:\n    continue"
+  },
+  {
+    "id": "recall",
+    "label": "Recall of one query",
+    "code": "found = relevant.intersection(top)\nrecall_sum += len(found) / len(relevant)"
+  },
+  {
+    "id": "reciprocal-rank",
+    "label": "Reciprocal rank of the first relevant document",
+    "code": "for rank, doc_id in enumerate(top, start=1):\n    if doc_id in relevant:\n        rr_sum += 1 / rank\n        break"
+  },
+  {
+    "id": "query-count",
+    "label": "How many queries the averages divide by",
+    "code": "n = sum(1 for result in results if result[\"relevant\"])"
+  },
+  {
+    "id": "recall-counts-duplicates",
+    "label": "Recall of one query",
+    "code": "found = [doc_id for doc_id in top if doc_id in relevant]\nrecall_sum += len(found) / len(relevant)",
+    "distractor": true
+  },
+  {
+    "id": "reciprocal-rank-every-hit",
+    "label": "Reciprocal rank of the first relevant document",
+    "code": "for rank, doc_id in enumerate(top, start=1):\n    if doc_id in relevant:\n        rr_sum += 1 / rank",
+    "distractor": true
+  }
+]

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "details-cache",
+    "label": "Refresh the cached course after saving details",
+    "code": "updateTag(`course:${id}`);"
+  },
+  {
+    "id": "price-save",
+    "label": "Save the new price",
+    "code": "db.updateCourse(id, { price });\nupdateTag(`course:${id}`);"
+  },
+  {
+    "id": "details-cache-revalidate-max",
+    "label": "Refresh the cached course after saving details",
+    "code": "revalidateTag(`course:${id}`, \"max\");",
+    "distractor": true
+  },
+  {
+    "id": "price-save-revalidate-max",
+    "label": "Save the new price",
+    "code": "db.updateCourse(id, { price });\nrevalidateTag(`course:${id}`, \"max\");",
+    "distractor": true
+  }
+]

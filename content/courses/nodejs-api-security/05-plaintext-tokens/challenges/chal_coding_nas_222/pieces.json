@@ -1,0 +1,29 @@
+[
+  {
+    "id": "login-row",
+    "label": "The token columns of a new row",
+    "code": "token: null, tokenHash: createHash(\"sha256\").update(token).digest(\"hex\"),"
+  },
+  {
+    "id": "find-row",
+    "label": "Find the row of the presented token",
+    "code": "const hash = createHash(\"sha256\").update(presented).digest(\"hex\");\nlet row = deps.store.findByHash(hash);\nif (!row) {\n    // a row written by release 41: move it to its hash before anything else\n    const legacy = deps.store.findByPlainToken(presented);\n    if (!legacy || legacy.token === null || legacy.token.length !== presented.length\n        || !timingSafeEqual(Buffer.from(legacy.token), Buffer.from(presented))) {\n        return { ok: false, reason: \"unknown\" };\n    }\n    deps.store.update(legacy.id, { token: null, tokenHash: hash });\n    row = { ...legacy, token: null, tokenHash: hash };\n}"
+  },
+  {
+    "id": "rotate",
+    "label": "Answer with the next token of the family",
+    "code": "const token = deps.randomBytes(32).toString(\"base64url\");\nconst id = deps.newId(\"rt\");\nconst expiresAt = deps.now() + deps.ttlMs;\ndeps.store.insert({\n    id, familyId: row.familyId, userId: row.userId, deviceId: row.deviceId,\n    token: null, tokenHash: createHash(\"sha256\").update(token).digest(\"hex\"),\n    createdAt: deps.now(), expiresAt, usedAt: null, revokedAt: null, replacedBy: null,\n});\ndeps.store.update(row.id, { usedAt: deps.now(), replacedBy: id });\nreturn { ok: true, token, id, familyId: row.familyId, expiresAt };"
+  },
+  {
+    "id": "find-row-hash-only",
+    "label": "Find the row of the presented token",
+    "code": "const hash = createHash(\"sha256\").update(presented).digest(\"hex\");\nconst row = deps.store.findByHash(hash);\nif (!row) return { ok: false, reason: \"unknown\" };",
+    "distractor": true
+  },
+  {
+    "id": "rotate-old-still-valid",
+    "label": "Answer with the next token of the family",
+    "code": "const token = deps.randomBytes(32).toString(\"base64url\");\nconst id = deps.newId(\"rt\");\nconst expiresAt = deps.now() + deps.ttlMs;\ndeps.store.insert({\n    id, familyId: row.familyId, userId: row.userId, deviceId: row.deviceId,\n    token: null, tokenHash: createHash(\"sha256\").update(token).digest(\"hex\"),\n    createdAt: deps.now(), expiresAt, usedAt: null, revokedAt: null, replacedBy: null,\n});\nreturn { ok: true, token, id, familyId: row.familyId, expiresAt };",
+    "distractor": true
+  }
+]

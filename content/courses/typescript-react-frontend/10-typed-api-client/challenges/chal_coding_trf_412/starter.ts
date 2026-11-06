@@ -34,12 +34,39 @@ type Recorded =
     | { status: number; headers: Record<string, string>; body: string }
     | { error: { name: string; message: string } };
 
+const CATEGORIES: readonly Category[] = ["react", "node", "sql", "python", "devops"];
+const LEVELS: readonly Level[] = ["beginner", "intermediate", "advanced"];
+
+const isCategory = (v: unknown): v is Category => CATEGORIES.some((c) => c === v);
+const isLevel = (v: unknown): v is Level => LEVELS.some((l) => l === v);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function header(headers: Record<string, string>, name: string): string | undefined {
+    const found = Object.keys(headers).find((k) => k.toLowerCase() === name);
+    return found === undefined ? undefined : headers[found];
+}
+
+/** One element of the array: a Course with only the known fields, or the reason it is invalid. */
+function parseCourse(value: unknown, i: number): Course | string {
+    // [ ] Check one course and keep only the known fields
+}
+
+function parseCourses(json: unknown): Result<Course[]> {
+    // [ ] Check every element of the array
+}
+
+function httpMessage(status: number, headers: Record<string, string>, body: string): string {
+    // [ ] A message for a failed HTTP status
+}
+
 function toResult(recorded: Recorded): Result<Course[]> {
-    // 1. a rejected fetch: timeout or network
-    // 2. a status outside 200-299: http, with a message from application/problem+json when there is one
-    // 3. 204: an empty list
-    // 4. parse the body as unknown, then check it element by element and build new Course objects
-    return { ok: false, error: { kind: "network" } };
+    // [ ] A request that never got a response
+    const { status, headers, body } = recorded;
+    // [ ] Failed statuses and the empty 204
+    // [ ] Read the body as JSON, then check it
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

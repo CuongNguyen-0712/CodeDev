@@ -1,0 +1,40 @@
+[
+  {
+    "id": "nearest-rank",
+    "label": "The nearest-rank value, None for an empty list",
+    "code": "if not sorted_ms:\n    return None\nrank = math.ceil(p / 100 * len(sorted_ms))\nreturn sorted_ms[rank - 1]"
+  },
+  {
+    "id": "valid-sample",
+    "label": "Which samples count, and which are invalid",
+    "code": "def is_number(value):\n    # bool is a subclass of int in Python: True is not a duration\n    return isinstance(value, (int, float)) and not isinstance(value, bool)\n\n\ndef is_valid(sample):\n    return (\n        isinstance(sample, dict)\n        and isinstance(sample.get(\"endpoint\"), str)\n        and sample[\"endpoint\"] != \"\"\n        and is_number(sample.get(\"ms\"))\n        and sample[\"ms\"] >= 0\n        and isinstance(sample.get(\"status\"), int)\n        and not isinstance(sample[\"status\"], bool)\n    )"
+  },
+  {
+    "id": "sort-sample",
+    "label": "Skip invalid samples, split successes from failures",
+    "code": "if not is_valid(sample):\n    invalid += 1\n    continue\nname = sample[\"endpoint\"]\nok.setdefault(name, [])\nfailed.setdefault(name, 0)\nif 200 <= sample[\"status\"] <= 399:\n    ok[name].append(sample[\"ms\"])\nelse:\n    failed[name] += 1"
+  },
+  {
+    "id": "endpoint-row",
+    "label": "One endpoint's row: counts, mean and percentiles",
+    "code": "ms = sorted(ok[name])\nendpoints.append({\n    \"endpoint\": name,\n    \"count\": len(ms),\n    \"failed\": failed[name],\n    \"mean\": round(sum(ms) / len(ms), 1) if ms else None,\n    \"p50\": percentile(ms, 50),\n    \"p95\": percentile(ms, 95),\n    \"p99\": percentile(ms, 99),\n})"
+  },
+  {
+    "id": "nearest-rank-floor-index",
+    "label": "The nearest-rank value, None for an empty list",
+    "code": "if not sorted_ms:\n    return None\nindex = min(int(p / 100 * len(sorted_ms)), len(sorted_ms) - 1)\nreturn sorted_ms[index]",
+    "distractor": true
+  },
+  {
+    "id": "sort-sample-failures-in-latency",
+    "label": "Skip invalid samples, split successes from failures",
+    "code": "if not is_valid(sample):\n    invalid += 1\n    continue\nname = sample[\"endpoint\"]\nok.setdefault(name, [])\nfailed.setdefault(name, 0)\nok[name].append(sample[\"ms\"])\nif not 200 <= sample[\"status\"] <= 399:\n    failed[name] += 1",
+    "distractor": true
+  },
+  {
+    "id": "valid-sample-bool-is-int",
+    "label": "Which samples count, and which are invalid",
+    "code": "def is_number(value):\n    return isinstance(value, (int, float))\n\n\ndef is_valid(sample):\n    return (\n        isinstance(sample, dict)\n        and isinstance(sample.get(\"endpoint\"), str)\n        and sample[\"endpoint\"] != \"\"\n        and is_number(sample.get(\"ms\"))\n        and sample[\"ms\"] >= 0\n        and isinstance(sample.get(\"status\"), int)\n    )",
+    "distractor": true
+  }
+]

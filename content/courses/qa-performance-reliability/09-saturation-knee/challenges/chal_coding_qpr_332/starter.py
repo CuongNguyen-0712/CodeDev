@@ -9,11 +9,26 @@ Output: {"knee_rps", "first_saturated_rps", "reasons", "baseline_p95_ms", "reach
 import json
 import sys
 
+FIELDS = ("offered_rps", "achieved_rps", "p95_ms", "requests", "errors")
+
+
+# [ ] Which rows of the table are usable
+
 
 def find_knee(case):
-    # TODO: ignore invalid rows, sort by offered rate, take the baseline p95 from the lowest step,
-    # find the first step that breaks a rule and report the step before it as the knee.
-    return None
+    # [ ] Usable rows by offered rate, and how many were ignored
+    if not rows:
+        return {"knee_rps": None, "first_saturated_rps": None, "reasons": [],
+                "baseline_p95_ms": None, "reached": False, "ignored_rows": ignored}
+
+    baseline = rows[0]["p95_ms"]
+    for i, row in enumerate(rows):
+        reasons = []
+        # [ ] The rules this step breaks
+        # [ ] Report the step before the first broken one
+
+    return {"knee_rps": rows[-1]["offered_rps"], "first_saturated_rps": None, "reasons": [],
+            "baseline_p95_ms": baseline, "reached": False, "ignored_rows": ignored}
 
 
 # ---------------------------------------------------------------- test runner (do not change)

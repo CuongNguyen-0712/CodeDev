@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 // Paths are JSON Pointers into the schema ("~" -> "~0", "/" -> "~1" in names). Each list is sorted
 // by path, then change, then detail, in plain string order. Throw on a node with a missing, empty or
 // unknown type. Full rules: the challenge description.
+// Fill every [ ] line with the right piece. Do not change the types or the test runner.
 
 type Schema = {
     type?: string | string[];
@@ -27,8 +28,22 @@ type Change = { path: string; change: string; detail?: string };
 type Report = { breaking: Change[]; safe: Change[] };
 
 function compareSchemas(oldSchema: Schema, newSchema: Schema): Report {
-    return { breaking: [], safe: [] };
+    const breaking: Change[] = [];
+    const safe: Change[] = [];
+    const walk = (a: Schema, b: Schema, path: string) => {
+        // [ ] Compare whether null is allowed
+        // [ ] Compare the other types, stop when they differ
+        // [ ] Compare the allowed values
+        // [ ] Compare properties and required, then go deeper
+        // [ ] Go into array items
+    };
+    walk(oldSchema, newSchema, "");
+    return { breaking: breaking.sort(byPathChangeDetail), safe: safe.sort(byPathChangeDetail) };
 }
+
+// [ ] Read and check a node's types
+
+// [ ] Escape names in paths and order the changes
 
 // ---------------------------------------------------------------- test runner (do not change)
 const input: { old: Schema; new: Schema } = JSON.parse(readFileSync(0, "utf8"));

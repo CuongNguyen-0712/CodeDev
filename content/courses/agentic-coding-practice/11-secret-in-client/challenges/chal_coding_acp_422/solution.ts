@@ -27,6 +27,7 @@ type SuggestResult = { ok: true; outline: string[] } | { ok: false; status: numb
 
 // ======================================================= CLIENT: app/studio/outline.ts
 // Everything inside `client` is bundled and shipped to every browser that opens the studio.
+// @piece client: The studio button that asks for an outline (browser)
 const client = {
     async suggestOutline(title: string): Promise<SuggestResult> {
         const res = await browserFetch("/api/outline", {
@@ -39,12 +40,14 @@ const client = {
         return { ok: true, outline: data.outline };
     },
 };
+// @end
 
 // ======================================================= SERVER: app/api/outline/route.ts
 // Runs on the server only. req.user is the user of the session cookie (null when there is none).
 type ServerRequest = { user: User | null; body: string };
 type ServerResponse = { status: number; body: Record<string, unknown> };
 
+// @piece server: The outline route (server)
 const OUTLINES_PER_MINUTE = 5;
 // shortcut: in-memory fixed window per process, move to Redis or the database with more than one server.
 const usage = new Map<string, number>();
@@ -76,6 +79,7 @@ const server = {
         return { status: 200, body: { outline: data.sections } };
     },
 };
+// @end
 
 // ======================================================= runtime (do not change)
 // A fake network. browserFetch is the browser's fetch: a same-origin path such as "/api/outline"

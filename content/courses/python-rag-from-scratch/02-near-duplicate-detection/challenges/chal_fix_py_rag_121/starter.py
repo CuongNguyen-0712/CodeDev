@@ -17,6 +17,7 @@ Intended behaviour:
     document already KEPT is >= threshold. Return the ids that were kept.
 """
 import json
+import re
 import sys
 
 type Shingle = tuple[str, ...]

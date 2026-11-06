@@ -19,8 +19,20 @@ type Report =
     | { error: string };
 
 function mutationReport(run: Run): Report {
-    return { files: [], overall: { detected: 0, valid: 0, score: null }, undetected: [], gate: "pass" };
+    // [ ] Stop on an unknown status
+
+    // [ ] A score for each file, sorted by file
+
+    // [ ] The overall score and the undetected mutants
+    // [ ] The quality gate
+    return { files, overall, undetected, gate };
 }
+
+// [ ] Every status a run can report
+
+// [ ] Statuses that count as detected and undetected
+
+// [ ] Helper: the score of a list of mutants
 
 // ---------------------------------------------------------------- test runner (do not change)
 const run: Run = JSON.parse(readFileSync(0, "utf8"));

@@ -58,29 +58,50 @@ class EventBus {
 
 // ---------------------------------------------------------------- your code
 function applyProgress(update: ProgressUpdate, catalog: Catalog, store: ProgressStore, bus: EventBus): ApplyResult {
+    // Rules, in this order (the first failing check decides the error):
+    //   1. percent is a JSON integer from 0 to 100                  else INVALID_PERCENT
+    //   2. the course exists in catalog.courses                     else UNKNOWN_COURSE
+    //   3. the lesson is one of the course's lessons                else LESSON_NOT_IN_COURSE
+    //   4. the learner is enrolled in the course                    else NOT_ENROLLED
+    //   5. percent 100 only when every required challenge of the
+    //      lesson is in catalog.passed[userId]                       else CHALLENGES_NOT_PASSED
+    // Then: percent not above the stored lesson percent -> unchanged (no write, no event).
+    // Otherwise write the lesson percent, recompute coursePercent (floor of the average over ALL
+    // lessons of the course, missing lessons count as 0), add 1 to version, store the document and
+    // publish exactly one progress.updated event with the new values.
     const { userId, courseId, lessonId, percent } = update;
+    // @piece check-percent: percent must be a whole number from 0 to 100
     if (typeof percent !== "number" || !Number.isInteger(percent) || percent < 0 || percent > 100) {
         return { status: "rejected", error: "INVALID_PERCENT" };
     }
+    // @end
+    // @piece check-course: The course, the lesson and the enrollment exist
     const course = Object.hasOwn(catalog.courses, courseId) ? catalog.courses[courseId] : undefined;
     if (!course) return { status: "rejected", error: "UNKNOWN_COURSE" };
     if (!course.lessons.includes(lessonId)) return { status: "rejected", error: "LESSON_NOT_IN_COURSE" };
     if (!(catalog.enrollments[userId] ?? []).includes(courseId)) return { status: "rejected", error: "NOT_ENROLLED" };
+    // @end
+    // @piece check-completion: 100% only when the lesson's challenges are passed
     if (percent === 100) {
         const passed = catalog.passed[userId] ?? [];
         const required = course.required?.[lessonId] ?? [];
         if (!required.every((id) => passed.includes(id))) return { status: "rejected", error: "CHALLENGES_NOT_PASSED" };
     }
+    // @end
 
+    // @piece skip-lower: Leave the progress alone when it would not go up
     const doc = store.get(userId, courseId);
     const current = doc.lessons[lessonId] ?? 0;
     if (percent <= current) return { status: "unchanged", lessonPercent: current };
+    // @end
 
+    // @piece save-progress: Store the lesson and the recomputed course percent
     doc.lessons[lessonId] = percent;
     const sum = course.lessons.reduce((total, id) => total + (doc.lessons[id] ?? 0), 0);
     doc.coursePercent = Math.floor(sum / course.lessons.length);
     doc.version += 1;
     store.put(userId, courseId, doc);
+    // @end
     bus.publish({
         type: "progress.updated",
         userId,

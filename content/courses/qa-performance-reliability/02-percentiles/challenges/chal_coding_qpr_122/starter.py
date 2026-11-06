@@ -23,14 +23,24 @@ import sys
 
 def percentile(sorted_ms, p):
     """Nearest-rank percentile of an ascending list; None when the list is empty."""
-    # TODO
-    return None
+    # [ ] The nearest-rank value, None for an empty list
+
+
+# [ ] Which samples count, and which are invalid
 
 
 def summarize(samples):
     """Per-endpoint summary of raw load test samples (see the description)."""
-    # TODO
-    return {"endpoints": [], "invalid": 0}
+    ok = {}
+    failed = {}
+    invalid = 0
+    for sample in samples:
+        # [ ] Skip invalid samples, split successes from failures
+
+    endpoints = []
+    for name in sorted(ok):
+        # [ ] One endpoint's row: counts, mean and percentiles
+    return {"endpoints": endpoints, "invalid": invalid}
 
 
 # ---------------------------------------------------------------- test runner (do not change)

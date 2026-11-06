@@ -35,21 +35,8 @@ type StabilityRow = {
 
 type StabilityReport = { results: StabilityRow[]; ignored: number };
 
-function normalise(output: string): string {
-    return output.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-function isValid(run: RecordedRun): boolean {
-    return (
-        typeof run.prompt === "string" &&
-        run.prompt !== "" &&
-        typeof run.temperature === "number" &&
-        Number.isFinite(run.temperature) &&
-        typeof run.output === "string"
-    );
-}
-
 function measureStability(runs: RecordedRun[], threshold: number): StabilityReport {
+    // @piece group-runs: Group usable runs by prompt and temperature
     // one group per prompt and temperature: normalised output -> how many runs produced it
     const groups = new Map<string, { prompt: string; temperature: number; counts: Map<string, number> }>();
     let ignored = 0;
@@ -67,7 +54,9 @@ function measureStability(runs: RecordedRun[], threshold: number): StabilityRepo
         const text = normalise(run.output as string);
         group.counts.set(text, (group.counts.get(text) ?? 0) + 1);
     }
+    // @end
 
+    // @piece score-groups: Agreement and the flag for each group
     const results: StabilityRow[] = [];
     for (const { prompt, temperature, counts } of groups.values()) {
         let total = 0;
@@ -86,11 +75,32 @@ function measureStability(runs: RecordedRun[], threshold: number): StabilityRepo
             flagged: share < threshold,
         });
     }
+    // @end
+    // @piece sort-results: Sort the rows
     results.sort((a, b) =>
         a.prompt < b.prompt ? -1 : a.prompt > b.prompt ? 1 : a.temperature - b.temperature,
     );
+    // @end
     return { results, ignored };
 }
+
+// @piece normalise: Helper: the form two outputs are compared in
+function normalise(output: string): string {
+    return output.trim().replace(/\s+/g, " ").toLowerCase();
+}
+// @end
+
+// @piece is-valid: Helper: is a recorded run usable
+function isValid(run: RecordedRun): boolean {
+    return (
+        typeof run.prompt === "string" &&
+        run.prompt !== "" &&
+        typeof run.temperature === "number" &&
+        Number.isFinite(run.temperature) &&
+        typeof run.output === "string"
+    );
+}
+// @end
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { threshold, runs } as JSON. Output: the StabilityReport, as JSON.

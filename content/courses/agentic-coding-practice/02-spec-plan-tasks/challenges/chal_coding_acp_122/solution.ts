@@ -41,11 +41,8 @@ type Reason =
 
 type Eligibility = { eligible: boolean; reasons: Reason[] };
 
-function isStringArray(value: unknown): value is string[] {
-    return Array.isArray(value) && value.every((v) => typeof v === "string");
-}
-
 function checkEligibility(course: Course, record: unknown): Eligibility {
+    // @piece validate-record: Reject a record that does not match the spec
     if (typeof record !== "object" || record === null || Array.isArray(record)) {
         return { eligible: false, reasons: ["invalid_record"] };
     }
@@ -59,12 +56,16 @@ function checkEligibility(course: Course, record: unknown): Eligibility {
         typeof r.revoked === "boolean" &&
         (r.issuedAt === null || typeof r.issuedAt === "number");
     if (!valid) return { eligible: false, reasons: ["invalid_record"] };
+    // @end
 
+    // @piece learner-sets: The learner's ids and the course quizzes, once each
     const lessons = new Set(r.completedLessons as string[]);
     const quizzes = new Set(r.passedQuizzes as string[]);
     const coding = new Set(r.passedCoding as string[]);
     const courseQuizzes = new Set(course.quizzes);
+    // @end
 
+    // @piece collect-reasons: Every reason that applies, in spec order
     const reasons: Reason[] = [];
     if (!course.requiredLessons.every((id) => lessons.has(id))) reasons.push("lessons_incomplete");
     const passed = [...courseQuizzes].filter((id) => quizzes.has(id)).length;
@@ -72,8 +73,17 @@ function checkEligibility(course: Course, record: unknown): Eligibility {
     if (!course.codingChallenges.every((id) => coding.has(id))) reasons.push("coding_not_passed");
     if (r.revoked === true) reasons.push("revoked");
     if (r.issuedAt !== null) reasons.push("already_issued");
+    // @end
+    // @piece result: The eligibility answer
     return { eligible: reasons.length === 0, reasons };
+    // @end
 }
+
+// @piece string-list: Helper: is a value a list of strings?
+function isStringArray(value: unknown): value is string[] {
+    return Array.isArray(value) && value.every((v) => typeof v === "string");
+}
+// @end
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { course, records }. Output: one line of JSON with { userId, eligible, reasons } per record

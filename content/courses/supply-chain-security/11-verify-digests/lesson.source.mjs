@@ -120,7 +120,7 @@ function webhookValid(secret: string, rawBody: Buffer, header: string | undefine
             "**Checking only what is being deployed.** Spot it: extra files in the bundle never cause a failure. Unsigned extras are how payloads ride along with a valid release.",
             "**Deploying by tag after verifying by digest.** Spot it: the gate checks `api@sha256:...` but the rollout says `api:2026.10.3`, which can point somewhere else a second later.",
         ]),
-        p("In the challenge you write this gate: canonical manifest, HMAC check with a constant-time comparison, then the release, the bundle and the references, with a sorted list of reasons. Use exactly the canonical form from the challenge text; the tests include a manifest whose digests and signature are uppercase, a truncated signature, a tampered manifest and a large release."),
+        p("In the challenge you assemble this gate: canonical manifest, HMAC check with a constant-time comparison, then the release, the bundle and the references, with a sorted list of reasons. Use exactly the canonical form from the challenge text; the tests include a manifest whose digests and signature are uppercase, a truncated signature, a tampered manifest and a large release."),
         challenge("chal_coding_ssc_422"),
 
         h2("7. Summary"),

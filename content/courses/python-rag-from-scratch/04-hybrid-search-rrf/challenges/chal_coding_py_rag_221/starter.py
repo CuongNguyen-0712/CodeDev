@@ -19,12 +19,13 @@ import sys
 
 
 def rrf(rankings: list[list[str]], top: int, k: int = 60, weights: list[float] | None = None) -> list[list]:
-    # BUG (on purpose): 0-based ranks, weights and repeated ids ignored, ties in input order.
+    # [ ] One weight per ranking
+
     scores: dict[str, float] = {}
-    for ranking in rankings:
-        for rank, doc_id in enumerate(ranking):
-            scores[doc_id] = scores.get(doc_id, 0.0) + 1 / (k + rank)
-    ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    for ranking, weight in zip(rankings, weights):
+        # [ ] Add the votes of one ranking
+
+    # [ ] Best fused score first
     return [[doc_id, round(score, 6)] for doc_id, score in ordered[:top]]
 
 

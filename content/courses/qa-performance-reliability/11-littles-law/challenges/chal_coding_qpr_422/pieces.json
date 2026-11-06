@@ -1,0 +1,45 @@
+[
+  {
+    "id": "validate-input",
+    "label": "Reject impossible report and resource values",
+    "code": "for field, bad in ((\"duration_s\", lambda v: v <= 0), (\"requests\", lambda v: v < 0),\n                   (\"mean_latency_ms\", lambda v: v <= 0), (\"think_time_ms\", lambda v: v < 0)):\n    if bad(report[field]):\n        return {\"error\": f\"invalid {field}\"}\nif report[\"vus\"] is not None and report[\"vus\"] <= 0:\n    return {\"error\": \"invalid vus\"}\nfor res in resources:\n    if res[\"size\"] <= 0 or res[\"hold_ms\"] < 0:\n        return {\"error\": f\"invalid resource {res['name']}\"}"
+  },
+  {
+    "id": "throughput-in-flight",
+    "label": "Throughput from the raw counts, and requests in flight",
+    "code": "x = Fraction(report[\"requests\"], report[\"duration_s\"])\nlatency = report[\"mean_latency_ms\"]\nin_flight = x * latency / 1000"
+  },
+  {
+    "id": "closed-limit",
+    "label": "The rate a closed model can reach, and how it compares",
+    "code": "closed_limit = None\nif report[\"vus\"] is not None:\n    closed_limit = Fraction(report[\"vus\"] * 1000, latency + report[\"think_time_ms\"])\n    if x * 100 > (100 + tol) * closed_limit:\n        findings.append(\"above_closed_limit\")\n    elif x * 100 < (100 - tol) * closed_limit:\n        findings.append(\"idle_virtual_users\")"
+  },
+  {
+    "id": "size-resource",
+    "label": "How busy one resource is, and the size it needs",
+    "code": "needed = x * res[\"hold_ms\"] / 1000\nutilization = needed * 100 / res[\"size\"]\nif needed > res[\"size\"]:\n    findings.append(f\"over_capacity:{res['name']}\")\nelif utilization > target:\n    findings.append(f\"above_target:{res['name']}\")\nsized.append({\"name\": res[\"name\"], \"needed\": round(float(needed), 1),\n              \"utilization_pct\": round(float(utilization), 1),\n              \"min_size\": math.ceil(needed * 100 / target)})"
+  },
+  {
+    "id": "verdict",
+    "label": "The overall verdict from the findings",
+    "code": "soft = {\"idle_virtual_users\"}\nif any(f not in soft and not f.startswith(\"above_target:\") for f in findings):\n    verdict = \"impossible\"\nelif \"idle_virtual_users\" in findings:\n    verdict = \"suspicious\"\nelse:\n    verdict = \"consistent\""
+  },
+  {
+    "id": "closed-limit-no-think-time",
+    "label": "The rate a closed model can reach, and how it compares",
+    "code": "closed_limit = None\nif report[\"vus\"] is not None:\n    closed_limit = Fraction(report[\"vus\"] * 1000, latency)\n    if x * 100 > (100 + tol) * closed_limit:\n        findings.append(\"above_closed_limit\")\n    elif x * 100 < (100 - tol) * closed_limit:\n        findings.append(\"idle_virtual_users\")",
+    "distractor": true
+  },
+  {
+    "id": "size-resource-float-ceiling",
+    "label": "How busy one resource is, and the size it needs",
+    "code": "needed = x * res[\"hold_ms\"] / 1000\nutilization = needed * 100 / res[\"size\"]\nif needed > res[\"size\"]:\n    findings.append(f\"over_capacity:{res['name']}\")\nelif utilization > target:\n    findings.append(f\"above_target:{res['name']}\")\nsized.append({\"name\": res[\"name\"], \"needed\": round(float(needed), 1),\n              \"utilization_pct\": round(float(utilization), 1),\n              \"min_size\": math.ceil(float(needed) / (target / 100))})",
+    "distractor": true
+  },
+  {
+    "id": "throughput-in-flight-trust-summary",
+    "label": "Throughput from the raw counts, and requests in flight",
+    "code": "x = (Fraction(report[\"throughput_rps\"]) if report[\"throughput_rps\"] is not None\n     else Fraction(report[\"requests\"], report[\"duration_s\"]))\nlatency = report[\"mean_latency_ms\"]\nin_flight = x * latency / 1000",
+    "distractor": true
+  }
+]

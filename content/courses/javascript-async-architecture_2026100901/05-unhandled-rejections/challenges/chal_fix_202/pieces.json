@@ -1,0 +1,35 @@
+[
+  {
+    "id": "track",
+    "label": "Send the analytics event without waiting for it",
+    "code": "analytics.track(\"checkout_submitted\").catch(() => {});"
+  },
+  {
+    "id": "template",
+    "label": "Prefetch the receipt template",
+    "code": "const templatePromise = api.loadReceiptTemplate().catch(() => \"plain\");"
+  },
+  {
+    "id": "order",
+    "label": "Create the order, reserve stock and finish",
+    "code": "try {\n  const order = await api.createOrder(cart);\n  await Promise.all(cart.items.map((item) => api.reserveStock(order.id, item.sku)));\n  return { orderId: order.id, template: await templatePromise };\n} finally {\n  ui.setBusy(false);\n}"
+  },
+  {
+    "id": "order-allsettled",
+    "label": "Create the order, reserve stock and finish",
+    "code": "try {\n  const order = await api.createOrder(cart);\n  await Promise.allSettled(cart.items.map((item) => api.reserveStock(order.id, item.sku)));\n  return { orderId: order.id, template: await templatePromise };\n} finally {\n  ui.setBusy(false);\n}",
+    "distractor": true
+  },
+  {
+    "id": "order-no-finally",
+    "label": "Create the order, reserve stock and finish",
+    "code": "const order = await api.createOrder(cart);\nawait Promise.all(cart.items.map((item) => api.reserveStock(order.id, item.sku)));\nconst template = await templatePromise;\nui.setBusy(false);\nreturn { orderId: order.id, template };",
+    "distractor": true
+  },
+  {
+    "id": "track-void",
+    "label": "Send the analytics event without waiting for it",
+    "code": "void analytics.track(\"checkout_submitted\");",
+    "distractor": true
+  }
+]

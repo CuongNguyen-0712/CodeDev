@@ -65,7 +65,22 @@ type GateReport =
       };
 
 function regressionGate(input: GateInput): GateReport {
-    return { decision: "invalid", reasons: [] };
+    const { baseline, candidate, config } = input;
+    const problems: string[] = [];
+    // [ ] Index each run by caseId, noting duplicates
+
+    // [ ] Pair the runs and check their slices
+
+    const reasons: string[] = [];
+    const evaluate = (group: typeof pairs, label: string, limit: number, paired: boolean): GroupStats => {
+        // [ ] Count passes, flips, rates and the change
+        // [ ] Decide the group's status and reasons
+        return { n, baseline: rate(bp), candidate: rate(cp), delta, passToFail, failToPass, status };
+    };
+
+    // [ ] Evaluate overall, then each slice by name
+
+    // [ ] Pick the decision and build the report
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-// Reference solution (internal).
 
 // Cache Drift & Duplicate Events. Learners watch their score on the CodeDev leaderboard go
 // backwards: u_2041 had 1310 points at 10:00:03 and 1240 at 10:00:05, while PostgreSQL still says
@@ -14,10 +13,6 @@ import { readFileSync } from "node:fs";
 type Outcome = "applied" | "duplicate" | "stale" | "invalid";
 
 const LEADERBOARD = "lb:global";
-const VERSIONS = "lb:version"; // hash: userId -> version of the last applied event
-const SEEN_PREFIX = "lb:seen:"; // lb:seen:<eventId> exists once the event was processed
-// The queue redelivers an unacknowledged message for up to 24 hours: keep the marker twice as long.
-const SEEN_TTL_SECONDS = 48 * 60 * 60;
 
 class ScoreConsumer {
     redis: FakeRedis;
@@ -30,19 +25,22 @@ class ScoreConsumer {
     handle(raw: unknown): Outcome {
         const event = parseEvent(raw);
         if (event === null) return "invalid";
-        const seenKey = SEEN_PREFIX + event.eventId;
+        // @piece apply-event: Apply one delivered event
+        const seenKey = `lb:seen:${event.eventId}`; // exists once this event was processed
         if (this.redis.exists(seenKey) === 1) return "duplicate";
 
-        const stored = this.redis.hget(VERSIONS, event.userId);
+        const stored = this.redis.hget("lb:version", event.userId); // version of the learner's last applied event
         const isNewer = stored === null || event.version > Number(stored);
         if (isNewer) {
             // A newer version may carry a lower total (a correction): it is still applied.
             this.redis.zadd(LEADERBOARD, event.total, event.userId);
-            this.redis.hset(VERSIONS, event.userId, String(event.version));
+            this.redis.hset("lb:version", event.userId, String(event.version));
         }
+        // The queue redelivers an unacknowledged message for up to 24 hours: keep the marker twice as long.
         // In production these commands run as one Lua script, so a crash cannot split them.
-        this.redis.set(seenKey, "1", { ex: SEEN_TTL_SECONDS });
+        this.redis.set(seenKey, "1", { ex: 48 * 60 * 60 });
         return isNewer ? "applied" : "stale";
+        // @end
     }
 }
 

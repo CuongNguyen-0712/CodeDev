@@ -56,13 +56,19 @@ type JobEvent =
     | { type: "cancel"; jobId: string }
     | { type: "retry-scheduled"; jobId: string };
 
+// [ ] Which events each state allows
+
 function applyEvent(jobs: Map<string, Job>, event: JobEvent, maxAttempts: number): string | null {
-    // TODO: check the event (rules 1-7 above) and apply its effect.
-    // Today every event is accepted and only enqueue does anything.
-    if (event.type === "enqueue") {
-        jobs.set(event.jobId, { id: event.jobId, state: "queued", attempts: 0, workerId: null, lastFailure: null });
+    // [ ] Reject unknown events and failure kinds
+
+    // [ ] Create a new job, once
+
+    // [ ] Find the job, check its state and worker
+
+    switch (event.type) {
+        // [ ] Apply the effect of a finished or started attempt
+        // [ ] Schedule a retry, if one is left
     }
-    return null;
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

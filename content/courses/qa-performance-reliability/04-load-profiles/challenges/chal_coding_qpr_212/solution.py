@@ -41,12 +41,15 @@ def is_int(value):
 
 
 def build_schedule(profile):
+    # @piece check-profile: Stages present and a valid start rate
     stages = profile.get("stages")
     if not isinstance(stages, list) or not stages:
         return {"error": "no stages"}
     rate = profile.get("start_rate", 0)
     if not is_int(rate) or rate < 0:
         return {"error": "bad start_rate"}
+    # @end
+    # @piece check-stages: Each stage valid, and the whole test short enough
     for n, stage in enumerate(stages, 1):
         if not is_int(stage.get("duration_s")) or stage["duration_s"] < 1:
             return {"error": f"stage {n}: bad duration_s"}
@@ -54,16 +57,22 @@ def build_schedule(profile):
             return {"error": f"stage {n}: bad target"}
     if sum(stage["duration_s"] for stage in stages) > MAX_DURATION_S:
         return {"error": "longer than 3600 s"}
+    # @end
 
     schedule = []
     steady = None
     for stage in stages:
         a, b, d = rate, stage["target"], stage["duration_s"]
+        # @piece track-steady: Remember the longest stage that holds a rate
         if a == b and b > 0 and (steady is None or d > steady["end_s"] - steady["start_s"]):
             steady = {"start_s": len(schedule), "end_s": len(schedule) + d, "rate": b}
+        # @end
+        # @piece ramp-seconds: One target rate per second of the stage
         # // floors toward minus infinity, so a ramp-down rounds down too
         schedule.extend(a + (b - a) * k // d for k in range(1, d + 1))
+        # @end
         rate = b
+    # @piece totals: The schedule and its totals
     return {
         "duration_s": len(schedule),
         "total_requests": sum(schedule),
@@ -71,6 +80,7 @@ def build_schedule(profile):
         "steady": steady,
         "schedule": schedule,
     }
+    # @end
 
 
 # ---------------------------------------------------------------- test runner (do not change)

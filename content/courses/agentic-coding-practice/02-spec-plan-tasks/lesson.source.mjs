@@ -220,7 +220,7 @@ stop and ask; do not choose.
 Done when the T1 check passes and  git diff --stat  lists only the T1 files.`, "the request for T1"),
         p("Three habits make the difference here. **One task per session**: a fresh session for T2, so the context of T1's attempts does not leak in. **Test names before code**: the list of names is a two-minute review that shows whether the agent understood every criterion. **Stop and ask**: a question from the agent is a hole in the spec; the answer goes into `spec.md` and gets an acceptance criterion, not just a reply in the chat."),
         callout("tip", "Your turn",
-            "The exercise below is T1. Its description is the spec, written as precisely as the agent would get it. Implement it yourself or with an agent: if you use one, give it the description and the starter, ask for the test names first, and compare them with the criteria. The hidden tests check every criterion and the edge cases the spec states."),
+            "The exercise below is T1. Its description is the spec, written as precisely as the agent would get it. The editor holds the module with its key blocks missing, each marked by a `// [ ]` line: click a piece to fill a line, or drag it onto one. Some pieces are wrong on purpose, the way an agent's first attempt often is: check each one against the criteria before you place it. The hidden tests check every criterion and the edge cases the spec states."),
         challenge("chal_coding_acp_122"),
 
         h2("6. How to verify the spec, the plan and each task"),

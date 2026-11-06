@@ -1,0 +1,40 @@
+[
+  {
+    "id": "valid-row",
+    "label": "Which rows of the table are usable",
+    "code": "def is_number(x):\n    return isinstance(x, (int, float)) and not isinstance(x, bool)\n\n\ndef valid_row(row):\n    if not isinstance(row, dict) or not all(is_number(row.get(f)) for f in FIELDS):\n        return False\n    return (row[\"offered_rps\"] > 0 and row[\"requests\"] > 0 and row[\"achieved_rps\"] >= 0\n            and row[\"p95_ms\"] > 0 and 0 <= row[\"errors\"] <= row[\"requests\"])"
+  },
+  {
+    "id": "usable-rows",
+    "label": "Usable rows by offered rate, and how many were ignored",
+    "code": "rows = [r for r in case[\"steps\"] if valid_row(r)]\nignored = len(case[\"steps\"]) - len(rows)\nrows.sort(key=lambda r: r[\"offered_rps\"])"
+  },
+  {
+    "id": "step-reasons",
+    "label": "The rules this step breaks",
+    "code": "if row[\"achieved_rps\"] / row[\"offered_rps\"] < case[\"min_throughput_ratio\"]:\n    reasons.append(\"throughput\")\nif row[\"p95_ms\"] > case[\"max_p95_factor\"] * baseline:\n    reasons.append(\"latency\")\nif row[\"errors\"] / row[\"requests\"] > case[\"max_error_rate\"]:\n    reasons.append(\"errors\")"
+  },
+  {
+    "id": "report-knee",
+    "label": "Report the step before the first broken one",
+    "code": "if reasons:\n    return {\"knee_rps\": rows[i - 1][\"offered_rps\"] if i > 0 else None,\n            \"first_saturated_rps\": row[\"offered_rps\"], \"reasons\": reasons,\n            \"baseline_p95_ms\": baseline, \"reached\": True, \"ignored_rows\": ignored}"
+  },
+  {
+    "id": "report-knee-broken-step",
+    "label": "Report the step before the first broken one",
+    "code": "if reasons:\n    return {\"knee_rps\": row[\"offered_rps\"],\n            \"first_saturated_rps\": row[\"offered_rps\"], \"reasons\": reasons,\n            \"baseline_p95_ms\": baseline, \"reached\": True, \"ignored_rows\": ignored}",
+    "distractor": true
+  },
+  {
+    "id": "step-reasons-inclusive",
+    "label": "The rules this step breaks",
+    "code": "if row[\"achieved_rps\"] / row[\"offered_rps\"] <= case[\"min_throughput_ratio\"]:\n    reasons.append(\"throughput\")\nif row[\"p95_ms\"] >= case[\"max_p95_factor\"] * baseline:\n    reasons.append(\"latency\")\nif row[\"errors\"] / row[\"requests\"] >= case[\"max_error_rate\"]:\n    reasons.append(\"errors\")",
+    "distractor": true
+  },
+  {
+    "id": "step-reasons-previous-step",
+    "label": "The rules this step breaks",
+    "code": "if row[\"achieved_rps\"] / row[\"offered_rps\"] < case[\"min_throughput_ratio\"]:\n    reasons.append(\"throughput\")\nif row[\"p95_ms\"] > case[\"max_p95_factor\"] * rows[max(i - 1, 0)][\"p95_ms\"]:\n    reasons.append(\"latency\")\nif row[\"errors\"] / row[\"requests\"] > case[\"max_error_rate\"]:\n    reasons.append(\"errors\")",
+    "distractor": true
+  }
+]

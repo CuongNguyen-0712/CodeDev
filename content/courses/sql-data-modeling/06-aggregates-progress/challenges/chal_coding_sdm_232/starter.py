@@ -34,19 +34,13 @@ import sqlite3
 import sys
 
 QUERY = """
--- The query from the last release (it has the incident's bugs on purpose).
--- TODO: start from the user's enrollments, count each lesson once, finished lessons only,
---       and compute percent as a whole number rounded down (0 for a course with no lessons).
+-- Start from the user's enrollments, count each lesson once, finished lessons only,
+-- and compute percent as a whole number rounded down (0 for a course with no lessons).
 SELECT c.course_id,
        c.title,
-       COUNT(*)            AS total_lessons,
-       COUNT(lp.lesson_id) AS completed_lessons,
-       COUNT(lp.lesson_id) / COUNT(*) * 100 AS percent
-FROM lesson_progress AS lp
-JOIN lessons AS l ON l.lesson_id = lp.lesson_id
-JOIN courses AS c ON c.course_id = l.course_id
-WHERE lp.user_id = :user_id
-GROUP BY c.course_id
+       # [ ] Lessons, finished lessons and the percent
+# [ ] The rows each course card is counted from
+# [ ] One row per course of this learner
 ORDER BY c.course_id
 """
 

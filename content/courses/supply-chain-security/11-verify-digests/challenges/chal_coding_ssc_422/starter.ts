@@ -31,18 +31,47 @@ type Code =
 type Reason = { artifact: string; code: Code };
 type Decision = { decision: "deploy" | "reject"; reasons: Reason[]; deployed: string[] };
 
-/** The exact string the release job signed, or null when the manifest cannot be written canonically. */
+const HEX64 = /^[0-9a-fA-F]{64}$/;
+const NAME = /^[A-Za-z0-9._-]+$/;
+const byString = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+/** The exact bytes the release job signed. Returns null when the manifest cannot be written canonically. */
 function canonicalManifest(m: Manifest): string | null {
-    return null;
+    // [ ] Write the manifest canonically
 }
 
-/** true when signature is the hex HMAC-SHA256 of canonical with key, compared in constant time. */
+/** Constant-time check of a hex HMAC-SHA256 signature. */
 function signatureValid(key: string, canonical: string, signature: unknown): boolean {
-    return false;
+    // [ ] Check the signature in constant time
 }
+
+const sha256Hex = (base64: string): string => createHash("sha256").update(Buffer.from(base64, "base64")).digest("hex");
 
 function verifyRelease(input: Input): Decision {
-    return { decision: "deploy", reasons: [], deployed: [] };
+    const reject = (reasons: Reason[]): Decision => {
+        const seen = new Set<string>();
+        const unique = reasons.filter((r) => {
+            const id = `${r.artifact}\u0000${r.code}`;
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        });
+        unique.sort((a, b) => byString(a.artifact, b.artifact) || byString(a.code, b.code));
+        return { decision: "reject", reasons: unique, deployed: [] };
+    };
+
+    const canonical = canonicalManifest(input.manifest);
+    if (canonical === null) return reject([{ artifact: "", code: "invalid-manifest" }]);
+    if (!signatureValid(input.key, canonical, input.manifest.signature)) return reject([{ artifact: "", code: "bad-signature" }]);
+
+    // From here on the manifest is trusted.
+    // [ ] Trust the signed digests, check the release
+
+    // [ ] Check every artifact in the bundle
+
+    // [ ] Check every requested reference
+
+    // [ ] Reject with the reasons, or deploy
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

@@ -59,11 +59,16 @@ function planBoundaries(root: ComponentNode): BoundaryPlan {
     let total = 0;
 
     function visit(node: ComponentNode, parentOnClient: boolean | null): void {
+        // @piece runs-on: Decide where this component runs
         const uses = node.uses ?? [];
         const onClient = parentOnClient === true || uses.some((f) => CLIENT_FEATURES.includes(f));
         plan.components.push({ name: node.name, runsOn: onClient ? "client" : "server" });
+        // @end
         if (onClient) {
+            // @piece client-size: Count its code toward the client bundle
             total += kb(node.ownKb) + kb(node.libKb);
+            // @end
+            // @piece boundary-and-props: Mark the boundary and check the props crossing it
             if (parentOnClient !== true) {
                 plan.useClient.push(node.name);
                 if (parentOnClient === false) {
@@ -72,14 +77,21 @@ function planBoundaries(root: ComponentNode): BoundaryPlan {
                     }
                 }
             }
+            // @end
+            // @piece conflicts: Flag server-only features on the client
             if (uses.some((f) => SERVER_ONLY_FEATURES.includes(f))) plan.conflicts.push(node.name);
+            // @end
         }
+        // @piece visit-children: Visit the children
         for (const child of node.children ?? []) visit(child, onClient);
+        // @end
     }
 
+    // @piece walk-and-round: Walk the tree and report the size
     visit(root, null);
     plan.clientKb = Math.round(total * 10) / 10;
     return plan;
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

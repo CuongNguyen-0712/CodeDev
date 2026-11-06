@@ -16,8 +16,9 @@ import { PIECE_MIME } from "./codeEditor";
  * layout "grid": under the editor, two columns from sm (the normal lesson view).
  * layout "column": one scrolling column beside the editor (the expanded workspace).
  * Below lg the list is collapsible (tap only).
+ * note: one line under the header (fix-bug pieces: select the faulty lines first).
  */
-export default function SnippetPanel({ snippets, used, onToggle, onInsert, disabled = false, layout = "grid", className, style }) {
+export default function SnippetPanel({ snippets, used, onToggle, onInsert, note = null, noteIsWarning = false, disabled = false, layout = "grid", className, style }) {
     const [open, setOpen] = useState(false);
     const [shown, setShown] = useState(null); // id of the piece whose whole code is shown
     const ghostRef = useRef(null);
@@ -51,6 +52,12 @@ export default function SnippetPanel({ snippets, used, onToggle, onInsert, disab
                 </button>
                 <span className="ml-auto tabular">{used.size}/{snippets.length} used</span>
             </div>
+            {note && (
+                // role="status": the warning after a click with nothing selected is announced.
+                <p role="status" className={cn("shrink-0 border-b border-editor-border px-3 py-1.5 text-[11px]", noteIsWarning ? "text-editor-warning" : "text-editor-muted")}>
+                    {note}
+                </p>
+            )}
 
             <ul
                 id={listId}

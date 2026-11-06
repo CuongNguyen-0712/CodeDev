@@ -1,0 +1,19 @@
+[
+  {
+    "id": "write-rows",
+    "label": "Write the header and every row",
+    "code": "const write = async (chunk) => {\n  if (!out.write(chunk)) {\n    await new Promise((resolve) => out.once(\"drain\", resolve));\n  }\n};\n\nawait write(\"id,wallet_id,amount,created_at\\n\");\n\nfor await (const row of rows) {\n  await write(toCsvLine(row));\n}"
+  },
+  {
+    "id": "write-rows-always-wait",
+    "label": "Write the header and every row",
+    "code": "out.write(\"id,wallet_id,amount,created_at\\n\");\nfor await (const row of rows) {\n  out.write(toCsvLine(row));\n  await new Promise((resolve) => out.once(\"drain\", resolve));\n}",
+    "distractor": true
+  },
+  {
+    "id": "write-rows-drain-not-awaited",
+    "label": "Write the header and every row",
+    "code": "out.write(\"id,wallet_id,amount,created_at\\n\");\nfor await (const row of rows) {\n  if (!out.write(toCsvLine(row))) {\n    out.once(\"drain\", () => {});\n  }\n}",
+    "distractor": true
+  }
+]

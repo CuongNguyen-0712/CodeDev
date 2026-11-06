@@ -40,24 +40,48 @@ type Message = { at: number; key: string; seq: number; ms: number };
 type Gap = { key: string; from: number; to: number };
 
 class KeyedDispatcher {
-    constructor(clock: Clock, gapTimeoutMs: number) {}
+    private readonly clock: Clock;
+    private readonly gapTimeoutMs: number;
+    private readonly next = new Map<string, number>();
+    private readonly held = new Map<string, Map<number, { msg: Message; n: number }>>();
+    private readonly busy = new Set<string>();
+    private readonly gapSince = new Map<string, number>();
+    private received = 0;
+
+    constructor(clock: Clock, gapTimeoutMs: number) {
+        this.clock = clock;
+        this.gapTimeoutMs = gapTimeoutMs;
+    }
 
     receive(msg: Message): "held" | "dropped" | "rejected" {
+        // [ ] Hold an event, dropping old or repeated ones
         return "held";
     }
 
     take(): Message | null {
-        return null;
+        // [ ] Choose the next event to hand out
+        // [ ] Hand it out and keep its key busy
     }
 
-    complete(msg: Message): void {}
+    complete(msg: Message): void {
+        this.busy.delete(msg.key);
+    }
 
     expireGaps(): Gap[] {
-        return [];
+        // [ ] Skip gaps that waited too long
     }
 
     nextGapDeadline(): number | null {
-        return null;
+        // [ ] When the next gap times out
+    }
+
+    private expected(key: string): number {
+        return this.next.get(key) ?? 1;
+    }
+
+    // A gap: the key holds events, but not the one it needs next.
+    private refreshGap(key: string): void {
+        // [ ] Note when a key starts waiting on a gap
     }
 }
 

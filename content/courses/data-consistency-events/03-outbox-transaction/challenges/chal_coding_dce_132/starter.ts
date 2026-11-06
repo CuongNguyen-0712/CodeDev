@@ -52,12 +52,25 @@ type Deps = { db: FakeDb; ids: Ids; clock: Clock };
 class Rejected extends Error {}
 
 // ------------------------------------------------------------------ commands (write these)
+function addEvent(t: Tables, ids: Ids, clock: Clock, aggregateType: string, aggregateId: string, eventType: string, payload: Record<string, unknown>): void {
+    const row: OutboxRow = { id: ids.next("evt"), aggregateType, aggregateId, eventType, payload, createdAt: clock.now(), status: "pending" };
+    t.outbox.set(row.id, row);
+}
+
 function placeEnrollment({ db, ids, clock }: Deps, cmd: PlaceEnrollment): void {
-    // TODO: validate, then write the enrollment, the seat count and the outbox rows in one db.tx()
+    db.tx((t) => {
+        // [ ] Refuse an enrollment that breaks a rule
+
+        // [ ] Write the enrollment, the seat and its events
+    });
 }
 
 function awardPoints({ db, ids, clock }: Deps, cmd: AwardPoints): void {
-    // TODO: validate, then write the new balance and the outbox rows in one db.tx()
+    db.tx((t) => {
+        // [ ] Refuse an award that breaks a rule
+
+        // [ ] Add the points and their events
+    });
 }
 
 // ------------------------------------------------------------------ database and crashes (do not change)

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "fees",
+    "label": "Get every order's net amount once its fee is known",
+    "code": "const nets = await Promise.all(\n  batch.orders.map(async (order) => {\n    const fee = await gateway.getFee(order.id);\n    return order.amountCents - fee;\n  })\n);"
+  },
+  {
+    "id": "net-total",
+    "label": "The merchant's net total",
+    "code": "netCents: nets.reduce((sum, net) => sum + net, 0),"
+  },
+  {
+    "id": "fees-await-foreach",
+    "label": "Get every order's net amount once its fee is known",
+    "code": "const nets = [];\nawait batch.orders.forEach(async (order) => {\n  const fee = await gateway.getFee(order.id);\n  nets.push(order.amountCents - fee);\n});",
+    "distractor": true
+  }
+]

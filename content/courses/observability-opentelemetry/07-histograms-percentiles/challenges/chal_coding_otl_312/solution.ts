@@ -30,10 +30,13 @@ type Bucket = { le: number; count: number }; // le: upper bound in seconds, Infi
 type Instance = { instance: string; start: Bucket[]; end: Bucket[] };
 
 function counterIncrease(start: number, end: number): number {
+    // @piece counter-increase: How much one counter grew between two scrapes
     return end < start ? end : end - start;
+    // @end
 }
 
 function mergeIncreases(instances: Instance[]): Bucket[] {
+    // @piece merge-increases: Add up the increases of every instance per bucket
     const sums = new Map<number, number>();
     for (const instance of instances) {
         const startCounts = new Map(instance.start.map((b): [number, number] => [b.le, b.count]));
@@ -43,15 +46,19 @@ function mergeIncreases(instances: Instance[]): Bucket[] {
         }
     }
     return [...sums].map(([le, count]) => ({ le, count })).sort((a, b) => a.le - b.le);
+    // @end
 }
 
 function histogramQuantile(q: number, buckets: Bucket[]): number {
+    // @piece quantile-guards: Answer the cases with no usable data
     if (q < 0) return -Infinity;
     if (q > 1) return Infinity;
     const sorted = [...buckets].sort((a, b) => a.le - b.le);
     if (sorted.length < 2 || sorted[sorted.length - 1].le !== Infinity) return NaN;
     const total = sorted[sorted.length - 1].count;
     if (total === 0) return NaN;
+    // @end
+    // @piece quantile-interpolate: Find the bucket and interpolate inside it
     const rank = q * total;
     const finite = sorted.slice(0, -1);
     const i = finite.findIndex((b) => b.count >= rank);
@@ -59,6 +66,7 @@ function histogramQuantile(q: number, buckets: Bucket[]): number {
     const lower = i === 0 ? 0 : finite[i - 1].le;
     const before = i === 0 ? 0 : finite[i - 1].count;
     return lower + ((finite[i].le - lower) * (rank - before)) / (finite[i].count - before);
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

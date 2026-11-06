@@ -35,6 +35,7 @@ function readSession(r: FakeRedis, id: string): Session | null {
 }
 
 function createSession(r: FakeRedis, clock: FakeClock, sessionId: string, userId: string, device: string): boolean {
+    // @piece create-session: Store a new session and index it under its user
     const key = sessionKey(sessionId);
     if (r.exists(key)) return false;
     r.hset(key, "userId", userId);
@@ -44,9 +45,11 @@ function createSession(r: FakeRedis, clock: FakeClock, sessionId: string, userId
     r.sadd(indexKey(userId), sessionId);
     r.expire(indexKey(userId), ABSOLUTE_LIFETIME_SECONDS);
     return true;
+    // @end
 }
 
 function touchSession(r: FakeRedis, clock: FakeClock, sessionId: string): Session | null {
+    // @piece touch-session: Extend a session, never past its absolute lifetime
     const session = readSession(r, sessionId);
     if (session === null) return null;
     const leftSeconds = Math.floor((session.createdAt + ABSOLUTE_LIFETIME_SECONDS * 1000 - clock.now) / 1000);
@@ -56,24 +59,30 @@ function touchSession(r: FakeRedis, clock: FakeClock, sessionId: string): Sessio
     }
     r.expire(sessionKey(sessionId), Math.min(IDLE_TTL_SECONDS, leftSeconds));
     return session;
+    // @end
 }
 
 function deleteSession(r: FakeRedis, sessionId: string): boolean {
+    // @piece delete-session: Delete one session and its index entry
     const userId = r.hget(sessionKey(sessionId), "userId");
     if (userId === null) return false;
     r.del(sessionKey(sessionId));
     r.srem(indexKey(userId), sessionId);
     return true;
+    // @end
 }
 
 function deleteAllSessions(r: FakeRedis, userId: string): number {
+    // @piece delete-all: Delete every session of a user
     const ids = r.smembers(indexKey(userId));
     const removed = ids.length ? r.del(...ids.map(sessionKey)) : 0;
     for (const id of ids) r.srem(indexKey(userId), id); // only the ids we read: a sign-in racing with us keeps its entry
     return removed;
+    // @end
 }
 
 function listSessions(r: FakeRedis, userId: string): Session[] {
+    // @piece list-sessions: List a user's live sessions, dropping dead ids
     const sessions: Session[] = [];
     for (const id of r.smembers(indexKey(userId))) {
         const session = readSession(r, id);
@@ -81,6 +90,7 @@ function listSessions(r: FakeRedis, userId: string): Session[] {
         else sessions.push(session);
     }
     return sessions.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    // @end
 }
 
 // ---------------------------------------------------------------- in-memory Redis (do not change)

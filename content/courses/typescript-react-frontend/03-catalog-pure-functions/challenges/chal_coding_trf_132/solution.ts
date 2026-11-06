@@ -48,29 +48,39 @@ type CatalogQuery = {
 type CatalogPage = { items: Course[]; page: number; totalPages: number; total: number };
 
 function matches(course: Course, query: CatalogQuery): boolean {
+    // @piece match-rules: Does a course match the search and filters?
     const search = query.search.trim().toLowerCase();
     return (
         (search === "" || course.title.toLowerCase().includes(search)) &&
         (query.category === "all" || course.category === query.category) &&
         (query.level === "all" || course.level === query.level)
     );
+    // @end
 }
 
 function compare(a: Course, b: Course, sort: CatalogQuery["sort"]): number {
+    // @piece sort-order: Order two courses for the chosen sort
     let order = 0;
     if (sort === "rating") order = b.rating - a.rating;
     else if (sort === "newest") order = (b.publishedAt < a.publishedAt ? -1 : b.publishedAt > a.publishedAt ? 1 : 0);
     else order = (a.title.toLowerCase() < b.title.toLowerCase() ? -1 : a.title.toLowerCase() > b.title.toLowerCase() ? 1 : 0);
     return order !== 0 ? order : (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    // @end
 }
 
 function selectCatalogPage(courses: Course[], query: CatalogQuery): CatalogPage {
+    // @piece filter-and-sort: Keep matching courses, in order
     const sorted = courses.filter((c) => matches(c, query)).sort((a, b) => compare(a, b, query.sort));
+    // @end
+    // @piece page-count: Count results and pages
     const total = sorted.length;
     const totalPages = Math.max(1, Math.ceil(total / query.pageSize));
+    // @end
+    // @piece page-slice: The requested page of results
     const page = Math.min(Math.max(query.page, 1), totalPages);
     const start = (page - 1) * query.pageSize;
     return { items: sorted.slice(start, start + query.pageSize), page, totalPages, total };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

@@ -1,0 +1,34 @@
+[
+  {
+    "id": "bucket-state",
+    "label": "The bucket's tokens and the time they were counted",
+    "code": "let tokens = capacity;\nlet last = now();"
+  },
+  {
+    "id": "refill",
+    "label": "Add the tokens earned since the last call",
+    "code": "const current = now();\nconst elapsedMs = Math.max(0, current - last);\ntokens = Math.min(capacity, tokens + (elapsedMs * refillPerSecond) / 1000);\nlast = current;"
+  },
+  {
+    "id": "allow",
+    "label": "Allow the request when there are enough tokens",
+    "code": "if (tokens >= cost) {\n  tokens -= cost;\n  return { allowed: true, retryAfterMs: 0 };\n}"
+  },
+  {
+    "id": "deny",
+    "label": "Deny it and say how long to wait",
+    "code": "const missing = cost - tokens;\nreturn { allowed: false, retryAfterMs: Math.ceil((missing * 1000) / refillPerSecond) };"
+  },
+  {
+    "id": "allow-take-anyway",
+    "label": "Allow the request when there are enough tokens",
+    "code": "tokens -= cost;\nif (tokens >= 0) {\n  return { allowed: true, retryAfterMs: 0 };\n}",
+    "distractor": true
+  },
+  {
+    "id": "refill-no-cap",
+    "label": "Add the tokens earned since the last call",
+    "code": "const current = now();\nconst elapsedMs = Math.max(0, current - last);\ntokens = tokens + (elapsedMs * refillPerSecond) / 1000;\nlast = current;",
+    "distractor": true
+  }
+]

@@ -71,15 +71,6 @@ async function exportCourse(job: ExportJob, deps: Deps): Promise<void> {
     await deps.upload(`exports/${job.id}.${job.format}`, `${template}\n${rows.join("\n")}`);
 }
 
-/** Could the same request succeed later? Permanent errors fail the job at once. */
-function isRetryable(error: unknown): boolean {
-    if (error instanceof ValidationError) return false;
-    if (error instanceof HttpError) return error.status >= 500 || error.status === 408 || error.status === 429;
-    if (error instanceof TimeoutError) return true;
-    const code = (error as SystemError).code;
-    return code !== "ENOENT"; // ECONNRESET and unknown errors stay retryable
-}
-
 /** Retries failed exports with exponential backoff so a flaky dependency does not fail the export. */
 async function runExportJob(job: ExportJob, deps: Deps): Promise<ExportResult> {
     let lastError: unknown;
@@ -89,7 +80,13 @@ async function runExportJob(job: ExportJob, deps: Deps): Promise<ExportResult> {
             return { status: "done" };
         } catch (error) {
             lastError = error;
-            if (attempt === MAX_ATTEMPTS || !isRetryable(error)) break;
+            // @piece give-up: Decide whether to try again
+            // Could the same request succeed later? Permanent errors fail the job at once.
+            const permanent = error instanceof ValidationError
+                || (error instanceof HttpError && !(error.status >= 500 || error.status === 408 || error.status === 429))
+                || (error as SystemError).code === "ENOENT";
+            if (attempt === MAX_ATTEMPTS || permanent) break;
+            // @end
             const retryAfterMs = error instanceof HttpError ? error.retryAfterMs : undefined;
             await deps.sleep(retryAfterMs ?? Math.min(BASE_DELAY_MS * 2 ** (attempt - 1), MAX_DELAY_MS));
         }

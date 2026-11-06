@@ -33,29 +33,39 @@ type Message = { role: "user" | "assistant" | "tool"; content: string };
 const REMOVED = "[removed: instruction-like text]";
 
 function isInstructionLike(line: string): boolean {
+    // @piece instruction-like: Does a line read like an instruction to the model
     const t = line.trim().toLowerCase();
     return /^(instruction|system|assistant|developer):/.test(t) || t.includes("ignore previous");
+    // @end
 }
 
 function wrapToolResult(spec: ToolSpec, callId: string, text: string): string {
+    // @piece wrap: Filter, escape and delimit the tool's text
     const body = text.split(/\r?\n/).map((line) =>
         isInstructionLike(line) ? REMOVED : line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
     return [`<tool_result id="${callId}" tool="${spec.name}" trust="${spec.output}">`, ...body, "</tool_result>"].join("\n");
+    // @end
 }
 
 class TaintGuard {
     private tainted = new Map<string, string>();
 
     recordResult(sessionId: string, callId: string, spec: ToolSpec): void {
+        // @piece taint: An untrusted result taints this session
         if (spec.output === "untrusted" && !this.tainted.has(sessionId)) this.tainted.set(sessionId, callId);
+        // @end
     }
 
     check(sessionId: string, spec: ToolSpec): "allow" | "needs_approval" {
+        // @piece check: Writes need approval in a tainted session
         return spec.permission === "write" && this.tainted.has(sessionId) ? "needs_approval" : "allow";
+        // @end
     }
 
     taintedBy(sessionId: string): string | null {
+        // @piece tainted-by: Which call tainted the session
         return this.tainted.get(sessionId) ?? null;
+        // @end
     }
 }
 

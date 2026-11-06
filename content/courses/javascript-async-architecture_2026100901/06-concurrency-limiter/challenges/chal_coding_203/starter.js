@@ -27,7 +27,17 @@ function mapWithConcurrency(items, limit, task, options = {}) {
   return new Promise((resolve, reject) => {
     const results = new Array(items.length);
 
-    // TODO: start up to `limit` tasks, start the next item whenever one settles,
-    //       store each result at its index and apply the error policy.
+    // [ ] Track what is running, finished and failed
+
+    function startMore() {
+      while (!failed && running < limit && nextIndex < items.length) {
+        const index = nextIndex++;
+        running += 1;
+        // [ ] Run one task and record its outcome
+        // [ ] Free the slot, then finish or start the next item
+      }
+    }
+
+    startMore();
   });
 }

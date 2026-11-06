@@ -19,6 +19,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 function checkPlagiarism(submissionId: string): Promise<string> {
     const startTime = clock.now();
     return new Promise((resolve) => {
+        // @piece plagiarism-callback: Call the plagiarism client and record its span
         plagiarismClient.check(submissionId, context.bind(context.active(), (verdict: string) => {
             // the client has no instrumentation: record its call as a span now that we know how long it took
             const span = tracer.startSpan("plagiarism.check", { startTime });
@@ -27,11 +28,13 @@ function checkPlagiarism(submissionId: string): Promise<string> {
             span.end();
             resolve(verdict);
         }));
+        // @end
     });
 }
 
 /** Self time of a span: the part of [startTime, endTime] that none of its children covers. */
 function selfTime(span: Span, children: Span[]): number {
+    // @piece self-time: The part of the span no child covers
     const parts = children
         .map((c) => [Math.max(c.startTime, span.startTime), Math.min(c.endTime, span.endTime)] as const)
         .filter(([s, e]) => e > s)
@@ -44,6 +47,7 @@ function selfTime(span: Span, children: Span[]): number {
         reach = e;
     }
     return span.endTime - span.startTime - covered;
+    // @end
 }
 
 // The handler: each step is a span with fake I/O ("name:ms"), a group of spans run with

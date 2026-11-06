@@ -1,0 +1,19 @@
+[
+  {
+    "id": "latency",
+    "label": "Latency of each request",
+    "code": "start, interval = run[\"start_ms\"], run[\"interval_ms\"]\nreturn [done_ms - (start + seq * interval) for seq, _sent_ms, done_ms in run[\"requests\"]]"
+  },
+  {
+    "id": "latency-ignore-start",
+    "label": "Latency of each request",
+    "code": "interval = run[\"interval_ms\"]\nreturn [done_ms - seq * interval for seq, _sent_ms, done_ms in run[\"requests\"]]",
+    "distractor": true
+  },
+  {
+    "id": "latency-row-index",
+    "label": "Latency of each request",
+    "code": "start, interval = run[\"start_ms\"], run[\"interval_ms\"]\nreturn [done_ms - (start + i * interval) for i, (_seq, _sent_ms, done_ms) in enumerate(run[\"requests\"])]",
+    "distractor": true
+  }
+]

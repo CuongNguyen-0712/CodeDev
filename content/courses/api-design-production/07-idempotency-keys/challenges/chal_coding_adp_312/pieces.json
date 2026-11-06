@@ -1,0 +1,50 @@
+[
+  {
+    "id": "record-type",
+    "label": "What is kept for each key",
+    "code": "type IdempotencyRecord = {\n    fingerprint: string;\n    createdAt: number;\n    state: \"in_progress\" | \"completed\";\n    status?: number;\n    body?: unknown;\n};"
+  },
+  {
+    "id": "canonical-json",
+    "label": "One text for equal bodies, whatever their key order",
+    "code": "// Canonical JSON: object keys sorted at every depth, array order kept.\nconst canonical = (value: unknown): string => {\n    if (Array.isArray(value)) return `[${value.map(canonical).join(\",\")}]`;\n    if (value !== null && typeof value === \"object\") {\n        const entries = Object.keys(value as Record<string, unknown>)\n            .sort()\n            .map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`);\n        return `{${entries.join(\",\")}}`;\n    }\n    return JSON.stringify(value) ?? \"null\";\n};"
+  },
+  {
+    "id": "record-store",
+    "label": "Where records live and how a key is named",
+    "code": "private readonly records = new Map<string, IdempotencyRecord>();\n\nprivate id(userId: string, key: string): string {\n    return JSON.stringify([userId, key]);\n}"
+  },
+  {
+    "id": "begin-checks",
+    "label": "Check the key, then find a live record",
+    "code": "if (typeof key !== \"string\" || key.length < 1 || key.length > 255) {\n    return { kind: \"reject\", status: 400, code: \"idempotency_key_missing\" };\n}\nconst id = this.id(userId, key);\nconst now = this.clock.now();\nconst fingerprint = createHash(\"sha256\").update(canonical(body)).digest(\"hex\");\nlet record = this.records.get(id);\nif (record && record.state === \"completed\" && now - record.createdAt >= this.ttlMs) {\n    this.records.delete(id);\n    record = undefined;\n}"
+  },
+  {
+    "id": "begin-decide",
+    "label": "Run, reject or replay",
+    "code": "if (!record) {\n    this.records.set(id, { fingerprint, createdAt: now, state: \"in_progress\" });\n    return { kind: \"run\" };\n}\nif (record.fingerprint !== fingerprint) return { kind: \"reject\", status: 422, code: \"idempotency_key_reused\" };\nif (record.state === \"in_progress\") return { kind: \"reject\", status: 409, code: \"idempotency_key_in_progress\" };\nreturn { kind: \"replay\", status: record.status as number, body: record.body };"
+  },
+  {
+    "id": "finish-request",
+    "label": "Keep the answer, or forget a failed attempt",
+    "code": "const id = this.id(userId, key);\nconst record = this.records.get(id);\nif (!record) return;\nif (status >= 500) {\n    this.records.delete(id); // a failed attempt must not block the retry\n    return;\n}\nrecord.state = \"completed\";\nrecord.status = status;\nrecord.body = body;"
+  },
+  {
+    "id": "begin-checks-raw-fingerprint",
+    "label": "Check the key, then find a live record",
+    "code": "if (typeof key !== \"string\" || key.length < 1 || key.length > 255) {\n    return { kind: \"reject\", status: 400, code: \"idempotency_key_missing\" };\n}\nconst id = this.id(userId, key);\nconst now = this.clock.now();\nconst fingerprint = createHash(\"sha256\").update(JSON.stringify(body)).digest(\"hex\");\nlet record = this.records.get(id);\nif (record && record.state === \"completed\" && now - record.createdAt >= this.ttlMs) {\n    this.records.delete(id);\n    record = undefined;\n}",
+    "distractor": true
+  },
+  {
+    "id": "finish-request-keeps-5xx",
+    "label": "Keep the answer, or forget a failed attempt",
+    "code": "const id = this.id(userId, key);\nconst record = this.records.get(id);\nif (!record) return;\nrecord.state = \"completed\";\nrecord.status = status;\nrecord.body = body;",
+    "distractor": true
+  },
+  {
+    "id": "record-store-shared-keys",
+    "label": "Where records live and how a key is named",
+    "code": "private readonly records = new Map<string, IdempotencyRecord>();\n\nprivate id(userId: string, key: string): string {\n    return key;\n}",
+    "distractor": true
+  }
+]

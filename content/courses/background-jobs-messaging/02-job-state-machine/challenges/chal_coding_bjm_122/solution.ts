@@ -56,6 +56,7 @@ type JobEvent =
     | { type: "cancel"; jobId: string }
     | { type: "retry-scheduled"; jobId: string };
 
+// @piece allowed-table: Which events each state allows
 const ALLOWED: Record<JobEvent["type"], JobState[]> = {
     enqueue: [],
     start: ["queued", "retrying"],
@@ -66,17 +67,23 @@ const ALLOWED: Record<JobEvent["type"], JobState[]> = {
     cancel: ["queued", "running", "retrying"],
     "retry-scheduled": ["failed"],
 };
+// @end
 
 function applyEvent(jobs: Map<string, Job>, event: JobEvent, maxAttempts: number): string | null {
+    // @piece validate-event: Reject unknown events and failure kinds
     if (!Object.prototype.hasOwnProperty.call(ALLOWED, event.type)) return "unknown event type";
     if (event.type === "fail" && event.failure !== "retryable" && event.failure !== "permanent") return "invalid failure kind";
+    // @end
 
+    // @piece enqueue: Create a new job, once
     if (event.type === "enqueue") {
         if (jobs.has(event.jobId)) return "job already exists";
         jobs.set(event.jobId, { id: event.jobId, state: "queued", attempts: 0, workerId: null, lastFailure: null });
         return null;
     }
+    // @end
 
+    // @piece state-check: Find the job, check its state and worker
     const job = jobs.get(event.jobId);
     if (!job) return "unknown job";
     if (!ALLOWED[event.type].includes(job.state)) return `${event.type} not allowed when ${job.state}`;
@@ -84,8 +91,10 @@ function applyEvent(jobs: Map<string, Job>, event: JobEvent, maxAttempts: number
     if ((event.type === "heartbeat" || event.type === "succeed" || event.type === "fail") && event.workerId !== job.workerId) {
         return `stale worker ${event.workerId} (owner ${job.workerId})`;
     }
+    // @end
 
     switch (event.type) {
+        // @piece job-effects: Apply the effect of a finished or started attempt
         case "start":
             job.state = "running";
             job.attempts += 1;
@@ -112,11 +121,14 @@ function applyEvent(jobs: Map<string, Job>, event: JobEvent, maxAttempts: number
             job.state = "cancelled";
             job.workerId = null;
             return null;
+        // @end
+        // @piece retry-effects: Schedule a retry, if one is left
         case "retry-scheduled":
             if (job.lastFailure === "permanent") return "permanent failure";
             if (job.attempts >= maxAttempts) return "max attempts reached";
             job.state = "retrying";
             return null;
+        // @end
     }
 }
 

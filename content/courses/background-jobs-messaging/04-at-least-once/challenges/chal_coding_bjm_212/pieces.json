@@ -1,0 +1,35 @@
+[
+  {
+    "id": "read-job",
+    "label": "Read the job data and refuse bad input",
+    "code": "const userId = job.data?.userId;\nconst courseId = job.data?.courseId;\nif (!isText(userId) || !isText(courseId)) return \"invalid\";"
+  },
+  {
+    "id": "dedup-key",
+    "label": "The key that names one certificate",
+    "code": "const key = `certificate:${userId}:${courseId}`;"
+  },
+  {
+    "id": "issue-once",
+    "label": "Issue it at most once",
+    "code": "return db.transaction((tx) => {\n    if (tx.hasProcessed(key)) return \"duplicate\";\n    tx.insertCertificate({ userId, courseId, jobId: job.id });\n    tx.publishEvent({ type: \"certificate.issued\", userId, courseId });\n    tx.markProcessed(key);\n    return \"issued\";\n});"
+  },
+  {
+    "id": "issue-without-transaction",
+    "label": "Issue it at most once",
+    "code": "if (db.hasProcessed(key)) return \"duplicate\";\ndb.insertCertificate({ userId, courseId, jobId: job.id });\ndb.publishEvent({ type: \"certificate.issued\", userId, courseId });\ndb.markProcessed(key);\nreturn \"issued\";",
+    "distractor": true
+  },
+  {
+    "id": "key-by-job-id",
+    "label": "The key that names one certificate",
+    "code": "const key = `job:${job.id}`;",
+    "distractor": true
+  },
+  {
+    "id": "key-by-user-only",
+    "label": "The key that names one certificate",
+    "code": "const key = `certificate:${userId}`;",
+    "distractor": true
+  }
+]

@@ -1,0 +1,45 @@
+[
+  {
+    "id": "cost",
+    "label": "Cost of 1,000 requests of this task",
+    "code": "return (task.inputTokens * m.inputPer1M + task.outputTokens * m.outputPer1M) / 1000;"
+  },
+  {
+    "id": "no-fit",
+    "label": "When no model fits, say why for each",
+    "code": "const { task, models } = input;\nconst fitting = models.filter((m) => violations(task, m).length === 0);\nif (fitting.length === 0) {\n    if (models.length === 0) return [\"no model fits\", \"(no candidates)\"];\n    return [\"no model fits\", ...models.map((m) => `${m.name}: ${violations(task, m).join(\", \")}`)];\n}"
+  },
+  {
+    "id": "rank",
+    "label": "Rank the models that fit",
+    "code": "fitting.sort(\n    (a, b) =>\n        costPer1k(task, a) - costPer1k(task, b) ||\n        (b.quality ?? 0) - (a.quality ?? 0) ||\n        (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),\n);"
+  },
+  {
+    "id": "answer",
+    "label": "The choice and its reason",
+    "code": "const best = fitting[0];\nconst data = !task.personalData ? \"no personal data\" : best.local ? \"runs locally\" : \"approved processor\";\nreturn [\n    `choose ${best.name}`,\n    `reason: cheapest fitting model (${fitting.length} of ${models.length} fit); cost per 1k ${costPer1k(task, best).toFixed(2)}, p95 ${best.p95Ms}ms, quality ${best.quality}, data: ${data}`,\n];"
+  },
+  {
+    "id": "violations",
+    "label": "Helper: every rule of the task a model breaks",
+    "code": "function violations(task: Task, m: Model): string[] {\n    const out: string[] = [];\n    if (task.personalData && !m.local && !m.approvedProcessor) out.push(\"personal data would leave the company\");\n    const needed = task.inputTokens + task.outputTokens;\n    if (m.contextTokens < needed) out.push(`context ${m.contextTokens} < ${needed} tokens needed`);\n    if (m.quality === null) out.push(\"quality not measured\");\n    else if (m.quality < task.minQuality) out.push(`quality ${m.quality} < ${task.minQuality}`);\n    if (m.p95Ms === null) out.push(\"p95 not measured\");\n    else if (m.p95Ms > task.maxP95Ms) out.push(`p95 ${m.p95Ms}ms > ${task.maxP95Ms}ms`);\n    const cost = costPer1k(task, m);\n    if (cost > task.maxCostPer1k) out.push(`cost per 1k ${cost.toFixed(2)} > ${task.maxCostPer1k}`);\n    return out;\n}"
+  },
+  {
+    "id": "rank-best-quality-first",
+    "label": "Rank the models that fit",
+    "code": "fitting.sort(\n    (a, b) =>\n        (b.quality ?? 0) - (a.quality ?? 0) ||\n        costPer1k(task, a) - costPer1k(task, b) ||\n        (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),\n);",
+    "distractor": true
+  },
+  {
+    "id": "violations-context-input-only",
+    "label": "Helper: every rule of the task a model breaks",
+    "code": "function violations(task: Task, m: Model): string[] {\n    const out: string[] = [];\n    if (task.personalData && !m.local && !m.approvedProcessor) out.push(\"personal data would leave the company\");\n    const needed = task.inputTokens;\n    if (m.contextTokens < needed) out.push(`context ${m.contextTokens} < ${needed} tokens needed`);\n    if (m.quality === null) out.push(\"quality not measured\");\n    else if (m.quality < task.minQuality) out.push(`quality ${m.quality} < ${task.minQuality}`);\n    if (m.p95Ms === null) out.push(\"p95 not measured\");\n    else if (m.p95Ms > task.maxP95Ms) out.push(`p95 ${m.p95Ms}ms > ${task.maxP95Ms}ms`);\n    const cost = costPer1k(task, m);\n    if (cost > task.maxCostPer1k) out.push(`cost per 1k ${cost.toFixed(2)} > ${task.maxCostPer1k}`);\n    return out;\n}",
+    "distractor": true
+  },
+  {
+    "id": "violations-ignores-personal-data",
+    "label": "Helper: every rule of the task a model breaks",
+    "code": "function violations(task: Task, m: Model): string[] {\n    const out: string[] = [];\n    const needed = task.inputTokens + task.outputTokens;\n    if (m.contextTokens < needed) out.push(`context ${m.contextTokens} < ${needed} tokens needed`);\n    if (m.quality === null) out.push(\"quality not measured\");\n    else if (m.quality < task.minQuality) out.push(`quality ${m.quality} < ${task.minQuality}`);\n    if (m.p95Ms === null) out.push(\"p95 not measured\");\n    else if (m.p95Ms > task.maxP95Ms) out.push(`p95 ${m.p95Ms}ms > ${task.maxP95Ms}ms`);\n    const cost = costPer1k(task, m);\n    if (cost > task.maxCostPer1k) out.push(`cost per 1k ${cost.toFixed(2)} > ${task.maxCostPer1k}`);\n    return out;\n}",
+    "distractor": true
+  }
+]

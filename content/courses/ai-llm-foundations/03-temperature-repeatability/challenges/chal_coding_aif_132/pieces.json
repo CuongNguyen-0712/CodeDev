@@ -1,0 +1,45 @@
+[
+  {
+    "id": "group-runs",
+    "label": "Group usable runs by prompt and temperature",
+    "code": "// one group per prompt and temperature: normalised output -> how many runs produced it\nconst groups = new Map<string, { prompt: string; temperature: number; counts: Map<string, number> }>();\nlet ignored = 0;\nfor (const run of runs) {\n    if (!isValid(run)) {\n        ignored++;\n        continue;\n    }\n    const key = JSON.stringify([run.prompt, run.temperature]);\n    let group = groups.get(key);\n    if (!group) {\n        group = { prompt: run.prompt, temperature: run.temperature, counts: new Map() };\n        groups.set(key, group);\n    }\n    const text = normalise(run.output as string);\n    group.counts.set(text, (group.counts.get(text) ?? 0) + 1);\n}"
+  },
+  {
+    "id": "score-groups",
+    "label": "Agreement and the flag for each group",
+    "code": "const results: StabilityRow[] = [];\nfor (const { prompt, temperature, counts } of groups.values()) {\n    let total = 0;\n    let top = 0;\n    for (const n of counts.values()) {\n        total += n;\n        top = Math.max(top, n);\n    }\n    const share = top / total;\n    results.push({\n        prompt,\n        temperature,\n        runs: total,\n        distinct: counts.size,\n        agreement: Math.round(share * 100) / 100,\n        flagged: share < threshold,\n    });\n}"
+  },
+  {
+    "id": "sort-results",
+    "label": "Sort the rows",
+    "code": "results.sort((a, b) =>\n    a.prompt < b.prompt ? -1 : a.prompt > b.prompt ? 1 : a.temperature - b.temperature,\n);"
+  },
+  {
+    "id": "normalise",
+    "label": "Helper: the form two outputs are compared in",
+    "code": "function normalise(output: string): string {\n    return output.trim().replace(/\\s+/g, \" \").toLowerCase();\n}"
+  },
+  {
+    "id": "is-valid",
+    "label": "Helper: is a recorded run usable",
+    "code": "function isValid(run: RecordedRun): boolean {\n    return (\n        typeof run.prompt === \"string\" &&\n        run.prompt !== \"\" &&\n        typeof run.temperature === \"number\" &&\n        Number.isFinite(run.temperature) &&\n        typeof run.output === \"string\"\n    );\n}"
+  },
+  {
+    "id": "group-runs-by-prompt-only",
+    "label": "Group usable runs by prompt and temperature",
+    "code": "// one group per prompt and temperature: normalised output -> how many runs produced it\nconst groups = new Map<string, { prompt: string; temperature: number; counts: Map<string, number> }>();\nlet ignored = 0;\nfor (const run of runs) {\n    if (!isValid(run)) {\n        ignored++;\n        continue;\n    }\n    const key = run.prompt;\n    let group = groups.get(key);\n    if (!group) {\n        group = { prompt: run.prompt, temperature: run.temperature, counts: new Map() };\n        groups.set(key, group);\n    }\n    const text = normalise(run.output as string);\n    group.counts.set(text, (group.counts.get(text) ?? 0) + 1);\n}",
+    "distractor": true
+  },
+  {
+    "id": "normalise-trim-only",
+    "label": "Helper: the form two outputs are compared in",
+    "code": "function normalise(output: string): string {\n    return output.trim().toLowerCase();\n}",
+    "distractor": true
+  },
+  {
+    "id": "score-groups-flags-at-threshold",
+    "label": "Agreement and the flag for each group",
+    "code": "const results: StabilityRow[] = [];\nfor (const { prompt, temperature, counts } of groups.values()) {\n    let total = 0;\n    let top = 0;\n    for (const n of counts.values()) {\n        total += n;\n        top = Math.max(top, n);\n    }\n    const share = top / total;\n    results.push({\n        prompt,\n        temperature,\n        runs: total,\n        distinct: counts.size,\n        agreement: Math.round(share * 100) / 100,\n        flagged: share <= threshold,\n    });\n}",
+    "distractor": true
+  }
+]

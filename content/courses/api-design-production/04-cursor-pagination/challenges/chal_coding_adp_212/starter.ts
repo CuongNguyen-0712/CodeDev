@@ -30,18 +30,23 @@ type Query = { limit?: string; order?: string; cursor?: string };
 type Page = { status: 200; data: Course[]; next_cursor: string | null };
 type ApiError = { status: 400; code: "invalid_limit" | "invalid_order" | "invalid_cursor" };
 
-// Write the three functions below (helpers are welcome). Do not change the types or the test runner.
+// Complete the three functions below: fill every [ ] line with the right piece. Do not change the
+// types or the test runner.
 function encodeCursor(payload: CursorPayload): string {
-    return "";
+    // [ ] Turn the payload into the opaque cursor text
 }
 
 function decodeCursor(cursor: string): CursorPayload | null {
-    return null;
+    // [ ] Read the cursor text back into an object
+    // [ ] Accept only a cursor this API could have made
 }
 
 function listCourses(table: Course[], query: Query): Page | ApiError {
-    return { status: 200, data: [], next_cursor: null };
+    // [ ] Check limit, then order, then cursor
+    // [ ] The page after the cursor and the next cursor
 }
+
+// [ ] Order two (published_at, id) keys
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { "rows": [courses in the table], "steps": [...] }. A step is { "insert": [courses] }

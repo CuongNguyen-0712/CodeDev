@@ -12,46 +12,164 @@
   "cost": 0,
   "pointPrice": 0,
   "reward": 200,
-  "careerRoles": ["backend_developer", "fullstack_developer", "devops_engineer"],
-  "skills": {"nodejs": 5, "concurrency": 5, "performance": 4, "system_design": 3, "async_programming": 3},
-  "goals": ["grow_in_role", "performance"],
-  "industries": ["fintech", "ecommerce"],
+  "careerRoles": [
+    "backend_developer",
+    "fullstack_developer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "nodejs": 5,
+    "concurrency": 5,
+    "performance": 4,
+    "system_design": 3,
+    "async_programming": 3
+  },
+  "goals": [
+    "grow_in_role",
+    "performance"
+  ],
+  "industries": [
+    "fintech",
+    "ecommerce"
+  ],
   "modules": [
     {
       "orderIndex": 1,
       "title": "Concurrency & Data Consistency",
       "lessons": [
-        { "orderIndex": 1, "folder": "01-race-condition-distributed-lock", "title": "Payment race conditions & distributed locks", "sanityId": "lesson-nodejs-hp-1-1" },
-        { "orderIndex": 2, "folder": "02-event-loop-async-pitfalls", "title": "The event loop under server load", "sanityId": "lesson-nodejs-hp-1-2" },
-        { "orderIndex": 3, "folder": "03-optimistic-concurrency-control", "title": "Optimistic concurrency: versions & compare-and-swap", "sanityId": "lesson-nodejs-hp-1-3" }
+        {
+          "orderIndex": 1,
+          "folder": "01-race-condition-distributed-lock",
+          "title": "Payment race conditions & distributed locks",
+          "sanityId": "lesson-nodejs-hp-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-event-loop-async-pitfalls",
+          "title": "The event loop under server load",
+          "sanityId": "lesson-nodejs-hp-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-optimistic-concurrency-control",
+          "title": "Optimistic concurrency: versions & compare-and-swap",
+          "sanityId": "lesson-nodejs-hp-1-3"
+        }
       ]
     },
     {
       "orderIndex": 2,
       "title": "Idempotency & Reliable Delivery",
       "lessons": [
-        { "orderIndex": 1, "folder": "04-idempotency-keys", "title": "Idempotent payment APIs with Idempotency-Key", "sanityId": "lesson-nodejs-hp-2-1" },
-        { "orderIndex": 2, "folder": "05-retries-timeouts-backoff", "title": "Timeouts, retry budgets & circuit breakers", "sanityId": "lesson-nodejs-hp-2-2" },
-        { "orderIndex": 3, "folder": "06-transactional-outbox", "title": "Transactional outbox & idempotent consumers", "sanityId": "lesson-nodejs-hp-2-3" }
+        {
+          "orderIndex": 1,
+          "folder": "04-idempotency-keys",
+          "title": "Idempotent payment APIs with Idempotency-Key",
+          "sanityId": "lesson-nodejs-hp-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-retries-timeouts-backoff",
+          "title": "Timeouts, retry budgets & circuit breakers",
+          "sanityId": "lesson-nodejs-hp-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-transactional-outbox",
+          "title": "Transactional outbox & idempotent consumers",
+          "sanityId": "lesson-nodejs-hp-2-3"
+        }
       ]
     },
     {
       "orderIndex": 3,
       "title": "Throughput & Backpressure",
       "lessons": [
-        { "orderIndex": 1, "folder": "07-rate-limiting-token-bucket", "title": "Rate limiting with token buckets", "sanityId": "lesson-nodejs-hp-3-1" },
-        { "orderIndex": 2, "folder": "08-cache-stampede-single-flight", "title": "Caching without stampedes: single-flight & TTL jitter", "sanityId": "lesson-nodejs-hp-3-2" },
-        { "orderIndex": 3, "folder": "09-streams-backpressure", "title": "Streams & backpressure", "sanityId": "lesson-nodejs-hp-3-3" }
+        {
+          "orderIndex": 1,
+          "folder": "07-rate-limiting-token-bucket",
+          "title": "Rate limiting with token buckets",
+          "sanityId": "lesson-nodejs-hp-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-cache-stampede-single-flight",
+          "title": "Caching without stampedes: single-flight & TTL jitter",
+          "sanityId": "lesson-nodejs-hp-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-streams-backpressure",
+          "title": "Streams & backpressure",
+          "sanityId": "lesson-nodejs-hp-3-3"
+        }
       ]
     },
     {
       "orderIndex": 4,
       "title": "Running Node.js in Production",
       "lessons": [
-        { "orderIndex": 1, "folder": "10-cpu-bound-work", "title": "CPU-bound work: worker threads, cluster & chunking", "sanityId": "lesson-nodejs-hp-4-1" },
-        { "orderIndex": 2, "folder": "11-graceful-shutdown", "title": "Graceful shutdown & health checks", "sanityId": "lesson-nodejs-hp-4-2" },
-        { "orderIndex": 3, "folder": "12-observability-event-loop-lag", "title": "Observability: event loop lag, p99 & load shedding", "sanityId": "lesson-nodejs-hp-4-3" }
+        {
+          "orderIndex": 1,
+          "folder": "10-cpu-bound-work",
+          "title": "CPU-bound work: worker threads, cluster & chunking",
+          "sanityId": "lesson-nodejs-hp-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-graceful-shutdown",
+          "title": "Graceful shutdown & health checks",
+          "sanityId": "lesson-nodejs-hp-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-observability-event-loop-lag",
+          "title": "Observability: event loop lag, p99 & load shedding",
+          "sanityId": "lesson-nodejs-hp-4-3"
+        }
       ]
     }
+  ],
+  "legacy": true,
+  "completionRules": {},
+  "domain": "backend",
+  "learningOutcomes": [
+    {
+      "code": "concurrency-safety",
+      "text": "Keep shared state correct under concurrent requests with locks, atomic updates and optimistic concurrency."
+    },
+    {
+      "code": "async-correctness",
+      "text": "Write async code that waits for what it starts and keeps the event loop free."
+    },
+    {
+      "code": "exactly-once-effects",
+      "text": "Make retried payments and redelivered events take effect once with idempotency keys and the outbox."
+    },
+    {
+      "code": "resilience",
+      "text": "Survive slow and failing dependencies with timeouts, circuit breakers, rate limits, caching and graceful shutdown."
+    },
+    {
+      "code": "throughput",
+      "text": "Keep throughput and latency under control with backpressure, chunked CPU work and tail-latency metrics."
+    }
+  ],
+  "testedVersions": {
+    "Node.js": "24",
+    "Redis": "7 (to verify)",
+    "PostgreSQL": "17 (to verify)"
+  },
+  "lastReviewedAt": "2026-11-06",
+  "sourceLinks": [
+    "https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick",
+    "https://nodejs.org/en/learn/modules/backpressuring-in-streams",
+    "https://nodejs.org/api/worker_threads.html",
+    "https://redis.io/docs/latest/develop/use/patterns/distributed-locks/",
+    "https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Coding challenges run against in-memory stand-ins for Redis, the database, timers and streams, not real services."
   ]
 }

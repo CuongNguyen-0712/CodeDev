@@ -52,7 +52,23 @@ type FileChange = {
 };
 
 function parseDiff(diff: string): FileChange[] {
-    return [];
+    const files: FileChange[] = [];
+    let current: FileChange | null = null;
+    let inHunks = false; // after the file's first "@@", every line is a hunk line until the next file
+
+    for (const line of diff.split("\n")) {
+        if (line.startsWith("diff --git ")) {
+            // [ ] A diff --git line starts the next file
+        }
+        // [ ] Lines before the first file
+
+        if (inHunks) {
+            // [ ] Inside the hunks: count added and removed lines
+        }
+
+        // [ ] Before the first hunk: status and binary markers
+    }
+    return files;
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

@@ -19,6 +19,7 @@ Intended behaviour:
   - All vectors in one call have the same dimension.
 """
 import json
+import math
 import sys
 
 

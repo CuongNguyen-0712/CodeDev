@@ -42,8 +42,15 @@ type Reason =
 type Eligibility = { eligible: boolean; reasons: Reason[] };
 
 function checkEligibility(course: Course, record: unknown): Eligibility {
-    return { eligible: true, reasons: [] };
+    // [ ] Reject a record that does not match the spec
+
+    // [ ] The learner's ids and the course quizzes, once each
+
+    // [ ] Every reason that applies, in spec order
+    // [ ] The eligibility answer
 }
+
+// [ ] Helper: is a value a list of strings?
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { course, records }. Output: one line of JSON with { userId, eligible, reasons } per record

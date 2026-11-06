@@ -41,10 +41,56 @@ type Policy = { allowedRegistries: string[] };
 type Kind = "missing" | "wide-range" | "mismatch" | "registry" | "integrity" | "unsupported-lockfile";
 type Finding = { kind: Kind; package: string; detail: string };
 
-// Write checkLockfile (helpers such as parseRange and satisfies are welcome).
-// Do not change the types or the test runner.
+type V = [number, number, number];
+type Bound = { v: V; inclusive: boolean } | null;
+type Range = { lower: Bound; upper: Bound };
+
+const ORDER: Kind[] = ["missing", "wide-range", "mismatch", "registry", "integrity", "unsupported-lockfile"];
+
+function cmp(a: V, b: V): number {
+    for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] - b[i];
+    return 0;
+}
+
+function full(text: string): V | null {
+    const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(text);
+    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+
+const at = (v: V, inclusive = true): Bound => ({ v, inclusive });
+
+function parseRange(raw: string): Range | null {
+    const spec = raw.trim();
+    if (spec === "" || spec === "*" || spec === "x" || spec === "X") return { lower: null, upper: null };
+    // [ ] Caret and tilde ranges
+    // [ ] Ranges written with comparators
+    // exact, or partial with x / * wildcards: 1, 1.2, 1.x, 1.2.*, 1.x.x
+    const m = /^(\d+)(?:\.(\d+|x|X|\*))?(?:\.(\d+|x|X|\*))?$/.exec(spec);
+    if (!m) return null;
+    const wild = (s: string | undefined) => s === undefined || s === "x" || s === "X" || s === "*";
+    const major = Number(m[1]);
+    if (wild(m[2])) {
+        if (!wild(m[3])) return null; // 1.x.3
+        return { lower: at([major, 0, 0]), upper: at([major + 1, 0, 0], false) };
+    }
+    const minor = Number(m[2]);
+    if (wild(m[3])) return { lower: at([major, minor, 0]), upper: at([major, minor + 1, 0], false) };
+    const v: V = [major, minor, Number(m[3])];
+    return { lower: at(v), upper: at(v) };
+}
+
+function satisfies(version: string, range: Range): boolean {
+    // [ ] Is a locked version inside the range?
+}
+
 function checkLockfile(manifest: Manifest, lock: Lockfile, policy: Policy): Finding[] {
-    return [];
+    // [ ] Refuse a lockfile of an unknown shape
+    const findings: Finding[] = [];
+    const specs = { ...manifest.dependencies, ...manifest.devDependencies };
+    // [ ] Check every declared dependency
+    // [ ] Check every installed entry
+    return findings.sort((a, b) =>
+        a.package < b.package ? -1 : a.package > b.package ? 1 : ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

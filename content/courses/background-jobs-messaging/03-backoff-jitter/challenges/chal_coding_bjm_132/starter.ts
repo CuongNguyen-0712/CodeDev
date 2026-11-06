@@ -44,8 +44,7 @@ type AttemptLog = {
 };
 
 function planRetries(job: JobRun, policy: RetryPolicy, random: () => number): AttemptLog[] {
-    // TODO: replace the shipped behaviour (below) with the rules above.
-    // Shipped: every failure is retried after baseDelayMs, until the attempts run out.
+    // [ ] Check the policy and work out the deadline
     const log: AttemptLog[] = [];
     let startAt = job.firstAttemptAt;
     for (let n = 1; n <= job.attempts.length; n++) {
@@ -55,8 +54,10 @@ function planRetries(job: JobRun, policy: RetryPolicy, random: () => number): At
             log.push({ attempt: n, startAt, endAt, outcome: "succeeded" });
             break;
         }
-        const retryAt = endAt + policy.baseDelayMs;
-        log.push({ attempt: n, startAt, endAt, outcome: "retry", delayMs: policy.baseDelayMs, retryAt });
+        // [ ] Stop on a permanent error or the last attempt
+        // [ ] Pick the delay for the next attempt
+        // [ ] Give up if the retry would miss the deadline
+        log.push({ attempt: n, startAt, endAt, outcome: "retry", delayMs, retryAt });
         startAt = retryAt;
     }
     return log;

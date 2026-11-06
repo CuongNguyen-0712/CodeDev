@@ -31,6 +31,7 @@ function rank(c: Command): number {
 }
 
 function compareCommands(a: Command, b: Command): number {
+    // @piece compare: Order the commands for the fix list
     const r = rank(a) - rank(b);
     if (r !== 0) return r;
     if (a.op === "leaderboard.upsert" && b.op === "leaderboard.upsert" && a.was !== null && b.was !== null) {
@@ -41,13 +42,18 @@ function compareCommands(a: Command, b: Command): number {
     const kb = [b.userId, "courseId" in b ? b.courseId : ""];
     for (let i = 0; i < 2; i++) if (ka[i] !== kb[i]) return ka[i] < kb[i] ? -1 : 1;
     return 0;
+    // @end
 }
 
+/** Compares the read models with the source and returns the commands; applies the fixes unless opts.dryRun. */
 function reconcile(source: Source, model: ReadModel, opts: Options): Report {
+    // @piece validate: Refuse invalid options
     const okInt = (n: number) => Number.isInteger(n) && n >= 0;
     if (!okInt(opts.graceSeconds) || !okInt(opts.maxFixes)) return { error: "invalid options" };
+    // @end
 
     // Expected state from the source of truth.
+    // @piece expected-state: Work out the expected state from the source
     const progressByKey = new Map(source.progress.map((p) => [`${p.userId}:${p.courseId}`, p]));
     const expectedXp = new Map<string, number>();
     const expectedCerts = new Set<string>();
@@ -58,8 +64,10 @@ function reconcile(source: Source, model: ReadModel, opts: Options): Report {
         expectedXp.set(e.userId, (expectedXp.get(e.userId) ?? 0) + (p?.xp ?? 0));
         if (p && p.totalLessons > 0 && p.completedLessons >= p.totalLessons) expectedCerts.add(key);
     }
+    // @end
 
     // Last source change per learner and per enrollment key, for the grace period.
+    // @piece last-change: When each learner and enrollment last changed
     const lastByUser = new Map<string, number>();
     const lastByKey = new Map<string, number>();
     for (const row of [...source.enrollments, ...source.progress]) {
@@ -68,7 +76,9 @@ function reconcile(source: Source, model: ReadModel, opts: Options): Report {
         lastByKey.set(key, Math.max(lastByKey.get(key) ?? -Infinity, row.updatedAt));
     }
     const inFlight = (last: number | undefined) => last !== undefined && opts.now - last < opts.graceSeconds;
+    // @end
 
+    // @piece candidates: Collect what differs from the source
     const candidates: { cmd: Command; flying: boolean }[] = [];
     for (const key of expectedCerts) {
         if (model.certificates.has(key)) continue;
@@ -88,7 +98,9 @@ function reconcile(source: Source, model: ReadModel, opts: Options): Report {
         if (expectedXp.has(userId)) continue;
         candidates.push({ cmd: { op: "leaderboard.delete", userId, was }, flying: inFlight(lastByUser.get(userId)) });
     }
+    // @end
 
+    // @piece split-apply: Split, cap and apply the fixes
     const ready = candidates.filter((c) => !c.flying).map((c) => c.cmd).sort(compareCommands);
     const deferred = candidates.filter((c) => c.flying).map((c) => c.cmd).sort(compareCommands);
     const fixes = ready.slice(0, opts.maxFixes);
@@ -102,6 +114,7 @@ function reconcile(source: Source, model: ReadModel, opts: Options): Report {
             else model.leaderboard.delete(c.userId);
         }
     }
+    // @end
     return { fixes, skippedByCap, deferred };
 }
 

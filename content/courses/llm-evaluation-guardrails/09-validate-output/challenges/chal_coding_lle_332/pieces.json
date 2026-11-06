@@ -1,0 +1,29 @@
+[
+  {
+    "id": "check-reply",
+    "label": "Check the reply field by field",
+    "code": "if (typeof output !== \"object\" || output === null || Array.isArray(output)) return \"invalid_json\";\nconst { score, feedback } = output as Record<string, unknown>;\nif (score === undefined || score === null) return \"score_missing\";\nif (typeof score !== \"number\" || !Number.isInteger(score)) return \"score_not_integer\";\nif (score < 0 || score > 10) return \"score_out_of_range\";\nif (typeof feedback !== \"string\") return \"feedback_missing\";\nconst length = feedback.trim().length;\nif (length < 10 || length > 1000) return \"feedback_length\";\nif (score > job.testScore + MAX_ABOVE_TESTS) return \"above_test_cap\";\nreturn null;"
+  },
+  {
+    "id": "parse-and-review",
+    "label": "Read the reply and route a bad one to review",
+    "code": "let output: unknown;\ntry {\n    output = JSON.parse(job.modelOutput);\n} catch {\n    output = undefined;\n}\nconst reason = rejectionReason(job, output);\nif (reason !== null) {\n    db.sendToReview(job.submissionId, reason);\n    db.recordDecision({ submissionId: job.submissionId, outcome: \"review\", reason });\n    return;\n}"
+  },
+  {
+    "id": "save-score",
+    "label": "Save the accepted score",
+    "code": "const { score, feedback } = output as { score: number; feedback: string };\ndb.updateAiScore(job.submissionId, score, feedback);"
+  },
+  {
+    "id": "check-reply-any-number",
+    "label": "Check the reply field by field",
+    "code": "if (typeof output !== \"object\" || output === null || Array.isArray(output)) return \"invalid_json\";\nconst { score, feedback } = output as Record<string, unknown>;\nif (score === undefined || score === null) return \"score_missing\";\nif (typeof score !== \"number\") return \"score_not_integer\";\nif (typeof feedback !== \"string\") return \"feedback_missing\";\nconst length = feedback.trim().length;\nif (length < 10 || length > 1000) return \"feedback_length\";\nif (score > job.testScore + MAX_ABOVE_TESTS) return \"above_test_cap\";\nreturn null;",
+    "distractor": true
+  },
+  {
+    "id": "check-reply-no-cap",
+    "label": "Check the reply field by field",
+    "code": "if (typeof output !== \"object\" || output === null || Array.isArray(output)) return \"invalid_json\";\nconst { score, feedback } = output as Record<string, unknown>;\nif (score === undefined || score === null) return \"score_missing\";\nif (typeof score !== \"number\" || !Number.isInteger(score)) return \"score_not_integer\";\nif (score < 0 || score > 10) return \"score_out_of_range\";\nif (typeof feedback !== \"string\") return \"feedback_missing\";\nconst length = feedback.trim().length;\nif (length < 10 || length > 1000) return \"feedback_length\";\nreturn null;",
+    "distractor": true
+  }
+]

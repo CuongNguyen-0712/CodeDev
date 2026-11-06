@@ -57,6 +57,15 @@ type Report = {
 type Clock = { now(): number };
 
 class BudgetTracker {
+    private readonly daily = new Map<string, number>();
+    private dayKey = "";
+    private startedAt = 0;
+    private modelCalls = 0;
+    private inputTokens = 0;
+    private outputTokens = 0;
+    private costMicros = 0;
+    private toolCalls: Record<string, number> = {};
+
     private readonly config: Config;
     private readonly clock: Clock;
 
@@ -65,30 +74,37 @@ class BudgetTracker {
         this.clock = clock;
     }
 
-    startSession(userId: string, day: string): void {}
+    startSession(userId: string, day: string): void {
+        // [ ] Reset the session; daily spend is per user and day
+    }
 
     beforeModelCall(model: string, inputTokens: number): string | null {
-        return null;
+        // [ ] Price the call at its worst case before sending it
+        // [ ] Refuse the call if any budget would be exceeded
     }
 
-    recordModelCall(model: string, usage: Usage): void {}
+    recordModelCall(model: string, usage: Usage): void {
+        // [ ] Add the call's real usage and cost
+    }
 
     beforeToolCall(tool: string): string | null {
-        return null;
+        // [ ] Refuse a tool call beyond its limit
     }
 
-    recordToolCall(tool: string): void {}
+    recordToolCall(tool: string): void {
+        this.toolCalls[tool] = (this.toolCalls[tool] ?? 0) + 1;
+    }
 
     report(): Report {
-        return {
-            modelCalls: 0,
-            inputTokens: 0,
-            outputTokens: 0,
-            costMicros: 0,
-            wallMs: 0,
-            toolCalls: {},
-            remaining: { tokens: 0, costMicros: 0, wallMs: 0, dailyCostMicros: 0, toolCalls: {} },
-        };
+        // [ ] What was used and what is left
+    }
+
+    private spentToday(): number {
+        return this.daily.get(this.dayKey) ?? 0;
+    }
+
+    private elapsed(): number {
+        return this.clock.now() - this.startedAt;
     }
 }
 

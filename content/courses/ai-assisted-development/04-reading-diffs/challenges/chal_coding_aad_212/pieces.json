@@ -1,0 +1,34 @@
+[
+  {
+    "id": "file-header",
+    "label": "A diff --git line starts the next file",
+    "code": "const [a, b] = line.slice(\"diff --git \".length).split(\" \");\nconst oldPath = a.slice(2); // strip \"a/\"\nconst newPath = b.slice(2); // strip \"b/\"\nconst renamed = oldPath !== newPath;\ncurrent = {\n    path: newPath,\n    from: renamed ? oldPath : null,\n    status: renamed ? \"renamed\" : \"modified\",\n    binary: false,\n    added: 0,\n    removed: 0,\n};\nfiles.push(current);\ninHunks = false;\ncontinue;"
+  },
+  {
+    "id": "preamble",
+    "label": "Lines before the first file",
+    "code": "if (current === null) continue; // text before the first file"
+  },
+  {
+    "id": "hunk-lines",
+    "label": "Inside the hunks: count added and removed lines",
+    "code": "if (line.startsWith(\"+\")) current.added++;\nelse if (line.startsWith(\"-\")) current.removed++;\ncontinue;"
+  },
+  {
+    "id": "file-metadata",
+    "label": "Before the first hunk: status and binary markers",
+    "code": "if (line.startsWith(\"@@\")) inHunks = true;\nelse if (line.startsWith(\"new file mode\")) current.status = \"added\";\nelse if (line.startsWith(\"deleted file mode\")) current.status = \"deleted\";\nelse if (line.startsWith(\"Binary files \")) current.binary = true;"
+  },
+  {
+    "id": "file-metadata-dev-null",
+    "label": "Before the first hunk: status and binary markers",
+    "code": "if (line.startsWith(\"@@\")) inHunks = true;\nelse if (line === \"--- /dev/null\") current.status = \"added\";\nelse if (line === \"+++ /dev/null\") current.status = \"deleted\";\nelse if (line.startsWith(\"Binary files \")) current.binary = true;",
+    "distractor": true
+  },
+  {
+    "id": "hunk-lines-skip-header-lookalikes",
+    "label": "Inside the hunks: count added and removed lines",
+    "code": "if (line.startsWith(\"+\") && !line.startsWith(\"+++\")) current.added++;\nelse if (line.startsWith(\"-\") && !line.startsWith(\"---\")) current.removed++;\ncontinue;",
+    "distractor": true
+  }
+]

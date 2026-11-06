@@ -21,19 +21,20 @@ import { readFileSync } from "node:fs";
 type UpdateProfileDto = { displayName?: string; bio?: string; avatarUrl?: string };
 type ValidationResult = { ok: true; dto: UpdateProfileDto } | { ok: false; errors: string[] };
 
-const PROFILE_FIELDS = ["displayName", "bio", "avatarUrl"];
-
-// users/dto/update-profile.validation.ts
+// users/dto/update-profile.validation.ts (written by the assistant)
 function validateUpdateProfile(body: unknown): ValidationResult {
     if (typeof body !== "object" || body === null || Array.isArray(body)) {
         return { ok: false, errors: ["body must be a JSON object"] };
     }
     const input = body as Record<string, unknown>;
     const { displayName, bio, avatarUrl } = input;
+    // @piece start-errors: Start the error list
+    const PROFILE_FIELDS = ["displayName", "bio", "avatarUrl"];
     // Whitelist: every own property that is not a DTO field is an error (forbidNonWhitelisted).
     const errors = Object.keys(input)
         .filter((key) => !PROFILE_FIELDS.includes(key))
         .map((key) => `property ${key} should not exist`);
+    // @end
 
     if (displayName !== undefined) {
         if (typeof displayName !== "string") errors.push("displayName must be a string");
@@ -48,12 +49,7 @@ function validateUpdateProfile(body: unknown): ValidationResult {
     }
 
     if (errors.length > 0) return { ok: false, errors };
-    // A new object with only the DTO fields: the parsed body itself never reaches the repository.
-    const dto: UpdateProfileDto = {};
-    if (typeof displayName === "string") dto.displayName = displayName;
-    if (typeof bio === "string") dto.bio = bio;
-    if (typeof avatarUrl === "string") dto.avatarUrl = avatarUrl;
-    return { ok: true, dto };
+    return { ok: true, dto: input as UpdateProfileDto };
 }
 
 function isHttpsUrl(value: string): boolean {

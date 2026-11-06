@@ -51,9 +51,26 @@ type Stats = {
 };
 type AgentRun = { answer: string; transcript: Message[]; stats: Stats };
 
+function errorMessage(thrown: unknown): string {
+    // [ ] Turn any thrown value into a message
+}
+
+function handle(call: ProposedCall, tools: Map<string, Tool>, stats: Stats): Message {
+    const { id: callId, name } = call;
+    const fail = (code: ToolError["code"], message: string): Message => ({ role: "tool", callId, name, ok: false, error: { code, message } });
+    // [ ] Answer a call to a tool that does not exist
+    // [ ] Refuse a call with invalid arguments
+    // [ ] Run the tool; a throw becomes a failed result
+}
+
 function runAgent(model: Model, tools: Map<string, Tool>, task: string): AgentRun {
+    const transcript: Message[] = [{ role: "user", content: task }];
     const stats: Stats = { modelTurns: 0, toolCalls: 0, executed: 0, invalidArguments: 0, unknownTools: 0, toolFailures: 0 };
-    return { answer: "", transcript: [], stats };
+    let nextId = 1;
+    for (;;) {
+        // [ ] Ask the model; stop at its final answer
+        // [ ] Give each proposed call an id, then run them all
+    }
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

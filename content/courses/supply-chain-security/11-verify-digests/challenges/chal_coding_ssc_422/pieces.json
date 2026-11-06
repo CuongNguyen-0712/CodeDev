@@ -1,0 +1,50 @@
+[
+  {
+    "id": "canonical-body",
+    "label": "Write the manifest canonically",
+    "code": "if (typeof m !== \"object\" || m === null) return null;\nif (typeof m.release !== \"string\" || m.release === \"\" || /[\\r\\n]/.test(m.release)) return null;\nif (typeof m.digests !== \"object\" || m.digests === null || Array.isArray(m.digests)) return null;\nconst names = Object.keys(m.digests).sort(byString);\nif (names.length === 0) return null;\nlet out = `codedev-manifest-v1\\nrelease:${m.release}\\n`;\nfor (const name of names) {\n    const digest = m.digests[name];\n    if (!NAME.test(name) || typeof digest !== \"string\" || !HEX64.test(digest)) return null;\n    out += `${name} sha256:${digest.toLowerCase()}\\n`;\n}\nreturn out;"
+  },
+  {
+    "id": "signature-check",
+    "label": "Check the signature in constant time",
+    "code": "if (typeof signature !== \"string\" || !HEX64.test(signature)) return false;\nconst expected = createHmac(\"sha256\", key).update(canonical, \"utf8\").digest();\nreturn timingSafeEqual(expected, Buffer.from(signature, \"hex\"));"
+  },
+  {
+    "id": "trust-manifest",
+    "label": "Trust the signed digests, check the release",
+    "code": "const signed = new Map(Object.entries(input.manifest.digests).map(([n, d]) => [n, d.toLowerCase()]));\nconst reasons: Reason[] = [];\nif (input.request.release !== input.manifest.release) reasons.push({ artifact: \"\", code: \"release-mismatch\" });"
+  },
+  {
+    "id": "check-artifacts",
+    "label": "Check every artifact in the bundle",
+    "code": "const count = new Map<string, number>();\nfor (const a of input.artifacts) count.set(a.name, (count.get(a.name) ?? 0) + 1);\nfor (const a of input.artifacts) {\n    if ((count.get(a.name) ?? 0) > 1) reasons.push({ artifact: a.name, code: \"duplicate-artifact\" });\n    else if (!signed.has(a.name)) reasons.push({ artifact: a.name, code: \"unsigned-artifact\" });\n    else if (sha256Hex(a.content) !== signed.get(a.name)) reasons.push({ artifact: a.name, code: \"digest-mismatch\" });\n}"
+  },
+  {
+    "id": "check-refs",
+    "label": "Check every requested reference",
+    "code": "if (input.request.refs.length === 0) reasons.push({ artifact: \"\", code: \"empty-request\" });\nconst deployed = new Set<string>();\nfor (const ref of input.request.refs) {\n    const at = ref.indexOf(\"@sha256:\");\n    if (at < 0) {\n        const colon = ref.lastIndexOf(\":\");\n        reasons.push({ artifact: colon > 0 ? ref.slice(0, colon) : ref, code: \"tag-reference\" });\n        continue;\n    }\n    const name = ref.slice(0, at);\n    const digest = ref.slice(at + \"@sha256:\".length).toLowerCase();\n    const want = signed.get(name);\n    if (want === undefined) {\n        reasons.push({ artifact: name, code: \"not-in-manifest\" });\n        continue;\n    }\n    if (digest !== want) reasons.push({ artifact: name, code: \"reference-mismatch\" });\n    if (!count.has(name)) reasons.push({ artifact: name, code: \"missing-artifact\" });\n    deployed.add(`${name}@sha256:${want}`);\n}"
+  },
+  {
+    "id": "decide",
+    "label": "Reject with the reasons, or deploy",
+    "code": "if (reasons.length) return reject(reasons);\nreturn { decision: \"deploy\", reasons: [], deployed: [...deployed].sort(byString) };"
+  },
+  {
+    "id": "artifacts-requested-only",
+    "label": "Check every artifact in the bundle",
+    "code": "const count = new Map<string, number>();\nfor (const a of input.artifacts) count.set(a.name, (count.get(a.name) ?? 0) + 1);\nconst requested = new Set(input.request.refs.map((r) => r.split(\"@\")[0].split(\":\")[0]));\nfor (const a of input.artifacts.filter((x) => requested.has(x.name))) {\n    if ((count.get(a.name) ?? 0) > 1) reasons.push({ artifact: a.name, code: \"duplicate-artifact\" });\n    else if (!signed.has(a.name)) reasons.push({ artifact: a.name, code: \"unsigned-artifact\" });\n    else if (sha256Hex(a.content) !== signed.get(a.name)) reasons.push({ artifact: a.name, code: \"digest-mismatch\" });\n}",
+    "distractor": true
+  },
+  {
+    "id": "canonical-insertion-order",
+    "label": "Write the manifest canonically",
+    "code": "if (typeof m !== \"object\" || m === null) return null;\nif (typeof m.release !== \"string\" || m.release === \"\" || /[\\r\\n]/.test(m.release)) return null;\nif (typeof m.digests !== \"object\" || m.digests === null || Array.isArray(m.digests)) return null;\nconst names = Object.keys(m.digests);\nif (names.length === 0) return null;\nlet out = `codedev-manifest-v1\\nrelease:${m.release}\\n`;\nfor (const name of names) {\n    const digest = m.digests[name];\n    if (!NAME.test(name) || typeof digest !== \"string\" || !HEX64.test(digest)) return null;\n    out += `${name} sha256:${digest.toLowerCase()}\\n`;\n}\nreturn out;",
+    "distractor": true
+  },
+  {
+    "id": "signature-any-string",
+    "label": "Check the signature in constant time",
+    "code": "if (typeof signature !== \"string\") return false;\nconst expected = createHmac(\"sha256\", key).update(canonical, \"utf8\").digest();\nreturn timingSafeEqual(expected, Buffer.from(signature, \"hex\"));",
+    "distractor": true
+  }
+]

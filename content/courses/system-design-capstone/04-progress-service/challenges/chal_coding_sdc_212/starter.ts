@@ -69,7 +69,24 @@ function applyProgress(update: ProgressUpdate, catalog: Catalog, store: Progress
     // Otherwise write the lesson percent, recompute coursePercent (floor of the average over ALL
     // lessons of the course, missing lessons count as 0), add 1 to version, store the document and
     // publish exactly one progress.updated event with the new values.
-    return { status: "rejected", error: "INVALID_PERCENT" };
+    const { userId, courseId, lessonId, percent } = update;
+    // [ ] percent must be a whole number from 0 to 100
+    // [ ] The course, the lesson and the enrollment exist
+    // [ ] 100% only when the lesson's challenges are passed
+
+    // [ ] Leave the progress alone when it would not go up
+
+    // [ ] Store the lesson and the recomputed course percent
+    bus.publish({
+        type: "progress.updated",
+        userId,
+        courseId,
+        lessonId,
+        lessonPercent: percent,
+        coursePercent: doc.coursePercent,
+        version: doc.version,
+    });
+    return { status: "applied", lessonPercent: percent, coursePercent: doc.coursePercent, version: doc.version };
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

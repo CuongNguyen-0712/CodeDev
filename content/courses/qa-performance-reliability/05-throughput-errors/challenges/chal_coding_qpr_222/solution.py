@@ -37,6 +37,7 @@ import sys
 FIELDS = ("requests", "ok", "errors", "timeouts", "throttled", "client_errors")
 
 
+# @piece classify-status: The class of one response status
 def classify(status):
     if 200 <= status <= 399:
         return "ok"
@@ -45,8 +46,10 @@ def classify(status):
     if 400 <= status <= 499:
         return "client_errors"
     return "errors"  # 5xx, and 0 = no response
+# @end
 
 
+# @piece endpoint-rates: Counts plus throughput and error rate
 def finish(counts, seconds):
     n = counts["requests"]
     return {
@@ -55,25 +58,32 @@ def finish(counts, seconds):
         "ok_rps": round(counts["ok"] / seconds, 2),
         "error_rate": round(counts["errors"] / n, 4) if n else None,
     }
+# @end
 
 
 def summarize(run):
+    # @piece window-seconds: Check the window and its length in seconds
     start, end = run["window"]["start_ms"], run["window"]["end_ms"]
     if not (isinstance(start, int) and isinstance(end, int)) or end - start < 1000 or (end - start) % 1000:
         return {"error": "window must be a whole number of seconds"}
     seconds = (end - start) // 1000
+    # @end
 
     total = dict.fromkeys(FIELDS, 0)
     per_endpoint = {}
     for sent_ms, endpoint, status, _duration_ms in run["requests"]:
+        # @piece in-window: Keep only requests sent inside the window
         if not start <= sent_ms < end:
             continue
+        # @end
+        # @piece count-request: Count the request for its endpoint and the total
         counts = per_endpoint.setdefault(endpoint, dict.fromkeys(FIELDS, 0))
         for c in (counts, total):
             c["requests"] += 1
             c[classify(status)] += 1
             if status == 0:
                 c["timeouts"] += 1
+        # @end
     return {
         "window_s": seconds,
         "endpoints": {name: finish(c, seconds) for name, c in sorted(per_endpoint.items())},

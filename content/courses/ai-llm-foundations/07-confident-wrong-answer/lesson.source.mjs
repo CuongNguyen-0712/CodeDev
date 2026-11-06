@@ -106,7 +106,7 @@ CHANGELOG
             "Told to answer only from the documentation, without that page, it says \"I'm not sure\" if the prompt allows that reply, and otherwise still invents an answer.",
             "Without that instruction it answers from what it learned before its cutoff - the invented answer - even when the page is somewhere in the prompt.",
         ]),
-        p("The test runner passes each question, the pages retrieval found (most relevant first) and `options.maxDocs` to `buildPrompt`, sends the prompt to the fake model and prints the answer. Run the starter first: you will see `force: true` come back, the same evidence as transcript A. Then fix `buildPrompt` and run it again."),
+        p("The test runner passes each question, the pages retrieval found (most relevant first) and `options.maxDocs` to `buildPrompt`, sends the prompt to the fake model and prints the answer. Run the starter first: you will see `force: true` come back, the same evidence as transcript A. Then fix `buildPrompt`: select its faulty lines and click the fix that replaces them (some fixes are wrong on purpose), and run it again."),
         challenge("chal_coding_aif_312"),
 
         h2("7. How to verify the fix"),

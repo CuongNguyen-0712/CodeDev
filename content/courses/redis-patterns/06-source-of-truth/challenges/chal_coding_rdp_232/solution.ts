@@ -1,7 +1,26 @@
 import { readFileSync } from "node:fs";
 
-// Reference solution: PostgreSQL first (idempotent by event id), then Redis only if the leaderboard
-// exists; reads rebuild a missing leaderboard from PostgreSQL.
+// Spot the AI Mistake: Redis as the source of truth. The request sent to an AI coding assistant was:
+//   "GET /leaderboard is slow: it runs SUM(points) GROUP BY user_id over every score event on each
+//    request. Make the leaderboard fast."
+// The assistant moved the scores into a Redis sorted set and the pull request was merged: the page went
+// from 900 ms to 4 ms, and every test passed.
+//
+// Two weeks later Redis restarted during maintenance (the cache instance runs without persistence).
+// The leaderboard came back empty and every learner's score was 0. Support also found learners whose
+// score had jumped when the grading worker retried a submission event it had already sent.
+//
+// Fix LeaderboardService so that PostgreSQL holds every score event and Redis is only a fast copy:
+//   - awardPoints stores the event in PostgreSQL first (db.insertScoreEvent: INSERT ... ON CONFLICT
+//     (event_id) DO NOTHING, false when the event id is already stored). A repeated event id changes
+//     nothing and returns "duplicate". A new event returns "counted" and is added to the leaderboard
+//     key in Redis, but only if that key exists: when it is missing, the next read rebuilds it.
+//   - top(n) and scoreOf(userId) answer from Redis. Only when the leaderboard key is missing do they
+//     rebuild it from PostgreSQL (one db.totalsByUser() query, then ZADD each total), then answer.
+//   - keep the validation: an event without an eventId or userId, or whose points is not a whole
+//     number >= 1, returns "rejected" and is stored nowhere; top(n) with n not a whole number >= 1
+//     returns an empty list.
+// Do not change the types, the constant or anything below the "do not change" line.
 
 type ScoreEvent = { eventId: string; userId: string; points: number };
 type AwardResult = "counted" | "duplicate" | "rejected";
@@ -16,28 +35,35 @@ class LeaderboardService {
         this.db = db;
     }
 
+    // Sorted sets keep members ordered by score, so ZINCRBY is O(log n) and the top N is one ZREVRANGE
+    // instead of a GROUP BY over every score event.
     async awardPoints(event: ScoreEvent): Promise<AwardResult> {
         if (!isValidEvent(event)) return "rejected";
+        // @piece count-event: Record a valid score event
         if (!(await this.db.insertScoreEvent(event))) return "duplicate";
         // A ZINCRBY on a missing key would create a leaderboard holding one learner.
         if (this.redis.exists(LEADERBOARD_KEY) === 1) this.redis.zincrby(LEADERBOARD_KEY, event.points, event.userId);
+        // @end
         return "counted";
     }
 
     async top(n: number): Promise<Array<{ member: string; score: number }>> {
         if (!Number.isInteger(n) || n < 1) return [];
-        await this.ensureLeaderboard();
+        // @piece read-top: Answer the top n
+        if (this.redis.exists(LEADERBOARD_KEY) === 0) {
+            for (const { userId, total } of await this.db.totalsByUser()) this.redis.zadd(LEADERBOARD_KEY, total, userId);
+        }
         return this.redis.zrevrange(LEADERBOARD_KEY, 0, n - 1);
+        // @end
     }
 
     async scoreOf(userId: string): Promise<number> {
-        await this.ensureLeaderboard();
+        // @piece read-score: Answer one learner's score
+        if (this.redis.exists(LEADERBOARD_KEY) === 0) {
+            for (const { userId, total } of await this.db.totalsByUser()) this.redis.zadd(LEADERBOARD_KEY, total, userId);
+        }
         return this.redis.zscore(LEADERBOARD_KEY, userId) ?? 0;
-    }
-
-    private async ensureLeaderboard(): Promise<void> {
-        if (this.redis.exists(LEADERBOARD_KEY) === 1) return;
-        for (const { userId, total } of await this.db.totalsByUser()) this.redis.zadd(LEADERBOARD_KEY, total, userId);
+        // @end
     }
 }
 

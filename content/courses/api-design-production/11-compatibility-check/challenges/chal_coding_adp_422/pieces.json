@@ -1,0 +1,55 @@
+[
+  {
+    "id": "nullability",
+    "label": "Compare whether null is allowed",
+    "code": "const ta = typesOf(a, path);\nconst tb = typesOf(b, path);\nconst nullA = ta.includes(\"null\");\nconst nullB = tb.includes(\"null\");\nif (!nullA && nullB) breaking.push({ path, change: \"became-nullable\" });\nif (nullA && !nullB) safe.push({ path, change: \"no-longer-nullable\" });"
+  },
+  {
+    "id": "type-change",
+    "label": "Compare the other types, stop when they differ",
+    "code": "const restA = ta.filter((t) => t !== \"null\").sort();\nconst restB = tb.filter((t) => t !== \"null\").sort();\nif (restA.join(\",\") !== restB.join(\",\")) {\n    breaking.push({ path, change: \"type-changed\", detail: `${restA.join(\",\")} -> ${restB.join(\",\")}` });\n    return;\n}"
+  },
+  {
+    "id": "enum-values",
+    "label": "Compare the allowed values",
+    "code": "if (a.enum && b.enum) {\n    const key = (v: unknown) => JSON.stringify(v);\n    const oldValues = new Set(a.enum.map(key));\n    const newValues = new Set(b.enum.map(key));\n    for (const v of newValues) if (!oldValues.has(v)) breaking.push({ path, change: \"enum-value-added\", detail: v });\n    for (const v of oldValues) if (!newValues.has(v)) safe.push({ path, change: \"enum-value-removed\", detail: v });\n}"
+  },
+  {
+    "id": "object-properties",
+    "label": "Compare properties and required, then go deeper",
+    "code": "if (restA.includes(\"object\")) {\n    const pa = a.properties ?? {};\n    const pb = b.properties ?? {};\n    const namesA = new Set(Object.keys(pa));\n    const namesB = new Set(Object.keys(pb));\n    const ra = new Set(a.required ?? []);\n    const rb = new Set(b.required ?? []);\n    for (const name of Object.keys(pa)) {\n        const p = `${path}/properties/${escapeToken(name)}`;\n        if (!namesB.has(name)) {\n            breaking.push({ path: p, change: \"property-removed\" });\n            continue;\n        }\n        if (ra.has(name) && !rb.has(name)) breaking.push({ path: p, change: \"became-optional\" });\n        if (!ra.has(name) && rb.has(name)) safe.push({ path: p, change: \"became-required\" });\n        walk(pa[name], pb[name], p);\n    }\n    for (const name of Object.keys(pb)) {\n        if (!namesA.has(name)) safe.push({ path: `${path}/properties/${escapeToken(name)}`, change: \"property-added\" });\n    }\n}"
+  },
+  {
+    "id": "array-items",
+    "label": "Go into array items",
+    "code": "if (restA.includes(\"array\") && a.items && b.items) walk(a.items, b.items, `${path}/items`);"
+  },
+  {
+    "id": "types-of",
+    "label": "Read and check a node's types",
+    "code": "const TYPES = new Set([\"string\", \"number\", \"integer\", \"boolean\", \"object\", \"array\", \"null\"]);\n\nfunction typesOf(schema: Schema, path: string): string[] {\n    const t = schema.type;\n    const list = typeof t === \"string\" ? [t] : Array.isArray(t) ? t : [];\n    if (list.length === 0 || list.some((x) => typeof x !== \"string\" || !TYPES.has(x))) {\n        throw new Error(`invalid schema at \"${path}\"`);\n    }\n    return list;\n}"
+  },
+  {
+    "id": "pointer-and-order",
+    "label": "Escape names in paths and order the changes",
+    "code": "const escapeToken = (name: string) => name.replace(/~/g, \"~0\").replace(/\\//g, \"~1\");\n\nconst cmp = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);\nconst byPathChangeDetail = (x: Change, y: Change) =>\n    cmp(x.path, y.path) || cmp(x.change, y.change) || cmp(x.detail ?? \"\", y.detail ?? \"\");"
+  },
+  {
+    "id": "enum-values-added-is-safe",
+    "label": "Compare the allowed values",
+    "code": "if (a.enum && b.enum) {\n    const key = (v: unknown) => JSON.stringify(v);\n    const oldValues = new Set(a.enum.map(key));\n    const newValues = new Set(b.enum.map(key));\n    for (const v of newValues) if (!oldValues.has(v)) safe.push({ path, change: \"enum-value-added\", detail: v });\n    for (const v of oldValues) if (!newValues.has(v)) safe.push({ path, change: \"enum-value-removed\", detail: v });\n}",
+    "distractor": true
+  },
+  {
+    "id": "object-properties-required-swapped",
+    "label": "Compare properties and required, then go deeper",
+    "code": "if (restA.includes(\"object\")) {\n    const pa = a.properties ?? {};\n    const pb = b.properties ?? {};\n    const namesA = new Set(Object.keys(pa));\n    const namesB = new Set(Object.keys(pb));\n    const ra = new Set(a.required ?? []);\n    const rb = new Set(b.required ?? []);\n    for (const name of Object.keys(pa)) {\n        const p = `${path}/properties/${escapeToken(name)}`;\n        if (!namesB.has(name)) {\n            breaking.push({ path: p, change: \"property-removed\" });\n            continue;\n        }\n        if (ra.has(name) && !rb.has(name)) safe.push({ path: p, change: \"became-optional\" });\n        if (!ra.has(name) && rb.has(name)) breaking.push({ path: p, change: \"became-required\" });\n        walk(pa[name], pb[name], p);\n    }\n    for (const name of Object.keys(pb)) {\n        if (!namesA.has(name)) safe.push({ path: `${path}/properties/${escapeToken(name)}`, change: \"property-added\" });\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "pointer-and-order-locale",
+    "label": "Escape names in paths and order the changes",
+    "code": "const escapeToken = (name: string) => name.replace(/~/g, \"~0\").replace(/\\//g, \"~1\");\n\nconst cmp = (x: string, y: string) => x.localeCompare(y);\nconst byPathChangeDetail = (x: Change, y: Change) =>\n    cmp(x.path, y.path) || cmp(x.change, y.change) || cmp(x.detail ?? \"\", y.detail ?? \"\");",
+    "distractor": true
+  }
+]

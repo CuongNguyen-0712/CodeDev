@@ -1,0 +1,24 @@
+[
+  {
+    "id": "register",
+    "label": "Listen, subscribe and keep a way to undo it",
+    "code": "const controller = new AbortController();\nconst { signal } = controller;\ntarget.addEventListener(\"click\", () => { view.clicks += 1; }, { signal });\ntarget.addEventListener(\"keydown\", onKeyDown, { capture: true, signal });\nconst unsubscribe = store.subscribe((price) => { view.price = price; });\nlet mounted = true;"
+  },
+  {
+    "id": "teardown",
+    "label": "Undo everything the widget registered",
+    "code": "if (!mounted) return;\nmounted = false;\ncontroller.abort();\nunsubscribe();\ntimers.clearInterval(pollId);"
+  },
+  {
+    "id": "register-keydown-unsigned",
+    "label": "Listen, subscribe and keep a way to undo it",
+    "code": "const controller = new AbortController();\nconst { signal } = controller;\ntarget.addEventListener(\"click\", () => { view.clicks += 1; }, { signal });\ntarget.addEventListener(\"keydown\", onKeyDown, { capture: true });\nconst unsubscribe = store.subscribe((price) => { view.price = price; });\nlet mounted = true;",
+    "distractor": true
+  },
+  {
+    "id": "teardown-keeps-subscription",
+    "label": "Undo everything the widget registered",
+    "code": "if (!mounted) return;\nmounted = false;\ncontroller.abort();\ntimers.clearInterval(pollId);",
+    "distractor": true
+  }
+]

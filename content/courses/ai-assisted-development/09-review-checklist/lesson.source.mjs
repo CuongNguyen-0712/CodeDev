@@ -96,7 +96,7 @@ cat .github/review-policy.json                 # knownDependencies, allowedPaths
   { "check": "size", "passed": true, "details": [] }
 ]`, "checklist.json for a search PR"),
         callout("info", "Pure function, thin edges",
-            "Only collect.mjs knows about git and only comment.mjs knows about GitHub. checklist.mjs takes JSON and returns JSON, so it is tested with fixtures in milliseconds, runs the same on a laptop and in CI, and can be pointed at last month's PRs to measure it. That is the function you write in the challenge."),
+            "Only collect.mjs knows about git and only comment.mjs knows about GitHub. checklist.mjs takes JSON and returns JSON, so it is tested with fixtures in milliseconds, runs the same on a laptop and in CI, and can be pointed at last month's PRs to measure it. That is the function you assemble in the challenge."),
 
         h2("5. How to verify the checklist itself"),
         bullets([

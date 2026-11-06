@@ -1,0 +1,51 @@
+[
+  {
+    "id": "parse-line",
+    "label": "Parse one log line, refusing malformed ones",
+    "code": "const fields = line.trim().split(/\\s+/);\nif (fields.length !== 4) return null;\nconst [ts, type, queue, jobId] = fields;\nif (!TYPES.has(type)) return null;\nif (!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/.test(ts)) return null;\nconst ms = Date.parse(ts);\n// Date.parse rolls \"02-30\" over to March: a real time must print back as the same text\nif (Number.isNaN(ms) || new Date(ms).toISOString() !== ts.replace(\"Z\", \".000Z\")) return null;\nreturn { at: ms / 1000, type: type as EventType, queue, jobId };"
+  },
+  {
+    "id": "percentile",
+    "label": "Nearest-rank percentile of sorted values",
+    "code": "if (sorted.length === 0) return null;\nreturn sorted[Math.ceil((p / 100) * sorted.length) - 1];"
+  },
+  {
+    "id": "collect-jobs",
+    "label": "Read the lines into one record per job",
+    "code": "for (const line of lines) {\n    const e = parseLine(line);\n    if (!e) {\n        skippedLines++;\n        continue;\n    }\n    queues.add(e.queue);\n    first = Math.min(first, e.at);\n    last = Math.max(last, e.at);\n    const key = `${e.queue}\\u0000${e.jobId}`;\n    const job = jobs.get(key) ?? { queue: e.queue };\n    const seen = job[e.type];\n    if (seen === undefined || e.at < seen) job[e.type] = e.at;\n    jobs.set(key, job);\n}"
+  },
+  {
+    "id": "waiting",
+    "label": "Jobs still waiting at the end of the minute",
+    "code": "const waiting = qJobs.filter(\n    (j) => j.enqueue! < end && (j.dequeue ?? Infinity) >= end && (j.complete ?? Infinity) >= end,\n);\nconst oldestAgeSec = waiting.reduce((max, j) => Math.max(max, end - j.enqueue!), 0);"
+  },
+  {
+    "id": "window-row",
+    "label": "Wait and processing times, then the row",
+    "code": "const waits = qJobs\n    .filter((j) => j.dequeue !== undefined && j.dequeue >= start && j.dequeue < end)\n    .map((j) => j.dequeue! - j.enqueue!)\n    .sort((a, b) => a - b);\nconst processing = qJobs\n    .filter((j) => j.dequeue !== undefined && j.complete !== undefined && j.complete >= start && j.complete < end)\n    .map((j) => j.complete! - j.dequeue!)\n    .sort((a, b) => a - b);\nwindows.push({\n    queue,\n    minute: new Date(start * 1000).toISOString().slice(0, 16),\n    depth: waiting.length,\n    oldestAgeSec,\n    waitP50Sec: nearestRank(waits, 50),\n    waitP95Sec: nearestRank(waits, 95),\n    processingP95Sec: nearestRank(processing, 95),\n    breach: oldestAgeSec > sloSeconds,\n});"
+  },
+  {
+    "id": "collect-last-line-wins",
+    "label": "Read the lines into one record per job",
+    "code": "for (const line of lines) {\n    const e = parseLine(line);\n    if (!e) {\n        skippedLines++;\n        continue;\n    }\n    queues.add(e.queue);\n    first = Math.min(first, e.at);\n    last = Math.max(last, e.at);\n    const key = `${e.queue}\\u0000${e.jobId}`;\n    const job = jobs.get(key) ?? { queue: e.queue };\n    const seen = job[e.type];\n    job[e.type] = e.at; // keep what the log says last\n    jobs.set(key, job);\n}",
+    "distractor": true
+  },
+  {
+    "id": "percentile-floor-rank",
+    "label": "Nearest-rank percentile of sorted values",
+    "code": "if (sorted.length === 0) return null;\nreturn sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];",
+    "distractor": true
+  },
+  {
+    "id": "row-breach-at-slo",
+    "label": "Wait and processing times, then the row",
+    "code": "const waits = qJobs\n    .filter((j) => j.dequeue !== undefined && j.dequeue >= start && j.dequeue < end)\n    .map((j) => j.dequeue! - j.enqueue!)\n    .sort((a, b) => a - b);\nconst processing = qJobs\n    .filter((j) => j.dequeue !== undefined && j.complete !== undefined && j.complete >= start && j.complete < end)\n    .map((j) => j.complete! - j.dequeue!)\n    .sort((a, b) => a - b);\nwindows.push({\n    queue,\n    minute: new Date(start * 1000).toISOString().slice(0, 16),\n    depth: waiting.length,\n    oldestAgeSec,\n    waitP50Sec: nearestRank(waits, 50),\n    waitP95Sec: nearestRank(waits, 95),\n    processingP95Sec: nearestRank(processing, 95),\n    breach: oldestAgeSec >= sloSeconds,\n});",
+    "distractor": true
+  },
+  {
+    "id": "waiting-includes-in-flight",
+    "label": "Jobs still waiting at the end of the minute",
+    "code": "const waiting = qJobs.filter(\n    (j) => j.enqueue! < end && (j.complete ?? Infinity) >= end,\n);\nconst oldestAgeSec = waiting.reduce((max, j) => Math.max(max, end - j.enqueue!), 0);",
+    "distractor": true
+  }
+]

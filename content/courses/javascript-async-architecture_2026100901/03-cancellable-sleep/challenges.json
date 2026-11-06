@@ -15,10 +15,22 @@
           "question": "const sleep = (ms) => new Promise((r) => setTimeout(r, ms));\n\nasync function pollOrderStatus(orderId, signal) {\n  while (!signal.aborted) {\n    const status = await fetchStatus(orderId); // ~300 ms\n    renderStatus(status);\n    if (status === 'delivered') return;\n    await sleep(10000);\n  }\n}\n\nThe user opens order #1 at t = 0. The first status is rendered at t = 0.3 s. At t = 2 s they open order #2, and the page calls controller.abort() for order #1. What happens to the first loop?",
           "explanation": "abort() only flips signal.aborted, sets signal.reason and fires the abort event. Nothing in this loop listens for that event: the plain sleep holds an ordinary timer, so the loop stays suspended inside await sleep(10000) until t = 10.3 s. Only then does the while condition read signal.aborted and exit. No further request is sent, but the timer and everything the loop's closure references stay alive for another 8 seconds - and a page that does this for every order the user opens keeps one sleeping loop per order.",
           "options": [
-            { "text": "It stops at t = 2 s: abort() rejects every promise created while the signal was active.", "correct": false },
-            { "text": "It stays suspended in sleep until t = 10.3 s, then the while condition sees the abort and exits without another fetch.", "correct": true },
-            { "text": "It keeps polling every 10 s forever, because signal.aborted was read once when the loop started.", "correct": false },
-            { "text": "sleep() throws an AbortError at t = 2 s, which surfaces as an unhandled rejection.", "correct": false }
+            {
+              "text": "It stops at t = 2 s: abort() rejects every promise created while the signal was active.",
+              "correct": false
+            },
+            {
+              "text": "It stays suspended in sleep until t = 10.3 s, then the while condition sees the abort and exits without another fetch.",
+              "correct": true
+            },
+            {
+              "text": "It keeps polling every 10 s forever, because signal.aborted was read once when the loop started.",
+              "correct": false
+            },
+            {
+              "text": "sleep() throws an AbortError at t = 2 s, which surfaces as an unhandled rejection.",
+              "correct": false
+            }
           ]
         },
         {
@@ -27,12 +39,27 @@
           "question": "Which changes are needed so that the loop stops within milliseconds of abort() - whether it is waiting for the network or sleeping - and leaves no timer or request behind? (Select all that apply.)",
           "explanation": "The loop waits in two places, and each one needs to hear the signal. fetch(url, { signal }) aborts the request and rejects with signal.reason; a sleep that takes the signal clears its timer and rejects the same way. A shorter interval only shortens the leak and multiplies the traffic, and catching and ignoring every error hides real failures without stopping anything.",
           "options": [
-            { "text": "Pass the signal to the request: fetch(url, { signal }).", "correct": true },
-            { "text": "Use sleep(ms, { signal }), which clears its timer and rejects when the signal aborts.", "correct": true },
-            { "text": "Reduce the interval from 10 s to 1 s so the while condition is checked more often.", "correct": false },
-            { "text": "Wrap the loop body in try/catch and ignore every error.", "correct": false }
+            {
+              "text": "Pass the signal to the request: fetch(url, { signal }).",
+              "correct": true
+            },
+            {
+              "text": "Use sleep(ms, { signal }), which clears its timer and rejects when the signal aborts.",
+              "correct": true
+            },
+            {
+              "text": "Reduce the interval from 10 s to 1 s so the while condition is checked more often.",
+              "correct": false
+            },
+            {
+              "text": "Wrap the loop body in try/catch and ignore every error.",
+              "correct": false
+            }
           ]
         }
+      ],
+      "outcomes": [
+        "cancellation"
       ]
     },
     {
@@ -40,7 +67,7 @@
       "name": "cancellable-sleep-utility",
       "type": "mini_coding",
       "title": "Build sleep(ms, { signal })",
-      "description": "Write a promise-based sleep that an AbortSignal can cancel. It rejects at once with signal.reason if the signal is already aborted, clears its timer and rejects with signal.reason when the signal aborts mid-sleep, and removes its abort listener when it resolves normally, so a polling loop that shares one signal leaks nothing. The tests run on a fake clock and check outcomes, timers and listeners.",
+      "description": "Assemble a promise-based sleep that an AbortSignal can cancel. It rejects at once with signal.reason if the signal is already aborted, clears its timer and rejects with signal.reason when the signal aborts mid-sleep, and removes its abort listener when it resolves normally, so a polling loop that shares one signal leaks nothing. The tests run on a fake clock and check outcomes, timers and listeners.\n\nPut the right piece on each `[ ]` line; some pieces are wrong on purpose.",
       "difficulty": "medium",
       "points": 30,
       "coding": {
@@ -55,9 +82,17 @@
       "tests": [
         {
           "name": "Resolves after ms and leaves nothing behind",
-          "input": { "sleeps": [200] },
+          "input": {
+            "sleeps": [
+              200
+            ]
+          },
           "expected": {
-            "outcome": [{ "resolvedAt": 200 }],
+            "outcome": [
+              {
+                "resolvedAt": 200
+              }
+            ],
             "timersCreated": 1,
             "pendingTimers": 0,
             "listenersAtEnd": 0,
@@ -68,9 +103,20 @@
         },
         {
           "name": "Abort mid-sleep rejects with signal.reason and clears the timer",
-          "input": { "sleeps": [5000], "abortAt": 1200 },
+          "input": {
+            "sleeps": [
+              5000
+            ],
+            "abortAt": 1200
+          },
           "expected": {
-            "outcome": [{ "rejectedAt": 1200, "name": "AbortError", "isReason": true }],
+            "outcome": [
+              {
+                "rejectedAt": 1200,
+                "name": "AbortError",
+                "isReason": true
+              }
+            ],
             "timersCreated": 1,
             "pendingTimers": 0
           },
@@ -79,9 +125,22 @@
         },
         {
           "name": "An already-aborted signal rejects at once and never starts a timer",
-          "input": { "sleeps": [1000], "abortBefore": true, "reason": "user left the page" },
+          "input": {
+            "sleeps": [
+              1000
+            ],
+            "abortBefore": true,
+            "reason": "user left the page"
+          },
           "expected": {
-            "outcome": [{ "rejectedAt": 0, "name": "Error", "message": "user left the page", "isReason": true }],
+            "outcome": [
+              {
+                "rejectedAt": 0,
+                "name": "Error",
+                "message": "user left the page",
+                "isReason": true
+              }
+            ],
             "timersCreated": 0,
             "pendingTimers": 0
           },
@@ -90,9 +149,25 @@
         },
         {
           "name": "A polling loop shares one signal: listeners do not pile up",
-          "input": { "sleeps": [100, 100, 100] },
+          "input": {
+            "sleeps": [
+              100,
+              100,
+              100
+            ]
+          },
           "expected": {
-            "outcome": [{ "resolvedAt": 100 }, { "resolvedAt": 200 }, { "resolvedAt": 300 }],
+            "outcome": [
+              {
+                "resolvedAt": 100
+              },
+              {
+                "resolvedAt": 200
+              },
+              {
+                "resolvedAt": 300
+              }
+            ],
             "timersCreated": 3,
             "pendingTimers": 0,
             "listenersAtEnd": 0,
@@ -103,11 +178,26 @@
         },
         {
           "name": "Abort during the second poll with a custom reason",
-          "input": { "sleeps": [100, 1000, 100], "abortAt": 400, "reason": "navigated away" },
+          "input": {
+            "sleeps": [
+              100,
+              1000,
+              100
+            ],
+            "abortAt": 400,
+            "reason": "navigated away"
+          },
           "expected": {
             "outcome": [
-              { "resolvedAt": 100 },
-              { "rejectedAt": 400, "name": "Error", "message": "navigated away", "isReason": true }
+              {
+                "resolvedAt": 100
+              },
+              {
+                "rejectedAt": 400,
+                "name": "Error",
+                "message": "navigated away",
+                "isReason": true
+              }
             ],
             "timersCreated": 2,
             "pendingTimers": 0
@@ -115,6 +205,14 @@
           "hidden": true,
           "score": 6
         }
+      ],
+      "outcomes": [
+        "cancellation"
+      ],
+      "hints": [
+        "There are three outcomes: already aborted, aborted while waiting, finished normally. Each one needs its own cleanup.",
+        "`signal.aborted`, `signal.reason`, `addEventListener(\"abort\", fn, { once: true })`, `removeEventListener`, and the injected timers.setTimeout / clearTimeout.",
+        "The same pattern on another API: waitForEvent(target, type, { signal }) resolves on the event, rejects with signal.reason on abort, and removes whichever listener did not fire."
       ]
     }
   ]

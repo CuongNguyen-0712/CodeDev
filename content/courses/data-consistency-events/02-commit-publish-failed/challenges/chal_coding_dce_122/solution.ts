@@ -42,6 +42,7 @@ function createEnrollmentService({ db, broker, ids, clock, log }: Deps) {
     return {
         /** POST /enrollments. Returns the enrollment id; throws Rejected for a business rule. */
         enroll(cmd: EnrollCommand): string {
+            // @piece enroll-body: Save the enrollment and its event
             // One transaction: the enrollment and its event commit together or not at all.
             return db.tx((t) => {
                 if (!t.courses.has(cmd.courseId)) throw new Rejected("unknown course");
@@ -69,10 +70,12 @@ function createEnrollmentService({ db, broker, ids, clock, log }: Deps) {
                 t.outbox.set(event.id, event);
                 return row.id;
             });
+            // @end
         },
 
         /** The scheduler calls this every second. */
         relayOnce(): void {
+            // @piece relay: Relay what is waiting to the broker
             const pending = db.tx((t) => [...t.outbox.values()].filter((r) => r.status === "pending"));
             for (const row of pending) {
                 // The message id is the outbox id: a re-publish after a crash is a duplicate the consumer drops.
@@ -86,6 +89,7 @@ function createEnrollmentService({ db, broker, ids, clock, log }: Deps) {
                 });
             }
             if (pending.length) log(`relayed ${pending.length} event(s)`);
+            // @end
         },
     };
 }

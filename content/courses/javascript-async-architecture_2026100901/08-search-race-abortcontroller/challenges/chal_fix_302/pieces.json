@@ -1,0 +1,24 @@
+[
+  {
+    "id": "run-search",
+    "label": "Start this search and report its outcome",
+    "code": "controller?.abort();\nconst current = new AbortController();\ncontroller = current;\ntry {\n  const results = await search(query, { signal: current.signal });\n  if (current.signal.aborted) return;\n  onResults(query, results);\n} catch (error) {\n  if (current.signal.aborted) return;\n  onError(query, error.message);\n}"
+  },
+  {
+    "id": "dispose",
+    "label": "Stop everything when the overlay closes",
+    "code": "controller?.abort();\ncontroller = null;"
+  },
+  {
+    "id": "run-search-abort-error-only",
+    "label": "Start this search and report its outcome",
+    "code": "controller?.abort();\ncontroller = new AbortController();\ntry {\n  const results = await search(query, { signal: controller.signal });\n  onResults(query, results);\n} catch (error) {\n  if (error.name === \"AbortError\") return;\n  onError(query, error.message);\n}",
+    "distractor": true
+  },
+  {
+    "id": "run-search-reports-aborts",
+    "label": "Start this search and report its outcome",
+    "code": "controller?.abort();\nconst current = new AbortController();\ncontroller = current;\ntry {\n  const results = await search(query, { signal: current.signal });\n  if (current.signal.aborted) return;\n  onResults(query, results);\n} catch (error) {\n  onError(query, error.message);\n}",
+    "distractor": true
+  }
+]

@@ -1,0 +1,45 @@
+[
+  {
+    "id": "public-cache",
+    "label": "Public course data through the shared cache",
+    "code": "const key = `course:${courseId}`;\nconst hit = deps.sharedCache.get(key) as CachedCourse | undefined;\nif (hit && at < hit.storedAt + ttl) return hit.course;\nconst course = deps.loadPublicCourse(courseId);\nif (course) deps.sharedCache.set(key, { course, storedAt: at } satisfies CachedCourse);\nreturn course;"
+  },
+  {
+    "id": "coupon-check",
+    "label": "Does the coupon apply to this course now?",
+    "code": "if (!coupon) return false;\nif (!Number.isInteger(coupon.percent) || coupon.percent < 1 || coupon.percent > 100) return false;\nif (at >= coupon.expiresAt) return false;\nreturn coupon.courses === \"all\" || coupon.courses.includes(courseId);"
+  },
+  {
+    "id": "public-page",
+    "label": "The course, and the page anonymous visitors get",
+    "code": "const course = getPublicCourse(req.courseId, req.at, ttl, deps);\nif (!course) return \"404 Not Found\";\nconst head = `${course.title} | ${course.lessons} lessons`;\nconst anonymous = `${head} | ${course.price} VND | Enroll`;\nif (req.userId === null) return anonymous;"
+  },
+  {
+    "id": "enrollment",
+    "label": "Enrolled learners see their progress",
+    "code": "const enrollment = deps.loadEnrollment(req.userId, course.id);\nif (enrollment.enrolled) return `${head} | Enrolled, ${enrollment.progress}% complete`;"
+  },
+  {
+    "id": "coupon-price",
+    "label": "Everyone else sees their coupon price",
+    "code": "const coupon = deps.loadCoupon(req.userId);\nif (!couponApplies(coupon, course.id, req.at)) return anonymous;\nconst price = Math.round((course.price * (100 - coupon.percent)) / 100);\nreturn `${head} | ${price} VND with coupon ${coupon.code} (list ${course.price} VND) | Enroll`;"
+  },
+  {
+    "id": "coupon-check-no-expiry",
+    "label": "Does the coupon apply to this course now?",
+    "code": "if (!coupon) return false;\nif (!Number.isInteger(coupon.percent) || coupon.percent < 1 || coupon.percent > 100) return false;\nreturn coupon.courses === \"all\" || coupon.courses.includes(courseId);",
+    "distractor": true
+  },
+  {
+    "id": "enrollment-shared-cache",
+    "label": "Enrolled learners see their progress",
+    "code": "const enrollmentKey = `enrollment:${course.id}`;\nlet enrollment = deps.sharedCache.get(enrollmentKey) as Enrollment | undefined;\nif (!enrollment) {\n    enrollment = deps.loadEnrollment(req.userId, course.id);\n    deps.sharedCache.set(enrollmentKey, enrollment);\n}\nif (enrollment.enrolled) return `${head} | Enrolled, ${enrollment.progress}% complete`;",
+    "distractor": true
+  },
+  {
+    "id": "public-cache-inclusive-ttl",
+    "label": "Public course data through the shared cache",
+    "code": "const key = `course:${courseId}`;\nconst hit = deps.sharedCache.get(key) as CachedCourse | undefined;\nif (hit && at <= hit.storedAt + ttl) return hit.course;\nconst course = deps.loadPublicCourse(courseId);\nif (course) deps.sharedCache.set(key, { course, storedAt: at } satisfies CachedCourse);\nreturn course;",
+    "distractor": true
+  }
+]

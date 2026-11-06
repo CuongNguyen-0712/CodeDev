@@ -57,6 +57,9 @@
             }
           ]
         }
+      ],
+      "outcomes": [
+        "retrieval-ranking"
       ]
     },
     {
@@ -64,7 +67,7 @@
       "name": "bm25-ranker",
       "type": "mini_coding",
       "title": "Write bm25_rank(docs, query, k)",
-      "description": "Replace the raw TF-IDF ranking with Okapi BM25: IDF(t) = ln((N - n(t) + 0.5) / (n(t) + 0.5) + 1), and a term-frequency part f * (k1 + 1) / (f + k1 * (1 - b + b * |D| / avgdl)) that saturates and normalises for length. Each distinct query term counts once. Return the top k documents with a score > 0 as [[id, score], ...], best first, scores rounded to 4 decimals at the end; equal scores keep the corpus order. Honour k1 and b when given (defaults 1.5 and 0.75), and return [] for an empty corpus or query.",
+      "description": "Replace the raw TF-IDF ranking with Okapi BM25: IDF(t) = ln((N - n(t) + 0.5) / (n(t) + 0.5) + 1), and a term-frequency part f * (k1 + 1) / (f + k1 * (1 - b + b * |D| / avgdl)) that saturates and normalises for length. Each distinct query term counts once. Return the top k documents with a score > 0 as [[id, score], ...], best first, scores rounded to 4 decimals at the end; equal scores keep the corpus order. Honour k1 and b when given (defaults 1.5 and 0.75), and return [] for an empty corpus or query.\n\nPut the right piece on each `[ ]` line; some pieces are wrong on purpose.",
       "difficulty": "hard",
       "points": 30,
       "coding": {
@@ -374,6 +377,14 @@
           "hidden": true,
           "score": 4
         }
+      ],
+      "outcomes": [
+        "retrieval-ranking"
+      ],
+      "hints": [
+        "BM25 rewards rare query terms and repeated matches, but each repeat adds less, and long documents are normalised.",
+        "Compute IDF per distinct query term from document frequencies, then sum the saturated term-frequency part with k1 and b; sort by score with a stable sort and round only at the end.",
+        "Example of a saturating score: `tf_part = f * (k1 + 1) / (f + k1)`: with k1 = 1.5, f = 1 gives 1.0 and f = 10 gives about 2.2, not 10 times as much."
       ]
     }
   ]

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "read-pages",
+    "label": "Request pages one by one and yield their items",
+    "code": "let cursor = null;\ndo {\n  const page = await fetchPage(cursor);\n  yield* page.items;\n  cursor = page.nextCursor;\n} while (cursor !== null && cursor !== undefined);"
+  },
+  {
+    "id": "take-n",
+    "label": "Yield n values, then stop pulling",
+    "code": "if (!(n > 0)) return;\nlet count = 0;\nfor await (const item of source) {\n  yield item;\n  count += 1;\n  if (count >= n) return;\n}"
+  },
+  {
+    "id": "read-pages-until-empty",
+    "label": "Request pages one by one and yield their items",
+    "code": "let cursor = null;\nwhile (true) {\n  const page = await fetchPage(cursor);\n  if (page.items.length === 0) return;\n  yield* page.items;\n  cursor = page.nextCursor;\n}",
+    "distractor": true
+  },
+  {
+    "id": "take-n-checks-late",
+    "label": "Yield n values, then stop pulling",
+    "code": "let count = 0;\nfor await (const item of source) {\n  if (count >= n) return;\n  yield item;\n  count += 1;\n}",
+    "distractor": true
+  }
+]

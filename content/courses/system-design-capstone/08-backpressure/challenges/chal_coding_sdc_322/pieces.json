@@ -1,0 +1,45 @@
+[
+  {
+    "id": "admit-job",
+    "label": "Accept the job while the queue is under its bound",
+    "code": "const depth = this.depth();\nconst threshold = job.priority === \"exam\" ? this.config.limit : this.config.practiceLimit;\nif (depth < threshold) {\n    this.waiting[job.priority].push({ job, acceptedAt: now });\n    this.totals[job.priority].accepted++;\n    return { status: 202, depth: depth + 1 };\n}"
+  },
+  {
+    "id": "retry-after",
+    "label": "Reject with an estimate of when to retry",
+    "code": "this.totals[job.priority].rejected++;\nconst sumMs = this.recent.length > 0 ? this.recent.reduce((a, b) => a + b, 0) : this.config.defaultGradeMs;\nconst count = Math.max(1, this.recent.length);\nconst excess = depth - threshold + 1;\nreturn { status: 429, retryAfterSec: Math.ceil((excess * sumMs) / (count * this.config.workers * 1000)) };"
+  },
+  {
+    "id": "next-job",
+    "label": "The next job to grade",
+    "code": "const next = this.waiting.exam.shift() ?? this.waiting.practice.shift();\nif (next === undefined) return null;"
+  },
+  {
+    "id": "record-start",
+    "label": "Record the wait and mark the job running",
+    "code": "const t = this.totals[next.job.priority];\nconst wait = now - next.acceptedAt;\nt.started++;\nt.totalWaitMs += wait;\nt.maxWaitMs = Math.max(t.maxWaitMs, wait);\nthis.running.set(next.job.id, now);\nreturn next.job;"
+  },
+  {
+    "id": "record-grade-time",
+    "label": "Remember how long the job took to grade",
+    "code": "const startedAt = this.running.get(jobId);\nif (startedAt === undefined) return;\nthis.running.delete(jobId);\nthis.recent.push(now - startedAt);\nif (this.recent.length > this.config.window) this.recent.shift();"
+  },
+  {
+    "id": "admit-job-single-threshold",
+    "label": "Accept the job while the queue is under its bound",
+    "code": "const depth = this.depth();\nconst threshold = this.config.limit;\nif (depth < threshold) {\n    this.waiting[job.priority].push({ job, acceptedAt: now });\n    this.totals[job.priority].accepted++;\n    return { status: 202, depth: depth + 1 };\n}",
+    "distractor": true
+  },
+  {
+    "id": "next-job-fifo",
+    "label": "The next job to grade",
+    "code": "const e = this.waiting.exam[0];\nconst p = this.waiting.practice[0];\nconst next = e !== undefined && (p === undefined || e.acceptedAt <= p.acceptedAt) ? this.waiting.exam.shift() : this.waiting.practice.shift();\nif (next === undefined) return null;",
+    "distractor": true
+  },
+  {
+    "id": "retry-after-whole-depth",
+    "label": "Reject with an estimate of when to retry",
+    "code": "this.totals[job.priority].rejected++;\nconst sumMs = this.recent.length > 0 ? this.recent.reduce((a, b) => a + b, 0) : this.config.defaultGradeMs;\nconst count = Math.max(1, this.recent.length);\nconst excess = depth;\nreturn { status: 429, retryAfterSec: Math.ceil((excess * sumMs) / (count * this.config.workers * 1000)) };",
+    "distractor": true
+  }
+]

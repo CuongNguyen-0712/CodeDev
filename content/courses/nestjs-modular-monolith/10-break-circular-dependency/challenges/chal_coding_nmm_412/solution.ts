@@ -69,11 +69,9 @@ class EnrollmentRepository {
     }
 }
 
-// enrollments/enrollment-data.module.ts: owns the enrollment data. Both features read it, so it sits
-// below both of them in the graph and imports nothing.
-
 // courses/course.service.ts
 class CourseService {
+    // @piece course-service-reads: Where the course service gets learner counts
     constructor(
         private readonly courses: CourseRepository,
         private readonly enrollments: EnrollmentRepository,
@@ -86,6 +84,7 @@ class CourseService {
             learners: this.enrollments.countByCourse(course.id),
         }));
     }
+    // @end
 
     getCourse(id: string): Course {
         const course = this.courses.findById(id);
@@ -100,6 +99,10 @@ class EnrollmentService {
         private readonly enrollments: EnrollmentRepository,
         private readonly courses: CourseService,
     ) {}
+
+    countLearners(courseId: string): number {
+        return this.enrollments.countByCourse(courseId);
+    }
 
     enroll(userId: string, courseId: string): void {
         const course = this.courses.getCourse(courseId);
@@ -118,6 +121,9 @@ class EnrollmentService {
     }
 }
 
+// @piece module-graph: The modules and what each one imports
+// enrollments/enrollment-data.module.ts: owns the enrollment data. Both features read it, so it sits
+// below both of them in the graph and imports nothing.
 class EnrollmentDataModule {}
 class CourseModule {}
 class EnrollmentModule {}
@@ -139,6 +145,7 @@ Module(EnrollmentModule, {
     exports: [EnrollmentService],
 });
 Module(AppModule, { imports: [CourseModule, EnrollmentModule] });
+// @end
 
 // ------------------------------------------------------------ module container (do not change)
 // A small stand-in for @nestjs/core that follows the same rules for modules and providers:

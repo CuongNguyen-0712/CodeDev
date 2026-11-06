@@ -1,0 +1,24 @@
+[
+  {
+    "id": "deadline",
+    "label": "Start the deadline timer",
+    "code": "let timer;\nconst timeout = new Promise((_, reject) => {\n  timer = clock.setTimeout(() => {\n    controller.abort();\n    reject(Object.assign(new Error(\"ETIMEDOUT\"), { code: \"ETIMEDOUT\" }));\n  }, timeoutMs);\n});"
+  },
+  {
+    "id": "race",
+    "label": "Wait for the call or the deadline",
+    "code": "try {\n  return await Promise.race([fn(controller.signal), timeout]);\n} finally {\n  clock.clearTimeout(timer);\n}"
+  },
+  {
+    "id": "deadline-no-abort",
+    "label": "Start the deadline timer",
+    "code": "let timer;\nconst timeout = new Promise((_, reject) => {\n  timer = clock.setTimeout(() => {\n    reject(Object.assign(new Error(\"ETIMEDOUT\"), { code: \"ETIMEDOUT\" }));\n  }, timeoutMs);\n});",
+    "distractor": true
+  },
+  {
+    "id": "race-clear-on-success",
+    "label": "Wait for the call or the deadline",
+    "code": "const result = await Promise.race([fn(controller.signal), timeout]);\nclock.clearTimeout(timer);\nreturn result;",
+    "distractor": true
+  }
+]

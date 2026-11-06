@@ -31,17 +31,22 @@ const DAY_MS = 86_400_000;
 
 // Day number of the learner's local calendar date: shift the instant by the offset, then whole UTC days.
 function localDay(ms: number, offsetMinutes: number): number {
+    // @piece local-day: The learner's calendar day of an instant
     return Math.floor((ms + offsetMinutes * 60_000) / DAY_MS);
+    // @end
 }
 
 function computeStreaks(completedAt: string[], offsetMinutes: number, now: string): Streaks {
+    // @piece active-days: The learner's active days, once each, in order
     const days = new Set<number>(); // several completions on one day count once
     for (const ts of completedAt) {
         const ms = Date.parse(ts);
         if (!Number.isNaN(ms)) days.add(localDay(ms, offsetMinutes));
     }
-    const sorted = [...days].sort((a, b) => a - b); // input order is not guaranteed
+    const sorted = [...days].sort((a, b) => a - b);
+    // @end
 
+    // @piece longest: The longest run of consecutive days
     let longest = 0;
     let run = 0;
     let previous = Number.NaN;
@@ -50,11 +55,14 @@ function computeStreaks(completedAt: string[], offsetMinutes: number, now: strin
         if (run > longest) longest = run;
         previous = day;
     }
+    // @end
 
     // run is now the length of the last run; it is current if it reaches today or yesterday
+    // @piece current: The current streak
     const today = localDay(Date.parse(now), offsetMinutes);
     const current = sorted.length > 0 && previous >= today - 1 ? run : 0;
     return { current, longest };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

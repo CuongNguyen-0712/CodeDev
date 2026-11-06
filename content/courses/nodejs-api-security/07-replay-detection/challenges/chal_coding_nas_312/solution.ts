@@ -47,10 +47,13 @@ function sha256(text: string): string {
 }
 
 function refresh(store: TokenStore, req: RefreshRequest): RefreshResult {
+    // @piece lookup-and-state: Find the row, reject revoked and expired ones
     const row = store.findByHash(sha256(req.token));
     if (!row) return { status: "invalid" };
     if (row.revokedAt !== null) return { status: "revoked" };
     if (req.now >= row.expiresAt) return { status: "expired" };
+    // @end
+    // @piece first-use: First use: claim the token and rotate
     if (row.usedAt === null) {
         if (store.markUsed(row.id, req.now)) {
             const next = store.issue(row.familyId, row.userId, row.deviceId, req.now);
@@ -62,10 +65,12 @@ function refresh(store: TokenStore, req: RefreshRequest): RefreshResult {
         if (!fresh || fresh.revokedAt !== null) return { status: "revoked" };
         return handleReuse(store, fresh, req);
     }
+    // @end
     return handleReuse(store, row, req);
 }
 
 function handleReuse(store: TokenStore, row: Row, req: RefreshRequest): RefreshResult {
+    // @piece grace-reply: A retry that may get the same answer again
     const usedAt = row.usedAt ?? req.now;
     if (req.deviceId === row.deviceId && req.now - usedAt < GRACE_MS && row.replacedBy !== null) {
         const successor = store.findById(row.replacedBy);
@@ -74,9 +79,12 @@ function handleReuse(store: TokenStore, row: Row, req: RefreshRequest): RefreshR
             return { status: "grace", token: reply };
         }
     }
+    // @end
+    // @piece replay: Anything else is a replay
     store.revokeFamily(row.familyId, req.now);
     store.recordEvent({ type: "refresh_token_reuse", userId: row.userId, familyId: row.familyId, tokenId: row.id, deviceId: req.deviceId, at: req.now });
     return { status: "replay_detected" };
+    // @end
 }
 
 // ------------------------------------------------------------------ token store (do not change)

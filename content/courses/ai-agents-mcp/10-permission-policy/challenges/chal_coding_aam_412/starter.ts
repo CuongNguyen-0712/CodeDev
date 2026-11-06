@@ -40,13 +40,15 @@ function sha256(text: string): string {
 }
 
 function canonicalJson(value: unknown): string {
-    // TODO: JSON with object keys sorted at every level, no spaces; arrays keep their order.
-    return "";
+    // [ ] One JSON text per value, keys sorted at every level
 }
+
+type Grant = { sessionId: string; tool: string; argsHash: string; approverRole: string; expiresAt: number; used: boolean };
 
 class PermissionPolicy {
     private tools = new Map<string, ToolSpec>();
     private sessions = new Map<string, Session>();
+    private grants = new Map<string, Grant>();
 
     constructor(tools: ToolSpec[], sessions: Session[]) {
         for (const t of tools) this.tools.set(t.name, t);
@@ -55,12 +57,17 @@ class PermissionPolicy {
 
     /** The human approval path: a person looked at this exact call and approved it at `now`. */
     approve(approval: Approval, now: number): void {
-        // TODO: remember the token, bound to its session, tool and sha256(canonicalJson(args)).
+        // [ ] Remember the approval, bound to this exact call
     }
 
     decide(sessionId: string, call: ToolCall, token: string | null, now: number): Decision {
-        // TODO: apply rules 1-10 from the top of the file.
-        return { decision: "allow", reason: "read", consumed: null };
+        const answer = (decision: Decision["decision"], reason: string, consumed: string | null = null): Decision =>
+            ({ decision, reason, consumed });
+        // [ ] Who may call this tool; reads go straight through
+
+        // [ ] Writes: check the amount, ask when there is no token
+
+        // [ ] Spend the token only on this exact call, once
     }
 }
 

@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 
 // The CodeDev AI tutor lets the model propose tool calls. The model only proposes: this gate decides
 // what runs. Incident: getSubmission took a userId argument from the model and showed another
-// learner's code. Write checkToolCalls(input). The full rules are in the challenge description.
+// learner's code. Fill checkToolCalls(input) and its helper with pieces (some are wrong). The full
+// rules are in the challenge description.
 // Do not change the types or the test runner.
 
 type ParamSpec = {
@@ -37,13 +38,29 @@ type Decision =
     | { id: string; tool: string; status: "run"; args: Record<string, ArgValue> }
     | { id: string; tool: string; status: "rejected"; reason: string };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** The checked arguments, or the reason the call is rejected. */
+function checkArguments(tool: ToolDef, raw: string): Record<string, ArgValue> | string {
+    // [ ] Parse the raw arguments as a JSON object
+    // [ ] Reject a userId and any unknown argument
+    const args: Record<string, ArgValue> = {};
+    for (const [name, spec] of Object.entries(tool.parameters)) {
+        // [ ] Handle an argument the model left out
+        // [ ] Check the value against its parameter spec
+    }
+    return args;
+}
+
 function checkToolCalls(input: GateInput): Decision[] {
     // For each proposed call, in order:
     // 1. find the tool by name
     // 2. parse the raw arguments as unknown and check them against the tool's parameters
     // 3. a needs-confirmation tool runs only when the learner confirmed that call id
     // 4. build new args from the checked values; userId comes from the session, never from the model
-    return [];
+    // [ ] Decide run or rejected for each call
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

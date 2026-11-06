@@ -40,6 +40,7 @@ function CourseList({ category, page }: Props): string {
     const [courses, setCourses] = useState<Course[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // @piece load-courses: Load the courses for this category and page
     useEffect(() => {
         const query: Query = { category, page };
         setLoading(true);
@@ -48,6 +49,7 @@ function CourseList({ category, page }: Props): string {
             setLoading(false);
         });
     }, [category, page]);
+    // @end
 
     if (loading) return "loading";
     return courses.length ? courses.map((c) => c.title).join(", ") : "no courses";

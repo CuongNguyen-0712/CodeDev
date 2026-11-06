@@ -27,7 +27,8 @@ import { readFileSync } from "node:fs";
 // again. Any other status (2xx, 4xx such as 402 card_declined) completes the record with that
 // status and body. createdAt stays the time of the first request.
 //
-// Use only the injected clock. Do not change the types or the test runner.
+// Use only the injected clock. Fill every [ ] line with the right piece. Do not change the types or the
+// test runner.
 
 type Clock = { now(): number };
 
@@ -36,6 +37,7 @@ type Decision =
     | { kind: "replay"; status: number; body: unknown }
     | { kind: "reject"; status: 400 | 409 | 422; code: string };
 
+// @piece record-type: What is kept for each key
 type IdempotencyRecord = {
     fingerprint: string;
     createdAt: number;
@@ -43,9 +45,11 @@ type IdempotencyRecord = {
     status?: number;
     body?: unknown;
 };
+// @end
 
+// @piece canonical-json: One text for equal bodies, whatever their key order
 // Canonical JSON: object keys sorted at every depth, array order kept.
-function canonical(value: unknown): string {
+const canonical = (value: unknown): string => {
     if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
     if (value !== null && typeof value === "object") {
         const entries = Object.keys(value as Record<string, unknown>)
@@ -54,21 +58,25 @@ function canonical(value: unknown): string {
         return `{${entries.join(",")}}`;
     }
     return JSON.stringify(value) ?? "null";
-}
+};
+// @end
 
 class IdempotencyGuard {
-    private readonly records = new Map<string, IdempotencyRecord>();
-
     constructor(
         private readonly clock: Clock,
         private readonly ttlMs: number,
     ) {}
 
+    // @piece record-store: Where records live and how a key is named
+    private readonly records = new Map<string, IdempotencyRecord>();
+
     private id(userId: string, key: string): string {
         return JSON.stringify([userId, key]);
     }
+    // @end
 
     begin(userId: string, key: string | undefined, body: unknown): Decision {
+        // @piece begin-checks: Check the key, then find a live record
         if (typeof key !== "string" || key.length < 1 || key.length > 255) {
             return { kind: "reject", status: 400, code: "idempotency_key_missing" };
         }
@@ -80,6 +88,8 @@ class IdempotencyGuard {
             this.records.delete(id);
             record = undefined;
         }
+        // @end
+        // @piece begin-decide: Run, reject or replay
         if (!record) {
             this.records.set(id, { fingerprint, createdAt: now, state: "in_progress" });
             return { kind: "run" };
@@ -87,9 +97,11 @@ class IdempotencyGuard {
         if (record.fingerprint !== fingerprint) return { kind: "reject", status: 422, code: "idempotency_key_reused" };
         if (record.state === "in_progress") return { kind: "reject", status: 409, code: "idempotency_key_in_progress" };
         return { kind: "replay", status: record.status as number, body: record.body };
+        // @end
     }
 
     finish(userId: string, key: string, status: number, body: unknown): void {
+        // @piece finish-request: Keep the answer, or forget a failed attempt
         const id = this.id(userId, key);
         const record = this.records.get(id);
         if (!record) return;
@@ -100,6 +112,7 @@ class IdempotencyGuard {
         record.state = "completed";
         record.status = status;
         record.body = body;
+        // @end
     }
 }
 

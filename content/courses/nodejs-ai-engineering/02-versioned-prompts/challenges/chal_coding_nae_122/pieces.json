@@ -1,0 +1,62 @@
+[
+  {
+    "id": "ref",
+    "label": "The ref every log line carries",
+    "code": "const ref = `${template.id}@${template.version}`;"
+  },
+  {
+    "id": "escape",
+    "label": "Turn an escaped {{ into a literal one",
+    "code": "if (text.startsWith(\"\\\\{{\", i)) {\n    out += \"{{\";\n    i += 3;\n    continue;\n}"
+  },
+  {
+    "id": "match-placeholder",
+    "label": "Match a placeholder or report it malformed",
+    "code": "PLACEHOLDER.lastIndex = i;\nconst match = PLACEHOLDER.exec(text);\nif (!match) {\n    errors.push(`malformed placeholder at ${i}`);\n    i += 2;\n    continue;\n}"
+  },
+  {
+    "id": "insert-value",
+    "label": "Insert the value or report a missing variable",
+    "code": "const name = match[1];\nused.add(name);\nconst value = Object.prototype.hasOwnProperty.call(variables, name) ? variables[name] : undefined;\nif (typeof value === \"string\") out += value;\nelse if (typeof value === \"number\") out += String(value);\nelse if (!reported.has(name)) {\n    reported.add(name);\n    errors.push(`missing variable: ${name}`);\n}"
+  },
+  {
+    "id": "warnings",
+    "label": "List the variables no placeholder used",
+    "code": "const warnings = Object.keys(variables)\n    .filter((name) => !used.has(name))\n    .sort()\n    .map((name) => `unused variable: ${name}`);"
+  },
+  {
+    "id": "result",
+    "label": "Return the result",
+    "code": "return errors.length > 0 ? { ok: false, ref, errors, warnings } : { ok: true, ref, prompt: out, warnings };"
+  },
+  {
+    "id": "escape-ignored",
+    "label": "Turn an escaped {{ into a literal one",
+    "code": "if (false) {\n    out += \"{{\";\n    i += 3;\n    continue;\n}",
+    "distractor": true
+  },
+  {
+    "id": "insert-value-any-defined",
+    "label": "Insert the value or report a missing variable",
+    "code": "const name = match[1];\nused.add(name);\nconst value = Object.prototype.hasOwnProperty.call(variables, name) ? variables[name] : undefined;\nif (typeof value === \"string\") out += value;\nelse if (value !== undefined) out += String(value);\nelse if (!reported.has(name)) {\n    reported.add(name);\n    errors.push(`missing variable: ${name}`);\n}",
+    "distractor": true
+  },
+  {
+    "id": "insert-value-falsy-missing",
+    "label": "Insert the value or report a missing variable",
+    "code": "const name = match[1];\nused.add(name);\nconst value = Object.prototype.hasOwnProperty.call(variables, name) ? variables[name] : undefined;\nif (!value) { if (!reported.has(name)) { reported.add(name); errors.push(`missing variable: ${name}`); } }\nelse if (typeof value === \"string\") out += value;\nelse if (typeof value === \"number\") out += String(value);\nelse if (!reported.has(name)) {\n    reported.add(name);\n    errors.push(`missing variable: ${name}`);\n}",
+    "distractor": true
+  },
+  {
+    "id": "ref-id-only",
+    "label": "The ref every log line carries",
+    "code": "const ref = template.id;",
+    "distractor": true
+  },
+  {
+    "id": "result-first-error",
+    "label": "Return the result",
+    "code": "return errors.length > 0 ? { ok: false, ref, errors: errors.slice(0, 1), warnings } : { ok: true, ref, prompt: out, warnings };",
+    "distractor": true
+  }
+]

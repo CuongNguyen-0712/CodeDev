@@ -1,0 +1,29 @@
+[
+  {
+    "id": "bind-context",
+    "label": "Capture the context and run fn inside it",
+    "code": "const captured = store.active();\nreturn (...args: A): R => store.run(captured, () => fn(...args));"
+  },
+  {
+    "id": "inject-header",
+    "label": "Write the active span into traceparent",
+    "code": "const ctx = store.active();\nif (!ctx) return;\nheaders.traceparent = `00-${ctx.traceId}-${ctx.spanId}-01`;"
+  },
+  {
+    "id": "extract-header",
+    "label": "Read and validate traceparent",
+    "code": "const value = headers.traceparent;\nif (value === undefined) return null;\nconst match = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/.exec(value);\nif (!match) return null;\nconst [, traceId, spanId] = match;\nif (/^0+$/.test(traceId) || /^0+$/.test(spanId)) return null;\nreturn { traceId, spanId };"
+  },
+  {
+    "id": "bind-at-call-time",
+    "label": "Capture the context and run fn inside it",
+    "code": "return (...args: A): R => store.run(store.active(), () => fn(...args));",
+    "distractor": true
+  },
+  {
+    "id": "extract-zero-ids-allowed",
+    "label": "Read and validate traceparent",
+    "code": "const value = headers.traceparent;\nif (value === undefined) return null;\nconst match = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/.exec(value);\nif (!match) return null;\nconst [, traceId, spanId] = match;\nreturn { traceId, spanId };",
+    "distractor": true
+  }
+]

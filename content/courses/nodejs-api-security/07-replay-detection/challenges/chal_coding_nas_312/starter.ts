@@ -47,8 +47,14 @@ function sha256(text: string): string {
 }
 
 function refresh(store: TokenStore, req: RefreshRequest): RefreshResult {
-    // Your code here: look the token up by its SHA-256 hash, then follow rules 1-5 above.
-    return { status: "invalid" };
+    // [ ] Find the row, reject revoked and expired ones
+    // [ ] First use: claim the token and rotate
+    return handleReuse(store, row, req);
+}
+
+function handleReuse(store: TokenStore, row: Row, req: RefreshRequest): RefreshResult {
+    // [ ] A retry that may get the same answer again
+    // [ ] Anything else is a replay
 }
 
 // ------------------------------------------------------------------ token store (do not change)

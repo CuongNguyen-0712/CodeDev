@@ -1,0 +1,56 @@
+[
+  {
+    "id": "index-runs",
+    "label": "Index each run by caseId, noting duplicates",
+    "code": "const byId = (run: EvalRun, label: string): Map<string, CaseResult> => {\n    const map = new Map<string, CaseResult>();\n    for (const r of run.results) {\n        if (map.has(r.caseId)) problems.push(`duplicate case ${r.caseId} in ${label}`);\n        else map.set(r.caseId, r);\n    }\n    return map;\n};\nconst base = byId(baseline, \"baseline\");\nconst cand = byId(candidate, \"candidate\");"
+  },
+  {
+    "id": "pair-cases",
+    "label": "Pair the runs and check their slices",
+    "code": "const pairs: { slice: string; before: boolean; after: boolean }[] = [];\nfor (const [id, b] of base) {\n    const c = cand.get(id);\n    if (!c) continue;\n    if (b.slice !== c.slice) problems.push(`case ${id}: slice ${b.slice} in baseline, ${c.slice} in candidate`);\n    pairs.push({ slice: b.slice, before: b.pass, after: c.pass });\n}\nif (problems.length > 0) return { decision: \"invalid\", reasons: problems };"
+  },
+  {
+    "id": "group-counts",
+    "label": "Count passes, flips, rates and the change",
+    "code": "const n = group.length;\nconst bp = group.filter((p) => p.before).length;\nconst cp = group.filter((p) => p.after).length;\nconst passToFail = group.filter((p) => p.before && !p.after).length;\nconst failToPass = group.filter((p) => !p.before && p.after).length;\nconst rate = (passes: number) => (n === 0 ? null : Math.round((1000 * passes) / n) / 10);\nconst delta = n === 0 ? null : Math.round((1000 * (cp - bp)) / n) / 10;"
+  },
+  {
+    "id": "group-status",
+    "label": "Decide the group's status and reasons",
+    "code": "let status: Status = \"ok\";\nif (n < config.minSampleSize) {\n    status = \"insufficient data\";\n    reasons.push(`${label}: insufficient data (n=${n} < ${config.minSampleSize})`);\n} else {\n    if (100 * (bp - cp) > limit * n) {\n        status = \"regressed\";\n        reasons.push(`${label}: pass rate dropped ${-(delta as number)} pp (limit ${limit})`);\n    }\n    const m = passToFail + failToPass;\n    const critical = m >= 1 ? config.criticalPassToFail[m] : null;\n    if (paired && typeof critical === \"number\" && passToFail >= critical) {\n        status = \"regressed\";\n        reasons.push(`${label}: significant regression (${passToFail} pass->fail vs ${failToPass} fail->pass, critical ${critical})`);\n    }\n}"
+  },
+  {
+    "id": "overall-and-slices",
+    "label": "Evaluate overall, then each slice by name",
+    "code": "const overall = evaluate(pairs, \"overall\", config.maxOverallDropPp, true);\nconst names = [...new Set(pairs.map((p) => p.slice))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));\nconst slices = names.map((name) => ({\n    slice: name,\n    ...evaluate(pairs.filter((p) => p.slice === name), `slice ${name}`, config.maxSliceDropPp, false),\n}));"
+  },
+  {
+    "id": "decision",
+    "label": "Pick the decision and build the report",
+    "code": "const groups = [overall, ...slices];\nconst decision = groups.some((g) => g.status === \"regressed\")\n    ? \"fail\"\n    : groups.some((g) => g.status === \"insufficient data\")\n      ? \"review\"\n      : \"pass\";\nreturn { decision, paired: pairs.length, unpaired: base.size + cand.size - 2 * pairs.length, overall, slices, reasons };"
+  },
+  {
+    "id": "decision-no-review",
+    "label": "Pick the decision and build the report",
+    "code": "const groups = [overall, ...slices];\nconst decision = groups.some((g) => g.status === \"regressed\")\n    ? \"fail\"\n    : \"pass\";\nreturn { decision, paired: pairs.length, unpaired: base.size + cand.size - 2 * pairs.length, overall, slices, reasons };",
+    "distractor": true
+  },
+  {
+    "id": "group-status-at-limit",
+    "label": "Decide the group's status and reasons",
+    "code": "let status: Status = \"ok\";\nif (n < config.minSampleSize) {\n    status = \"insufficient data\";\n    reasons.push(`${label}: insufficient data (n=${n} < ${config.minSampleSize})`);\n} else {\n    if (100 * (bp - cp) >= limit * n) {\n        status = \"regressed\";\n        reasons.push(`${label}: pass rate dropped ${-(delta as number)} pp (limit ${limit})`);\n    }\n    const m = passToFail + failToPass;\n    const critical = m >= 1 ? config.criticalPassToFail[m] : null;\n    if (paired && typeof critical === \"number\" && passToFail >= critical) {\n        status = \"regressed\";\n        reasons.push(`${label}: significant regression (${passToFail} pass->fail vs ${failToPass} fail->pass, critical ${critical})`);\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "group-status-critical-by-n",
+    "label": "Decide the group's status and reasons",
+    "code": "let status: Status = \"ok\";\nif (n < config.minSampleSize) {\n    status = \"insufficient data\";\n    reasons.push(`${label}: insufficient data (n=${n} < ${config.minSampleSize})`);\n} else {\n    if (100 * (bp - cp) > limit * n) {\n        status = \"regressed\";\n        reasons.push(`${label}: pass rate dropped ${-(delta as number)} pp (limit ${limit})`);\n    }\n    const m = passToFail + failToPass;\n    const critical = m >= 1 ? config.criticalPassToFail[n] : null;\n    if (paired && typeof critical === \"number\" && passToFail >= critical) {\n        status = \"regressed\";\n        reasons.push(`${label}: significant regression (${passToFail} pass->fail vs ${failToPass} fail->pass, critical ${critical})`);\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "pair-cases-unpaired-fail",
+    "label": "Pair the runs and check their slices",
+    "code": "const pairs: { slice: string; before: boolean; after: boolean }[] = [];\nfor (const [id, b] of base) {\n    const c = cand.get(id);\n    if (!c) { pairs.push({ slice: b.slice, before: b.pass, after: false }); continue; }\n    if (b.slice !== c.slice) problems.push(`case ${id}: slice ${b.slice} in baseline, ${c.slice} in candidate`);\n    pairs.push({ slice: b.slice, before: b.pass, after: c.pass });\n}\nif (problems.length > 0) return { decision: \"invalid\", reasons: problems };",
+    "distractor": true
+  }
+]

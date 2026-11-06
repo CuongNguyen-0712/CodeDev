@@ -1,0 +1,23 @@
+// @piece write-progress: Load, check and save the progress, then announce it
+let doc = await db.load(req.userId, req.courseId);
+const current = doc.lessons[req.lessonId] ?? 0;
+if (percent <= current) return { status: "unchanged", lessonPercent: current };
+for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (attempt > 1) doc = await db.load(req.userId, req.courseId);
+
+    const lessons = { ...doc.lessons, [req.lessonId]: percent };
+    const next: ProgressDoc = { version: doc.version + 1, lessons, coursePercent: coursePercent(lessons, courseLessons) };
+    if (!(await db.saveIfVersion(req.userId, req.courseId, doc.version, next))) continue;
+
+    bus.publish({
+        type: "progress.updated",
+        userId: req.userId,
+        courseId: req.courseId,
+        lessonId: req.lessonId,
+        lessonPercent: percent,
+        coursePercent: next.coursePercent,
+        version: next.version,
+    });
+    return { status: "applied", version: next.version, coursePercent: next.coursePercent };
+}
+return { status: "rejected", error: "CONFLICT" };

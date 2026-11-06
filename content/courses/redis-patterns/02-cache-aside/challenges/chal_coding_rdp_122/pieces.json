@@ -1,0 +1,30 @@
+[
+  {
+    "id": "read-cache",
+    "label": "Answer from Redis when the copy is readable",
+    "code": "const key = `course:${id}`;\nconst cached = deps.redis.get(key);\nif (cached !== null) {\n    try {\n        return JSON.parse(cached) as Course | null;\n    } catch {\n        // unreadable value from an older deploy: fall through and reload it\n    }\n}"
+  },
+  {
+    "id": "load-and-store",
+    "label": "Load from PostgreSQL and keep a copy",
+    "code": "const course = deps.db.findCourseById(id); // throws when the database is down: nothing is cached\nif (course === null) {\n    deps.redis.set(key, \"null\", { ex: NOT_FOUND_TTL_SECONDS });\n} else {\n    const ttl = COURSE_TTL_SECONDS + Math.floor(deps.random() * (COURSE_TTL_JITTER_SECONDS + 1));\n    deps.redis.set(key, JSON.stringify(course), { ex: ttl });\n}\nreturn course;"
+  },
+  {
+    "id": "read-parse-unguarded",
+    "label": "Answer from Redis when the copy is readable",
+    "code": "const key = `course:${id}`;\nconst cached = deps.redis.get(key);\nif (cached !== null) {\n    return JSON.parse(cached) as Course | null;\n}",
+    "distractor": true
+  },
+  {
+    "id": "store-found-only",
+    "label": "Load from PostgreSQL and keep a copy",
+    "code": "const course = deps.db.findCourseById(id); // throws when the database is down: nothing is cached\nif (course !== null) {\n    const ttl = COURSE_TTL_SECONDS + Math.floor(deps.random() * (COURSE_TTL_JITTER_SECONDS + 1));\n    deps.redis.set(key, JSON.stringify(course), { ex: ttl });\n}\nreturn course;",
+    "distractor": true
+  },
+  {
+    "id": "store-without-jitter",
+    "label": "Load from PostgreSQL and keep a copy",
+    "code": "const course = deps.db.findCourseById(id); // throws when the database is down: nothing is cached\nif (course === null) {\n    deps.redis.set(key, \"null\", { ex: NOT_FOUND_TTL_SECONDS });\n} else {\n    const ttl = COURSE_TTL_SECONDS;\n    deps.redis.set(key, JSON.stringify(course), { ex: ttl });\n}\nreturn course;",
+    "distractor": true
+  }
+]

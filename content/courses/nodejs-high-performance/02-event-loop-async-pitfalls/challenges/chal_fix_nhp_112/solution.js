@@ -1,20 +1,34 @@
 /**
- * Reference solution (never shipped to learners).
- * forEach ignores the promises its async callback returns, so the function returned
- * before any fee arrived. Collect the promises and await them all (the lookups are
- * independent, so they may run concurrently), then sum.
+ * Computes tonight's settlement for one merchant: the sum of (amount - gateway fee)
+ * over all of the merchant's orders, in integer cents. Fees are looked up one order
+ * at a time from the payment gateway.
+ *
+ * BUG: since the "make it faster" refactor, the settlement report says netCents = 0
+ * for every merchant, although orderCount is right and the gateway logs show every
+ * fee lookup succeeding. The payout job then pays merchants nothing.
+ *
+ * Expected: resolve only after every fee is known, with
+ *   { merchantId, orderCount, netCents }  where netCents = sum(amountCents - fee)
+ *
+ * @param {{ merchantId: string, orders: Array<{ id: string, amountCents: number }> }} batch
+ * @param {{ getFee(orderId: string): Promise<number> }} gateway
+ * @returns {Promise<{ merchantId: string, orderCount: number, netCents: number }>}
  */
 async function settleMerchant(batch, gateway) {
+  // @piece fees: Get every order's net amount once its fee is known
   const nets = await Promise.all(
     batch.orders.map(async (order) => {
       const fee = await gateway.getFee(order.id);
       return order.amountCents - fee;
     })
   );
+  // @end
 
   return {
     merchantId: batch.merchantId,
     orderCount: batch.orders.length,
+    // @piece net-total: The merchant's net total
     netCents: nets.reduce((sum, net) => sum + net, 0),
+    // @end
   };
 }

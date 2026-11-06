@@ -50,10 +50,13 @@ function levelValue(level: string): number {
 }
 
 function createLogger(options: LoggerOptions, bindings: Fields = {}): Logger {
+    // @piece read-options: Read the level, redaction and length options once
     const threshold = levelValue(options.level);
     const redact = new Set(options.redact.map((key) => key.toLowerCase()));
     const max = options.maxStringLength;
+    // @end
 
+    // @piece clean-value: Make one value safe to log
     const clean = (value: unknown): unknown => {
         if (typeof value === "string") return value.length > max ? `${value.slice(0, max)}...[truncated]` : value;
         if (value instanceof Error) {
@@ -66,6 +69,8 @@ function createLogger(options: LoggerOptions, bindings: Fields = {}): Logger {
         if (value !== null && typeof value === "object") return cleanObject(value as Fields);
         return value;
     };
+    // @end
+    // @piece clean-object: Clean every field of an object
     const cleanObject = (obj: Fields): Fields => {
         const out: Fields = {};
         for (const [key, value] of Object.entries(obj)) {
@@ -74,9 +79,11 @@ function createLogger(options: LoggerOptions, bindings: Fields = {}): Logger {
         }
         return out;
     };
+    // @end
 
     return {
         log(level: string, msg: string, fields: Fields = {}): void {
+            // @piece write-record: Build and write one JSON record
             if (levelValue(level) < threshold) return;
             const record: Fields = { time: new Date(options.now()).toISOString(), level, msg: clean(msg) };
             const span = options.activeSpan();
@@ -89,10 +96,13 @@ function createLogger(options: LoggerOptions, bindings: Fields = {}): Logger {
                 if (!RESERVED.has(key)) record[key] = merged[key];
             }
             options.write(JSON.stringify(record));
+            // @end
         },
         child(more: Fields): Logger {
+            // @piece child-bindings: Bind the extra fields of a child logger
             const set = Object.entries(more).filter(([, value]) => value !== undefined);
             return createLogger(options, { ...bindings, ...Object.fromEntries(set) });
+            // @end
         },
     };
 }

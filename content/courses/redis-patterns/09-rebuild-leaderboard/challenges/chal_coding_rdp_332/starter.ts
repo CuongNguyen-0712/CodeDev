@@ -38,11 +38,16 @@ const NEXT_SEEN = "lb:seen:rebuild";
 const PAGE_SIZE = 100;
 
 function applyEvent(redis: FakeRedis, boardKey: string, seenKey: string, event: ScoreEvent): Applied {
-    return "invalid";
+    // [ ] Refuse an event with a bad id, learner or points
+    // [ ] Count the event once per board
 }
 
 function rebuild(redis: FakeRedis, db: FakeDb): void {
-    // TODO: build lb:all:rebuild from the log, swap it in, then catch up
+    // [ ] Build a fresh board up to the watermark
+
+    // [ ] Put the fresh board in place
+
+    // [ ] Apply the events that arrived during the rebuild
 }
 
 // ---------------------------------------------------------------- in-memory Redis model (do not change)

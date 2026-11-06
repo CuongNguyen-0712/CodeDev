@@ -73,14 +73,28 @@ type AuditRecord = {
 type ChainCheck = { ok: true } | { ok: false; brokenAt: number; reason: "prev_hash" | "hash" };
 
 const GENESIS = "0".repeat(64);
+const REDACT = ["password", "token", "secret", "apikey", "authorization"];
+const MAX_STRING = 64;
+const MAX_SUMMARY = 200;
+
 function canonicalJson(value: unknown): string {
-    // TODO
-    return "";
+    // [ ] One JSON text per value, whatever the key order
+}
+
+function cut(text: string): string {
+    return text.length > MAX_STRING ? `${text.slice(0, MAX_STRING)}...(+${text.length - MAX_STRING} chars)` : text;
+}
+
+function clean(value: unknown): unknown {
+    // [ ] Shorten long strings, hide secret-looking keys
 }
 
 function summarizeArgs(args: unknown): string {
-    // TODO
-    return "";
+    // [ ] The arguments as a short, safe summary
+}
+
+function hashRecord(record: Omit<AuditRecord, "hash">): string {
+    // [ ] Hash a record together with the previous hash
 }
 
 class AuditedExecutor {
@@ -93,14 +107,14 @@ class AuditedExecutor {
     ) {}
 
     execute(ctx: CallContext, tool: string, args: unknown): CallResult {
-        // TODO: decide the outcome, run the tool if allowed, append the record, return the result
-        return { outcome: "denied" };
+        // [ ] Decide the outcome and run the tool if allowed
+        // [ ] Append the record that chains to the last one
+        return result;
     }
 }
 
 function verifyChain(records: AuditRecord[]): ChainCheck {
-    // TODO
-    return { ok: true };
+    // [ ] Check every record's link and hash
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

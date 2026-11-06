@@ -26,6 +26,7 @@ type Decision = { submissionId: string; outcome: "accepted" | "review"; reason: 
 const MAX_ABOVE_TESTS = 2;
 
 function rejectionReason(job: GradingJob, output: unknown): string | null {
+    // @piece check-reply: Check the reply field by field
     if (typeof output !== "object" || output === null || Array.isArray(output)) return "invalid_json";
     const { score, feedback } = output as Record<string, unknown>;
     if (score === undefined || score === null) return "score_missing";
@@ -36,9 +37,11 @@ function rejectionReason(job: GradingJob, output: unknown): string | null {
     if (length < 10 || length > 1000) return "feedback_length";
     if (score > job.testScore + MAX_ABOVE_TESTS) return "above_test_cap";
     return null;
+    // @end
 }
 
 function handleGradingResult(job: GradingJob, db: GradingDb): void {
+    // @piece parse-and-review: Read the reply and route a bad one to review
     let output: unknown;
     try {
         output = JSON.parse(job.modelOutput);
@@ -51,8 +54,11 @@ function handleGradingResult(job: GradingJob, db: GradingDb): void {
         db.recordDecision({ submissionId: job.submissionId, outcome: "review", reason });
         return;
     }
+    // @end
+    // @piece save-score: Save the accepted score
     const { score, feedback } = output as { score: number; feedback: string };
     db.updateAiScore(job.submissionId, score, feedback);
+    // @end
     db.recordDecision({ submissionId: job.submissionId, outcome: "accepted", reason: null });
 }
 

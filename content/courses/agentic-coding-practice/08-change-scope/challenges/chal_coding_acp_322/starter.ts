@@ -36,12 +36,23 @@ type Violation = { path: string; change: string; reason: string };
 type Report = { ok: boolean; checked: number; violations: Violation[] };
 
 function matchGlob(pattern: string, path: string): boolean {
-    return false;
+    // [ ] Match the whole path, every brace alternative
 }
 
 function checkScope(changes: Change[], allowed: string[], forbidden: Forbidden[]): Report {
-    return { ok: true, checked: 0, violations: [] };
+    // [ ] The paths to check, two for a rename
+    const violations: Violation[] = [];
+    // [ ] The first violation of each path, if any
+    // [ ] Sorted violations and the report
 }
+
+// [ ] Helper: expand {a,b} groups into alternatives
+
+// [ ] Helper: does one pattern segment match one path segment
+
+// [ ] Helper: match segment lists, ** included
+
+// [ ] Helper: is a path invalid
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { allowed, forbidden, changes }. Output: the report as JSON.

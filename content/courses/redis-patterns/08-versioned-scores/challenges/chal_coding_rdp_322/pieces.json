@@ -1,0 +1,29 @@
+[
+  {
+    "id": "check-update",
+    "label": "Refuse an update with a bad learner, score or version",
+    "code": "const { learnerId, totalScore, version } = update;\nif (typeof learnerId !== \"string\" || learnerId === \"\") return \"invalid\";\nif (!Number.isSafeInteger(version) || version < 1) return \"invalid\";\nif (totalScore !== null && (!Number.isSafeInteger(totalScore) || totalScore < 0)) return \"invalid\";"
+  },
+  {
+    "id": "compare-version",
+    "label": "Compare with the stored version",
+    "code": "const stored = Number(redis.hget(VERSIONS, learnerId) ?? \"0\");\nif (version === stored) return \"duplicate\";\nif (version < stored) return \"stale\";"
+  },
+  {
+    "id": "apply-update",
+    "label": "Write the new score and remember its version",
+    "code": "if (totalScore === null) redis.zrem(BOARD, learnerId);\nelse redis.zadd(BOARD, totalScore, learnerId);\nredis.hset(VERSIONS, learnerId, String(version));\nreturn \"applied\";"
+  },
+  {
+    "id": "apply-zero-is-removal",
+    "label": "Write the new score and remember its version",
+    "code": "if (!totalScore) redis.zrem(BOARD, learnerId);\nelse redis.zadd(BOARD, totalScore, learnerId);\nredis.hset(VERSIONS, learnerId, String(version));\nreturn \"applied\";",
+    "distractor": true
+  },
+  {
+    "id": "version-equal-applies",
+    "label": "Compare with the stored version",
+    "code": "const stored = Number(redis.hget(VERSIONS, learnerId) ?? \"0\");\nif (version < stored) return \"stale\";",
+    "distractor": true
+  }
+]

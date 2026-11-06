@@ -59,8 +59,19 @@ type Verdict = { decision: Decision; rule: Rule };
 type Policy = { allow: string[]; productionHosts: string[] };
 
 function evaluateCommand(command: string, policy: Policy): Verdict {
-    return { decision: "ask", rule: "unknown" };
+    // [ ] Deny what cannot be parsed safely
+    // [ ] One verdict for the whole line
 }
+
+// [ ] Tokens, segments and the shell operators
+
+// [ ] Helper: split a command line into words and operators
+
+// [ ] Helper: group tokens into one segment per program
+
+// [ ] Helper: env assignments and paths outside the workspace
+
+// [ ] Helper: the verdict for one program
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { policy, commands }. Output: one verdict per command, in order.

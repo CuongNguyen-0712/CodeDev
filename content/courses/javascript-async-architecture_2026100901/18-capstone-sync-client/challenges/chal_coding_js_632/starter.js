@@ -36,15 +36,40 @@
 function createSyncClient({ send, maxInFlight = 4 }) {
   /** @type {Array<Mutation & { attempted: boolean, inFlight: boolean }>} */
   const outbox = [];
+  let running = null;
 
   function enqueue({ id, recordId, patch }) {
-    // TODO: coalesce into the newest never-sent entry of this record, or append
+    // [ ] Merge into the record's newest unsent entry, or append
   }
 
   function flush() {
-    // TODO: send per record in order, at most maxInFlight records at once,
-    // classify errors, and resolve with the summary
-    return Promise.resolve({ sent: [], failed: [], pending: outbox.map((entry) => entry.id) });
+    if (running) return running;
+
+    running = new Promise((resolve) => {
+      const summary = { sent: [], failed: [], pending: [] };
+      const busy = new Set();      // records with a mutation in flight
+      const blocked = new Set();   // records that hit a transient error in this flush
+      let inFlight = 0;
+
+      const remove = (entry) => outbox.splice(outbox.indexOf(entry), 1);
+
+      function start(entry) {
+        entry.inFlight = true;
+        entry.attempted = true;
+        busy.add(entry.recordId);
+        inFlight++;
+
+        // [ ] Send the mutation and sort out its outcome
+      }
+
+      function pump() {
+        // [ ] Start what may start now, or finish the flush
+      }
+
+      pump();
+    });
+
+    return running;
   }
 
   return { enqueue, flush };

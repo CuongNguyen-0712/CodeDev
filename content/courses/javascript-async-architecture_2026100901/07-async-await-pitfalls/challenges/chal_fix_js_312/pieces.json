@@ -1,0 +1,19 @@
+[
+  {
+    "id": "loader",
+    "label": "Share one connection attempt between callers",
+    "code": "let pending = null;\n\nreturn async function getClient() {\n  if (!pending) {\n    const attempt = connect();\n    pending = attempt;\n    attempt.catch(() => {\n      if (pending === attempt) pending = null;\n    });\n  }\n  try {\n    return await pending;\n  } catch (error) {\n    throw new Error(\"Client initialisation failed\", { cause: error });\n  }\n};"
+  },
+  {
+    "id": "loader-clears-in-finally",
+    "label": "Share one connection attempt between callers",
+    "code": "let pending = null;\n\nreturn async function getClient() {\n  if (!pending) pending = connect();\n  try {\n    return await pending;\n  } catch (error) {\n    throw new Error(\"Client initialisation failed\", { cause: error });\n  } finally {\n    pending = null;\n  }\n};",
+    "distractor": true
+  },
+  {
+    "id": "loader-keeps-failure",
+    "label": "Share one connection attempt between callers",
+    "code": "let pending = null;\n\nreturn async function getClient() {\n  if (!pending) pending = connect();\n  try {\n    return await pending;\n  } catch (error) {\n    throw new Error(\"Client initialisation failed\", { cause: error });\n  }\n};",
+    "distractor": true
+  }
+]

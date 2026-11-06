@@ -1,0 +1,50 @@
+[
+  {
+    "id": "validate-config",
+    "label": "Refuse an invalid configuration",
+    "code": "if (!Number.isFinite(maxAge) || !Number.isFinite(staleWhileRevalidate) || maxAge < 0 || staleWhileRevalidate < 0) {\n    throw new Error(\"invalid cache config\");\n}"
+  },
+  {
+    "id": "fetch-once",
+    "label": "Start the fetch and store its result",
+    "code": "const fetching = this.origin.fetch(key).then(\n    (value) => {\n        this.inFlight.delete(key);\n        this.entries.set(key, { value, fetchedAt: this.clock.now() });\n        return value;\n    },\n    (error: unknown) => {\n        this.inFlight.delete(key); // keep the old entry: stale-if-error\n        throw error;\n    },\n);\nthis.inFlight.set(key, fetching);\nreturn fetching;"
+  },
+  {
+    "id": "entry-age",
+    "label": "How old is the stored value?",
+    "code": "const entry = this.entries.get(key);\nconst age = entry ? this.clock.now() - entry.fetchedAt : Infinity;"
+  },
+  {
+    "id": "fresh-hit",
+    "label": "Fresh: answer from the cache",
+    "code": "if (entry && age < this.maxAge) return { status: \"HIT\", value: entry.value, error: null, fetchesStarted: 0 };"
+  },
+  {
+    "id": "stale-revalidate",
+    "label": "Stale: answer now, revalidate in the background",
+    "code": "if (entry && age < this.maxAge + this.staleWhileRevalidate) {\n    let started = 0;\n    if (!this.inFlight.has(key)) {\n        this.startFetch(key).catch(() => {}); // a failed background revalidation must not crash anything\n        started = 1;\n    }\n    return { status: \"STALE\", value: entry.value, error: null, fetchesStarted: started };\n}"
+  },
+  {
+    "id": "miss-wait",
+    "label": "Miss: wait for this key's fetch",
+    "code": "let started = 0;\nlet fetching = this.inFlight.get(key);\nif (!fetching) {\n    fetching = this.startFetch(key);\n    started = 1;\n}\ntry {\n    return { status: \"MISS\", value: await fetching, error: null, fetchesStarted: started };\n} catch (error) {\n    return { status: \"MISS\", value: null, error: (error as Error).message, fetchesStarted: started };\n}"
+  },
+  {
+    "id": "fetch-once-drop-on-error",
+    "label": "Start the fetch and store its result",
+    "code": "const fetching = this.origin.fetch(key).then(\n    (value) => {\n        this.inFlight.delete(key);\n        this.entries.set(key, { value, fetchedAt: this.clock.now() });\n        return value;\n    },\n    (error: unknown) => {\n        this.inFlight.delete(key);\n        this.entries.delete(key);\n        throw error;\n    },\n);\nthis.inFlight.set(key, fetching);\nreturn fetching;",
+    "distractor": true
+  },
+  {
+    "id": "fresh-hit-inclusive",
+    "label": "Fresh: answer from the cache",
+    "code": "if (entry && age <= this.maxAge) return { status: \"HIT\", value: entry.value, error: null, fetchesStarted: 0 };",
+    "distractor": true
+  },
+  {
+    "id": "stale-revalidate-every-request",
+    "label": "Stale: answer now, revalidate in the background",
+    "code": "if (entry && age < this.maxAge + this.staleWhileRevalidate) {\n    this.startFetch(key).catch(() => {}); // a failed background revalidation must not crash anything\n    return { status: \"STALE\", value: entry.value, error: null, fetchesStarted: 1 };\n}",
+    "distractor": true
+  }
+]

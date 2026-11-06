@@ -1,0 +1,50 @@
+[
+  {
+    "id": "family-owner",
+    "label": "Find the family and check who owns it",
+    "code": "const family = s.rows.filter((r) => r.familyId === familyId);\nif (!family.some((r) => r.userId === userId)) return false;"
+  },
+  {
+    "id": "revoke-and-deny",
+    "label": "Revoke its rows and deny its access tokens",
+    "code": "let changed = 0;\nfor (const row of family) {\n    if (row.revokedAt === null) {\n        row.revokedAt = now;\n        changed++;\n    }\n}\nif (changed > 0) s.deniedFamilies.set(familyId, now + ACCESS_TTL_MS);"
+  },
+  {
+    "id": "sign-out-all",
+    "label": "Sign out every session of the user",
+    "code": "s.sessionVersion.set(userId, (s.sessionVersion.get(userId) ?? 0) + 1);\nfor (const row of s.rows) {\n    if (row.userId === userId && row.revokedAt === null) row.revokedAt = now;\n}"
+  },
+  {
+    "id": "check-access",
+    "label": "Expiry, session version and the deny list",
+    "code": "if (now >= claims.exp) return \"expired\";\nif (claims.ver < (s.sessionVersion.get(claims.sub) ?? 0)) return \"revoked\";\nif (s.deniedFamilies.has(claims.sid)) return \"revoked\";"
+  },
+  {
+    "id": "prune",
+    "label": "Drop deny-list entries that ran out",
+    "code": "for (const [familyId, until] of s.deniedFamilies) {\n    if (until <= now) s.deniedFamilies.delete(familyId);\n}"
+  },
+  {
+    "id": "live-sessions",
+    "label": "The user's live sessions, most recent first",
+    "code": "const families = new Map<string, SessionView & { live: boolean }>();\nfor (const row of s.rows) {\n    if (row.userId !== userId) continue;\n    const live = row.usedAt === null && row.revokedAt === null && now < row.expiresAt;\n    const view = families.get(row.familyId);\n    if (!view) {\n        families.set(row.familyId, { familyId: row.familyId, deviceId: row.deviceId, createdAt: row.createdAt, lastUsedAt: row.createdAt, live });\n        continue;\n    }\n    view.createdAt = Math.min(view.createdAt, row.createdAt);\n    view.lastUsedAt = Math.max(view.lastUsedAt, row.createdAt);\n    view.live = view.live || live;\n}\nreturn [...families.values()]\n    .filter((v) => v.live)\n    .map(({ familyId, deviceId, createdAt, lastUsedAt }) => ({ familyId, deviceId, createdAt, lastUsedAt }))\n    .sort((a, b) => b.lastUsedAt - a.lastUsedAt || (a.familyId < b.familyId ? -1 : a.familyId > b.familyId ? 1 : 0));"
+  },
+  {
+    "id": "deny-for-refresh-ttl",
+    "label": "Revoke its rows and deny its access tokens",
+    "code": "let changed = 0;\nfor (const row of family) {\n    if (row.revokedAt === null) {\n        row.revokedAt = now;\n        changed++;\n    }\n}\nif (changed > 0) s.deniedFamilies.set(familyId, now + REFRESH_TTL_MS);",
+    "distractor": true
+  },
+  {
+    "id": "family-any-owner",
+    "label": "Find the family and check who owns it",
+    "code": "const family = s.rows.filter((r) => r.familyId === familyId);\nif (family.length === 0) return false;",
+    "distractor": true
+  },
+  {
+    "id": "sessions-expired-too",
+    "label": "The user's live sessions, most recent first",
+    "code": "const families = new Map<string, SessionView & { live: boolean }>();\nfor (const row of s.rows) {\n    if (row.userId !== userId) continue;\n    const live = row.usedAt === null && row.revokedAt === null;\n    const view = families.get(row.familyId);\n    if (!view) {\n        families.set(row.familyId, { familyId: row.familyId, deviceId: row.deviceId, createdAt: row.createdAt, lastUsedAt: row.createdAt, live });\n        continue;\n    }\n    view.createdAt = Math.min(view.createdAt, row.createdAt);\n    view.lastUsedAt = Math.max(view.lastUsedAt, row.createdAt);\n    view.live = view.live || live;\n}\nreturn [...families.values()]\n    .filter((v) => v.live)\n    .map(({ familyId, deviceId, createdAt, lastUsedAt }) => ({ familyId, deviceId, createdAt, lastUsedAt }))\n    .sort((a, b) => b.lastUsedAt - a.lastUsedAt || (a.familyId < b.familyId ? -1 : a.familyId > b.familyId ? 1 : 0));",
+    "distractor": true
+  }
+]

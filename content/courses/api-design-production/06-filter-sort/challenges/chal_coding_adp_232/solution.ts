@@ -58,6 +58,54 @@ const SORTABLE = ["title", "rating", "price", "published_at"];
 const MAX_LIST = 10;
 const MAX_SORT = 3;
 
+// Complete parseListQuery: fill every [ ] line with the right piece. Do not change the types, FILTERS,
+// SORTABLE, the limits or the test runner.
+function parseListQuery(query: string): Result {
+    // @piece plan-defaults: Start: default sort, no errors, no names seen
+    const plan: Plan = { filters: [], sort: [{ field: "published_at", dir: "desc" }, { field: "id", dir: "desc" }], q: null };
+    const errors: string[] = [];
+    const seen = new Set<string>();
+    // @end
+    for (const part of query.split("&")) {
+        // @piece read-param: Read one name=value pair and reject bad names
+        if (part === "") continue;
+        const eq = part.indexOf("=");
+        const name = decode(eq === -1 ? part : part.slice(0, eq));
+        const value = decode(eq === -1 ? "" : part.slice(eq + 1));
+        if (name === null || value === null) {
+            errors.push(`malformed percent-encoding in "${part}"`);
+            continue;
+        }
+        if (!/^[a-z_]+(\[[a-z]+\])?$/.test(name)) {
+            errors.push(`invalid parameter name "${name}"`);
+            continue;
+        }
+        if (seen.has(name)) {
+            errors.push(`duplicate parameter "${name}"`);
+            continue;
+        }
+        seen.add(name);
+        // @end
+        // @piece route-param: Send each parameter to its own rules
+        if (name === "limit" || name === "cursor") continue;
+        if (name === "q") {
+            const q = value.trim();
+            if (q.length < 1 || q.length > 100) errors.push(`"q" must be 1-100 characters`);
+            else plan.q = q;
+        } else if (name === "sort") {
+            const sort = parseSort(value);
+            if (typeof sort === "string") errors.push(sort);
+            else plan.sort = sort;
+        } else {
+            const error = parseFilter(name, value, plan);
+            if (error !== null) errors.push(error);
+        }
+        // @end
+    }
+    return errors.length > 0 ? { status: 400, errors } : { status: 200, plan };
+}
+
+// @piece decode-value: Decode a percent-encoded name or value
 function decode(raw: string): string | null {
     try {
         return decodeURIComponent(raw.replace(/\+/g, " "));
@@ -65,7 +113,9 @@ function decode(raw: string): string | null {
         return null;
     }
 }
+// @end
 
+// @piece coerce-value: Turn a raw value into the filter's type
 function coerce(rule: Rule, v: string): Value | null {
     switch (rule.type) {
         case "enum":
@@ -83,7 +133,9 @@ function coerce(rule: Rule, v: string): Value | null {
             return v === "true" ? true : v === "false" ? false : null;
     }
 }
+// @end
 
+// @piece parse-filter: Check one filter and add it to the plan
 // Returns an error message, or null after adding the filter to the plan.
 function parseFilter(name: string, value: string, plan: Plan): string | null {
     const [, field, explicitOp] = name.match(/^([a-z_]+)(?:\[([a-z]+)\])?$/)!;
@@ -103,7 +155,9 @@ function parseFilter(name: string, value: string, plan: Plan): string | null {
     plan.filters.push({ field, op, value: op === "in" ? values : values[0] });
     return null;
 }
+// @end
 
+// @piece parse-sort: Check the sort list and add the id tie-break
 function parseSort(value: string): SortKey[] | string {
     const items = value.split(",");
     if (items.length > MAX_SORT) return `too many sort fields (max ${MAX_SORT})`;
@@ -116,45 +170,7 @@ function parseSort(value: string): SortKey[] | string {
     }
     return [...keys, { field: "id", dir: keys[keys.length - 1].dir }];
 }
-
-function parseListQuery(query: string): Result {
-    const plan: Plan = { filters: [], sort: [{ field: "published_at", dir: "desc" }, { field: "id", dir: "desc" }], q: null };
-    const errors: string[] = [];
-    const seen = new Set<string>();
-    for (const part of query.split("&")) {
-        if (part === "") continue;
-        const eq = part.indexOf("=");
-        const name = decode(eq === -1 ? part : part.slice(0, eq));
-        const value = decode(eq === -1 ? "" : part.slice(eq + 1));
-        if (name === null || value === null) {
-            errors.push(`malformed percent-encoding in "${part}"`);
-            continue;
-        }
-        if (!/^[a-z_]+(\[[a-z]+\])?$/.test(name)) {
-            errors.push(`invalid parameter name "${name}"`);
-            continue;
-        }
-        if (seen.has(name)) {
-            errors.push(`duplicate parameter "${name}"`);
-            continue;
-        }
-        seen.add(name);
-        if (name === "limit" || name === "cursor") continue;
-        if (name === "q") {
-            const q = value.trim();
-            if (q.length < 1 || q.length > 100) errors.push(`"q" must be 1-100 characters`);
-            else plan.q = q;
-        } else if (name === "sort") {
-            const sort = parseSort(value);
-            if (typeof sort === "string") errors.push(sort);
-            else plan.sort = sort;
-        } else {
-            const error = parseFilter(name, value, plan);
-            if (error !== null) errors.push(error);
-        }
-    }
-    return errors.length > 0 ? { status: 400, errors } : { status: 200, plan };
-}
+// @end
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { "queries": ["<query string without ?>", ...] }. Prints one result per query, as JSON.

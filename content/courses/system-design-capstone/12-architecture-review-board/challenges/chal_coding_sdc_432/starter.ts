@@ -91,6 +91,7 @@ class CatalogReader {
     private store: Store;
     private clock: Clock;
     private breaker: CircuitBreaker;
+    private inFlight = new Map<string, Promise<string>>();
 
     constructor(cache: Cache, store: Store, clock: Clock) {
         this.cache = cache;
@@ -105,6 +106,15 @@ class CatalogReader {
         const value = await this.store.load(key);
         await this.cache.set(key, value);
         return value;
+    }
+
+    // single-flight loader, added with the breaker and not wired in yet either
+    private loadOnce(key: string): Promise<string> {
+        const pending = this.inFlight.get(key);
+        if (pending) return pending;
+        const load = this.store.load(key).finally(() => this.inFlight.delete(key));
+        this.inFlight.set(key, load);
+        return load;
     }
 }
 

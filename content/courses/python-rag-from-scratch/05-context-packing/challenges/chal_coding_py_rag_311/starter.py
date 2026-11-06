@@ -26,19 +26,28 @@ def count_tokens(text: str) -> int:
 
 
 def pack_context(chunks: list[dict], budget: int, max_per_source: int) -> dict:
-    # BUG (on purpose): stops at the first chunk that does not fit, numbers every chunk
-    # (not every source), cites skipped chunks, and ignores max_per_source and duplicates.
-    lines, used, citations, tokens = [], [], [], 0
-    for chunk in chunks:
-        citations.append(chunk["source"])
-        line = f"[{len(citations)}] {chunk['text']}"
+    numbers: dict[str, int] = {}      # source -> citation number, in order of first use
+    per_source: dict[str, int] = {}
+    seen_text: set[str] = set()
+    lines: list[str] = []
+    used: list[str] = []
+    tokens = 0
+
+    for chunk in chunks:  # already in rank order
+        text, source = chunk["text"].strip(), chunk["source"]
+        # [ ] Skip repeated text and sources that already have enough
+        # [ ] The citation number of this chunk
+        line = f"[{number}] {text}"
         cost = count_tokens(line)
-        if tokens + cost > budget:
-            break
-        lines.append(line)
-        used.append(chunk["id"])
-        tokens += cost
-    return {"context": "\n".join(lines), "citations": citations, "used": used, "tokens": tokens}
+        # [ ] A chunk that does not fit
+        # [ ] Record a packed chunk
+
+    return {
+        "context": "\n".join(lines),
+        "citations": sorted(numbers, key=numbers.get),
+        "used": used,
+        "tokens": tokens,
+    }
 
 
 # ---------------------------------------------------------------- test runner (do not change)

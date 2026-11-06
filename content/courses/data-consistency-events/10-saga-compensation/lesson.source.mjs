@@ -154,7 +154,7 @@ COMMIT;`, "refund (points)"),
         challenge("chal_quiz_dce_411"),
 
         h2("6. Build it: the purchase saga with crashes"),
-        p("The exercise gives you an in-memory database with transactions (`FakeDb.tx` commits a copy only when your function returns), a context whose `perform(action, order)` replays scripted faults (transient errors, business refusals) and scripted crashes right after an action commits, and a runner that restarts the saga from the database after each crash. You write the seven actions and `runSaga`:"),
+        p("The exercise gives you an in-memory database with transactions (`FakeDb.tx` commits a copy only when your function returns), a context whose `perform(action, order)` replays scripted faults (transient errors, business refusals) and scripted crashes right after an action commits, and a runner that restarts the saga from the database after each crash. You assemble the seven actions and `runSaga`:"),
         code("typescript", `
 const ACTIONS: Record<ActionName, (t: Tables, order: Order) => void> = {
     pay(t, o) { /* idempotent: a second run after a crash must not charge again */ },

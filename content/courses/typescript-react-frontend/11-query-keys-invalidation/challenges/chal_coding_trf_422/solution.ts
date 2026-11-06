@@ -33,6 +33,7 @@ const isLevel = (v: unknown): v is Level => LEVELS.includes(v);
 const isSort = (v: unknown): v is Sort => SORTS.includes(v);
 
 function normalizeFilters(filters: Filters): NormalizedFilters {
+    // @piece normalize: Keep valid, non-default filters in a fixed order
     const out: NormalizedFilters = {};
     // Keys are added in alphabetical order, so equal filters serialise to the same JSON.
     if (isCategory(filters.category)) out.category = filters.category;
@@ -42,23 +43,29 @@ function normalizeFilters(filters: Filters): NormalizedFilters {
     if (search !== "") out.search = search;
     if (isSort(filters.sort) && filters.sort !== "popular") out.sort = filters.sort;
     return out;
+    // @end
 }
 
 const courseKeys = {
     all: ["courses"] as const,
+    // @piece course-keys: The course query keys
     lists: () => [...courseKeys.all, "list"] as const,
     list: (filters: Filters) => [...courseKeys.lists(), normalizeFilters(filters)] as const,
     details: () => [...courseKeys.all, "detail"] as const,
     detail: (id: string) => [...courseKeys.details(), id] as const,
+    // @end
 };
 
 const enrollmentKeys = {
     all: ["enrollments"] as const,
+    // @piece enrollment-key: The enrollments of one user
     byUser: (userId: string) => [...enrollmentKeys.all, userId] as const,
+    // @end
 };
 
 /** The keys (used as prefixes) that a mutation makes stale. */
 function targets(mutation: Mutation): QueryKey[] {
+    // @piece stale-keys: Keys each mutation makes stale
     switch (mutation.type) {
         case "enroll":
         case "unenroll":
@@ -70,16 +77,21 @@ function targets(mutation: Mutation): QueryKey[] {
         default:
             return [];
     }
+    // @end
 }
 
 /** True when every element of prefix equals the element at the same position of key. */
 function matchesPrefix(prefix: QueryKey, key: QueryKey): boolean {
+    // @piece prefix-match: Does a key start with the prefix?
     return prefix.length <= key.length && prefix.every((part, i) => JSON.stringify(part) === JSON.stringify(key[i]));
+    // @end
 }
 
 function keysToInvalidate(cachedKeys: QueryKey[], mutation: Mutation): QueryKey[] {
+    // @piece invalidate: The cached keys to invalidate
     const prefixes = targets(mutation);
     return cachedKeys.filter((key) => prefixes.some((prefix) => matchesPrefix(prefix, key)));
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

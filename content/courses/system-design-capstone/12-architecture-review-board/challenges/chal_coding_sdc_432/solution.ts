@@ -97,10 +97,11 @@ class CatalogReader {
         this.cache = cache;
         this.store = store;
         this.clock = clock;
-        this.breaker = new CircuitBreaker(clock, 3, 1000);
+        this.breaker = new CircuitBreaker(clock, 3, 1000); // added last sprint, not wired in yet
     }
 
     async get(key: string): Promise<string> {
+        // @piece cache-read: Read the cache, protected from a slow or failing Redis
         if (!this.breaker.allowRequest()) return this.loadOnce(key);
         let cached: string | null;
         try {
@@ -108,14 +109,18 @@ class CatalogReader {
             this.breaker.recordSuccess();
         } catch {
             this.breaker.recordFailure();
-            return this.loadOnce(key); // the cache is optional: PostgreSQL answers instead
+            return this.loadOnce(key);
         }
         if (cached !== null) return cached;
+        // @end
+        // @piece load-and-fill: Load from PostgreSQL and fill the cache
         const value = await this.loadOnce(key);
-        this.cache.set(key, value).catch(() => {}); // best effort, never on the response path
+        this.cache.set(key, value).catch(() => {});
         return value;
+        // @end
     }
 
+    // single-flight loader, added with the breaker and not wired in yet either
     private loadOnce(key: string): Promise<string> {
         const pending = this.inFlight.get(key);
         if (pending) return pending;

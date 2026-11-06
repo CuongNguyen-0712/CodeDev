@@ -46,8 +46,32 @@ type CatalogAction =
     | { type: "filtersReset" }
     | { type: "resultsLoaded"; totalPages: number };
 
+function isOneOf<T extends string>(list: readonly T[], value: unknown): value is T {
+    // [ ] Is the value one of the allowed ones?
+}
+
 function catalogReducer(state: CatalogState, action: CatalogAction): CatalogState {
-    return state;
+    switch (action.type) {
+        case "searchTyped":
+            // [ ] Search text typed
+        case "categoryToggled": {
+            // [ ] Category toggled on or off
+        }
+        case "levelSet":
+            // [ ] Level chosen
+        case "sortChanged":
+            // [ ] Sort changed
+        case "pageChanged": {
+            // [ ] Page changed
+        }
+        case "filtersReset":
+            // [ ] Filters reset
+        case "resultsLoaded": {
+            // [ ] Results loaded
+        }
+        default:
+            return state;
+    }
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

@@ -31,21 +31,52 @@ type GoodEvent =
 //   - points: challenge.passed = points; progress.updated = 10 if lessonPercent is 100, plus 50 if
 //     coursePercent is 100. Points go to "all-time" and to the board of the event's week.
 //   - order: more points first; on a tie, the learner whose points on that board changed earlier.
+const isText = (v: unknown): v is string => typeof v === "string" && v.length > 0;
+const isInt = (v: unknown, min: number, max: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
+
+function parse(raw: unknown): GoodEvent | null {
+    // [ ] Turn a raw event into a valid event, or null
+}
+
+function pointsOf(e: GoodEvent): number {
+    // [ ] Points an event is worth
+}
+
+type Score = { points: number; since: number };
+
 class ProjectionLeaderboard implements Leaderboard {
-    apply(event: unknown): Outcome {
-        return "invalid";
+    private seen = new Set<string>();
+    private applied = new Map<string, number>(); // userId -> highest learnerSeq applied
+    private buffered = new Map<string, Map<number, GoodEvent>>(); // userId -> learnerSeq -> event
+    private boards = new Map<string, Map<string, Score>>();
+    private counter = 0;
+
+    apply(raw: unknown): Outcome {
+        // [ ] Classify the event and keep an accepted one waiting
+        // [ ] Apply the learner's waiting events in sequence
+        return "accepted";
+    }
+
+    private score(e: GoodEvent): void {
+        // [ ] Add the points to all-time and the week's board
     }
 
     waiting(): number {
-        return 0;
+        let n = 0;
+        for (const m of this.buffered.values()) n += m.size;
+        return n;
+    }
+
+    private ordered(board: string): Entry[] {
+        // [ ] Rank a board: more points first, earlier on a tie
     }
 
     top(board: string, n: number): Entry[] {
-        return [];
+        return this.ordered(board).slice(0, n);
     }
 
     rank(board: string, userId: string): Entry | null {
-        return null;
+        return this.ordered(board).find((e) => e.userId === userId) ?? null;
     }
 }
 

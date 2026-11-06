@@ -1,0 +1,67 @@
+[
+  {
+    "id": "parse-json",
+    "label": "Parse the output, unwrapping one json fence",
+    "code": "const trimmed = text.trim();\nconst fenced = FENCE.exec(trimmed);\nlet data: unknown;\ntry {\n    data = JSON.parse(fenced ? fenced[1] : trimmed);\n} catch {\n    return { ok: false, errors: [\"$: not valid JSON\"] };\n}\nif (!isRecord(data)) return { ok: false, errors: [\"$: expected an object\"] };"
+  },
+  {
+    "id": "unexpected-keys",
+    "label": "Reject keys the schema does not have",
+    "code": "for (const key of Object.keys(data)) {\n    if (!KEYS.includes(key)) errors.push(`$.${key}: unexpected key`);\n}"
+  },
+  {
+    "id": "hint",
+    "label": "Check hint",
+    "code": "const hint = data.hint;\nif (!has(\"hint\")) errors.push(\"$.hint: required\");\nelse if (typeof hint !== \"string\") errors.push(\"$.hint: expected a string\");\nelse if (hint.trim() === \"\") errors.push(\"$.hint: must not be blank\");\nelse if (hint.length > 400) errors.push(\"$.hint: longer than 400 characters\");"
+  },
+  {
+    "id": "level",
+    "label": "Check level",
+    "code": "const level = data.level;\nif (!has(\"level\")) errors.push(\"$.level: required\");\nelse if (level !== 1 && level !== 2 && level !== 3) errors.push(\"$.level: expected 1, 2 or 3\");"
+  },
+  {
+    "id": "references",
+    "label": "Check references and collect them",
+    "code": "const references: string[] = [];\nconst rawReferences = data.references;\nif (!has(\"references\")) errors.push(\"$.references: required\");\nelse if (!Array.isArray(rawReferences)) errors.push(\"$.references: expected an array\");\nelse {\n    if (rawReferences.length > 3) errors.push(\"$.references: more than 3 items\");\n    rawReferences.forEach((item: unknown, i: number) => {\n        if (typeof item === \"string\") references.push(item);\n        else errors.push(`$.references[${i}]: expected a string`);\n    });\n}"
+  },
+  {
+    "id": "reveals-solution",
+    "label": "Check revealsSolution",
+    "code": "const revealsSolution = data.revealsSolution;\nif (!has(\"revealsSolution\")) errors.push(\"$.revealsSolution: required\");\nelse if (typeof revealsSolution !== \"boolean\") errors.push(\"$.revealsSolution: expected a boolean\");"
+  },
+  {
+    "id": "result",
+    "label": "Return every error or the typed answer",
+    "code": "// the type checks repeat here only to narrow the types for the compiler\nif (errors.length > 0 || typeof hint !== \"string\" || (level !== 1 && level !== 2 && level !== 3)\n    || typeof revealsSolution !== \"boolean\") {\n    return { ok: false, errors };\n}\nreturn { ok: true, value: { hint, level, references, revealsSolution } };"
+  },
+  {
+    "id": "hint-at-most-399",
+    "label": "Check hint",
+    "code": "const hint = data.hint;\nif (!has(\"hint\")) errors.push(\"$.hint: required\");\nelse if (typeof hint !== \"string\") errors.push(\"$.hint: expected a string\");\nelse if (hint.trim() === \"\") errors.push(\"$.hint: must not be blank\");\nelse if (hint.length >= 400) errors.push(\"$.hint: longer than 400 characters\");",
+    "distractor": true
+  },
+  {
+    "id": "level-coerced",
+    "label": "Check level",
+    "code": "const level = typeof data.level === \"string\" ? Number(data.level) : data.level; // \"be lenient\"\nif (!has(\"level\")) errors.push(\"$.level: required\");\nelse if (level !== 1 && level !== 2 && level !== 3) errors.push(\"$.level: expected 1, 2 or 3\");",
+    "distractor": true
+  },
+  {
+    "id": "parse-json-from-prose",
+    "label": "Parse the output, unwrapping one json fence",
+    "code": "const trimmed = text.trim();\nconst fenced = /```(?:json)?[ \\t]*\\r?\\n([\\s\\S]*?)\\r?\\n```/i.exec(trimmed); // first fenced block anywhere\nlet data: unknown;\ntry {\n    data = JSON.parse(fenced ? fenced[1] : trimmed);\n} catch {\n    return { ok: false, errors: [\"$: not valid JSON\"] };\n}\nif (!isRecord(data)) return { ok: false, errors: [\"$: expected an object\"] };",
+    "distractor": true
+  },
+  {
+    "id": "result-first-error",
+    "label": "Return every error or the typed answer",
+    "code": "// the type checks repeat here only to narrow the types for the compiler\nif (errors.length > 0 || typeof hint !== \"string\" || (level !== 1 && level !== 2 && level !== 3)\n    || typeof revealsSolution !== \"boolean\") {\n    return { ok: false, errors: errors.slice(0, 1) };\n}\nreturn { ok: true, value: { hint, level, references, revealsSolution } };",
+    "distractor": true
+  },
+  {
+    "id": "unexpected-keys-dropped",
+    "label": "Reject keys the schema does not have",
+    "code": "for (const key of Object.keys(data)) {\n    if (!KEYS.includes(key)) continue; // extra keys are dropped silently\n}",
+    "distractor": true
+  }
+]

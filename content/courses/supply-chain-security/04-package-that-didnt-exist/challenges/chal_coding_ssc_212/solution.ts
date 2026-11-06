@@ -37,25 +37,24 @@ type Status = "invalid" | "unknown_scope" | "not_found" | "ok";
 
 type Finding = { dependency: string; package: string; status: Status };
 
+// @piece names: Valid names and the package an entry installs
 const PART = "[a-z0-9][a-z0-9._-]*";
 const NAME = new RegExp(`^(?:@${PART}/)?${PART}$`);
-
-function isValidName(name: string): boolean {
-    return name.length <= 214 && NAME.test(name);
-}
-
+const isValidName = (name: string): boolean => name.length <= 214 && NAME.test(name);
 // The package npm installs for one entry: the key, or the target of an "npm:" alias.
-function installedPackage(key: string, spec: string): string {
+const installedPackage = (key: string, spec: string): string => {
     if (!spec.startsWith("npm:")) return key;
     const rest = spec.slice(4);
     const at = rest.indexOf("@", 1); // a scoped name starts with "@": skip it
     return at === -1 ? rest : rest.slice(0, at);
-}
+};
+// @end
 
 function checkDependencies(dependencies: Record<string, string>, policy: Policy, registry: string[]): Finding[] {
     const published = new Set(registry);
-    const trustedScopes = new Set([...policy.ownedScopes, ...policy.knownScopes]);
     const findings: Finding[] = [];
+    // @piece classify: Classify every dependency
+    const trustedScopes = new Set([...policy.ownedScopes, ...policy.knownScopes]);
     for (const [key, spec] of Object.entries(dependencies)) {
         const pkg = installedPackage(key, spec);
         if (!isValidName(key) || !isValidName(pkg)) {
@@ -67,6 +66,7 @@ function checkDependencies(dependencies: Record<string, string>, policy: Policy,
         else if (!published.has(pkg)) status = "not_found";
         findings.push({ dependency: key, package: pkg, status });
     }
+    // @end
     return findings;
 }
 

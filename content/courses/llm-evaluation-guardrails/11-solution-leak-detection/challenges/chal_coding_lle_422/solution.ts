@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 
-// Reference solution: three rules in a fixed order, the first one that fires is reported.
+// Detecting leaked solutions in the AI grading feedback.
+// The grading assistant sees the reference solutions and every test case of a challenge, so its
+// feedback can leak them. checkFeedback runs after generation, before the feedback is stored, and
+// returns "allowed" or "blocked: <rule> (<detail>)". The rules and the exact output are in the
+// challenge description. Fill every [ ] line with a piece (some pieces are wrong). Do not change
+// the policy constants or the test runner.
 
 const K = 5;                  // characters per k-gram
 const W = 4;                  // k-gram hashes per winnowing window
@@ -12,11 +17,16 @@ const MOD = 1_000_000_007;
 type TestCase = { expected: string; hidden: boolean };
 type References = { solutions: string[]; tests: TestCase[]; distinctive: string[] };
 
+// Lower case, every whitespace character removed.
 function normalise(text: string): string {
+    // @piece normalise: Lower-case and drop all whitespace
     return text.toLowerCase().replace(/\s+/g, "");
+    // @end
 }
 
+// The winnowed fingerprint of a piece of code: a set of k-gram hash values.
 function fingerprint(code: string): Set<number> {
+    // @piece fingerprint: Hash every k-gram, keep each window's minimum
     const text = normalise(code);
     const hashes: number[] = [];
     for (let i = 0; i + K <= text.length; i++) {
@@ -31,8 +41,10 @@ function fingerprint(code: string): Set<number> {
         prints.add(Math.min(...hashes.slice(start, start + W)));
     }
     return prints;
+    // @end
 }
 
+// @piece split-feedback: Split feedback into code blocks and prose
 function splitFeedback(feedback: string): { blocks: string[]; prose: string[] } {
     const lines = feedback.split(/\r?\n/);
     const blocks: string[] = [];
@@ -49,8 +61,10 @@ function splitFeedback(feedback: string): { blocks: string[]; prose: string[] } 
     }
     return { blocks, prose };
 }
+// @end
 
 function checkFeedback(feedback: unknown, refs: References): string {
+    // @piece hidden-output: Rule 1: a hidden test's output appears
     if (typeof feedback !== "string" || feedback.trim() === "") return "blocked: empty";
 
     const text = normalise(feedback);
@@ -60,7 +74,9 @@ function checkFeedback(feedback: unknown, refs: References): string {
             return `blocked: hidden-output (test ${t + 1})`;
         }
     }
+    // @end
 
+    // @piece code-overlap: Rule 2: a code block overlaps a solution
     const { blocks, prose } = splitFeedback(feedback);
     const blockPrints = blocks.map(fingerprint);
     let best = 0;
@@ -78,7 +94,9 @@ function checkFeedback(feedback: unknown, refs: References): string {
         }
     });
     if (best >= MAX_OVERLAP) return `blocked: code-overlap (solution ${bestSolution}, ${best.toFixed(2)})`;
+    // @end
 
+    // @piece algorithm-steps: Rule 3: the steps name distinctive identifiers
     const steps = prose.filter((line) => /^([-*]|\d+\.)\s+/.test(line.trim())).join("\n");
     const found = refs.distinctive.filter((id) => {
         const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -86,6 +104,7 @@ function checkFeedback(feedback: unknown, refs: References): string {
     });
     const needed = Math.min(MIN_IDENTIFIERS, refs.distinctive.length);
     if (needed > 0 && found.length >= needed) return `blocked: algorithm-steps (${found.join(", ")})`;
+    // @end
 
     return "allowed";
 }

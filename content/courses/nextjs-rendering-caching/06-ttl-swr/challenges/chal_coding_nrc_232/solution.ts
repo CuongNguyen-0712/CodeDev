@@ -31,9 +31,11 @@ class SwrCache {
     private readonly origin: Origin;
 
     constructor(maxAge: number, staleWhileRevalidate: number, clock: Clock, origin: Origin) {
+        // @piece validate-config: Refuse an invalid configuration
         if (!Number.isFinite(maxAge) || !Number.isFinite(staleWhileRevalidate) || maxAge < 0 || staleWhileRevalidate < 0) {
             throw new Error("invalid cache config");
         }
+        // @end
         this.maxAge = maxAge;
         this.staleWhileRevalidate = staleWhileRevalidate;
         this.clock = clock;
@@ -42,6 +44,7 @@ class SwrCache {
 
     // One fetch per key: everyone who needs the key while it runs shares this promise.
     private startFetch(key: string): Promise<string> {
+        // @piece fetch-once: Start the fetch and store its result
         const fetching = this.origin.fetch(key).then(
             (value) => {
                 this.inFlight.delete(key);
@@ -55,14 +58,20 @@ class SwrCache {
         );
         this.inFlight.set(key, fetching);
         return fetching;
+        // @end
     }
 
     async get(key: string): Promise<Served> {
+        // @piece entry-age: How old is the stored value?
         const entry = this.entries.get(key);
         const age = entry ? this.clock.now() - entry.fetchedAt : Infinity;
+        // @end
 
+        // @piece fresh-hit: Fresh: answer from the cache
         if (entry && age < this.maxAge) return { status: "HIT", value: entry.value, error: null, fetchesStarted: 0 };
+        // @end
 
+        // @piece stale-revalidate: Stale: answer now, revalidate in the background
         if (entry && age < this.maxAge + this.staleWhileRevalidate) {
             let started = 0;
             if (!this.inFlight.has(key)) {
@@ -71,7 +80,9 @@ class SwrCache {
             }
             return { status: "STALE", value: entry.value, error: null, fetchesStarted: started };
         }
+        // @end
 
+        // @piece miss-wait: Miss: wait for this key's fetch
         let started = 0;
         let fetching = this.inFlight.get(key);
         if (!fetching) {
@@ -83,6 +94,7 @@ class SwrCache {
         } catch (error) {
             return { status: "MISS", value: null, error: (error as Error).message, fetchesStarted: started };
         }
+        // @end
     }
 }
 

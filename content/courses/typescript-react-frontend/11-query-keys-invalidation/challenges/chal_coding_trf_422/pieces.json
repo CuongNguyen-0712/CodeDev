@@ -1,0 +1,50 @@
+[
+  {
+    "id": "normalize",
+    "label": "Keep valid, non-default filters in a fixed order",
+    "code": "const out: NormalizedFilters = {};\n// Keys are added in alphabetical order, so equal filters serialise to the same JSON.\nif (isCategory(filters.category)) out.category = filters.category;\nif (isLevel(filters.level)) out.level = filters.level;\nif (typeof filters.page === \"number\" && Number.isInteger(filters.page) && filters.page > 1) out.page = filters.page;\nconst search = typeof filters.search === \"string\" ? filters.search.trim().toLowerCase() : \"\";\nif (search !== \"\") out.search = search;\nif (isSort(filters.sort) && filters.sort !== \"popular\") out.sort = filters.sort;\nreturn out;"
+  },
+  {
+    "id": "course-keys",
+    "label": "The course query keys",
+    "code": "lists: () => [...courseKeys.all, \"list\"] as const,\nlist: (filters: Filters) => [...courseKeys.lists(), normalizeFilters(filters)] as const,\ndetails: () => [...courseKeys.all, \"detail\"] as const,\ndetail: (id: string) => [...courseKeys.details(), id] as const,"
+  },
+  {
+    "id": "enrollment-key",
+    "label": "The enrollments of one user",
+    "code": "byUser: (userId: string) => [...enrollmentKeys.all, userId] as const,"
+  },
+  {
+    "id": "stale-keys",
+    "label": "Keys each mutation makes stale",
+    "code": "switch (mutation.type) {\n    case \"enroll\":\n    case \"unenroll\":\n        return [courseKeys.detail(mutation.courseId), enrollmentKeys.byUser(mutation.userId)];\n    case \"edit\":\n        return [courseKeys.detail(mutation.courseId), courseKeys.lists(), enrollmentKeys.all];\n    case \"publish\":\n        return [courseKeys.lists()];\n    default:\n        return [];\n}"
+  },
+  {
+    "id": "prefix-match",
+    "label": "Does a key start with the prefix?",
+    "code": "return prefix.length <= key.length && prefix.every((part, i) => JSON.stringify(part) === JSON.stringify(key[i]));"
+  },
+  {
+    "id": "invalidate",
+    "label": "The cached keys to invalidate",
+    "code": "const prefixes = targets(mutation);\nreturn cachedKeys.filter((key) => prefixes.some((prefix) => matchesPrefix(prefix, key)));"
+  },
+  {
+    "id": "course-keys-raw-filters",
+    "label": "The course query keys",
+    "code": "lists: () => [...courseKeys.all, \"list\"] as const,\nlist: (filters: Filters) => [...courseKeys.lists(), filters] as const,\ndetails: () => [...courseKeys.all, \"detail\"] as const,\ndetail: (id: string) => [...courseKeys.details(), id] as const,",
+    "distractor": true
+  },
+  {
+    "id": "prefix-match-joined-string",
+    "label": "Does a key start with the prefix?",
+    "code": "return key.join(\"/\").startsWith(prefix.join(\"/\"));",
+    "distractor": true
+  },
+  {
+    "id": "stale-keys-everything-on-enroll",
+    "label": "Keys each mutation makes stale",
+    "code": "switch (mutation.type) {\n    case \"enroll\":\n    case \"unenroll\":\n        return [courseKeys.all, enrollmentKeys.all];\n    case \"edit\":\n        return [courseKeys.detail(mutation.courseId), courseKeys.lists(), enrollmentKeys.all];\n    case \"publish\":\n        return [courseKeys.lists()];\n    default:\n        return [];\n}",
+    "distractor": true
+  }
+]

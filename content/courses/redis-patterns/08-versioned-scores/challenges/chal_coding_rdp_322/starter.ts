@@ -29,8 +29,11 @@ const BOARD = "lb:all";
 const VERSIONS = "lb:ver";
 
 function applyUpdate(redis: FakeRedis, update: ScoreUpdate): Outcome {
-    redis.zadd(BOARD, update.totalScore ?? 0, update.learnerId);
-    return "applied";
+    // [ ] Refuse an update with a bad learner, score or version
+
+    // In production these lines run as one Lua script (EVALSHA), so no other worker runs between them.
+    // [ ] Compare with the stored version
+    // [ ] Write the new score and remember its version
 }
 
 // ---------------------------------------------------------------- in-memory Redis model (do not change)

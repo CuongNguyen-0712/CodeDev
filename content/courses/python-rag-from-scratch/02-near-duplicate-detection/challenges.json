@@ -5,7 +5,7 @@
       "name": "near-duplicate-filter",
       "type": "fix_bug",
       "title": "Fix the near-duplicate filter",
-      "description": "dedupe() is supposed to keep the first copy of every article and drop near-duplicates before indexing. In production it lets copies that differ only in capitalisation or punctuation through, drops short FAQ entries that merely quote a longer article, treats texts that differ only in their last word as identical, and crashes on empty documents. Fix tokens(), shingles() and jaccard() so that dedupe() keeps a document unless its Jaccard similarity (intersection over union of word k-shingles) to an already kept document is >= threshold.",
+      "description": "dedupe() is supposed to keep the first copy of every article and drop near-duplicates before indexing. In production it lets copies that differ only in capitalisation or punctuation through, drops short FAQ entries that merely quote a longer article, treats texts that differ only in their last word as identical, and crashes on empty documents. Fix tokens(), shingles() and jaccard() so that dedupe() keeps a document unless its Jaccard similarity (intersection over union of word k-shingles) to an already kept document is >= threshold.\n\nSelect the faulty lines and replace them with the right fix; some fixes are wrong on purpose.",
       "difficulty": "medium",
       "points": 20,
       "coding": {
@@ -221,6 +221,14 @@
           "hidden": true,
           "score": 4
         }
+      ],
+      "outcomes": [
+        "chunking-dedup"
+      ],
+      "hints": [
+        "Three helpers decide similarity: how words are split, how shingles are built, and how two sets are compared. Each one has a different symptom.",
+        "Lower-case and keep only letters and digits as tokens, build every run of k consecutive tokens (a short text is one shingle, an empty text none), and divide the intersection by the union.",
+        "Example of set similarity for tags: `a, b = {'py', 'web'}, {'py', 'ml'}; sim = len(a & b) / len(a | b) if a or b else 1.0`"
       ]
     }
   ]

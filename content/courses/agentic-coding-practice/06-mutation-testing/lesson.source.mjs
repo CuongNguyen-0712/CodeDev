@@ -119,7 +119,7 @@ After the agent check passes, run \`npm run mutation:changed\`.
 For every line under "undetected", add a test that fails on that mutant, or explain in the
 pull request why the mutant is equivalent. Never add "Stryker disable" comments and never
 change "mutate" or "thresholds"; ask a human.`, "AGENTS.md (excerpt)"),
-        p("Now write the gate. The input is a recorded run; the statuses use lowercase names (`killed`, `survived`, `timeout`, `no-coverage`, `compile-error`, `ignored`)."),
+        p("Now assemble the gate. The input is a recorded run; the statuses use lowercase names (`killed`, `survived`, `timeout`, `no-coverage`, `compile-error`, `ignored`)."),
         challenge("chal_coding_acp_232"),
 
         h2("5. How to verify"),

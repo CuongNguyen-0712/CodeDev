@@ -167,7 +167,7 @@ test("every input that changes the course list changes its key", () => {
         ]),
 
         h2("7. Practice: build the cache policy"),
-        p("The challenge gives you the catalog of CodeDev data resources with their classification, route params, query defaults and whether they are translated. You write the one function that every data request goes through: it returns the server cache key (or no key) and the Cache-Control header, and it refuses requests that would cache personal data without a user. The test runner prints the key and header of each request and how many cache entries a batch of requests created."),
+        p("The challenge gives you the catalog of CodeDev data resources with their classification, route params, query defaults and whether they are translated. You assemble the one function that every data request goes through: it returns the server cache key (or no key) and the Cache-Control header, and it refuses requests that would cache personal data without a user. The test runner prints the key and header of each request and how many cache entries a batch of requests created."),
         challenge("chal_coding_nrc_212"),
 
         h2("8. Summary"),

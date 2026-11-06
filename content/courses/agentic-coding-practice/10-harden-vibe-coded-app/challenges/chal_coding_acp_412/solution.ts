@@ -20,9 +20,6 @@ type Course = { id: string; ownerId: string; title: string; description: string;
 type ApiRequest = { user: User | null; params: { id: string }; body: unknown };
 type ApiResponse = { status: number; body: Record<string, unknown> };
 
-// The only fields an instructor may change with PATCH; id, ownerId and createdAt are never editable here.
-const EDITABLE = new Set(["title", "description", "price"]);
-
 // PATCH /api/courses/:id - the course studio's "Save" button.
 function updateCourse(req: ApiRequest, courses: Map<string, Course>): ApiResponse {
     if (!req.user) return { status: 401, body: { error: "unauthenticated" } };
@@ -33,12 +30,17 @@ function updateCourse(req: ApiRequest, courses: Map<string, Course>): ApiRespons
     if (typeof body !== "object" || body === null || Array.isArray(body)) {
         return { status: 400, body: { error: "invalid_body" } };
     }
+    // @piece find-course: Look up the course the caller may edit
     const course = courses.get(req.params.id);
     // Same answer for "no such course" and "not your course": ids of other instructors' courses stay private.
     if (!course || (req.user.role !== "admin" && course.ownerId !== req.user.id)) {
         return { status: 404, body: { error: "not_found" } };
     }
+    // @end
 
+    // @piece check-fields: Check every field of the body
+    // The only fields an instructor may change with PATCH; id, ownerId and createdAt are never editable here.
+    const EDITABLE = new Set(["title", "description", "price"]);
     const changes = body as Record<string, unknown>;
     for (const [field, value] of Object.entries(changes)) {
         if (!EDITABLE.has(field)) return { status: 400, body: { error: "field_not_editable", field } };
@@ -46,6 +48,8 @@ function updateCourse(req: ApiRequest, courses: Map<string, Course>): ApiRespons
         if (field === "description" && typeof value !== "string") return invalid(field);
         if (field === "price" && (typeof value !== "number" || !Number.isInteger(value) || value < 0)) return invalid(field);
     }
+    // @end
+    // Spread the body so new course fields work without changing this handler.
     const updated = { ...course, ...changes } as Course;
     courses.set(course.id, updated);
     return { status: 200, body: updated };

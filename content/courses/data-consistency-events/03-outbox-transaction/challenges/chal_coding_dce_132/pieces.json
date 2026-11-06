@@ -1,0 +1,34 @@
+[
+  {
+    "id": "enroll-checks",
+    "label": "Refuse an enrollment that breaks a rule",
+    "code": "if (!t.wallets.has(cmd.userId)) throw new Rejected(\"unknown user\");\nconst course = t.courses.get(cmd.courseId);\nif (!course) throw new Rejected(\"unknown course\");\nfor (const e of t.enrollments.values()) {\n    if (e.userId === cmd.userId && e.courseId === cmd.courseId) throw new Rejected(\"already enrolled\");\n}\nif (course.enrolled >= course.seats) throw new Rejected(\"course full\");"
+  },
+  {
+    "id": "enroll-write",
+    "label": "Write the enrollment, the seat and its events",
+    "code": "const enrollment: Enrollment = { id: ids.next(\"enr\"), userId: cmd.userId, courseId: cmd.courseId, createdAt: clock.now() };\nt.enrollments.set(enrollment.id, enrollment);\ncourse.enrolled += 1;\naddEvent(t, ids, clock, \"enrollment\", enrollment.id, \"enrollment.created\", {\n    enrollmentId: enrollment.id,\n    userId: enrollment.userId,\n    courseId: enrollment.courseId,\n});\nif (course.enrolled === course.seats) {\n    addEvent(t, ids, clock, \"course\", course.id, \"course.full\", { courseId: course.id, seats: course.seats });\n}"
+  },
+  {
+    "id": "award-checks",
+    "label": "Refuse an award that breaks a rule",
+    "code": "const wallet = t.wallets.get(cmd.userId);\nif (!wallet) throw new Rejected(\"unknown user\");\nif (!Number.isInteger(cmd.amount) || cmd.amount < 1 || cmd.amount > 10000) throw new Rejected(\"invalid amount\");\nif (typeof cmd.reason !== \"string\" || cmd.reason === \"\") throw new Rejected(\"missing reason\");"
+  },
+  {
+    "id": "award-write",
+    "label": "Add the points and their events",
+    "code": "const before = Math.floor(wallet.points / 1000);\nwallet.points += cmd.amount;\naddEvent(t, ids, clock, \"wallet\", wallet.userId, \"points.awarded\", {\n    userId: wallet.userId,\n    amount: cmd.amount,\n    reason: cmd.reason,\n    balance: wallet.points,\n});\nfor (let level = before + 1; level <= Math.floor(wallet.points / 1000); level++) {\n    addEvent(t, ids, clock, \"wallet\", wallet.userId, \"level.reached\", { userId: wallet.userId, level });\n}"
+  },
+  {
+    "id": "award-checks-any-positive",
+    "label": "Refuse an award that breaks a rule",
+    "code": "const wallet = t.wallets.get(cmd.userId);\nif (!wallet) throw new Rejected(\"unknown user\");\nif (!(cmd.amount > 0)) throw new Rejected(\"invalid amount\");\nif (typeof cmd.reason !== \"string\" || cmd.reason === \"\") throw new Rejected(\"missing reason\");",
+    "distractor": true
+  },
+  {
+    "id": "award-one-level-event",
+    "label": "Add the points and their events",
+    "code": "const before = Math.floor(wallet.points / 1000);\nwallet.points += cmd.amount;\naddEvent(t, ids, clock, \"wallet\", wallet.userId, \"points.awarded\", {\n    userId: wallet.userId,\n    amount: cmd.amount,\n    reason: cmd.reason,\n    balance: wallet.points,\n});\nconst level = Math.floor(wallet.points / 1000);\nif (level > before) addEvent(t, ids, clock, \"wallet\", wallet.userId, \"level.reached\", { userId: wallet.userId, level });",
+    "distractor": true
+  }
+]

@@ -47,8 +47,18 @@ type CatalogQuery = {
 
 type CatalogPage = { items: Course[]; page: number; totalPages: number; total: number };
 
+function matches(course: Course, query: CatalogQuery): boolean {
+    // [ ] Does a course match the search and filters?
+}
+
+function compare(a: Course, b: Course, sort: CatalogQuery["sort"]): number {
+    // [ ] Order two courses for the chosen sort
+}
+
 function selectCatalogPage(courses: Course[], query: CatalogQuery): CatalogPage {
-    return { items: courses, page: query.page, totalPages: 1, total: courses.length };
+    // [ ] Keep matching courses, in order
+    // [ ] Count results and pages
+    // [ ] The requested page of results
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

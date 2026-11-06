@@ -94,26 +94,35 @@ class FakeDb {
 type PointsEvent = { p: number; o: number; learner: string; points: number };
 
 class LeaderboardStore {
-    constructor(db: FakeDb) {}
+    private readonly db: FakeDb;
+
+    constructor(db: FakeDb) {
+        this.db = db;
+    }
 
     apply(version: string, event: PointsEvent): "applied" | "skipped" | "rejected" {
-        return "applied";
+        // [ ] Reject a malformed event
+        // [ ] Apply the event once per partition offset
     }
 
     switchTo(version: string): boolean {
-        return false;
+        // [ ] Switch only to a version that has caught up
     }
 
     active(): string {
-        return "v1";
+        return this.db.tx((tx) => tx.get<string>("meta", "active") ?? "v1");
     }
 
     scores(version: string): Record<string, number> {
-        return {};
+        return this.read("scores", version);
     }
 
     offsets(version: string): Record<string, number> {
-        return {};
+        return this.read("offsets", version);
+    }
+
+    private read(table: string, version: string): Record<string, number> {
+        // [ ] Read one version's rows
     }
 }
 

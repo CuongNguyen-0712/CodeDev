@@ -135,7 +135,7 @@ CREATE OR REPLACE VIEW leaderboard AS
 COMMIT;`, "switch.sql"),
         callout("info", "A rebuild needs the whole history",
             "Reading a topic from offset 0 only rebuilds everything if the topic still has everything. Kafka deletes old segments after the topic's retention period unless retention is unlimited (retention.ms = -1); a compacted topic keeps only the latest record per key, so it does not keep every event either. If it does not keep the full history, rebuild from the source of truth (the points ledger) up to a known offset, then continue from the topic. Check your topic's retention settings before you plan on replays."),
-        p("In the exercise you write the leaderboard store behind all of this: versioned scores, offsets per version and partition kept atomically with the scores, a switch that refuses a version that has not caught up, all on an in-memory database with transactions. The runner mixes live consumption, replays from an offset, a rebuild and crashes right after a commit, and prints the final offsets and scores. A naive projection doubles them."),
+        p("In the exercise you assemble the leaderboard store behind all of this: versioned scores, offsets per version and partition kept atomically with the scores, a switch that refuses a version that has not caught up, all on an in-memory database with transactions. The runner mixes live consumption, replays from an offset, a rebuild and crashes right after a commit, and prints the final offsets and scores. A naive projection doubles them."),
 
         challenge("chal_coding_dce_322"),
 

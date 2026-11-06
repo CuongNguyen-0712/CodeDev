@@ -39,15 +39,38 @@ type Verdict = "lookalike" | "invalid" | "clear" | "exact";
 type Result = { name: string; nearest: string | null; distance: number | null; verdict: Verdict };
 
 function normalize(name: string): string {
-    return name;
+    // [ ] Normalize a name (steps 1-5)
 }
 
 function distance(a: string, b: string): number {
-    return a === b ? 0 : 1;
+    const d: number[][] = [];
+    for (let i = 0; i <= a.length; i++) {
+        d.push([i]);
+        for (let j = 1; j <= b.length; j++) {
+            if (i === 0) {
+                d[i].push(j);
+                continue;
+            }
+            // [ ] One table cell: edit, substitute or swap
+        }
+    }
+    return d[a.length][b.length];
 }
 
+function threshold(n: number): number {
+    // [ ] How many edits still count as a lookalike
+}
+
+const VALID = /^[A-Za-z0-9@/._~-]{1,214}$/;
+const ORDER: Verdict[] = ["lookalike", "invalid", "clear", "exact"];
+
 function detectTyposquats(popular: string[], candidates: string[]): Result[] {
-    return candidates.map((name) => ({ name, nearest: null, distance: null, verdict: "clear" }));
+    const known = popular.map((name) => ({ name, normalized: normalize(name) }));
+    const results = candidates.map((name): Result => {
+        // [ ] Invalid names and exact matches
+        // [ ] Find the nearest popular name and decide
+    });
+    // [ ] Order the results
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

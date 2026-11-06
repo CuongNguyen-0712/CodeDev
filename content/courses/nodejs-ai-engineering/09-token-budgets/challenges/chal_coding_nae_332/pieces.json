@@ -1,0 +1,57 @@
+[
+  {
+    "id": "local-day",
+    "label": "Shift the instant to the learner's local date",
+    "code": "return new Date(Date.parse(at) + utcOffsetMinutes * 60_000).toISOString().slice(0, 10);"
+  },
+  {
+    "id": "state",
+    "label": "Index the users and start the ledgers",
+    "code": "const users = new Map(input.users.map((u) => [u.id, u]));\nconst usedByDay = new Map<string, number>(); // \"userId|day\" -> tokens recorded that day\nconst recorded = new Set<string>(); // \"userId|requestId\""
+  },
+  {
+    "id": "user-and-day",
+    "label": "Find the learner, the day key and what is left",
+    "code": "const user = users.get(event.userId);\nif (!user) return { ok: false, reason: \"unknown user\", remaining: null };\nconst key = `${user.id}|${localDay(event.at, user.utcOffsetMinutes)}`;\nconst remaining = () => Math.max(0, input.dailyTokens[user.plan] - (usedByDay.get(key) ?? 0));"
+  },
+  {
+    "id": "check-event",
+    "label": "Answer a check",
+    "code": "if (!Number.isInteger(event.estimate) || event.estimate <= 0) return { ok: false, reason: \"invalid estimate\", remaining: remaining() };\nif (event.estimate > remaining()) return { ok: false, reason: \"budget exceeded\", remaining: remaining() };\nreturn { ok: true, reason: null, remaining: remaining() };"
+  },
+  {
+    "id": "record-event",
+    "label": "Record usage once per request",
+    "code": "if (!Number.isInteger(event.used) || event.used < 0) return { ok: false, reason: \"invalid usage\", remaining: remaining() };\nconst requestKey = `${user.id}|${event.requestId}`;\nif (recorded.has(requestKey)) return { ok: false, reason: \"duplicate\", remaining: remaining() };\nrecorded.add(requestKey);\nusedByDay.set(key, (usedByDay.get(key) ?? 0) + event.used);\nreturn { ok: true, reason: null, remaining: remaining() };"
+  },
+  {
+    "id": "check-event-while-positive",
+    "label": "Answer a check",
+    "code": "if (!Number.isInteger(event.estimate) || event.estimate <= 0) return { ok: false, reason: \"invalid estimate\", remaining: remaining() };\nif (remaining() <= 0) return { ok: false, reason: \"budget exceeded\", remaining: remaining() };\nreturn { ok: true, reason: null, remaining: remaining() };",
+    "distractor": true
+  },
+  {
+    "id": "local-day-offset-subtracted",
+    "label": "Shift the instant to the learner's local date",
+    "code": "return new Date(Date.parse(at) - utcOffsetMinutes * 60_000).toISOString().slice(0, 10);",
+    "distractor": true
+  },
+  {
+    "id": "local-day-utc",
+    "label": "Shift the instant to the learner's local date",
+    "code": "return new Date(Date.parse(at) + 0 * utcOffsetMinutes).toISOString().slice(0, 10);",
+    "distractor": true
+  },
+  {
+    "id": "record-event-every-time",
+    "label": "Record usage once per request",
+    "code": "if (!Number.isInteger(event.used) || event.used < 0) return { ok: false, reason: \"invalid usage\", remaining: remaining() };\nconst requestKey = `${user.id}|${event.requestId}`;\n                recorded.add(requestKey);\nusedByDay.set(key, (usedByDay.get(key) ?? 0) + event.used);\nreturn { ok: true, reason: null, remaining: remaining() };",
+    "distractor": true
+  },
+  {
+    "id": "user-and-day-negative",
+    "label": "Find the learner, the day key and what is left",
+    "code": "const user = users.get(event.userId);\nif (!user) return { ok: false, reason: \"unknown user\", remaining: null };\nconst key = `${user.id}|${localDay(event.at, user.utcOffsetMinutes)}`;\nconst remaining = () => input.dailyTokens[user.plan] - (usedByDay.get(key) ?? 0);",
+    "distractor": true
+  }
+]

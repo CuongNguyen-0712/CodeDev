@@ -5,7 +5,7 @@
       "name": "fix-time-slicing-loop",
       "type": "fix_bug",
       "title": "Fix the chunked processing loop",
-      "description": "processInChunks() is supposed to keep each slice of work under budgetMs and give the main thread back in between, but the dashboard still freezes. Fix the slicing so every slice runs until the budget is spent and then really yields. Hint: what does the loop do with the promise yieldToMain() returns, and when does a slice start?",
+      "description": "processInChunks() is supposed to keep each slice of work under budgetMs and give the main thread back in between, but the dashboard still freezes. Fix the slicing so every slice runs until the budget is spent and then really yields. Hint: what does the loop do with the promise yieldToMain() returns, and when does a slice start?\n\nSelect the faulty lines and replace them with the right fix; some fixes are wrong on purpose.",
       "difficulty": "medium",
       "points": 20,
       "coding": {
@@ -192,6 +192,14 @@
           "hidden": true,
           "score": 4
         }
+      ],
+      "outcomes": [
+        "event-loop"
+      ],
+      "hints": [
+        "Check two things: when the timer of the current slice starts, and whether the yield really pauses the loop.",
+        "Record `sliceStart = now()` at the start of each slice, compare `now() - sliceStart >= budgetMs`, and await the promise that yieldToMain() returns: a promise that is not awaited pauses nothing.",
+        "Analogy: a cashier who serves customers for at most 2 minutes before answering the phone must restart the 2-minute timer after every call, and must really stop serving while on the phone."
       ]
     },
     {
@@ -251,6 +259,9 @@
             }
           ]
         }
+      ],
+      "outcomes": [
+        "event-loop"
       ]
     },
     {
@@ -458,6 +469,14 @@
           "hidden": true,
           "score": 6
         }
+      ],
+      "outcomes": [
+        "event-loop"
+      ],
+      "hints": [
+        "Pick again before every unit of work: a more urgent task may have arrived during the last unit.",
+        "One FIFO queue per priority, a continuation goes back to the front of its own queue, time measured from the start of the turn with now(), and yieldToHost() once sliceMs is used up.",
+        "Analogy: an emergency room re-checks the waiting list after every patient, a patient who needs a second treatment keeps their place, and the shift hands over every 4 hours even in the middle of the list."
       ]
     }
   ]

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 // CodeDev payments API: POST /payments charges the learner for a course. The mobile app sends an
@@ -26,7 +27,8 @@ import { readFileSync } from "node:fs";
 // again. Any other status (2xx, 4xx such as 402 card_declined) completes the record with that
 // status and body. createdAt stays the time of the first request.
 //
-// Use only the injected clock. Do not change the types or the test runner.
+// Use only the injected clock. Fill every [ ] line with the right piece. Do not change the types or the
+// test runner.
 
 type Clock = { now(): number };
 
@@ -35,17 +37,26 @@ type Decision =
     | { kind: "replay"; status: number; body: unknown }
     | { kind: "reject"; status: 400 | 409 | 422; code: string };
 
+// [ ] What is kept for each key
+
+// [ ] One text for equal bodies, whatever their key order
+
 class IdempotencyGuard {
     constructor(
         private readonly clock: Clock,
         private readonly ttlMs: number,
     ) {}
 
+    // [ ] Where records live and how a key is named
+
     begin(userId: string, key: string | undefined, body: unknown): Decision {
-        return { kind: "run" };
+        // [ ] Check the key, then find a live record
+        // [ ] Run, reject or replay
     }
 
-    finish(userId: string, key: string, status: number, body: unknown): void {}
+    finish(userId: string, key: string, status: number, body: unknown): void {
+        // [ ] Keep the answer, or forget a failed attempt
+    }
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

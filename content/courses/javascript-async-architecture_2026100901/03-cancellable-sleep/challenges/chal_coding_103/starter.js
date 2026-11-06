@@ -21,8 +21,13 @@
  * @returns {Promise<void>}
  */
 function sleep(ms, { signal, timers = globalThis } = {}) {
-  // BUG (on purpose): ignores the signal - the timer keeps running after the user leaves.
-  return new Promise((resolve) => {
-    timers.setTimeout(resolve, ms);
+  return new Promise((resolve, reject) => {
+    // [ ] Give up at once if the signal is already aborted
+
+    // [ ] What happens when the signal aborts mid-sleep
+
+    // [ ] Start the timer and clean up when it fires
+
+    // [ ] Listen for the abort
   });
 }

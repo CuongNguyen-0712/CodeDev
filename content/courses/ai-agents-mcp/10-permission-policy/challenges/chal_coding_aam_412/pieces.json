@@ -1,0 +1,45 @@
+[
+  {
+    "id": "canonical",
+    "label": "One JSON text per value, keys sorted at every level",
+    "code": "if (Array.isArray(value)) return `[${value.map(canonicalJson).join(\",\")}]`;\nif (value !== null && typeof value === \"object\") {\n    const obj = value as Record<string, unknown>;\n    return `{${Object.keys(obj).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`).join(\",\")}}`;\n}\nreturn JSON.stringify(value);"
+  },
+  {
+    "id": "store-grant",
+    "label": "Remember the approval, bound to this exact call",
+    "code": "this.grants.set(approval.token, {\n    sessionId: approval.sessionId,\n    tool: approval.call.name,\n    argsHash: sha256(canonicalJson(approval.call.args)),\n    approverRole: approval.approverRole,\n    expiresAt: now + approval.ttlMs,\n    used: false,\n});"
+  },
+  {
+    "id": "who-may",
+    "label": "Who may call this tool; reads go straight through",
+    "code": "const session = this.sessions.get(sessionId);\nif (!session) return answer(\"deny\", \"unknown_session\");\nconst tool = this.tools.get(call.name);\nif (!tool) return answer(\"deny\", \"unknown_tool\");\nif (tool.deniedRoles.includes(session.role)) return answer(\"deny\", \"role_denied\");\nif (\"userId\" in call.args && call.args.userId !== session.userId) return answer(\"deny\", \"user_mismatch\");\nif (tool.permission === \"read\") return answer(\"allow\", \"read\");"
+  },
+  {
+    "id": "write-amount",
+    "label": "Writes: check the amount, ask when there is no token",
+    "code": "const amount = call.args.amount;\nlet overLimit = false;\nif (tool.managerAbove !== null) {\n    if (typeof amount !== \"number\" || !Number.isFinite(amount) || amount <= 0) return answer(\"deny\", \"invalid_amount\");\n    overLimit = amount > tool.managerAbove;\n}\nif (token === null) return answer(\"needs_approval\", overLimit ? \"manager_approval_required\" : \"approval_required\");"
+  },
+  {
+    "id": "token-checks",
+    "label": "Spend the token only on this exact call, once",
+    "code": "const grant = this.grants.get(token);\nif (!grant) return answer(\"deny\", \"invalid_token\");\nif (grant.used) return answer(\"deny\", \"token_used\");\nif (now >= grant.expiresAt) return answer(\"deny\", \"token_expired\");\nif (grant.sessionId !== sessionId) return answer(\"deny\", \"token_wrong_session\");\nif (grant.tool !== call.name || grant.argsHash !== sha256(canonicalJson(call.args))) return answer(\"deny\", \"token_mismatch\");\nif (overLimit && grant.approverRole !== \"manager\") return answer(\"needs_approval\", \"manager_approval_required\");\ngrant.used = true;\nreturn answer(\"allow\", \"approved\", token);"
+  },
+  {
+    "id": "token-checks-expiry-late",
+    "label": "Spend the token only on this exact call, once",
+    "code": "const grant = this.grants.get(token);\nif (!grant) return answer(\"deny\", \"invalid_token\");\nif (grant.used) return answer(\"deny\", \"token_used\");\nif (now > grant.expiresAt) return answer(\"deny\", \"token_expired\");\nif (grant.sessionId !== sessionId) return answer(\"deny\", \"token_wrong_session\");\nif (grant.tool !== call.name || grant.argsHash !== sha256(canonicalJson(call.args))) return answer(\"deny\", \"token_mismatch\");\nif (overLimit && grant.approverRole !== \"manager\") return answer(\"needs_approval\", \"manager_approval_required\");\ngrant.used = true;\nreturn answer(\"allow\", \"approved\", token);",
+    "distractor": true
+  },
+  {
+    "id": "token-checks-reusable",
+    "label": "Spend the token only on this exact call, once",
+    "code": "const grant = this.grants.get(token);\nif (!grant) return answer(\"deny\", \"invalid_token\");\nif (grant.used) return answer(\"deny\", \"token_used\");\nif (now >= grant.expiresAt) return answer(\"deny\", \"token_expired\");\nif (grant.sessionId !== sessionId) return answer(\"deny\", \"token_wrong_session\");\nif (grant.tool !== call.name || grant.argsHash !== sha256(canonicalJson(call.args))) return answer(\"deny\", \"token_mismatch\");\nif (overLimit && grant.approverRole !== \"manager\") return answer(\"needs_approval\", \"manager_approval_required\");\nreturn answer(\"allow\", \"approved\", token);",
+    "distractor": true
+  },
+  {
+    "id": "who-may-read-first",
+    "label": "Who may call this tool; reads go straight through",
+    "code": "const session = this.sessions.get(sessionId);\nif (!session) return answer(\"deny\", \"unknown_session\");\nconst tool = this.tools.get(call.name);\nif (!tool) return answer(\"deny\", \"unknown_tool\");\nif (tool.deniedRoles.includes(session.role)) return answer(\"deny\", \"role_denied\");\nif (tool.permission === \"read\") return answer(\"allow\", \"read\");\nif (\"userId\" in call.args && call.args.userId !== session.userId) return answer(\"deny\", \"user_mismatch\");",
+    "distractor": true
+  }
+]

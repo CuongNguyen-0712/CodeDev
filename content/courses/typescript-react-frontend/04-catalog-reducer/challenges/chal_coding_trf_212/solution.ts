@@ -47,42 +47,58 @@ type CatalogAction =
     | { type: "resultsLoaded"; totalPages: number };
 
 function isOneOf<T extends string>(list: readonly T[], value: unknown): value is T {
+    // @piece known-value: Is the value one of the allowed ones?
     return typeof value === "string" && (list as readonly string[]).includes(value);
+    // @end
 }
 
 function catalogReducer(state: CatalogState, action: CatalogAction): CatalogState {
     switch (action.type) {
         case "searchTyped":
+            // @piece search: Search text typed
             if (typeof action.text !== "string" || action.text === state.search) return state;
             return { ...state, search: action.text, page: 1 };
+            // @end
         case "categoryToggled": {
+            // @piece category-toggle: Category toggled on or off
             const category = action.category;
             if (!isOneOf(CATEGORIES, category)) return state;
             const categories = state.categories.includes(category)
                 ? state.categories.filter((c) => c !== category)
                 : [...state.categories, category];
             return { ...state, categories, page: 1 };
+            // @end
         }
         case "levelSet":
+            // @piece level: Level chosen
             if (!isOneOf(LEVELS, action.level) || action.level === state.level) return state;
             return { ...state, level: action.level, page: 1 };
+            // @end
         case "sortChanged":
+            // @piece sort: Sort changed
             if (!isOneOf(SORTS, action.sort) || action.sort === state.sort) return state;
             return { ...state, sort: action.sort, page: 1 };
+            // @end
         case "pageChanged": {
+            // @piece page: Page changed
             const page = action.page;
             if (!Number.isInteger(page) || page < 1 || page > state.totalPages || page === state.page) return state;
             return { ...state, page };
+            // @end
         }
         case "filtersReset":
+            // @piece reset: Filters reset
             if (state.search === "" && state.categories.length === 0 && state.level === "all" && state.page === 1) return state;
             return { ...state, search: "", categories: [], level: "all", page: 1 };
+            // @end
         case "resultsLoaded": {
+            // @piece results: Results loaded
             if (!Number.isInteger(action.totalPages) || action.totalPages < 0) return state;
             const totalPages = Math.max(1, action.totalPages);
             const page = Math.min(state.page, totalPages);
             if (totalPages === state.totalPages && page === state.page) return state;
             return { ...state, totalPages, page };
+            // @end
         }
         default:
             return state;

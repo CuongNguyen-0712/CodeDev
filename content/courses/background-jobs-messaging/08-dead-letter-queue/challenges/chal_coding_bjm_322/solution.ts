@@ -50,6 +50,7 @@ function tick(state: State): string[] {
     state.now += 1;
 
     // 1. redrive, rate-limited: at most redrivePerTick pending ids are handled per minute
+    // @piece redrive-batch: Move a limited batch of redrives back
     const batch = state.redrivePending.splice(0, state.config.redrivePerTick);
     for (const id of batch) {
         const index = state.dlq.findIndex((d) => d.id === id);
@@ -62,8 +63,10 @@ function tick(state: State): string[] {
         state.main.push({ id: dead.id, schema: dead.schema, body: dead.body, attempts: 0, firstFailedAt: null, lastFailedAt: null, lastError: null });
         events.push(`redriven ${id}`);
     }
+    // @end
 
     // 2. one delivery from the head
+    // @piece deliver: Deliver one message, park it after the last attempt
     const msg = state.main.shift();
     if (!msg) return events;
     msg.attempts += 1;
@@ -91,18 +94,22 @@ function tick(state: State): string[] {
             events.push(`failed ${msg.id} attempt ${msg.attempts}: ${error}`);
         }
     }
+    // @end
     return events;
 }
 
 /** Selects dead letters by ids or by last error and queues them for redrive. Returns the events. */
 function redrive(state: State, cmd: RedriveCommand): string[] {
+    // @piece select-letters: Choose the dead letters to redrive
     const byIds = Array.isArray(cmd.ids) && cmd.ids.length > 0;
     const byError = typeof cmd.error === "string" && cmd.error.length > 0;
     if (byIds === byError) return ["rejected: give either ids or error"];
 
     const selected = byIds ? (cmd.ids as string[]) : state.dlq.filter((d) => d.lastError === cmd.error).map((d) => d.id);
     if (selected.length === 0) return [`no dead letters with error ${cmd.error}`];
+    // @end
 
+    // @piece queue-redrives: Queue each chosen letter, if it may go back
     const events: string[] = [];
     for (const id of selected) {
         const dead = state.dlq.find((d) => d.id === id);
@@ -114,11 +121,13 @@ function redrive(state: State, cmd: RedriveCommand): string[] {
             events.push(`${id}: queued for redrive`);
         }
     }
+    // @end
     return events;
 }
 
 /** Deletes dead letters whose last failure is at least `olderThanDays` days old. Returns the events. */
 function purge(state: State, olderThanDays: number): string[] {
+    // @piece purge: Purge dead letters older than the limit
     if (!Number.isInteger(olderThanDays) || olderThanDays < 1) return ["rejected: olderThanDays must be a whole number of at least 1"];
     const limit = olderThanDays * MINUTES_PER_DAY;
     const events: string[] = [];
@@ -129,6 +138,7 @@ function purge(state: State, olderThanDays: number): string[] {
         return false;
     });
     return events;
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

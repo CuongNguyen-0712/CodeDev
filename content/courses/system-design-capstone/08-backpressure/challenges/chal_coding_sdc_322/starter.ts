@@ -32,32 +32,53 @@ type Config = { limit: number; practiceLimit: number; workers: number; defaultGr
 type Offer = { status: 202; depth: number } | { status: 429; retryAfterSec: number } | { status: 400 };
 type PriorityStats = { accepted: number; rejected: number; started: number; maxWaitMs: number; avgWaitMs: number };
 
+type Waiting = { job: Job; acceptedAt: number };
+type Totals = { accepted: number; rejected: number; started: number; maxWaitMs: number; totalWaitMs: number };
+
 class SubmissionQueue {
     private readonly config: Config;
+    private readonly waiting: Record<Priority, Waiting[]> = { exam: [], practice: [] };
+    private readonly running = new Map<string, number>();
+    private readonly recent: number[] = [];
+    private readonly totals: Record<Priority, Totals> = {
+        exam: { accepted: 0, rejected: 0, started: 0, maxWaitMs: 0, totalWaitMs: 0 },
+        practice: { accepted: 0, rejected: 0, started: 0, maxWaitMs: 0, totalWaitMs: 0 },
+    };
 
     constructor(config: Config) {
         this.config = config;
     }
 
     offer(job: Job, now: number): Offer {
-        return { status: 202, depth: 0 }; // TODO
+        if (typeof job.id !== "string" || job.id === "" || (job.priority !== "exam" && job.priority !== "practice")) {
+            return { status: 400 };
+        }
+        // [ ] Accept the job while the queue is under its bound
+        // [ ] Reject with an estimate of when to retry
     }
 
     take(now: number): Job | null {
-        return null; // TODO
+        // [ ] The next job to grade
+        // [ ] Record the wait and mark the job running
     }
 
     complete(jobId: string, now: number): void {
-        // TODO
+        // [ ] Remember how long the job took to grade
     }
 
     depth(): number {
-        return 0; // TODO
+        return this.waiting.exam.length + this.waiting.practice.length;
     }
 
     stats(): Record<Priority, PriorityStats> {
-        const none: PriorityStats = { accepted: 0, rejected: 0, started: 0, maxWaitMs: 0, avgWaitMs: 0 };
-        return { exam: { ...none }, practice: { ...none } }; // TODO
+        const out = (t: Totals): PriorityStats => ({
+            accepted: t.accepted,
+            rejected: t.rejected,
+            started: t.started,
+            maxWaitMs: t.maxWaitMs,
+            avgWaitMs: t.started === 0 ? 0 : Math.round(t.totalWaitMs / t.started),
+        });
+        return { exam: out(this.totals.exam), practice: out(this.totals.practice) };
     }
 }
 

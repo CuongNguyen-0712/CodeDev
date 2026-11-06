@@ -31,14 +31,12 @@ class InboxConsumer {
     }
 
     handle(msg: Message, now: number): Outcome {
-        // TODO: skip invalid and already processed messages; otherwise record msg.id in the inbox and
-        // count the certificate, in one transaction
-        return "processed";
+        // [ ] Refuse a message without an id or course
+        // [ ] Count the certificate once per message id
     }
 
     cleanup(now: number, retentionMs: number): number {
-        // TODO: delete inbox rows older than the retention window and return how many were deleted
-        return 0;
+        // [ ] Delete inbox rows past the retention window
     }
 }
 // ------------------------------------------------------------ building blocks (do not change)

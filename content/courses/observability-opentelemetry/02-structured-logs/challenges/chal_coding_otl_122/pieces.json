@@ -1,0 +1,45 @@
+[
+  {
+    "id": "read-options",
+    "label": "Read the level, redaction and length options once",
+    "code": "const threshold = levelValue(options.level);\nconst redact = new Set(options.redact.map((key) => key.toLowerCase()));\nconst max = options.maxStringLength;"
+  },
+  {
+    "id": "clean-value",
+    "label": "Make one value safe to log",
+    "code": "const clean = (value: unknown): unknown => {\n    if (typeof value === \"string\") return value.length > max ? `${value.slice(0, max)}...[truncated]` : value;\n    if (value instanceof Error) {\n        const out: Fields = { name: clean(value.name), message: clean(value.message) };\n        const frame = (value.stack ?? \"\").split(\"\\n\").map((line) => line.trim()).find((line) => line.startsWith(\"at \"));\n        if (frame !== undefined) out.stack = clean(frame);\n        return out;\n    }\n    if (Array.isArray(value)) return value.map((item) => (item === undefined ? null : clean(item)));\n    if (value !== null && typeof value === \"object\") return cleanObject(value as Fields);\n    return value;\n};"
+  },
+  {
+    "id": "clean-object",
+    "label": "Clean every field of an object",
+    "code": "const cleanObject = (obj: Fields): Fields => {\n    const out: Fields = {};\n    for (const [key, value] of Object.entries(obj)) {\n        if (value === undefined) continue;\n        out[key] = redact.has(key.toLowerCase()) ? \"[REDACTED]\" : clean(value);\n    }\n    return out;\n};"
+  },
+  {
+    "id": "write-record",
+    "label": "Build and write one JSON record",
+    "code": "if (levelValue(level) < threshold) return;\nconst record: Fields = { time: new Date(options.now()).toISOString(), level, msg: clean(msg) };\nconst span = options.activeSpan();\nif (span) {\n    record.trace_id = span.traceId;\n    record.span_id = span.spanId;\n}\nconst merged = { ...cleanObject(bindings), ...cleanObject(fields) };\nfor (const key of Object.keys(merged).sort()) {\n    if (!RESERVED.has(key)) record[key] = merged[key];\n}\noptions.write(JSON.stringify(record));"
+  },
+  {
+    "id": "child-bindings",
+    "label": "Bind the extra fields of a child logger",
+    "code": "const set = Object.entries(more).filter(([, value]) => value !== undefined);\nreturn createLogger(options, { ...bindings, ...Object.fromEntries(set) });"
+  },
+  {
+    "id": "clean-nested-as-is",
+    "label": "Make one value safe to log",
+    "code": "const clean = (value: unknown): unknown => {\n    if (typeof value === \"string\") return value.length > max ? `${value.slice(0, max)}...[truncated]` : value;\n    if (value instanceof Error) {\n        const out: Fields = { name: clean(value.name), message: clean(value.message) };\n        const frame = (value.stack ?? \"\").split(\"\\n\").map((line) => line.trim()).find((line) => line.startsWith(\"at \"));\n        if (frame !== undefined) out.stack = clean(frame);\n        return out;\n    }\n    if (Array.isArray(value)) return value.map((item) => (item === undefined ? null : clean(item)));\n    if (value !== null && typeof value === \"object\") return value;\n    return value;\n};",
+    "distractor": true
+  },
+  {
+    "id": "record-bindings-win",
+    "label": "Build and write one JSON record",
+    "code": "if (levelValue(level) < threshold) return;\nconst record: Fields = { time: new Date(options.now()).toISOString(), level, msg: clean(msg) };\nconst span = options.activeSpan();\nif (span) {\n    record.trace_id = span.traceId;\n    record.span_id = span.spanId;\n}\nconst merged = { ...cleanObject(fields), ...cleanObject(bindings) };\nfor (const key of Object.keys(merged).sort()) {\n    if (!RESERVED.has(key)) record[key] = merged[key];\n}\noptions.write(JSON.stringify(record));",
+    "distractor": true
+  },
+  {
+    "id": "record-level-exclusive",
+    "label": "Build and write one JSON record",
+    "code": "if (levelValue(level) <= threshold) return;\nconst record: Fields = { time: new Date(options.now()).toISOString(), level, msg: clean(msg) };\nconst span = options.activeSpan();\nif (span) {\n    record.trace_id = span.traceId;\n    record.span_id = span.spanId;\n}\nconst merged = { ...cleanObject(bindings), ...cleanObject(fields) };\nfor (const key of Object.keys(merged).sort()) {\n    if (!RESERVED.has(key)) record[key] = merged[key];\n}\noptions.write(JSON.stringify(record));",
+    "distractor": true
+  }
+]

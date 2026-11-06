@@ -93,7 +93,7 @@ export function useCatalogState(search: string): CatalogUiState {
         error: query.error ? toApiError(query.error) : undefined,   // { status, message }, from the API layer (lesson 4.1)
     });
 }`, "useCatalogState.ts"),
-        p("`deriveUiState` is a plain function: snapshot in, UI state out, no React. That is what makes the rules testable without a browser, and it is what you write in the exercise below."),
+        p("`deriveUiState` is a plain function: snapshot in, UI state out, no React. That is what makes the rules testable without a browser, and it is what you assemble in the exercise below."),
         callout("info", "When you do not need a union",
             "A single boolean is fine for a single yes/no fact: `isMenuOpen`, `isDirty`. A union pays off when several values are only meaningful together (a message only when failed, rows only when loaded). Also, if a library already returns a discriminated union and the screen maps it one to one, use it directly: TanStack Query's result narrows on `status`, so `if (query.status === \"success\") query.data` is already typed. Write your own `deriveUiState` when the screen has rules the library does not know, such as \"zero rows is its own screen\" or \"a 401 is not retryable\"."),
 

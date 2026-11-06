@@ -1,0 +1,45 @@
+[
+  {
+    "id": "wire-dependencies",
+    "label": "Keep what the service depends on",
+    "code": "constructor(\n    private readonly repo: EnrollmentRepository,\n    private readonly clock: Clock,\n) {}"
+  },
+  {
+    "id": "enroll-validate",
+    "label": "Refuse an enrollment without ids",
+    "code": "if (userId.trim() === \"\" || courseId.trim() === \"\") {\n    throw new Error(\"userId and courseId are required\");\n}"
+  },
+  {
+    "id": "enroll-reuse-or-create",
+    "label": "Reuse an active enrollment or start a new one",
+    "code": "const current = this.repo.findOne(userId, courseId);\nconst now = this.clock.now();\nif (current && now.getTime() < Date.parse(current.expiresAt)) return current;\nconst enrollment: Enrollment = {\n    userId,\n    courseId,\n    enrolledAt: now.toISOString(),\n    expiresAt: new Date(now.getTime() + ACCESS_DAYS * DAY_MS).toISOString(),\n};\nthis.repo.save(enrollment);\nreturn enrollment;"
+  },
+  {
+    "id": "has-access",
+    "label": "Whether the learner can open the course now",
+    "code": "return this.daysLeft(userId, courseId) > 0;"
+  },
+  {
+    "id": "days-left",
+    "label": "Whole days of access left",
+    "code": "const current = this.repo.findOne(userId, courseId);\nif (!current) return 0;\nconst remaining = Date.parse(current.expiresAt) - this.clock.now().getTime();\nreturn remaining > 0 ? Math.ceil(remaining / DAY_MS) : 0;"
+  },
+  {
+    "id": "days-left-floor",
+    "label": "Whole days of access left",
+    "code": "const current = this.repo.findOne(userId, courseId);\nif (!current) return 0;\nconst remaining = Date.parse(current.expiresAt) - this.clock.now().getTime();\nreturn remaining > 0 ? Math.floor(remaining / DAY_MS) : 0;",
+    "distractor": true
+  },
+  {
+    "id": "enroll-reuse-expired",
+    "label": "Reuse an active enrollment or start a new one",
+    "code": "const current = this.repo.findOne(userId, courseId);\nconst now = this.clock.now();\nif (current) return current;\nconst enrollment: Enrollment = {\n    userId,\n    courseId,\n    enrolledAt: now.toISOString(),\n    expiresAt: new Date(now.getTime() + ACCESS_DAYS * DAY_MS).toISOString(),\n};\nthis.repo.save(enrollment);\nreturn enrollment;",
+    "distractor": true
+  },
+  {
+    "id": "has-access-at-expiry",
+    "label": "Whether the learner can open the course now",
+    "code": "const current = this.repo.findOne(userId, courseId);\nreturn !!current && this.clock.now().getTime() <= Date.parse(current.expiresAt);",
+    "distractor": true
+  }
+]

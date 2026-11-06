@@ -1,0 +1,45 @@
+[
+  {
+    "id": "lifetime-and-path-rules",
+    "label": "Rules 1-2: lifetimes and the refresh path",
+    "code": "const ttlOk = (n: number) => Number.isInteger(n) && n >= 1;\nif (!ttlOk(c.accessTtlSeconds) || !ttlOk(c.refreshTtlSeconds) || c.refreshTtlSeconds <= c.accessTtlSeconds) {\n    return \"invalid ttl\";\n}\nif (!/^\\/[A-Za-z0-9\\/_-]+$/.test(c.refreshPath)) return \"invalid refresh path\";"
+  },
+  {
+    "id": "secure-rules",
+    "label": "Rules 3-4: settings that need Secure",
+    "code": "if (c.sameSite === \"None\" && !secure) return \"SameSite=None requires Secure\";\nconst names = [c.accessName, c.refreshName];\nconst prefixed = (n: string) => n.startsWith(\"__Host-\") || n.startsWith(\"__Secure-\");\nif (!secure && names.some(prefixed)) return \"cookie prefix requires Secure\";"
+  },
+  {
+    "id": "host-and-token-rules",
+    "label": "Rules 5-7: __Host- names and token values",
+    "code": "if (c.domain !== null && names.some((n) => n.startsWith(\"__Host-\"))) return \"__Host- cookie must not have Domain\";\nif (c.refreshName.startsWith(\"__Host-\")) return \"__Host- cookie requires Path=/\";\nconst valueOk = (v: string) => /^[A-Za-z0-9._-]+$/.test(v);\nif (!valueOk(accessToken) || !valueOk(refreshToken)) return \"invalid token value\";"
+  },
+  {
+    "id": "header-builder",
+    "label": "Build one Set-Cookie value",
+    "code": "const header = (name: string, value: string, maxAge: number, expires: string, path: string, sameSite: string) =>\n    [\n        `${name}=${value}`,\n        `Max-Age=${maxAge}`,\n        `Expires=${expires}`,\n        ...(config.domain !== null ? [`Domain=${config.domain}`] : []),\n        `Path=${path}`,\n        ...(secure ? [\"Secure\"] : []),\n        \"HttpOnly\",\n        `SameSite=${sameSite}`,\n    ].join(\"; \");\nconst at = (ttl: number) => new Date(nowMs + ttl * 1000).toUTCString();"
+  },
+  {
+    "id": "cookie-list",
+    "label": "Login cookies and their clearing cookies",
+    "code": "return {\n    ok: true,\n    login: [\n        header(config.accessName, accessToken, config.accessTtlSeconds, at(config.accessTtlSeconds), \"/\", config.sameSite),\n        header(config.refreshName, refreshToken, config.refreshTtlSeconds, at(config.refreshTtlSeconds), config.refreshPath, \"Strict\"),\n    ],\n    logout: [\n        header(config.accessName, \"\", 0, EPOCH, \"/\", config.sameSite),\n        header(config.refreshName, \"\", 0, EPOCH, config.refreshPath, \"Strict\"),\n    ],\n};"
+  },
+  {
+    "id": "cookie-list-refresh-samesite",
+    "label": "Login cookies and their clearing cookies",
+    "code": "return {\n    ok: true,\n    login: [\n        header(config.accessName, accessToken, config.accessTtlSeconds, at(config.accessTtlSeconds), \"/\", config.sameSite),\n        header(config.refreshName, refreshToken, config.refreshTtlSeconds, at(config.refreshTtlSeconds), config.refreshPath, config.sameSite),\n    ],\n    logout: [\n        header(config.accessName, \"\", 0, EPOCH, \"/\", config.sameSite),\n        header(config.refreshName, \"\", 0, EPOCH, config.refreshPath, config.sameSite),\n    ],\n};",
+    "distractor": true
+  },
+  {
+    "id": "header-expires-seconds",
+    "label": "Build one Set-Cookie value",
+    "code": "const header = (name: string, value: string, maxAge: number, expires: string, path: string, sameSite: string) =>\n    [\n        `${name}=${value}`,\n        `Max-Age=${maxAge}`,\n        `Expires=${expires}`,\n        ...(config.domain !== null ? [`Domain=${config.domain}`] : []),\n        `Path=${path}`,\n        ...(secure ? [\"Secure\"] : []),\n        \"HttpOnly\",\n        `SameSite=${sameSite}`,\n    ].join(\"; \");\nconst at = (ttl: number) => new Date(nowMs + ttl).toUTCString();",
+    "distractor": true
+  },
+  {
+    "id": "host-rules-no-domain-check",
+    "label": "Rules 5-7: __Host- names and token values",
+    "code": "if (!secure && names.some(prefixed)) return \"cookie prefix requires Secure\";\nif (c.refreshName.startsWith(\"__Host-\")) return \"__Host- cookie requires Path=/\";\nconst valueOk = (v: string) => /^[A-Za-z0-9._-]+$/.test(v);",
+    "distractor": true
+  }
+]

@@ -5,7 +5,7 @@
       "name": "retrieval-metrics",
       "type": "fix_bug",
       "title": "Fix the retrieval metrics",
-      "description": "evaluate() computes recall@k, MRR@k and hit rate@k over a golden set, and the numbers cannot be trusted: recall changes with k even when nothing new is found, a document ranked 20th improves MRR@5, returning the same document twice raises recall, and unlabelled queries drag every average down. Fix it so that, per query with relevant ids, the top-k is the first k retrieved ids as returned, recall = relevant ids found / relevant ids (each counted once), MRR = 1 / rank of the first relevant id within the top-k, and hit = any relevant id in the top-k. Average over labelled queries only (0.0 when there are none), rounded to 4 decimals.",
+      "description": "evaluate() computes recall@k, MRR@k and hit rate@k over a golden set, and the numbers cannot be trusted: recall changes with k even when nothing new is found, a document ranked 20th improves MRR@5, returning the same document twice raises recall, and unlabelled queries drag every average down. Fix it so that, per query with relevant ids, the top-k is the first k retrieved ids as returned, recall = relevant ids found / relevant ids (each counted once), MRR = 1 / rank of the first relevant id within the top-k, and hit = any relevant id in the top-k. Average over labelled queries only (0.0 when there are none), rounded to 4 decimals.\n\nSelect the faulty lines and replace them with the right fix; some fixes are wrong on purpose.",
       "difficulty": "medium",
       "points": 20,
       "coding": {
@@ -241,6 +241,14 @@
           "hidden": true,
           "score": 4
         }
+      ],
+      "outcomes": [
+        "retrieval-evaluation"
+      ],
+      "hints": [
+        "Each metric has a precise definition per query: recall counts relevant ids found, MRR uses the rank of the first relevant hit, hit rate is yes or no.",
+        "Slice the retrieved list to k before measuring, compare against a set of relevant ids so repeats count once, and average only over queries that have relevant ids.",
+        "Example for one query: retrieved `['d3', 'd1', 'd1']`, relevant `{'d1', 'd9'}` at k = 2 gives recall 1/2, reciprocal rank 1/2 and hit 1."
       ]
     }
   ]

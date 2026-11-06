@@ -16,6 +16,13 @@ import { readFileSync } from "node:fs";
 // this code writes (<p>, <ul>, <ol>, <li>, <pre>, <code>, <strong>, and <a> for http/https links
 // with rel="noopener noreferrer"). Do not change the test runner.
 
+const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+const escapeHtml = (text: string): string => text.replace(/[&<>"']/g, (c) => ESCAPES[c]);
+
+// One scan, left to right: a code span, else a link, else bold. Spans do not nest.
+const INLINE = /`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)|\*\*([^*]+)\*\*/g;
+
 function inline(text: string): string {
     return text
         .replace(/`([^`]+)`/g, "<code>$1</code>")

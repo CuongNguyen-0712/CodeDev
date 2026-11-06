@@ -1,0 +1,24 @@
+[
+  {
+    "id": "counts",
+    "label": "The two numbers of each course",
+    "code": "COALESCE(lc.learners, 0)          AS learners,\nCOALESCE(cc.completed_lessons, 0) AS completed_lessons"
+  },
+  {
+    "id": "joins",
+    "label": "Where the numbers come from",
+    "code": "LEFT JOIN (SELECT course_id, COUNT(*) AS learners\n           FROM enrollments\n           WHERE status <> 'cancelled'\n           GROUP BY course_id) lc ON lc.course_id = c.course_id\nLEFT JOIN (SELECT l.course_id, COUNT(*) AS completed_lessons\n           FROM lesson_progress lp\n           JOIN lessons l ON l.lesson_id = lp.lesson_id\n           WHERE lp.completed_at IS NOT NULL\n           GROUP BY l.course_id) cc ON cc.course_id = c.course_id"
+  },
+  {
+    "id": "counts-no-coalesce",
+    "label": "The two numbers of each course",
+    "code": "lc.learners          AS learners,\ncc.completed_lessons AS completed_lessons",
+    "distractor": true
+  },
+  {
+    "id": "joins-no-filters",
+    "label": "Where the numbers come from",
+    "code": "LEFT JOIN (SELECT course_id, COUNT(*) AS learners\n           FROM enrollments\n           GROUP BY course_id) lc ON lc.course_id = c.course_id\nLEFT JOIN (SELECT l.course_id, COUNT(*) AS completed_lessons\n           FROM lesson_progress lp\n           JOIN lessons l ON l.lesson_id = lp.lesson_id\n           GROUP BY l.course_id) cc ON cc.course_id = c.course_id",
+    "distractor": true
+  }
+]

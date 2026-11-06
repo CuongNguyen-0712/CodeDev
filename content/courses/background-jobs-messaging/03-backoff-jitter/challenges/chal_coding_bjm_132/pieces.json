@@ -1,0 +1,40 @@
+[
+  {
+    "id": "validate-policy",
+    "label": "Check the policy and work out the deadline",
+    "code": "const { baseDelayMs, maxDelayMs, maxAttempts, deadlineMs } = policy;\nif (!(baseDelayMs > 0) || !(maxDelayMs >= baseDelayMs) || !Number.isInteger(maxAttempts) || maxAttempts < 1 || !(deadlineMs > 0)) {\n    throw new Error(\"invalid policy\");\n}\nconst deadlineAt = job.firstAttemptAt + deadlineMs;"
+  },
+  {
+    "id": "stop-early",
+    "label": "Stop on a permanent error or the last attempt",
+    "code": "if (!error.retryable) {\n    log.push({ attempt: n, startAt, endAt, outcome: \"permanent\" });\n    break;\n}\nif (n >= maxAttempts) {\n    log.push({ attempt: n, startAt, endAt, outcome: \"max-attempts\" });\n    break;\n}"
+  },
+  {
+    "id": "delay",
+    "label": "Pick the delay for the next attempt",
+    "code": "const capped = Math.min(maxDelayMs, baseDelayMs * 2 ** (n - 1));\nlet delayMs = Math.floor(random() * capped);\nif (error.retryAfterMs !== undefined && error.retryAfterMs > delayMs) delayMs = error.retryAfterMs;"
+  },
+  {
+    "id": "deadline-check",
+    "label": "Give up if the retry would miss the deadline",
+    "code": "const retryAt = endAt + delayMs;\nif (retryAt > deadlineAt) {\n    log.push({ attempt: n, startAt, endAt, outcome: \"deadline\", delayMs, retryAt });\n    break;\n}"
+  },
+  {
+    "id": "deadline-at-inclusive",
+    "label": "Give up if the retry would miss the deadline",
+    "code": "const retryAt = endAt + delayMs;\nif (retryAt >= deadlineAt) {\n    log.push({ attempt: n, startAt, endAt, outcome: \"deadline\", delayMs, retryAt });\n    break;\n}",
+    "distractor": true
+  },
+  {
+    "id": "delay-exponent-off-by-one",
+    "label": "Pick the delay for the next attempt",
+    "code": "const capped = Math.min(maxDelayMs, baseDelayMs * 2 ** n);\nlet delayMs = Math.floor(random() * capped);\nif (error.retryAfterMs !== undefined && error.retryAfterMs > delayMs) delayMs = error.retryAfterMs;",
+    "distractor": true
+  },
+  {
+    "id": "delay-retry-after-always",
+    "label": "Pick the delay for the next attempt",
+    "code": "const capped = Math.min(maxDelayMs, baseDelayMs * 2 ** (n - 1));\nlet delayMs = Math.floor(random() * capped);\nif (error.retryAfterMs !== undefined) delayMs = error.retryAfterMs;",
+    "distractor": true
+  }
+]

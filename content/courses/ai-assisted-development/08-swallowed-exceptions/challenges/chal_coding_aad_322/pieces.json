@@ -1,0 +1,29 @@
+[
+  {
+    "id": "charge",
+    "label": "Charge the learner, and handle a failed charge",
+    "code": "const context = (reason: string): LogContext => ({\n    enrollmentId: enrollment.id,\n    userId: req.userId,\n    courseId: req.courseId,\n    reason,\n});\n\nlet chargeId: string;\ntry {\n    ({ chargeId } = await deps.gateway.charge({\n        paymentMethodId: req.paymentMethodId,\n        amountVnd: req.priceVnd,\n        idempotencyKey: enrollment.id,\n    }));\n} catch (error) {\n    await deps.enrollments.remove(enrollment.id);\n    if (error instanceof PaymentDeclinedError) {\n        deps.logger.warn(\"payment_declined\", context(error.code));\n        return { status: \"payment_declined\", code: error.code };\n    }\n    deps.logger.error(\"payment_failed\", context(messageOf(error)));\n    throw error;\n}"
+  },
+  {
+    "id": "receipt-failure",
+    "label": "When the receipt cannot be sent",
+    "code": "} catch (error) {\n    // Best effort: the learner paid and is enrolled; the receipt can be resent from the log.\n    deps.logger.warn(\"receipt_failed\", context(messageOf(error)));"
+  },
+  {
+    "id": "error-helper",
+    "label": "Helper below the enrollment flow",
+    "code": "function messageOf(error: unknown): string {\n    return error instanceof Error ? error.message : String(error);\n}"
+  },
+  {
+    "id": "charge-every-failure-declined",
+    "label": "Charge the learner, and handle a failed charge",
+    "code": "const context = (reason: string): LogContext => ({\n    enrollmentId: enrollment.id,\n    userId: req.userId,\n    courseId: req.courseId,\n    reason,\n});\n\nlet chargeId: string;\ntry {\n    ({ chargeId } = await deps.gateway.charge({\n        paymentMethodId: req.paymentMethodId,\n        amountVnd: req.priceVnd,\n        idempotencyKey: enrollment.id,\n    }));\n} catch (error) {\n    await deps.enrollments.remove(enrollment.id);\n    const code = error instanceof PaymentDeclinedError ? error.code : \"unknown\";\n    deps.logger.warn(\"payment_declined\", context(code));\n    return { status: \"payment_declined\", code };\n}",
+    "distractor": true
+  },
+  {
+    "id": "charge-keep-pending-row",
+    "label": "Charge the learner, and handle a failed charge",
+    "code": "const context = (reason: string): LogContext => ({\n    enrollmentId: enrollment.id,\n    userId: req.userId,\n    courseId: req.courseId,\n    reason,\n});\n\nlet chargeId: string;\ntry {\n    ({ chargeId } = await deps.gateway.charge({\n        paymentMethodId: req.paymentMethodId,\n        amountVnd: req.priceVnd,\n        idempotencyKey: enrollment.id,\n    }));\n} catch (error) {\n    if (error instanceof PaymentDeclinedError) {\n        deps.logger.warn(\"payment_declined\", context(error.code));\n        return { status: \"payment_declined\", code: error.code };\n    }\n    deps.logger.error(\"payment_failed\", context(messageOf(error)));\n    throw error;\n}",
+    "distractor": true
+  }
+]

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "normalise",
+    "label": "Lower-case and drop all whitespace",
+    "code": "return text.toLowerCase().replace(/\\s+/g, \"\");"
+  },
+  {
+    "id": "fingerprint",
+    "label": "Hash every k-gram, keep each window's minimum",
+    "code": "const text = normalise(code);\nconst hashes: number[] = [];\nfor (let i = 0; i + K <= text.length; i++) {\n    let h = 0;\n    for (let j = i; j < i + K; j++) h = (h * 31 + text.charCodeAt(j)) % MOD;\n    hashes.push(h);\n}\nconst prints = new Set<number>();\nif (hashes.length === 0) return prints;\nconst windows = Math.max(1, hashes.length - W + 1);\nfor (let start = 0; start < windows; start++) {\n    prints.add(Math.min(...hashes.slice(start, start + W)));\n}\nreturn prints;"
+  },
+  {
+    "id": "split-feedback",
+    "label": "Split feedback into code blocks and prose",
+    "code": "function splitFeedback(feedback: string): { blocks: string[]; prose: string[] } {\n    const lines = feedback.split(/\\r?\\n/);\n    const blocks: string[] = [];\n    const prose: string[] = [];\n    for (let i = 0; i < lines.length; i++) {\n        if (!lines[i].trim().startsWith(\"```\")) {\n            prose.push(lines[i]);\n            continue;\n        }\n        const block: string[] = [];\n        i++;\n        while (i < lines.length && !lines[i].trim().startsWith(\"```\")) block.push(lines[i++]);\n        blocks.push(block.join(\"\\n\"));\n    }\n    return { blocks, prose };\n}"
+  },
+  {
+    "id": "hidden-output",
+    "label": "Rule 1: a hidden test's output appears",
+    "code": "if (typeof feedback !== \"string\" || feedback.trim() === \"\") return \"blocked: empty\";\n\nconst text = normalise(feedback);\nfor (let t = 0; t < refs.tests.length; t++) {\n    const expected = normalise(refs.tests[t].expected);\n    if (refs.tests[t].hidden && expected.length >= MIN_OUTPUT_LENGTH && text.includes(expected)) {\n        return `blocked: hidden-output (test ${t + 1})`;\n    }\n}"
+  },
+  {
+    "id": "code-overlap",
+    "label": "Rule 2: a code block overlaps a solution",
+    "code": "const { blocks, prose } = splitFeedback(feedback);\nconst blockPrints = blocks.map(fingerprint);\nlet best = 0;\nlet bestSolution = 0;\nrefs.solutions.forEach((solution, s) => {\n    const ref = fingerprint(solution);\n    if (ref.size === 0) return;\n    for (const prints of blockPrints) {\n        let shared = 0;\n        for (const h of ref) if (prints.has(h)) shared++;\n        if (shared / ref.size > best) {\n            best = shared / ref.size;\n            bestSolution = s + 1;\n        }\n    }\n});\nif (best >= MAX_OVERLAP) return `blocked: code-overlap (solution ${bestSolution}, ${best.toFixed(2)})`;"
+  },
+  {
+    "id": "algorithm-steps",
+    "label": "Rule 3: the steps name distinctive identifiers",
+    "code": "const steps = prose.filter((line) => /^([-*]|\\d+\\.)\\s+/.test(line.trim())).join(\"\\n\");\nconst found = refs.distinctive.filter((id) => {\n    const escaped = id.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\");\n    return new RegExp(`(?<![A-Za-z0-9_$])${escaped}(?![A-Za-z0-9_$])`).test(steps);\n});\nconst needed = Math.min(MIN_IDENTIFIERS, refs.distinctive.length);\nif (needed > 0 && found.length >= needed) return `blocked: algorithm-steps (${found.join(\", \")})`;"
+  },
+  {
+    "id": "algorithm-steps-substring",
+    "label": "Rule 3: the steps name distinctive identifiers",
+    "code": "const steps = prose.filter((line) => /^([-*]|\\d+\\.)\\s+/.test(line.trim())).join(\"\\n\");\nconst found = refs.distinctive.filter((id) => {\n    const escaped = id.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\");\n    return escaped.length > 0 && steps.includes(id);\n});\nconst needed = Math.min(MIN_IDENTIFIERS, refs.distinctive.length);\nif (needed > 0 && found.length >= needed) return `blocked: algorithm-steps (${found.join(\", \")})`;",
+    "distractor": true
+  },
+  {
+    "id": "code-overlap-by-block-size",
+    "label": "Rule 2: a code block overlaps a solution",
+    "code": "const { blocks, prose } = splitFeedback(feedback);\nconst blockPrints = blocks.map(fingerprint);\nlet best = 0;\nlet bestSolution = 0;\nrefs.solutions.forEach((solution, s) => {\n    const ref = fingerprint(solution);\n    if (ref.size === 0) return;\n    for (const prints of blockPrints) {\n        let shared = 0;\n        for (const h of ref) if (prints.has(h)) shared++;\n        if (prints.size > 0 && shared / prints.size > best) {\n            best = shared / prints.size;\n            bestSolution = s + 1;\n        }\n    }\n});\nif (best >= MAX_OVERLAP) return `blocked: code-overlap (solution ${bestSolution}, ${best.toFixed(2)})`;",
+    "distractor": true
+  },
+  {
+    "id": "fingerprint-every-kgram",
+    "label": "Hash every k-gram, keep each window's minimum",
+    "code": "const text = normalise(code);\nconst hashes: number[] = [];\nfor (let i = 0; i + K <= text.length; i++) {\n    let h = 0;\n    for (let j = i; j < i + K; j++) h = (h * 31 + text.charCodeAt(j)) % MOD;\n    hashes.push(h);\n}\nconst prints = new Set<number>();\nif (hashes.length === 0) return prints;\nconst windows = Math.max(1, hashes.length - W + 1);\nfor (let start = 0; start < windows; start++) {\n    for (const h of hashes) prints.add(h);\n}\nreturn prints;",
+    "distractor": true
+  },
+  {
+    "id": "hidden-output-any-test",
+    "label": "Rule 1: a hidden test's output appears",
+    "code": "if (typeof feedback !== \"string\" || feedback.trim() === \"\") return \"blocked: empty\";\n\nconst text = normalise(feedback);\nfor (let t = 0; t < refs.tests.length; t++) {\n    const expected = normalise(refs.tests[t].expected);\n    if (expected.length >= MIN_OUTPUT_LENGTH && text.includes(expected)) {\n        return `blocked: hidden-output (test ${t + 1})`;\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "hidden-output-raw-match",
+    "label": "Rule 1: a hidden test's output appears",
+    "code": "if (typeof feedback !== \"string\" || feedback.trim() === \"\") return \"blocked: empty\";\n\nconst text = normalise(feedback);\nfor (let t = 0; t < refs.tests.length; t++) {\n    const expected = refs.tests[t].expected;\n    if (refs.tests[t].hidden && expected.length >= MIN_OUTPUT_LENGTH && feedback.includes(expected)) {\n        return `blocked: hidden-output (test ${t + 1})`;\n    }\n}",
+    "distractor": true
+  }
+]

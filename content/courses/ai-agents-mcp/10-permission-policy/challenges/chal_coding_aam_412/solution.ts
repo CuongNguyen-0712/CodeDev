@@ -40,12 +40,14 @@ function sha256(text: string): string {
 }
 
 function canonicalJson(value: unknown): string {
+    // @piece canonical: One JSON text per value, keys sorted at every level
     if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
     if (value !== null && typeof value === "object") {
         const obj = value as Record<string, unknown>;
         return `{${Object.keys(obj).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`).join(",")}}`;
     }
     return JSON.stringify(value);
+    // @end
 }
 
 type Grant = { sessionId: string; tool: string; argsHash: string; approverRole: string; expiresAt: number; used: boolean };
@@ -62,6 +64,7 @@ class PermissionPolicy {
 
     /** The human approval path: a person looked at this exact call and approved it at `now`. */
     approve(approval: Approval, now: number): void {
+        // @piece store-grant: Remember the approval, bound to this exact call
         this.grants.set(approval.token, {
             sessionId: approval.sessionId,
             tool: approval.call.name,
@@ -70,11 +73,13 @@ class PermissionPolicy {
             expiresAt: now + approval.ttlMs,
             used: false,
         });
+        // @end
     }
 
     decide(sessionId: string, call: ToolCall, token: string | null, now: number): Decision {
         const answer = (decision: Decision["decision"], reason: string, consumed: string | null = null): Decision =>
             ({ decision, reason, consumed });
+        // @piece who-may: Who may call this tool; reads go straight through
         const session = this.sessions.get(sessionId);
         if (!session) return answer("deny", "unknown_session");
         const tool = this.tools.get(call.name);
@@ -82,7 +87,9 @@ class PermissionPolicy {
         if (tool.deniedRoles.includes(session.role)) return answer("deny", "role_denied");
         if ("userId" in call.args && call.args.userId !== session.userId) return answer("deny", "user_mismatch");
         if (tool.permission === "read") return answer("allow", "read");
+        // @end
 
+        // @piece write-amount: Writes: check the amount, ask when there is no token
         const amount = call.args.amount;
         let overLimit = false;
         if (tool.managerAbove !== null) {
@@ -90,7 +97,9 @@ class PermissionPolicy {
             overLimit = amount > tool.managerAbove;
         }
         if (token === null) return answer("needs_approval", overLimit ? "manager_approval_required" : "approval_required");
+        // @end
 
+        // @piece token-checks: Spend the token only on this exact call, once
         const grant = this.grants.get(token);
         if (!grant) return answer("deny", "invalid_token");
         if (grant.used) return answer("deny", "token_used");
@@ -100,6 +109,7 @@ class PermissionPolicy {
         if (overLimit && grant.approverRole !== "manager") return answer("needs_approval", "manager_approval_required");
         grant.used = true;
         return answer("allow", "approved", token);
+        // @end
     }
 }
 

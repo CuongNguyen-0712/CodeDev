@@ -23,19 +23,32 @@ const MAX_BOOKMARKS_PER_USER = 50;
 type AddResult = "added" | "already_bookmarked" | "invalid_request" | "lesson_not_found" | "limit_reached";
 type RemoveResult = "removed" | "not_bookmarked" | "invalid_request";
 
+type Bookmark = { lessonId: string; at: number; seq: number };
+
+function isId(value: unknown): value is string {
+    // [ ] Is this value a usable id
+}
+
 class BookmarkService {
-    constructor(lessonIds: string[]) {}
+    private readonly lessons: Set<string>;
+    private readonly byUser = new Map<string, Bookmark[]>();
+    private seq = 0;
+
+    constructor(lessonIds: string[]) {
+        this.lessons = new Set(lessonIds);
+    }
 
     add(userId: string, lessonId: string, at: number): AddResult {
-        return "added";
+        // [ ] Validate the request, then refuse repeats and a full list
+        // [ ] Store the new bookmark
     }
 
     remove(userId: string, lessonId: string): RemoveResult {
-        return "removed";
+        // [ ] Remove one bookmark
     }
 
     list(userId: string): string[] {
-        return [];
+        // [ ] The user's lessons, most recent bookmark first
     }
 }
 

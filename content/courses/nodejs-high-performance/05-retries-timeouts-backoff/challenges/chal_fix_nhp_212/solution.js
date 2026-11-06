@@ -1,22 +1,41 @@
 /**
- * Reference solution (never shipped to learners).
- * Abort the request when the deadline hits, and always clear the deadline timer once the
- * race is decided - whichever side won.
+ * Calls the fraud-scoring service with a hard deadline.
+ *
+ * `fn(signal)` starts the HTTP request (think fetch(url, { signal })). It must be given an
+ * AbortSignal so the request can be cancelled. The timers come from `clock` (same API as the
+ * global setTimeout / clearTimeout) so tests can run on fake time.
+ *
+ * Expected behaviour:
+ *   - fn settles first      -> resolve / reject with fn's result
+ *   - the deadline hits first -> reject with an Error whose code is "ETIMEDOUT"
+ *
+ * BUG: under load the service leaks memory and sockets: thousands of timers stay scheduled
+ * after fast responses, and requests that "timed out" keep running in the background.
+ *
+ * @template T
+ * @param {(signal: AbortSignal) => Promise<T>} fn
+ * @param {number} timeoutMs
+ * @param {{ setTimeout: typeof setTimeout, clearTimeout: typeof clearTimeout }} clock
+ * @returns {Promise<T>}
  */
 async function callWithTimeout(fn, timeoutMs, clock) {
   const controller = new AbortController();
-  let timer;
 
+  // @piece deadline: Start the deadline timer
+  let timer;
   const timeout = new Promise((_, reject) => {
     timer = clock.setTimeout(() => {
       controller.abort();
       reject(Object.assign(new Error("ETIMEDOUT"), { code: "ETIMEDOUT" }));
     }, timeoutMs);
   });
+  // @end
 
+  // @piece race: Wait for the call or the deadline
   try {
     return await Promise.race([fn(controller.signal), timeout]);
   } finally {
     clock.clearTimeout(timer);
   }
+  // @end
 }

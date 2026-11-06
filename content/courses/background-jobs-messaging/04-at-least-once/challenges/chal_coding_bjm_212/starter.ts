@@ -40,11 +40,13 @@ interface Db extends Tx {
     transaction<T>(work: (tx: Tx) => T): T;
 }
 
+const isText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";
+
 function handleIssueCertificate(job: CertificateJob, db: Db): Outcome {
-    const { userId, courseId } = job.data;
-    db.insertCertificate({ userId, courseId, jobId: job.id });
-    db.publishEvent({ type: "certificate.issued", userId, courseId });
-    return "issued";
+    // [ ] Read the job data and refuse bad input
+    // One certificate per learner and course, whatever job id carried the request.
+    // [ ] The key that names one certificate
+    // [ ] Issue it at most once
 }
 
 // ---------------------------------------------------------------- in-memory queue and database (do not change)

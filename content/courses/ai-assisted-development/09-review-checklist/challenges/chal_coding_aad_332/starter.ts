@@ -28,9 +28,50 @@ type PullRequest = {
 type CheckName = "tests" | "dependencies" | "debug_markers" | "paths" | "size";
 type CheckResult = { check: CheckName; passed: boolean; details: string[] };
 
+const MARKERS = ["TODO", "FIXME", "console.log("];
+const LOCK_FILES = new Set(["package-lock.json", "yarn.lock", "pnpm-lock.yaml"]);
+const SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx"];
+
+function fileName(path: string): string {
+    return path.slice(path.lastIndexOf("/") + 1);
+}
+
+function isTestFile(path: string): boolean {
+    // [ ] Is a changed file a test file
+}
+
+function isSourceFile(path: string): boolean {
+    return path.startsWith("src/") && SOURCE_EXTENSIONS.some((ext) => path.endsWith(ext))
+        && !path.endsWith(".d.ts") && !isTestFile(path);
+}
+
+function isAllowed(path: string, allowedPaths: string[]): boolean {
+    // [ ] Is a path covered by the allowed list
+}
+
+function dependencyNames(manifest: Manifest): Set<string> {
+    // [ ] Every dependency the manifest declares
+}
+
+function result(check: CheckName, details: string[]): CheckResult {
+    const sorted = [...new Set(details)].sort();
+    return { check, passed: sorted.length === 0, details: sorted };
+}
+
 function reviewChecklist(pr: PullRequest): CheckResult[] {
-    // TODO: return the five check results in order
-    return [];
+    // [ ] Untested source changes and new dependencies
+
+    // [ ] Debug markers in added lines
+
+    // [ ] Paths outside the allowed list, and the PR size
+
+    return [
+        result("tests", sources.length > 0 && !testsChanged ? sources : []),
+        result("dependencies", unknown),
+        result("debug_markers", markers),
+        result("paths", outside),
+        result("size", total > max ? [`${total} changed lines, limit ${max}`] : []),
+    ];
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

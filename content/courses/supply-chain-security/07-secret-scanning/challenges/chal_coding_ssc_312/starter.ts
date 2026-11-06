@@ -41,12 +41,31 @@ import { readFileSync } from "node:fs";
 
 type Finding = { file: string; line: number; rule: string; preview: string };
 
+// [ ] The secret patterns to look for
+
 function shannonEntropy(s: string): number {
-    return 0;
+    // [ ] Shannon entropy in bits per character
+}
+
+function preview(secret: string): string {
+    return `${secret.slice(0, 4)}... (${secret.length} chars)`;
+}
+
+function scanLine(content: string): { rule: string; secret: string }[] {
+    // [ ] Look for the known secret patterns
+    // [ ] Otherwise look for random-looking literals
 }
 
 function scanDiff(diff: string, allowPaths: string[]): Finding[] {
-    return [];
+    const findings: Finding[] = [];
+    let file: string | null = null;
+    let inHunk = false;
+    let newLine = 0;
+    for (const raw of diff.split("\n")) {
+        // [ ] Follow the file and hunk headers
+        // [ ] Scan added lines and keep the line number
+    }
+    // [ ] Order the findings
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

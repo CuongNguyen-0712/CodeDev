@@ -35,19 +35,22 @@ const KEYWORDS = new Set([
     "undefined", "var", "void", "while",
 ]);
 
-// ---------------------------------------------------------------- output filter
-function tokens(source: string): string[] {
+// ---------------------------------------------------------------- output filter (written by the assistant)
+// @piece compare-code: Turn code into comparable n-grams
+const tokens = (source: string): string[] => {
     const code = source.replace(/\/\*[\s\S]*?(\*\/|$)/g, " ").replace(/\/\/[^\n]*/g, " ");
     return (code.match(/[A-Za-z0-9_$]+|\S/g) ?? []).map((t) => (/^[A-Za-z_$]/.test(t) && !KEYWORDS.has(t) ? "ID" : t));
-}
+};
 
-function ngrams(list: string[]): Set<string> {
+const ngrams = (list: string[]): Set<string> => {
     const out = new Set<string>();
     for (let i = 0; i + NGRAM <= list.length; i++) out.add(list.slice(i, i + NGRAM).join(" "));
     return out;
-}
+};
+// @end
 
 function filterHint(hint: string, reference: string): string {
+    // @piece block-leaks: Block a hint that shares too much code
     if (hint.trim() === "") return FALLBACK_HINT;
     const fromReference = ngrams(tokens(reference));
     if (fromReference.size === 0) return hint;
@@ -55,6 +58,7 @@ function filterHint(hint: string, reference: string): string {
     let shared = 0;
     for (const gram of fromReference) if (fromHint.has(gram)) shared++;
     return shared / fromReference.size >= MAX_SHARED ? FALLBACK_HINT : hint;
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

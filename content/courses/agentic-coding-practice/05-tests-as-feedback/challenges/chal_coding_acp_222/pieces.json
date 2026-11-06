@@ -1,0 +1,45 @@
+[
+  {
+    "id": "inputs",
+    "label": "Test files, changed paths, deleted paths, runAll",
+    "code": "const allTests = Object.keys(repo.tests).sort(byCodeUnit);\nconst changed = [...new Set(repo.changed.map((c) => c.path))].sort(byCodeUnit);\nconst deleted = new Set(repo.changed.filter((c) => c.status === \"deleted\").map((c) => c.path));\nconst runAll = new Set(repo.runAll);"
+  },
+  {
+    "id": "reach",
+    "label": "Every file each test reaches (imports may loop)",
+    "code": "// Every file each test reaches through imports, with a visited set for cycles.\nconst reaches = new Map<string, Set<string>>();\nfor (const test of allTests) {\n    const seen = new Set<string>([test]);\n    const stack = [...(repo.tests[test] ?? [])];\n    while (stack.length > 0) {\n        const file = stack.pop()!;\n        if (seen.has(file)) continue;\n        seen.add(file);\n        for (const next of repo.imports[file] ?? []) if (!seen.has(next)) stack.push(next);\n    }\n    reaches.set(test, seen);\n}"
+  },
+  {
+    "id": "pick-tests",
+    "label": "Run everything, or the tests that reach a change",
+    "code": "const all = changed.some((path) => runAll.has(path));\nconst tests = all ? allTests : allTests.filter((test) => changed.some((path) => reaches.get(test)!.has(path)));"
+  },
+  {
+    "id": "untested",
+    "label": "Changed paths no test reaches",
+    "code": "const untested = changed.filter(\n    (path) =>\n        !deleted.has(path) &&\n        !runAll.has(path) &&\n        !allTests.some((test) => reaches.get(test)!.has(path)),\n);"
+  },
+  {
+    "id": "by-code-unit",
+    "label": "Helper: plain string comparison for sort",
+    "code": "const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);"
+  },
+  {
+    "id": "inputs-skip-deleted",
+    "label": "Test files, changed paths, deleted paths, runAll",
+    "code": "const allTests = Object.keys(repo.tests).sort(byCodeUnit);\nconst changed = [...new Set(repo.changed.filter((c) => c.status !== \"deleted\").map((c) => c.path))].sort(byCodeUnit);\nconst deleted = new Set(repo.changed.filter((c) => c.status === \"deleted\").map((c) => c.path));\nconst runAll = new Set(repo.runAll);",
+    "distractor": true
+  },
+  {
+    "id": "pick-tests-no-run-all",
+    "label": "Run everything, or the tests that reach a change",
+    "code": "const all = false;\nconst tests = all ? allTests : allTests.filter((test) => changed.some((path) => reaches.get(test)!.has(path)));",
+    "distractor": true
+  },
+  {
+    "id": "reach-direct-imports-only",
+    "label": "Every file each test reaches (imports may loop)",
+    "code": "// Every file each test reaches through imports, with a visited set for cycles.\nconst reaches = new Map<string, Set<string>>();\nfor (const test of allTests) {\n    // only the files the test imports itself\n    reaches.set(test, new Set<string>([test, ...(repo.tests[test] ?? [])]));\n}",
+    "distractor": true
+  }
+]

@@ -126,7 +126,7 @@ Never skip, delete or weaken a test to make the check pass; ask instead.`, "AGEN
             "the imports of each test file, and the list of paths that force a full run.",
         ]),
         p("Deleted files deserve a moment. After `src/progress/legacyRound.ts` is deleted, it is no longer a node of the new graph, but `summary.ts` may still import it. The tests that reach it must run: they fail with a missing-module error, which is exactly the feedback the agent needs. A deleted test file, on the other hand, has nothing left to run."),
-        p("The graph can also contain cycles - `a.ts` imports `b.ts`, which imports `a.ts` again - which is common in real code. A walk over the graph must remember what it has already visited, or it goes round forever. Now write the selector."),
+        p("The graph can also contain cycles - `a.ts` imports `b.ts`, which imports `a.ts` again - which is common in real code. A walk over the graph must remember what it has already visited, or it goes round forever. Now assemble the selector."),
         challenge("chal_coding_acp_222"),
         p("With the selector in place, the incident replays differently: the first check after the edit runs five test files and tsc, prints two failing tests and one type error in about five seconds, and the agent fixes `rank.ts`, `eligibility.ts` and `progressRoute.ts` before it pushes anything. CI still runs the full suite, and it is green."),
 

@@ -1,0 +1,35 @@
+[
+  {
+    "id": "coalesce",
+    "label": "Merge into the record's newest unsent entry, or append",
+    "code": "for (let i = outbox.length - 1; i >= 0; i--) {\n  const entry = outbox[i];\n  if (entry.recordId !== recordId) continue;\n  if (!entry.inFlight && !entry.attempted) {\n    entry.patch = { ...entry.patch, ...patch };\n    return;\n  }\n  break;\n}\noutbox.push({ id, recordId, patch: { ...patch }, attempted: false, inFlight: false });"
+  },
+  {
+    "id": "send-one",
+    "label": "Send the mutation and sort out its outcome",
+    "code": "new Promise((res) => res(send({ id: entry.id, recordId: entry.recordId, patch: { ...entry.patch } })))\n  .then(\n    () => {\n      remove(entry);\n      summary.sent.push(entry.id);\n    },\n    (error) => {\n      if (error && error.retryable === false) {\n        remove(entry);\n        summary.failed.push({ id: entry.id, error: error.message });\n      } else {\n        entry.inFlight = false;\n        blocked.add(entry.recordId);\n      }\n    },\n  )\n  .then(() => {\n    inFlight--;\n    busy.delete(entry.recordId);\n    pump();\n  });"
+  },
+  {
+    "id": "pump",
+    "label": "Start what may start now, or finish the flush",
+    "code": "for (const entry of outbox) {\n  if (inFlight >= maxInFlight) break;\n  if (entry.inFlight || busy.has(entry.recordId) || blocked.has(entry.recordId)) continue;\n  start(entry);\n}\nif (inFlight === 0) {\n  summary.pending = outbox.map((entry) => entry.id);\n  running = null;\n  resolve(summary);\n}"
+  },
+  {
+    "id": "coalesce-into-sent",
+    "label": "Merge into the record's newest unsent entry, or append",
+    "code": "for (let i = outbox.length - 1; i >= 0; i--) {\n  const entry = outbox[i];\n  if (entry.recordId !== recordId) continue;\n  if (!entry.inFlight) {\n    entry.patch = { ...entry.patch, ...patch };\n    return;\n  }\n  break;\n}\noutbox.push({ id, recordId, patch: { ...patch }, attempted: false, inFlight: false });",
+    "distractor": true
+  },
+  {
+    "id": "pump-ignores-record-order",
+    "label": "Start what may start now, or finish the flush",
+    "code": "for (const entry of outbox) {\n  if (inFlight >= maxInFlight) break;\n  if (entry.inFlight || blocked.has(entry.recordId)) continue;\n  start(entry);\n}\nif (inFlight === 0) {\n  summary.pending = outbox.map((entry) => entry.id);\n  running = null;\n  resolve(summary);\n}",
+    "distractor": true
+  },
+  {
+    "id": "send-one-unknown-is-permanent",
+    "label": "Send the mutation and sort out its outcome",
+    "code": "new Promise((res) => res(send({ id: entry.id, recordId: entry.recordId, patch: { ...entry.patch } })))\n  .then(\n    () => {\n      remove(entry);\n      summary.sent.push(entry.id);\n    },\n    (error) => {\n      if (!error || error.retryable !== true) {\n        remove(entry);\n        summary.failed.push({ id: entry.id, error: error && error.message });\n      } else {\n        entry.inFlight = false;\n        blocked.add(entry.recordId);\n      }\n    },\n  )\n  .then(() => {\n    inFlight--;\n    busy.delete(entry.recordId);\n    pump();\n  });",
+    "distractor": true
+  }
+]

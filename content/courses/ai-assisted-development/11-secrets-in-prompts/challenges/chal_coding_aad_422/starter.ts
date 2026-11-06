@@ -38,13 +38,25 @@ type SecretType = "private_key" | "password" | "jwt" | "api_key" | "bearer" | "e
 
 type Redaction = { text: string; counts: Record<SecretType, number> };
 
+const SENSITIVE_WORDS = new Set(["SECRET", "TOKEN", "PASSWORD", "PASSWD", "PWD", "KEY", "APIKEY", "CREDENTIALS"]);
+
 function redactSecrets(text: string, options: { redactEmails: boolean }): Redaction {
     const counts: Record<SecretType, number> = { private_key: 0, password: 0, jwt: 0, api_key: 0, bearer: 0, env: 0, email: 0 };
-    return { text, counts };
+    const mark = (type: SecretType) => {
+        counts[type]++;
+        return `[REDACTED:${type}]`;
+    };
+
+    // [ ] Private key blocks
+    // [ ] Passwords inside connection URLs
+    // [ ] JWTs and provider API keys
+    // [ ] Bearer tokens
+    // [ ] Sensitive variables in .env lines
+    // [ ] Email addresses, when asked to
+    return { text: out, counts };
 }
 
 // ---------------------------------------------------------------- test runner (do not change)
-// Input: { text, redactEmails }. Output: { text, counts } as JSON.
 type Input = { text: string; redactEmails: boolean };
 
 const TYPES: SecretType[] = ["private_key", "password", "jwt", "api_key", "bearer", "env", "email"];

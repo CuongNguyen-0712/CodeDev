@@ -28,35 +28,45 @@ type Deps = {
 type CachedCourse = { course: PublicCourse; storedAt: number };
 
 function getPublicCourse(courseId: string, at: number, ttl: number, deps: Deps): PublicCourse | null {
+    // @piece public-cache: Public course data through the shared cache
     const key = `course:${courseId}`;
     const hit = deps.sharedCache.get(key) as CachedCourse | undefined;
     if (hit && at < hit.storedAt + ttl) return hit.course;
     const course = deps.loadPublicCourse(courseId);
     if (course) deps.sharedCache.set(key, { course, storedAt: at } satisfies CachedCourse);
     return course;
+    // @end
 }
 
 function couponApplies(coupon: Coupon | null, courseId: string, at: number): coupon is Coupon {
+    // @piece coupon-check: Does the coupon apply to this course now?
     if (!coupon) return false;
     if (!Number.isInteger(coupon.percent) || coupon.percent < 1 || coupon.percent > 100) return false;
     if (at >= coupon.expiresAt) return false;
     return coupon.courses === "all" || coupon.courses.includes(courseId);
+    // @end
 }
 
 function renderCoursePage(req: PageRequest, ttl: number, deps: Deps): string {
+    // @piece public-page: The course, and the page anonymous visitors get
     const course = getPublicCourse(req.courseId, req.at, ttl, deps);
     if (!course) return "404 Not Found";
     const head = `${course.title} | ${course.lessons} lessons`;
     const anonymous = `${head} | ${course.price} VND | Enroll`;
     if (req.userId === null) return anonymous;
+    // @end
 
+    // @piece enrollment: Enrolled learners see their progress
     const enrollment = deps.loadEnrollment(req.userId, course.id);
     if (enrollment.enrolled) return `${head} | Enrolled, ${enrollment.progress}% complete`;
+    // @end
 
+    // @piece coupon-price: Everyone else sees their coupon price
     const coupon = deps.loadCoupon(req.userId);
     if (!couponApplies(coupon, course.id, req.at)) return anonymous;
     const price = Math.round((course.price * (100 - coupon.percent)) / 100);
     return `${head} | ${price} VND with coupon ${coupon.code} (list ${course.price} VND) | Enroll`;
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

@@ -28,6 +28,7 @@ const REFRESH_TTL_S = 14 * 24 * 60 * 60;
 
 /** POST https://api.codedev.test/auth/login, after the password check: what goes back to the browser. */
 function buildLoginResponse(user: User, tokens: Tokens): LoginResponse {
+    // @piece login-cookies: The cookies sent back after login
     // Tokens only in HttpOnly cookies scoped to the API host; only the display name is readable by the SPA.
     return {
         status: 200,
@@ -36,7 +37,11 @@ function buildLoginResponse(user: User, tokens: Tokens): LoginResponse {
             `__Secure-cd_rt=${tokens.refreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/auth/refresh; Max-Age=${REFRESH_TTL_S}`,
             `display_name=${encodeURIComponent(user.displayName)}; Domain=codedev.test; Path=/; Secure; SameSite=Lax; Max-Age=${REFRESH_TTL_S}`,
         ],
+    // @end
+        // The SPA keeps the access token and sends it as "Authorization: Bearer ...".
+        // @piece login-body: The JSON body the SPA reads
         body: { user: { id: user.id, displayName: user.displayName } },
+        // @end
     };
 }
 // ------------------------------------------------------------------ browser (do not change)

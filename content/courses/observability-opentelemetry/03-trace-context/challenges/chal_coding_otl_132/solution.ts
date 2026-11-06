@@ -38,6 +38,7 @@ const isHex = (s: string, length: number): boolean => s.length === length && /^[
 const allZero = (s: string): boolean => /^0+$/.test(s);
 
 function parseTraceparent(header: string | null): ParentContext | null {
+    // @piece parse-shape: Check the header's length, version and separators
     if (header === null) return null;
     const h = header.replace(OWS, "");
     if (h.length < 55) return null;
@@ -45,18 +46,22 @@ function parseTraceparent(header: string | null): ParentContext | null {
     if (!isHex(version, 2) || version === "ff" || h[2] !== "-") return null;
     if (version === "00" && h.length !== 55) return null;
     if (h.length > 55 && h[55] !== "-") return null;
+    // @end
+    // @piece parse-fields: Read and check the trace id, parent id and flags
     const traceId = h.slice(3, 35);
     const parentId = h.slice(36, 52);
     const flags = h.slice(53, 55);
     if (!isHex(traceId, 32) || h[35] !== "-" || !isHex(parentId, 16) || h[52] !== "-" || !isHex(flags, 2)) return null;
     if (allZero(traceId) || allZero(parentId)) return null;
     return { version, traceId, parentId, sampled: (parseInt(flags, 16) & 0x01) === 1 };
+    // @end
 }
 
 const KEY = /^(?:[a-z][a-z0-9_\-*/]{0,255}|[a-z0-9][a-z0-9_\-*/]{0,240}@[a-z][a-z0-9_\-*/]{0,13})$/;
 const VALUE = /^[\x20-\x2b\x2d-\x3c\x3e-\x7e]{0,255}[\x21-\x2b\x2d-\x3c\x3e-\x7e]$/;
 
 function validTracestate(header: string): boolean {
+    // @piece tracestate-members: Accept tracestate only when every member is valid
     if (header.length > 512) return false;
     const keys = new Set<string>();
     for (const raw of header.split(",")) {
@@ -69,19 +74,24 @@ function validTracestate(header: string): boolean {
         keys.add(key);
     }
     return keys.size >= 1 && keys.size <= 32;
+    // @end
 }
 
 function newId(draw: () => string): string {
+    // @piece new-id: Draw an id that is not all zeros
     let id = draw();
     while (allZero(id)) id = draw();
     return id;
+    // @end
 }
 
 function childHeaders(incoming: Incoming, ids: IdSource): Outgoing {
+    // @piece child-headers: Headers for the outgoing call
     const parent = parseTraceparent(incoming.traceparent);
     if (!parent) return { traceparent: `00-${newId(ids.traceId)}-${newId(ids.spanId)}-01`, tracestate: null };
     const state = incoming.tracestate !== null && validTracestate(incoming.tracestate) ? incoming.tracestate : null;
     return { traceparent: `00-${parent.traceId}-${newId(ids.spanId)}-${parent.sampled ? "01" : "00"}`, tracestate: state };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

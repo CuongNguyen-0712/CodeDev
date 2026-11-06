@@ -1,0 +1,55 @@
+[
+  {
+    "id": "formats",
+    "label": "The formats a course id, an email and a coupon must match",
+    "code": "const COURSE_ID = /^c_[0-9]{1,9}$/;\nconst EMAIL = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nconst COUPON = /^[A-Z0-9]{4,12}$/;"
+  },
+  {
+    "id": "body-check",
+    "label": "Reject a body that is not an object, then read fields",
+    "code": "if (typeof body !== \"object\" || body === null || Array.isArray(body)) {\n    return { ok: false, errors: [{ field: \"body\", message: \"body must be a JSON object\" }] };\n}\nconst b = body as Record<string, unknown>;\nconst errors: FieldError[] = [];\nconst missing = (v: unknown) => v === undefined || v === null;\n\n// required strings: the first rule that fails is the field's only error\nconst requiredString = (field: string): string | undefined => {\n    const v = b[field];\n    if (missing(v)) errors.push({ field, message: `${field} is required` });\n    else if (typeof v !== \"string\") errors.push({ field, message: `${field} must be a string` });\n    else return v;\n    return undefined;\n};"
+  },
+  {
+    "id": "course-and-email",
+    "label": "courseId and email",
+    "code": "let courseId = requiredString(\"courseId\");\nif (courseId !== undefined && !COURSE_ID.test(courseId)) {\n    errors.push({ field: \"courseId\", message: \"courseId must be c_ followed by 1 to 9 digits\" });\n    courseId = undefined;\n}\nlet email = requiredString(\"email\");\nif (email !== undefined && (email.length > 254 || !EMAIL.test(email))) {\n    errors.push({ field: \"email\", message: \"email must be a valid email address\" });\n    email = undefined;\n}"
+  },
+  {
+    "id": "plan",
+    "label": "plan",
+    "code": "const planText = requiredString(\"plan\");\nlet plan: Plan | undefined;\nif (planText !== undefined) {\n    plan = PLANS.find((p) => p === planText);\n    if (plan === undefined) errors.push({ field: \"plan\", message: \"plan must be one of: free, premium\" });\n}"
+  },
+  {
+    "id": "coupon",
+    "label": "couponCode",
+    "code": "let couponCode: string | undefined;\nconst coupon = b.couponCode;\nif (!missing(coupon)) {\n    if (typeof coupon !== \"string\") errors.push({ field: \"couponCode\", message: \"couponCode must be a string\" });\n    else if (!COUPON.test(coupon)) errors.push({ field: \"couponCode\", message: \"couponCode must be 4 to 12 characters, A-Z or 0-9\" });\n    else if (plan === \"free\") errors.push({ field: \"couponCode\", message: \"couponCode is only allowed with plan premium\" });\n    else couponCode = coupon;\n}"
+  },
+  {
+    "id": "seats",
+    "label": "seats",
+    "code": "let seats = 1;\nconst s = b.seats;\nif (!missing(s)) {\n    if (typeof s !== \"number\" || !Number.isInteger(s)) errors.push({ field: \"seats\", message: \"seats must be an integer\" });\n    else if (s < 1 || s > 50) errors.push({ field: \"seats\", message: \"seats must be between 1 and 50\" });\n    else seats = s;\n}"
+  },
+  {
+    "id": "result",
+    "label": "Errors, or the clean request",
+    "code": "if (errors.length > 0 || courseId === undefined || email === undefined || plan === undefined) {\n    return { ok: false, errors };\n}\nconst value: EnrollRequest = { courseId, email, plan, seats };\nif (couponCode !== undefined) value.couponCode = couponCode;\nreturn { ok: true, value };"
+  },
+  {
+    "id": "coupon-on-free-plan",
+    "label": "couponCode",
+    "code": "let couponCode: string | undefined;\nconst coupon = b.couponCode;\nif (!missing(coupon)) {\n    if (typeof coupon !== \"string\") errors.push({ field: \"couponCode\", message: \"couponCode must be a string\" });\n    else if (!COUPON.test(coupon)) errors.push({ field: \"couponCode\", message: \"couponCode must be 4 to 12 characters, A-Z or 0-9\" });\n    else couponCode = coupon;\n}",
+    "distractor": true
+  },
+  {
+    "id": "plan-lowercased",
+    "label": "plan",
+    "code": "const planText = requiredString(\"plan\");\nlet plan: Plan | undefined;\nif (planText !== undefined) {\n    plan = PLANS.find((p) => p === planText.trim().toLowerCase());\n    if (plan === undefined) errors.push({ field: \"plan\", message: \"plan must be one of: free, premium\" });\n}",
+    "distractor": true
+  },
+  {
+    "id": "seats-converted",
+    "label": "seats",
+    "code": "let seats = 1;\nconst s = typeof b.seats === \"string\" && b.seats.trim() !== \"\" ? Number(b.seats) : b.seats;\nif (!missing(s)) {\n    if (typeof s !== \"number\" || !Number.isInteger(s)) errors.push({ field: \"seats\", message: \"seats must be an integer\" });\n    else if (s < 1 || s > 50) errors.push({ field: \"seats\", message: \"seats must be between 1 and 50\" });\n    else seats = s;\n}",
+    "distractor": true
+  }
+]

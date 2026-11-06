@@ -1,10 +1,18 @@
 """
-Find the first bottleneck in a step load test of POST /api/submissions: the resource where
-requests started to wait first, at the lowest offered rate (see the challenge description).
+tools/perf/bottleneck.py - reads a step load test of POST /api/submissions (per step: offered rate,
+and per resource: average utilization and the wait samples of the requests that used it) and
+reports the first bottleneck.
+
+Bug report: on the exam-day step test it reported db_pool at 340 req/s, the last step of the test,
+although the p95 pool wait was already above the limit at 280 req/s. It also lists judge_workers as
+saturated, although no submit request ever waits for a judge worker. Fix find_first_bottleneck so
+that it follows the rule in the challenge description.
 """
 import json
 import math
 import sys
+
+BUSY_UTIL = 0.85
 
 
 def percentile(values, p):
@@ -28,13 +36,15 @@ def find_first_bottleneck(case):
     for step in steps:
         for name, resource in step.get("resources", {}).items():
             wait = percentile(resource.get("waits_ms") or [], 95)
-            # Saturation = work waiting for the resource; utilization alone says nothing about waiting.
+            # @piece mark-saturated: When a resource counts as saturated
             if wait is not None and wait > limit and name not in saturated:
                 saturated[name] = {"resource": name, "from_rate": step["rate"], "p95_wait_ms": wait}
+            # @end
 
-    ranked = sorted(saturated.values(), key=lambda r: (r["from_rate"], -r["p95_wait_ms"], r["resource"]))
+    ranked = sorted(saturated.values(), key=lambda r: (r["from_rate"], -(r["p95_wait_ms"] or 0), r["resource"]))
     for r in ranked:
-        r["p95_wait_ms"] = round(r["p95_wait_ms"], 1)
+        if r["p95_wait_ms"] is not None:
+            r["p95_wait_ms"] = round(r["p95_wait_ms"], 1)
     first = ranked[0] if ranked else None
     return {
         "first_bottleneck": first["resource"] if first else None,

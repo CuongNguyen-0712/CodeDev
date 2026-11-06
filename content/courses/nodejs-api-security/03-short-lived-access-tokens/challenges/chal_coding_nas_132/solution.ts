@@ -56,18 +56,25 @@ function decodeObject(part: string): Record<string, unknown> | null {
 function verifyToken(token: string, secret: string, options: VerifyOptions, now: number): VerifyResult {
     const fail = (reason: string): VerifyResult => ({ valid: false, reason });
 
+    // @piece split-and-decode: Split the token, decode header and payload
     const parts = token.split(".");
     if (parts.length !== 3 || parts.some((p) => !/^[A-Za-z0-9_-]*$/.test(p) || p.length % 4 === 1)) return fail("malformed");
     const header = decodeObject(parts[0]);
     const payload = decodeObject(parts[1]);
     if (!header || !payload) return fail("malformed");
+    // @end
 
+    // @piece alg-check: Accept only the expected algorithm
     if (header.alg !== "HS256") return fail("unsupported alg");
+    // @end
 
+    // @piece signature-check: Check the signature
     const expected = Buffer.from(hmac(secret, `${parts[0]}.${parts[1]}`));
     const received = Buffer.from(parts[2]);
     if (expected.length !== received.length || !timingSafeEqual(expected, received)) return fail("bad signature");
+    // @end
 
+    // @piece claim-types: Check the claim types
     const { sub, iat, exp, iss, aud } = payload;
     const audOk = typeof aud === "string" || (Array.isArray(aud) && aud.every((a) => typeof a === "string"));
     if (typeof sub !== "string" || sub === "" || !Number.isInteger(iat) || !Number.isInteger(exp) || typeof iss !== "string" || !audOk) {
@@ -76,13 +83,16 @@ function verifyToken(token: string, secret: string, options: VerifyOptions, now:
     const issuedAt = iat as number;
     const expiresAt = exp as number;
     if (expiresAt <= issuedAt) return fail("invalid claims");
+    // @end
 
+    // @piece policy-checks: Issuer, audience, lifetime and time window
     if (iss !== options.issuer) return fail("wrong issuer");
     if (typeof aud === "string" ? aud !== options.audience : !(aud as string[]).includes(options.audience)) return fail("wrong audience");
     if (expiresAt - issuedAt > options.maxLifetimeSeconds) return fail("lifetime too long");
     if (now >= expiresAt + options.leewaySeconds) return fail("expired");
     if (issuedAt > now + options.leewaySeconds) return fail("not yet valid");
     return { valid: true, sub };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

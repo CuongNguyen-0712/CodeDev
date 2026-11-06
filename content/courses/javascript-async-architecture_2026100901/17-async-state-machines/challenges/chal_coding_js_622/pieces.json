@@ -1,0 +1,45 @@
+[
+  {
+    "id": "is-current",
+    "label": "Is this answer for the request still loading?",
+    "code": "const isCurrent = state.status === \"loading\" && event.requestId === state.requestId;"
+  },
+  {
+    "id": "resolve",
+    "label": "A successful answer",
+    "code": "case \"RESOLVE\":\n  return isCurrent ? { status: \"success\", requestId: state.requestId, data: event.data } : state;"
+  },
+  {
+    "id": "reject",
+    "label": "A failed answer",
+    "code": "case \"REJECT\":\n  return isCurrent\n    ? { status: \"error\", requestId: state.requestId, attempt: state.attempt, error: event.error }\n    : state;"
+  },
+  {
+    "id": "cancel",
+    "label": "The user cancels",
+    "code": "case \"CANCEL\":\n  return state.status === \"loading\" ? { status: \"cancelled\", requestId: state.requestId } : state;"
+  },
+  {
+    "id": "retry",
+    "label": "The user retries",
+    "code": "case \"RETRY\":\n  return state.status === \"error\" && state.attempt < MAX_ATTEMPTS\n    ? { status: \"loading\", requestId: state.requestId + 1, attempt: state.attempt + 1 }\n    : state;"
+  },
+  {
+    "id": "reject-mutates",
+    "label": "A failed answer",
+    "code": "case \"REJECT\":\n  if (isCurrent) {\n    state.status = \"error\";\n    state.error = event.error;\n  }\n  return state;",
+    "distractor": true
+  },
+  {
+    "id": "resolve-any-request",
+    "label": "A successful answer",
+    "code": "case \"RESOLVE\":\n  return state.status === \"loading\" ? { status: \"success\", requestId: state.requestId, data: event.data } : state;",
+    "distractor": true
+  },
+  {
+    "id": "retry-unlimited",
+    "label": "The user retries",
+    "code": "case \"RETRY\":\n  return state.status === \"error\"\n    ? { status: \"loading\", requestId: state.requestId + 1, attempt: state.attempt + 1 }\n    : state;",
+    "distractor": true
+  }
+]

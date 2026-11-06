@@ -13,6 +13,7 @@ import { useRunCodingSamples, useSubmitCoding } from "@/mutations/challenge.muta
 import useCodeDraft from "@/hooks/useCodeDraft";
 import { detectEntryName, runTests, toSubmissionPayload } from "@/lib/challenges/runner";
 import { entryBodyStart } from "@/lib/challenges/entry";
+import { PLACEHOLDER_RE } from "@/lib/challenges/pieces";
 import { isBrowserLanguage, isConfigLanguage, toRunnableCode } from "@/lib/challenges/languages";
 import { cn } from "@/lib/utils";
 
@@ -198,6 +199,8 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
     };
     // shortcut: used marks last one page load; persist them in draftStore if learners ask for it
     const [usedSnippets, setUsedSnippets] = useState(() => new Set());
+    // Fix-bug pieces: shown when a fix is clicked with no lines selected.
+    const [pieceHint, setPieceHint] = useState(null);
 
     // Sample tests only: hidden test inputs arrive from the server once a submission has started.
     const [hiddenTests, setHiddenTests] = useState([]);
@@ -424,6 +427,12 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
     // Every challenge has a starter file name; this fallback predates config challenges.
     const displayFile = workspace.filePath || "solution.js";
     const snippets = workspace.snippets || [];
+    // A fix_bug starter without [ ] lines is the faulty program: each piece replaces the lines the
+    // learner selects (build-pieces.mjs bugs/), so finding the faulty lines is part of the exercise.
+    const fixMode = challenge.type === "fix_bug" && snippets.length > 0
+        && !String(workspace.starterCode || "").split("\n").some((line) => PLACEHOLDER_RE.test(line));
+    // Build mode: an empty [ ] line usually means the file does not compile yet, so say so up front.
+    const unplaced = snippets.length > 0 && !fixMode ? draft.code.split("\n").filter((line) => PLACEHOLDER_RE.test(line)).length : 0;
 
     const toggleSnippet = (id) => setUsedSnippets((prev) => {
         const next = new Set(prev);
@@ -435,6 +444,12 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
     // At the caret once the learner has used the editor, else at the start of the function body
     // (the top of a config file). The piece never picks its own place: that is the exercise.
     const insertSnippet = (snippet) => {
+        if (fixMode) {
+            const placed = editorRef.current?.replaceSelection(snippet.code);
+            if (placed) markUsed(snippet.id);
+            setPieceHint(placed ? null : "Select the faulty lines in the editor first: the fix replaces the lines you select.");
+            return;
+        }
         if (editorRef.current?.insertAtCursor(snippet.code, entryBodyStart(draft.code) ?? 0)) markUsed(snippet.id);
     };
     const ranVisible = visibleTests.filter((t) => testResults[t.id] && testResults[t.id].status !== "running");
@@ -598,6 +613,10 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
                             used={usedSnippets}
                             onToggle={toggleSnippet}
                             onInsert={insertSnippet}
+                            note={fixMode
+                                ? pieceHint || "Select the faulty lines, then click the fix (or drop it on them)."
+                                : unplaced ? `${unplaced} [ ] ${unplaced === 1 ? "line is" : "lines are"} still empty: the code may not run until each has a piece.` : null}
+                            noteIsWarning={Boolean(fixMode && pieceHint)}
                             disabled={phase === "submitting"}
                             layout={expanded ? "column" : "grid"}
                             className={cn(

@@ -32,10 +32,19 @@ describe("insertSnippetText", () => {
         expect(insertAt("{\n    |\n}", "|", "go();")).toBe("{\n    go();\n}");
     });
 
-    it("replaces a selection and indents the following lines", () => {
-        const text = "  return TODO;\n";
-        const start = text.indexOf("TODO");
-        expect(insertSnippetText(text, start, start + 4, "a\n+ b").text).toBe("  return a\n  + b;\n");
+    it("replaces the whole lines a selection touches, at the first line's indent", () => {
+        const text = "function f() {\n  const a = 1;\n  if (a > 2) {\n    run();\n  }\n  return a;\n}\n";
+        const start = text.indexOf("> 2"); // mid-line selection of the faulty `if` block
+        const end = text.indexOf("  }") + 2;
+        const fix = "if (a >= 2) {\n  run();\n}";
+        const out = insertSnippetText(text, start, end, fix);
+        expect(out.text).toBe("function f() {\n  const a = 1;\n  if (a >= 2) {\n    run();\n  }\n  return a;\n}\n");
+        expect(out.text.slice(0, out.caret).endsWith("  }")).toBe(true);
+    });
+
+    it("leaves out the line where a selection ends at column 0", () => {
+        const text = "a();\nb();\nc();\n";
+        expect(insertSnippetText(text, 0, text.indexOf("c();"), "x();").text).toBe("x();\nc();\n");
     });
 
     it("keeps CRLF text intact around the snippet", () => {

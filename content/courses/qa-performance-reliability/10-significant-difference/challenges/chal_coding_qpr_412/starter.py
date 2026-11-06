@@ -27,16 +27,39 @@ Errors: {"error": "need at least 3 runs per side"} when A or B has fewer than 3 
 import json
 import sys
 
+MODULUS = 2 ** 31
+
 
 def p95(samples):
-    # nearest-rank p95 of one run's samples
-    return 0
+    # [ ] Nearest-rank p95 of one run
+
+
+def mean(values):
+    return sum(values) / len(values)
 
 
 def compare_runs(case):
-    # {"p95_a": [...], "p95_b": [...], "diff_ms": ..., "ci_ms": [low, high], "verdict": ...}
-    # or {"error": ...}
-    return {"p95_a": [], "p95_b": [], "diff_ms": 0, "ci_ms": [0, 0], "verdict": "no clear difference"}
+    runs_a, runs_b = case["a"], case["b"]
+    if len(runs_a) < 3 or len(runs_b) < 3:
+        return {"error": "need at least 3 runs per side"}
+    if any(len(run) == 0 for run in runs_a + runs_b):
+        return {"error": "empty run"}
+
+    # [ ] One p95 per run, and the difference of their means
+
+    state = case["seed"]
+
+    def draw(values):
+        nonlocal state
+        state = (1103515245 * state + 12345) % MODULUS
+        return values[state % len(values)]
+
+    # [ ] Resample runs and collect the differences
+    # [ ] The 2.5th and 97.5th percentile of the differences
+
+    # [ ] The verdict from the interval
+    return {"p95_a": p95_a, "p95_b": p95_b, "diff_ms": round(diff, 1),
+            "ci_ms": [round(low, 1), round(high, 1)], "verdict": verdict}
 
 
 # ---------------------------------------------------------------- test runner (do not change)

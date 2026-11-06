@@ -42,12 +42,14 @@ function LiveCatalog({ filter }: Props): string {
     }, [filter]);
 
     // Refresh every 30 seconds so newly published courses show up.
+    // @piece refresh: Refresh the list every 30 seconds
     useEffect(() => {
         const id = timers.setInterval(() => {
             api.fetchCourses(filter).then(setCourses);
         }, 30_000);
         return () => timers.clearInterval(id);
     }, [filter]);
+    // @end
 
     return courses.length ? courses.map((c) => c.title).join(", ") : "no courses";
 }

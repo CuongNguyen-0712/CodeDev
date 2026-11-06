@@ -153,7 +153,7 @@ INSERT INTO s VALUES ('abc');           -- cannot store TEXT value in INTEGER co
         h2("9. Your turn: a schema that refuses bad data"),
         p("Before you write a schema, check two behaviours that surprise most people the first time:"),
         challenge("chal_quiz_sdm_311"),
-        p("Now write the schema for `users`, `courses` and `enrollments` so that SQLite itself refuses every kind of bad row from the audit. The runner applies your schema, turns foreign keys on, and replays inserts and deletes one by one: valid rows must still be accepted, and each bad one must be refused by the right kind of constraint."),
+        p("Now assemble the schema for `users`, `courses` and `enrollments` so that SQLite itself refuses every kind of bad row from the audit. The runner applies your schema, turns foreign keys on, and replays inserts and deletes one by one: valid rows must still be accepted, and each bad one must be refused by the right kind of constraint."),
         challenge("chal_coding_sdm_312"),
 
         h2("10. Adding constraints to a table that already has data"),

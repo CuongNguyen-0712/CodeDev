@@ -1,0 +1,50 @@
+[
+  {
+    "id": "normalize-steps",
+    "label": "Normalize a name (steps 1-5)",
+    "code": "let n = name.toLowerCase();\nif (n.startsWith(\"@\") && n.includes(\"/\")) n = n.slice(n.indexOf(\"/\") + 1);\nn = n.replace(/[_.]/g, \"-\").replace(/1/g, \"l\").replace(/0/g, \"o\");\nif (n.startsWith(\"js-\") && n.length > 3) n = n.slice(3);\nif (n.endsWith(\"-js\") && n.length > 3) n = n.slice(0, -3);\nreturn n;"
+  },
+  {
+    "id": "distance-cell",
+    "label": "One table cell: edit, substitute or swap",
+    "code": "const cost = a[i - 1] === b[j - 1] ? 0 : 1;\nlet best = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);\nif (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) best = Math.min(best, d[i - 2][j - 2] + 1);\nd[i].push(best);"
+  },
+  {
+    "id": "threshold",
+    "label": "How many edits still count as a lookalike",
+    "code": "return n <= 3 ? 0 : n <= 7 ? 1 : 2;"
+  },
+  {
+    "id": "invalid-and-exact",
+    "label": "Invalid names and exact matches",
+    "code": "if (!VALID.test(name)) return { name, nearest: null, distance: null, verdict: \"invalid\" };\nif (popular.includes(name)) return { name, nearest: name, distance: 0, verdict: \"exact\" };"
+  },
+  {
+    "id": "nearest",
+    "label": "Find the nearest popular name and decide",
+    "code": "const n = normalize(name);\nlet nearest = known[0].name;\nlet best = Infinity;\nfor (const p of known) {\n    const d = distance(n, p.normalized);\n    if (d < best || (d === best && p.name < nearest)) {\n        best = d;\n        nearest = p.name;\n    }\n}\nreturn { name, nearest, distance: best, verdict: best <= threshold(n.length) ? \"lookalike\" : \"clear\" };"
+  },
+  {
+    "id": "sort-results",
+    "label": "Order the results",
+    "code": "return results.sort((x, y) =>\n    ORDER.indexOf(x.verdict) - ORDER.indexOf(y.verdict)\n    || (x.distance ?? 0) - (y.distance ?? 0)\n    || (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));"
+  },
+  {
+    "id": "distance-cell-no-swap",
+    "label": "One table cell: edit, substitute or swap",
+    "code": "const cost = a[i - 1] === b[j - 1] ? 0 : 1;\nlet best = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);\n\nd[i].push(best);",
+    "distractor": true
+  },
+  {
+    "id": "normalize-no-digits",
+    "label": "Normalize a name (steps 1-5)",
+    "code": "let n = name.toLowerCase();\nif (n.startsWith(\"@\") && n.includes(\"/\")) n = n.slice(n.indexOf(\"/\") + 1);\nn = n.replace(/[_.]/g, \"-\");\nif (n.startsWith(\"js-\") && n.length > 3) n = n.slice(3);\nif (n.endsWith(\"-js\") && n.length > 3) n = n.slice(0, -3);\nreturn n;",
+    "distractor": true
+  },
+  {
+    "id": "threshold-flat",
+    "label": "How many edits still count as a lookalike",
+    "code": "return n > 0 ? 1 : 0;",
+    "distractor": true
+  }
+]

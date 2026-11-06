@@ -1,0 +1,35 @@
+[
+  {
+    "id": "results",
+    "label": "Room for one result per item",
+    "code": "const results = new Array(items.length);"
+  },
+  {
+    "id": "yield-turn",
+    "label": "Give the event loop a turn between two chunks",
+    "code": "if (start > 0) await yieldToLoop();"
+  },
+  {
+    "id": "run-chunk",
+    "label": "Score the items of this chunk",
+    "code": "const end = Math.min(start + chunkSize, items.length);\nfor (let i = start; i < end; i++) {\n  results[i] = fn(items[i], i);\n}"
+  },
+  {
+    "id": "run-chunk-one-extra",
+    "label": "Score the items of this chunk",
+    "code": "for (let i = start; i <= start + chunkSize && i < items.length; i++) {\n  results[i] = fn(items[i], i);\n}",
+    "distractor": true
+  },
+  {
+    "id": "yield-turn-microtask",
+    "label": "Give the event loop a turn between two chunks",
+    "code": "if (start > 0) await Promise.resolve();",
+    "distractor": true
+  },
+  {
+    "id": "yield-turn-not-awaited",
+    "label": "Give the event loop a turn between two chunks",
+    "code": "if (start > 0) yieldToLoop();",
+    "distractor": true
+  }
+]

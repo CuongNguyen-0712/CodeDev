@@ -180,7 +180,7 @@ if (denied !== null) throw new UnauthorizedException("session_revoked");`, "acce
             "Answering 403 to DELETE /sessions/fam_123 tells the caller that fam_123 exists and belongs to someone. 404 says the same thing as for an id that never existed, and the handler changes nothing in both cases."),
 
         h2("5. Build it with a fake clock"),
-        p("The challenge gives you the refresh token table in memory, sign-in, and rotation with replay detection from module 3 (a replayed token calls your `revokeFamily`). You write the five functions the Sessions feature needs: `revokeFamily`, `signOutAll`, `checkAccess`, `pruneDenyList` and `listSessions`. The tests run a scripted day on a fake clock in minutes: sign-ins on several devices, refreshes, API calls with old and new access tokens, sign-outs, password changes, and the deny list as it fills and empties."),
+        p("The challenge gives you the refresh token table in memory, sign-in, and rotation with replay detection from module 3 (a replayed token calls your `revokeFamily`). You assemble the five functions the Sessions feature needs: `revokeFamily`, `signOutAll`, `checkAccess`, `pruneDenyList` and `listSessions`. The tests run a scripted day on a fake clock in minutes: sign-ins on several devices, refreshes, API calls with old and new access tokens, sign-outs, password changes, and the deny list as it fills and empties."),
         challenge("chal_coding_nas_412"),
 
         h2("6. How to verify revocation"),

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "valid-traits",
+    "label": "Check the traits before any rule",
+    "code": "const f: unknown = page.freshnessSeconds;\nif (f !== null && !(typeof f === \"number\" && Number.isInteger(f) && f >= 0)) return false;\nif (!(typeof page.pageCount === \"number\" && Number.isInteger(page.pageCount) && page.pageCount >= 1)) return false;\nif (!Array.isArray(page.reads)) return false;\nreturn page.reads.every((r) => REQUEST_APIS.includes(r));"
+  },
+  {
+    "id": "invalid-and-personal",
+    "label": "Rules 1 and 2: invalid traits, per-user data",
+    "code": "if (!isValid(page)) return { route, strategy: \"invalid\", reason: \"invalid traits\" };\nif (page.perUserData) return { route, strategy: \"dynamic\", reason: \"per-user data\" };"
+  },
+  {
+    "id": "request-reads",
+    "label": "Rule 3: pages that read request-time APIs",
+    "code": "const reads = REQUEST_APIS.filter((api) => page.reads.includes(api));\nif (reads.length > 0) return { route, strategy: \"dynamic\", reason: `reads ${reads.join(\", \")}` };"
+  },
+  {
+    "id": "fresh-every-request",
+    "label": "Rule 4: HTML that must be fresh every time",
+    "code": "if (page.freshnessSeconds === 0) return { route, strategy: \"dynamic\", reason: \"must be fresh on every request\" };"
+  },
+  {
+    "id": "html-source",
+    "label": "Rule 5: where the HTML comes from",
+    "code": "const where = page.dataAtBuild && page.pageCount <= MAX_BUILD_PAGES ? \"prerendered at build\" : \"rendered on first request\";"
+  },
+  {
+    "id": "static-or-isr",
+    "label": "Rules 6 and 7: static or ISR",
+    "code": "if (page.freshnessSeconds === null) return { route, strategy: \"static\", reason: where };\nconst s = page.freshnessSeconds;\nreturn { route, strategy: `isr:${s}`, reason: `${where}, revalidated every ${s} s` };"
+  },
+  {
+    "id": "html-source-below-limit",
+    "label": "Rule 5: where the HTML comes from",
+    "code": "const where = page.dataAtBuild && page.pageCount < MAX_BUILD_PAGES ? \"prerendered at build\" : \"rendered on first request\";",
+    "distractor": true
+  },
+  {
+    "id": "request-reads-raw",
+    "label": "Rule 3: pages that read request-time APIs",
+    "code": "const reads = page.reads;\nif (reads.length > 0) return { route, strategy: \"dynamic\", reason: `reads ${reads.join(\", \")}` };",
+    "distractor": true
+  },
+  {
+    "id": "seo-forces-dynamic",
+    "label": "Rules 1 and 2: invalid traits, per-user data",
+    "code": "if (!isValid(page)) return { route, strategy: \"invalid\", reason: \"invalid traits\" };\nif (page.perUserData || page.seo) return { route, strategy: \"dynamic\", reason: \"per-user data\" };",
+    "distractor": true
+  }
+]

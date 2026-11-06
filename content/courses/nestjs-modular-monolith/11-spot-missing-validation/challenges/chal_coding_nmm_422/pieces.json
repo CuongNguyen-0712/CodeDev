@@ -1,0 +1,19 @@
+[
+  {
+    "id": "start-errors",
+    "label": "Start the error list",
+    "code": "const PROFILE_FIELDS = [\"displayName\", \"bio\", \"avatarUrl\"];\n// Whitelist: every own property that is not a DTO field is an error (forbidNonWhitelisted).\nconst errors = Object.keys(input)\n    .filter((key) => !PROFILE_FIELDS.includes(key))\n    .map((key) => `property ${key} should not exist`);"
+  },
+  {
+    "id": "start-errors-denylist",
+    "label": "Start the error list",
+    "code": "const FORBIDDEN_FIELDS = [\"isAdmin\", \"role\", \"exp\"];\n// Whitelist: every own property that is not a DTO field is an error (forbidNonWhitelisted).\nconst errors = Object.keys(input)\n    .filter((key) => FORBIDDEN_FIELDS.includes(key))\n    .map((key) => `property ${key} should not exist`);",
+    "distractor": true
+  },
+  {
+    "id": "start-errors-in-operator",
+    "label": "Start the error list",
+    "code": "const ALLOWED: Record<string, boolean> = { displayName: true, bio: true, avatarUrl: true };\n// Whitelist: every own property that is not a DTO field is an error (forbidNonWhitelisted).\nconst errors = Object.keys(input)\n    .filter((key) => !(key in ALLOWED))\n    .map((key) => `property ${key} should not exist`);",
+    "distractor": true
+  }
+]

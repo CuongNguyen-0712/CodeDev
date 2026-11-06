@@ -1,0 +1,34 @@
+[
+  {
+    "id": "attempt",
+    "label": "Load one source, with its own timeout",
+    "code": "function attempt(source) {\n  // new Promise(...) turns a synchronous throw inside load() into a rejection.\n  const call = new Promise((resolve) => resolve(source.load()));\n  if (typeof source.timeoutMs !== \"number\") return call;\n\n  let timerId;\n  const timeout = new Promise((_, reject) => {\n    timerId = timers.setTimeout(() => reject(new Error(\"timeout\")), source.timeoutMs);\n  });\n  return Promise.race([call, timeout]).finally(() => timers.clearTimeout(timerId));\n}"
+  },
+  {
+    "id": "required-gate",
+    "label": "Fail fast when a required source fails",
+    "code": "const requiredGate = Promise.all(\n  sources.map((source, i) =>\n    source.required\n      ? attempts[i].catch((error) => {\n          throw new Error(`${source.name}: ${error.message}`);\n        })\n      : null,\n  ),\n);"
+  },
+  {
+    "id": "wait-all",
+    "label": "Wait for every source to settle",
+    "code": "const [outcomes] = await Promise.all([Promise.allSettled(attempts), requiredGate]);"
+  },
+  {
+    "id": "collect",
+    "label": "Fill data and errors from the outcomes",
+    "code": "outcomes.forEach((outcome, i) => {\n  const { name, fallback } = sources[i];\n  if (outcome.status === \"fulfilled\") {\n    data[name] = outcome.value;\n  } else {\n    data[name] = fallback === undefined ? null : fallback;\n    errors[name] = outcome.reason && outcome.reason.message ? outcome.reason.message : String(outcome.reason);\n  }\n});"
+  },
+  {
+    "id": "attempt-leaks-timer",
+    "label": "Load one source, with its own timeout",
+    "code": "function attempt(source) {\n  const call = new Promise((resolve) => resolve(source.load()));\n  if (typeof source.timeoutMs !== \"number\") return call;\n\n  const timeout = new Promise((_, reject) => {\n    timers.setTimeout(() => reject(new Error(\"timeout\")), source.timeoutMs);\n  });\n  return Promise.race([call, timeout]);\n}",
+    "distractor": true
+  },
+  {
+    "id": "required-gate-after-all",
+    "label": "Fail fast when a required source fails",
+    "code": "const requiredGate = Promise.allSettled(attempts).then((settled) => {\n  settled.forEach((outcome, i) => {\n    if (sources[i].required && outcome.status === \"rejected\") {\n      throw new Error(`${sources[i].name}: ${outcome.reason.message}`);\n    }\n  });\n});",
+    "distractor": true
+  }
+]

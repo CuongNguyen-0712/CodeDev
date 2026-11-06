@@ -20,8 +20,16 @@ type Repo = {
 type Selection = { all: boolean; tests: string[]; untested: string[] };
 
 function selectTests(repo: Repo): Selection {
-    return { all: false, tests: [], untested: [] };
+    // [ ] Test files, changed paths, deleted paths, runAll
+
+    // [ ] Every file each test reaches (imports may loop)
+
+    // [ ] Run everything, or the tests that reach a change
+    // [ ] Changed paths no test reaches
+    return { all, tests, untested };
 }
+
+// [ ] Helper: plain string comparison for sort
 
 // ---------------------------------------------------------------- test runner (do not change)
 const repo: Repo = JSON.parse(readFileSync(0, "utf8"));

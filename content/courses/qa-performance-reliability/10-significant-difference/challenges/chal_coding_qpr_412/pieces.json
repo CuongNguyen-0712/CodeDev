@@ -1,0 +1,45 @@
+[
+  {
+    "id": "p95-rank",
+    "label": "Nearest-rank p95 of one run",
+    "code": "ordered = sorted(samples)\nrank = (95 * len(ordered) + 99) // 100     # ceil(95 * n / 100) in exact integers\nreturn ordered[rank - 1]"
+  },
+  {
+    "id": "run-p95s",
+    "label": "One p95 per run, and the difference of their means",
+    "code": "p95_a = [p95(run) for run in runs_a]\np95_b = [p95(run) for run in runs_b]\ndiff = mean(p95_a) - mean(p95_b)"
+  },
+  {
+    "id": "bootstrap",
+    "label": "Resample runs and collect the differences",
+    "code": "diffs = []\nfor _ in range(case[\"resamples\"]):\n    picked_a = [draw(p95_a) for _ in p95_a]\n    picked_b = [draw(p95_b) for _ in p95_b]\n    diffs.append(mean(picked_a) - mean(picked_b))"
+  },
+  {
+    "id": "ci-bounds",
+    "label": "The 2.5th and 97.5th percentile of the differences",
+    "code": "diffs.sort()\nresamples = len(diffs)\nlow = diffs[(25 * resamples + 999) // 1000 - 1]\nhigh = diffs[(975 * resamples + 999) // 1000 - 1]"
+  },
+  {
+    "id": "verdict",
+    "label": "The verdict from the interval",
+    "code": "if low > 0:\n    verdict = \"B is faster\"\nelif high < 0:\n    verdict = \"B is slower\"\nelse:\n    verdict = \"no clear difference\""
+  },
+  {
+    "id": "p95-rank-floor-index",
+    "label": "Nearest-rank p95 of one run",
+    "code": "ordered = sorted(samples)\nreturn ordered[min(int(0.95 * len(ordered)), len(ordered) - 1)]",
+    "distractor": true
+  },
+  {
+    "id": "run-p95s-pooled",
+    "label": "One p95 per run, and the difference of their means",
+    "code": "p95_a = [p95(sum(runs_a, []))] * len(runs_a)\np95_b = [p95(sum(runs_b, []))] * len(runs_b)\ndiff = mean(p95_a) - mean(p95_b)",
+    "distractor": true
+  },
+  {
+    "id": "verdict-point-estimate",
+    "label": "The verdict from the interval",
+    "code": "if diff > 0:\n    verdict = \"B is faster\"\nelif diff < 0:\n    verdict = \"B is slower\"\nelse:\n    verdict = \"no clear difference\"",
+    "distractor": true
+  }
+]

@@ -30,6 +30,8 @@ import { readFileSync } from "node:fs";
 //   No method left (or no allowed list) gives an empty Allow header.
 // - A POST "created" or any "accepted" without a non-empty location is a handler bug: 500, no headers.
 // Header names are exactly Location, Retry-After, Allow and WWW-Authenticate.
+// Complete chooseResponse: fill every [ ] line with the right piece. Do not change the types, the
+// constants or the test runner.
 
 type Outcome = {
     kind: string;
@@ -43,17 +45,15 @@ type Reply = { status: number; headers: Record<string, string> };
 const ALLOW_ORDER = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
 const DEFAULT_RETRY_AFTER = 60;
 
-function retryAfter(seconds: unknown): string {
-    const valid = typeof seconds === "number" && Number.isInteger(seconds) && seconds >= 0;
-    return String(valid ? seconds : DEFAULT_RETRY_AFTER);
-}
-
 function chooseResponse(method: string, outcome: Outcome): Reply {
+    // @piece shared-values: Method, location check and a reply without headers
     const m = method.toUpperCase();
     const hasLocation = typeof outcome.location === "string" && outcome.location !== "";
     const plain = (status: number): Reply => ({ status, headers: {} });
+    // @end
 
     switch (outcome.kind) {
+        // @piece success-outcomes: Outcomes that succeeded (2xx)
         case "ok":
             return plain(m === "DELETE" ? 204 : 200);
         case "created":
@@ -63,12 +63,12 @@ function chooseResponse(method: string, outcome: Outcome): Reply {
             return hasLocation ? { status: 202, headers: { Location: outcome.location! } } : plain(500);
         case "already_exists":
             return plain(200);
+        // @end
+        // @piece plain-rejections: Rejections that need no header
         case "validation_failed":
             return plain(400);
         case "rule_violated":
             return plain(422);
-        case "unauthenticated":
-            return { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="codedev"' } };
         case "forbidden":
             return plain(outcome.hidden === true ? 404 : 403);
         case "not_found":
@@ -77,20 +77,32 @@ function chooseResponse(method: string, outcome: Outcome): Reply {
             return plain(409);
         case "payment_required":
             return plain(402);
-        case "rate_limited":
-            return { status: 429, headers: { "Retry-After": retryAfter(outcome.retryAfterSeconds) } };
         case "gone":
             return plain(410);
+        // @end
+        // @piece header-replies: Replies that tell the client what to do next
+        case "unauthenticated":
+            return { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="codedev"' } };
+        case "rate_limited":
+            return { status: 429, headers: { "Retry-After": retryAfter(outcome.retryAfterSeconds) } };
         case "dependency_down":
             return { status: 503, headers: { "Retry-After": retryAfter(outcome.retryAfterSeconds) } };
         case "method_not_allowed": {
             const allowed = new Set((outcome.allowed ?? []).map((a) => a.toUpperCase()));
             return { status: 405, headers: { Allow: ALLOW_ORDER.filter((a) => allowed.has(a)).join(", ") } };
         }
+        // @end
         default:
             return plain(500);
     }
 }
+
+// @piece retry-after: Retry-After value in seconds
+function retryAfter(seconds: unknown): string {
+    const valid = typeof seconds === "number" && Number.isInteger(seconds) && seconds >= 0;
+    return String(valid ? seconds : DEFAULT_RETRY_AFTER);
+}
+// @end
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { cases: [{ method, outcome }] }. Output: one { status, headers } per case, in order.

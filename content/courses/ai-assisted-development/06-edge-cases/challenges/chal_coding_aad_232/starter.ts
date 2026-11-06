@@ -27,8 +27,20 @@ import { readFileSync } from "node:fs";
 
 type Streaks = { current: number; longest: number };
 
+const DAY_MS = 86_400_000;
+
+// Day number of the learner's local calendar date: shift the instant by the offset, then whole UTC days.
+function localDay(ms: number, offsetMinutes: number): number {
+    // [ ] The learner's calendar day of an instant
+}
+
 function computeStreaks(completedAt: string[], offsetMinutes: number, now: string): Streaks {
-    return { current: 0, longest: 0 };
+    // [ ] The learner's active days, once each, in order
+
+    // [ ] The longest run of consecutive days
+
+    // run is now the length of the last run; it is current if it reaches today or yesterday
+    // [ ] The current streak
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

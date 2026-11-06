@@ -1,0 +1,50 @@
+[
+  {
+    "id": "queues",
+    "label": "Timer and microtask queues",
+    "code": "let seq = 0;\nconst timers = new Map(); // id -> { id, due, cb }\nconst microtasks = [];"
+  },
+  {
+    "id": "checkpoint",
+    "label": "Run callbacks safely and drain the microtasks",
+    "code": "function runGuarded(cb, onError) {\n  try {\n    cb();\n  } catch (error) {\n    onError(error);\n  }\n}\n\nfunction checkpoint(onError) {\n  while (microtasks.length > 0) runGuarded(microtasks.shift(), onError);\n}"
+  },
+  {
+    "id": "schedule",
+    "label": "Schedule the callback as a timer task",
+    "code": "const id = ++seq;\ntimers.set(id, { id, due: clock + Math.max(0, Number(ms) || 0), cb });\nreturn id;"
+  },
+  {
+    "id": "cancel",
+    "label": "Cancel a pending timer",
+    "code": "timers.delete(id);"
+  },
+  {
+    "id": "enqueue",
+    "label": "Queue a microtask",
+    "code": "microtasks.push(cb);"
+  },
+  {
+    "id": "run-loop",
+    "label": "Run main, then every timer in due order",
+    "code": "runGuarded(main, onError);\ncheckpoint(onError);\n\nwhile (timers.size > 0) {\n  let next = null;\n  for (const timer of timers.values()) {\n    if (!next || timer.due < next.due || (timer.due === next.due && timer.id < next.id)) next = timer;\n  }\n  timers.delete(next.id);\n  clock = Math.max(clock, next.due);\n  runGuarded(next.cb, onError);\n  checkpoint(onError);\n}"
+  },
+  {
+    "id": "checkpoint-snapshot",
+    "label": "Run callbacks safely and drain the microtasks",
+    "code": "function runGuarded(cb, onError) {\n  try {\n    cb();\n  } catch (error) {\n    onError(error);\n  }\n}\n\nfunction checkpoint(onError) {\n  const batch = microtasks.splice(0, microtasks.length);\n  for (const cb of batch) runGuarded(cb, onError);\n}",
+    "distractor": true
+  },
+  {
+    "id": "checkpoint-unguarded",
+    "label": "Run callbacks safely and drain the microtasks",
+    "code": "function runGuarded(cb, onError) {\n  cb();\n}\n\nfunction checkpoint(onError) {\n  while (microtasks.length > 0) runGuarded(microtasks.shift(), onError);\n}",
+    "distractor": true
+  },
+  {
+    "id": "run-loop-fifo",
+    "label": "Run main, then every timer in due order",
+    "code": "runGuarded(main, onError);\ncheckpoint(onError);\n\nwhile (timers.size > 0) {\n  const next = timers.values().next().value;\n  timers.delete(next.id);\n  clock = Math.max(clock, next.due);\n  runGuarded(next.cb, onError);\n  checkpoint(onError);\n}",
+    "distractor": true
+  }
+]

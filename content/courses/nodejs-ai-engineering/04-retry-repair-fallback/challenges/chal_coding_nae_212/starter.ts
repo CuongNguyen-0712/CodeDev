@@ -101,9 +101,17 @@ function validateHint(text: string): string[] {
 }
 
 async function getHint(req: HintRequest, llm: Llm, clock: Clock, opts: Options): Promise<HintResult> {
-    // TODO: send hintMessages(req), retry transient errors with backoff on the clock, repair an
-    // invalid reply at most opts.maxRepairs times, otherwise return FALLBACK_HINT - and count calls and tokens.
-    return { source: "fallback", hint: FALLBACK_HINT, reason: "not implemented", calls: 0, inputTokens: 0, outputTokens: 0 };
+    // Send hintMessages(req), retry transient errors with backoff on the clock, repair an invalid
+    // reply at most opts.maxRepairs times, otherwise return FALLBACK_HINT - and count calls and tokens.
+    // [ ] Start the conversation and the counters
+
+    // Bounded: a wrong retry rule must not keep a request (and the runner) busy forever.
+    for (let turn = 0; turn < 50; turn++) {
+        // [ ] Call the model, retrying only transient errors
+        // [ ] Add the reply's token usage
+        // [ ] Accept a valid reply or ask for a repair
+    }
+    throw new Error("no answer after 50 model turns");
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

@@ -1,6 +1,23 @@
 import { readFileSync } from "node:fs";
 
-// Reference solution (internal).
+// Fix it: a config loader that prints secrets. src/config.ts runs first in the API server, in
+// `next build` on CI and in every preview deploy. Two incidents this month:
+//   - CI build #1187 failed. Its public log showed the error "LOG_LEVEL invalid: verbose" and, on the
+//     line above it, the whole configuration as JSON, including SANDBOX_API_KEY.
+//   - A preview deploy crashed with "DATABASE_URL invalid: postgres:/codedev_app:<password>@..."
+//     in the hosting provider's log, which the whole team can read.
+// Even a successful start prints DATABASE_URL and SANDBOX_API_KEY in clear text.
+//
+// Fix loadConfig so that no secret value (a SCHEMA entry with secret: true) is ever logged or put in
+// an error message:
+//   - Missing (unset or empty) and invalid variables are reported together, by NAME only, in one
+//     thrown Error: "Invalid configuration: missing A, B; invalid C" (names in SCHEMA order; leave out
+//     the "missing ..." or "invalid ..." part when it is empty). Nothing is logged in that case.
+//   - On success, log exactly one line: "config ok: " + NAME=value for every SCHEMA entry, in SCHEMA
+//     order, separated by spaces. Defaults apply; an optional variable that is not set shows
+//     NAME=(unset). A secret shows "***" followed by its last 4 characters when the value has 20 or
+//     more characters, and only "***" when it is shorter.
+// Do not change the schema or the test runner.
 
 type Env = Record<string, string | undefined>;
 type Config = Record<string, string | undefined>;
@@ -19,14 +36,21 @@ const SCHEMA: Spec[] = [
 ];
 
 // ---------------------------------------------------------------- config loader
+// Shows enough of a secret to tell two keys apart in a log.
 function mask(value: string): string {
+    // @piece mask-value: What a masked secret looks like
     return value.length >= 20 ? "***" + value.slice(-4) : "***";
+    // @end
+}
+
+function isSecret(name: string): boolean {
+    return /SECRET|PASSWORD/.test(name);
 }
 
 function loadConfig(env: Env, log: (line: string) => void): Config {
     const config: Config = {};
     for (const spec of SCHEMA) config[spec.name] = env[spec.name] || spec.default;
-
+    // @piece check-config: Check every variable and report the problems
     const missing: string[] = [];
     const invalid: string[] = [];
     for (const spec of SCHEMA) {
@@ -43,12 +67,15 @@ function loadConfig(env: Env, log: (line: string) => void): Config {
         if (invalid.length > 0) parts.push(`invalid ${invalid.join(", ")}`);
         throw new Error(`Invalid configuration: ${parts.join("; ")}`);
     }
+    // @end
 
+    // @piece summary: The one-line summary of the loaded config
     const summary = SCHEMA.map(({ name, secret }) => {
         const value = config[name];
         if (value === undefined) return `${name}=(unset)`;
         return `${name}=${secret ? mask(value) : value}`;
     });
+    // @end
     log(`config ok: ${summary.join(" ")}`);
     return config;
 }

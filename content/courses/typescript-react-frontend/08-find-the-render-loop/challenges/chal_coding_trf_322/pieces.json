@@ -1,0 +1,19 @@
+[
+  {
+    "id": "load-courses",
+    "label": "Load the courses for this category and page",
+    "code": "useEffect(() => {\n    const query: Query = { category, page };\n    setLoading(true);\n    api.fetchCourses(query).then((result) => {\n        setCourses(result);\n        setLoading(false);\n    });\n}, [category, page]);"
+  },
+  {
+    "id": "load-courses-memo-category",
+    "label": "Load the courses for this category and page",
+    "code": "const query = useMemo<Query>(() => ({ category, page }), [category]);\n\nuseEffect(() => {\n    setLoading(true);\n    api.fetchCourses(query).then((result) => {\n        setCourses(result);\n        setLoading(false);\n    });\n}, [query]);",
+    "distractor": true
+  },
+  {
+    "id": "load-courses-run-once",
+    "label": "Load the courses for this category and page",
+    "code": "const query: Query = { category, page };\n\nuseEffect(() => {\n    setLoading(true);\n    api.fetchCourses(query).then((result) => {\n        setCourses(result);\n        setLoading(false);\n    });\n}, []);",
+    "distractor": true
+  }
+]

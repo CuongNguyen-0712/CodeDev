@@ -2,6 +2,17 @@ import { readFileSync } from "node:fs";
 
 // CodeDev release review: what changed between the SBOM of the last release and the SBOM of this one?
 // Both SBOMs are CycloneDX JSON (a subset, described in the challenge text).
+//
+// 1. Walk every component, nested ones included (components inside components, any depth),
+//    in document order: a parent before its children, its children before the next sibling.
+// 2. Key each component by its purl without version, qualifiers (?...) and subpath (#...), with %40
+//    decoded to @ ("pkg:npm/%40codedev/ui@2.1.0?x=1" -> "pkg:npm/@codedev/ui"). No purl: the key is
+//    "name:<group>/<name>", or "name:<name>" without a group. The version is the "version" field, or
+//    the version written in the purl when the field is missing or empty.
+// 3. Within one SBOM, the same key + version listed again is a duplicate: keep the first one.
+// 4. Compare the two SBOMs key by key (see the challenge text for added, removed, versionChanged,
+//    licenseChanged and hashChanged), sort every list and add the summary.
+// Do not change the types or the test runner.
 
 type License = { license?: { id?: string; name?: string }; expression?: string };
 type Hash = { alg: string; content: string };
@@ -47,6 +58,7 @@ const byString = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
  * ("name:<name>" without a group) when there is no purl. purlVersion: the version written in the purl.
  */
 function componentKey(c: Component): { key: string; fromPurl: boolean; purlVersion: string } | null {
+    // @piece component-key: Key and purl version of one component
     if (typeof c.purl === "string" && c.purl !== "") {
         let base = c.purl;
         const hash = base.indexOf("#");
@@ -65,6 +77,7 @@ function componentKey(c: Component): { key: string; fromPurl: boolean; purlVersi
         return { key: `name:${c.group ? `${c.group}/` : ""}${c.name}`, fromPurl: false, purlVersion: "" };
     }
     return null;
+    // @end
 }
 
 type SemVer = { major: number; minor: number; patch: number; pre: string[] };
@@ -88,6 +101,7 @@ function compareIdentifiers(a: string, b: string): number {
 
 /** SemVer 2.0.0 precedence: -1, 0 or 1; null when either version is not semver. */
 function compareSemver(a: string, b: string): number | null {
+    // @piece semver-compare: SemVer precedence of two versions
     const x = parseSemver(a);
     const y = parseSemver(b);
     if (!x || !y) return null;
@@ -100,6 +114,7 @@ function compareSemver(a: string, b: string): number | null {
         if (c !== 0) return c;
     }
     return Math.sign(x.pre.length - y.pre.length);
+    // @end
 }
 
 function licenseList(c: Component): string[] {
@@ -117,6 +132,7 @@ function collect(bom: Bom): { entries: Map<string, Map<string, Entry>>; duplicat
     let duplicates = 0;
     let bad = false;
     const walk = (list: Component[]) => {
+        // @piece collect-walk: Walk every component, keep the first key + version
         for (const c of list) {
             const k = componentKey(c);
             if (!k) {
@@ -135,6 +151,7 @@ function collect(bom: Bom): { entries: Map<string, Map<string, Entry>>; duplicat
             if (Array.isArray(c.components)) walk(c.components);
             if (bad) return;
         }
+        // @end
     };
     walk(bom.components ?? []);
     return bad ? null : { entries, duplicates };
@@ -170,6 +187,7 @@ function diffSboms(before: unknown, after: unknown): DiffResult {
     for (const key of keys) {
         const bv = b.entries.get(key) ?? new Map<string, Entry>();
         const av = a.entries.get(key) ?? new Map<string, Entry>();
+        // @piece same-version-changes: License and hash changes of the same version
         for (const [version, be] of [...bv].sort((x, y) => byString(x[0], y[0]))) {
             const ae = av.get(version);
             if (!ae) continue;
@@ -177,6 +195,8 @@ function diffSboms(before: unknown, after: unknown): DiffResult {
             const algs = [...be.hashes.keys()].filter((alg) => ae.hashes.has(alg) && ae.hashes.get(alg) !== be.hashes.get(alg));
             if (algs.length) res.hashChanged.push({ key, version, algs: algs.sort(byString) });
         }
+        // @end
+        // @piece version-change: Version changes, additions and removals
         const bOnly = [...bv.keys()].filter((v) => !av.has(v)).sort(byString);
         const aOnly = [...av.keys()].filter((v) => !bv.has(v)).sort(byString);
         if (bOnly.length === 1 && aOnly.length === 1) {
@@ -193,7 +213,9 @@ function diffSboms(before: unknown, after: unknown): DiffResult {
             for (const v of bOnly) res.removed.push({ key, version: v });
             for (const v of aOnly) res.added.push({ key, version: v });
         }
+        // @end
     }
+    // @piece sort-and-summary: Sort the lists and add the summary
     const order = (x: { key: string; version: string }, y: { key: string; version: string }) =>
         byString(x.key, y.key) || byString(x.version, y.version);
     res.licenseChanged.sort(order);
@@ -212,6 +234,7 @@ function diffSboms(before: unknown, after: unknown): DiffResult {
             withoutPurl: fallback.size,
         },
     };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

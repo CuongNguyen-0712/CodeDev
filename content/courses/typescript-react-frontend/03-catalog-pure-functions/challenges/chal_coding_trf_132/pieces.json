@@ -1,0 +1,45 @@
+[
+  {
+    "id": "match-rules",
+    "label": "Does a course match the search and filters?",
+    "code": "const search = query.search.trim().toLowerCase();\nreturn (\n    (search === \"\" || course.title.toLowerCase().includes(search)) &&\n    (query.category === \"all\" || course.category === query.category) &&\n    (query.level === \"all\" || course.level === query.level)\n);"
+  },
+  {
+    "id": "sort-order",
+    "label": "Order two courses for the chosen sort",
+    "code": "let order = 0;\nif (sort === \"rating\") order = b.rating - a.rating;\nelse if (sort === \"newest\") order = (b.publishedAt < a.publishedAt ? -1 : b.publishedAt > a.publishedAt ? 1 : 0);\nelse order = (a.title.toLowerCase() < b.title.toLowerCase() ? -1 : a.title.toLowerCase() > b.title.toLowerCase() ? 1 : 0);\nreturn order !== 0 ? order : (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);"
+  },
+  {
+    "id": "filter-and-sort",
+    "label": "Keep matching courses, in order",
+    "code": "const sorted = courses.filter((c) => matches(c, query)).sort((a, b) => compare(a, b, query.sort));"
+  },
+  {
+    "id": "page-count",
+    "label": "Count results and pages",
+    "code": "const total = sorted.length;\nconst totalPages = Math.max(1, Math.ceil(total / query.pageSize));"
+  },
+  {
+    "id": "page-slice",
+    "label": "The requested page of results",
+    "code": "const page = Math.min(Math.max(query.page, 1), totalPages);\nconst start = (page - 1) * query.pageSize;\nreturn { items: sorted.slice(start, start + query.pageSize), page, totalPages, total };"
+  },
+  {
+    "id": "match-rules-raw-search",
+    "label": "Does a course match the search and filters?",
+    "code": "const search = query.search.toLowerCase();\nreturn (\n    (search === \"\" || course.title.toLowerCase().includes(search)) &&\n    (query.category === \"all\" || course.category === query.category) &&\n    (query.level === \"all\" || course.level === query.level)\n);",
+    "distractor": true
+  },
+  {
+    "id": "page-slice-unclamped",
+    "label": "The requested page of results",
+    "code": "const page = query.page;\nconst start = (page - 1) * query.pageSize;\nreturn { items: sorted.slice(start, start + query.pageSize), page, totalPages, total };",
+    "distractor": true
+  },
+  {
+    "id": "sort-order-no-tie-break",
+    "label": "Order two courses for the chosen sort",
+    "code": "let order = 0;\nif (sort === \"rating\") order = b.rating - a.rating;\nelse if (sort === \"newest\") order = (b.publishedAt < a.publishedAt ? -1 : b.publishedAt > a.publishedAt ? 1 : 0);\nelse order = (a.title.toLowerCase() < b.title.toLowerCase() ? -1 : a.title.toLowerCase() > b.title.toLowerCase() ? 1 : 0);\nreturn order;",
+    "distractor": true
+  }
+]

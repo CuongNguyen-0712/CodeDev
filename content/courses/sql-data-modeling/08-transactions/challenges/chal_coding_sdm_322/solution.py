@@ -35,13 +35,17 @@ import sqlite3
 import sys
 
 ENROLL = [
-    # One transaction: both rows are saved by COMMIT, or neither is (the runner rolls back on error).
+    # Both rows are saved, or neither is (the runner rolls back on error).
+    # @piece open: Start the unit of work
     "BEGIN",
+    # @end
     """INSERT INTO enrollments (user_id, course_id, enrolled_at, status)
        VALUES (:user_id, :course_id, :at, 'active')""",
     """INSERT INTO enrollment_events (user_id, course_id, event_type, source, created_at)
        VALUES (:user_id, :course_id, 'enrolled', :source, :at)""",
+    # @piece close: Finish the unit of work
     "COMMIT",
+    # @end
 ]
 
 

@@ -1,0 +1,45 @@
+[
+  {
+    "id": "create-session",
+    "label": "Store a new session and index it under its user",
+    "code": "const key = sessionKey(sessionId);\nif (r.exists(key)) return false;\nr.hset(key, \"userId\", userId);\nr.hset(key, \"device\", device);\nr.hset(key, \"createdAt\", String(clock.now));\nr.expire(key, IDLE_TTL_SECONDS);\nr.sadd(indexKey(userId), sessionId);\nr.expire(indexKey(userId), ABSOLUTE_LIFETIME_SECONDS);\nreturn true;"
+  },
+  {
+    "id": "touch-session",
+    "label": "Extend a session, never past its absolute lifetime",
+    "code": "const session = readSession(r, sessionId);\nif (session === null) return null;\nconst leftSeconds = Math.floor((session.createdAt + ABSOLUTE_LIFETIME_SECONDS * 1000 - clock.now) / 1000);\nif (leftSeconds <= 0) {\n    deleteSession(r, sessionId);\n    return null;\n}\nr.expire(sessionKey(sessionId), Math.min(IDLE_TTL_SECONDS, leftSeconds));\nreturn session;"
+  },
+  {
+    "id": "delete-session",
+    "label": "Delete one session and its index entry",
+    "code": "const userId = r.hget(sessionKey(sessionId), \"userId\");\nif (userId === null) return false;\nr.del(sessionKey(sessionId));\nr.srem(indexKey(userId), sessionId);\nreturn true;"
+  },
+  {
+    "id": "delete-all",
+    "label": "Delete every session of a user",
+    "code": "const ids = r.smembers(indexKey(userId));\nconst removed = ids.length ? r.del(...ids.map(sessionKey)) : 0;\nfor (const id of ids) r.srem(indexKey(userId), id); // only the ids we read: a sign-in racing with us keeps its entry\nreturn removed;"
+  },
+  {
+    "id": "list-sessions",
+    "label": "List a user's live sessions, dropping dead ids",
+    "code": "const sessions: Session[] = [];\nfor (const id of r.smembers(indexKey(userId))) {\n    const session = readSession(r, id);\n    if (session === null) r.srem(indexKey(userId), id);\n    else sessions.push(session);\n}\nreturn sessions.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));"
+  },
+  {
+    "id": "create-index-without-ttl",
+    "label": "Store a new session and index it under its user",
+    "code": "const key = sessionKey(sessionId);\nif (r.exists(key)) return false;\nr.hset(key, \"userId\", userId);\nr.hset(key, \"device\", device);\nr.hset(key, \"createdAt\", String(clock.now));\nr.expire(key, IDLE_TTL_SECONDS);\nr.sadd(indexKey(userId), sessionId);\nreturn true;",
+    "distractor": true
+  },
+  {
+    "id": "create-overwrites",
+    "label": "Store a new session and index it under its user",
+    "code": "const key = sessionKey(sessionId);\nr.hset(key, \"userId\", userId);\nr.hset(key, \"device\", device);\nr.hset(key, \"createdAt\", String(clock.now));\nr.expire(key, IDLE_TTL_SECONDS);\nr.sadd(indexKey(userId), sessionId);\nr.expire(indexKey(userId), ABSOLUTE_LIFETIME_SECONDS);\nreturn true;",
+    "distractor": true
+  },
+  {
+    "id": "touch-idle-only",
+    "label": "Extend a session, never past its absolute lifetime",
+    "code": "const session = readSession(r, sessionId);\nif (session === null) return null;\nconst leftSeconds = Math.floor((session.createdAt + ABSOLUTE_LIFETIME_SECONDS * 1000 - clock.now) / 1000);\nif (leftSeconds <= 0) {\n    deleteSession(r, sessionId);\n    return null;\n}\nr.expire(sessionKey(sessionId), IDLE_TTL_SECONDS);\nreturn session;",
+    "distractor": true
+  }
+]

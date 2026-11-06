@@ -1,0 +1,55 @@
+[
+  {
+    "id": "plan-defaults",
+    "label": "Start: default sort, no errors, no names seen",
+    "code": "const plan: Plan = { filters: [], sort: [{ field: \"published_at\", dir: \"desc\" }, { field: \"id\", dir: \"desc\" }], q: null };\nconst errors: string[] = [];\nconst seen = new Set<string>();"
+  },
+  {
+    "id": "read-param",
+    "label": "Read one name=value pair and reject bad names",
+    "code": "if (part === \"\") continue;\nconst eq = part.indexOf(\"=\");\nconst name = decode(eq === -1 ? part : part.slice(0, eq));\nconst value = decode(eq === -1 ? \"\" : part.slice(eq + 1));\nif (name === null || value === null) {\n    errors.push(`malformed percent-encoding in \"${part}\"`);\n    continue;\n}\nif (!/^[a-z_]+(\\[[a-z]+\\])?$/.test(name)) {\n    errors.push(`invalid parameter name \"${name}\"`);\n    continue;\n}\nif (seen.has(name)) {\n    errors.push(`duplicate parameter \"${name}\"`);\n    continue;\n}\nseen.add(name);"
+  },
+  {
+    "id": "route-param",
+    "label": "Send each parameter to its own rules",
+    "code": "if (name === \"limit\" || name === \"cursor\") continue;\nif (name === \"q\") {\n    const q = value.trim();\n    if (q.length < 1 || q.length > 100) errors.push(`\"q\" must be 1-100 characters`);\n    else plan.q = q;\n} else if (name === \"sort\") {\n    const sort = parseSort(value);\n    if (typeof sort === \"string\") errors.push(sort);\n    else plan.sort = sort;\n} else {\n    const error = parseFilter(name, value, plan);\n    if (error !== null) errors.push(error);\n}"
+  },
+  {
+    "id": "decode-value",
+    "label": "Decode a percent-encoded name or value",
+    "code": "function decode(raw: string): string | null {\n    try {\n        return decodeURIComponent(raw.replace(/\\+/g, \" \"));\n    } catch {\n        return null;\n    }\n}"
+  },
+  {
+    "id": "coerce-value",
+    "label": "Turn a raw value into the filter's type",
+    "code": "function coerce(rule: Rule, v: string): Value | null {\n    switch (rule.type) {\n        case \"enum\":\n            return rule.values!.includes(v) ? v : null;\n        case \"string\":\n            return v.length >= 1 && v.length <= rule.maxLength! ? v : null;\n        case \"integer\":\n            return /^\\d+$/.test(v) && Number(v) <= Number.MAX_SAFE_INTEGER ? Number(v) : null;\n        case \"number\": {\n            if (!/^\\d+(\\.\\d+)?$/.test(v)) return null;\n            const n = Number(v);\n            return n >= rule.min! && n <= rule.max! ? n : null;\n        }\n        case \"boolean\":\n            return v === \"true\" ? true : v === \"false\" ? false : null;\n    }\n}"
+  },
+  {
+    "id": "parse-filter",
+    "label": "Check one filter and add it to the plan",
+    "code": "// Returns an error message, or null after adding the filter to the plan.\nfunction parseFilter(name: string, value: string, plan: Plan): string | null {\n    const [, field, explicitOp] = name.match(/^([a-z_]+)(?:\\[([a-z]+)\\])?$/)!;\n    const rule = FILTERS[field];\n    if (!rule) return `unknown filter \"${field}\"`;\n    const raw = value.split(\",\");\n    const op = explicitOp ?? (raw.length > 1 ? \"in\" : \"eq\");\n    if (!rule.ops.includes(op)) return `operator \"${op}\" is not allowed on \"${field}\"`;\n    if (op !== \"in\" && raw.length > 1) return `\"${name}\" takes one value`;\n    if (raw.length > MAX_LIST) return `too many values for \"${field}\" (max ${MAX_LIST})`;\n    const values: Value[] = [];\n    for (const v of raw) {\n        const coerced = coerce(rule, v);\n        if (coerced === null) return `invalid value \"${v}\" for \"${field}\": expected ${rule.expected}`;\n        values.push(coerced);\n    }\n    plan.filters.push({ field, op, value: op === \"in\" ? values : values[0] });\n    return null;\n}"
+  },
+  {
+    "id": "parse-sort",
+    "label": "Check the sort list and add the id tie-break",
+    "code": "function parseSort(value: string): SortKey[] | string {\n    const items = value.split(\",\");\n    if (items.length > MAX_SORT) return `too many sort fields (max ${MAX_SORT})`;\n    const keys: SortKey[] = [];\n    for (const item of items) {\n        const field = item.startsWith(\"-\") ? item.slice(1) : item;\n        if (!SORTABLE.includes(field)) return `cannot sort by \"${field}\"`;\n        if (keys.some((k) => k.field === field)) return `\"${field}\" appears twice in sort`;\n        keys.push({ field, dir: item.startsWith(\"-\") ? \"desc\" : \"asc\" });\n    }\n    return [...keys, { field: \"id\", dir: keys[keys.length - 1].dir }];\n}"
+  },
+  {
+    "id": "decode-plus-kept",
+    "label": "Decode a percent-encoded name or value",
+    "code": "function decode(raw: string): string | null {\n    try {\n        return decodeURIComponent(raw);\n    } catch {\n        return null;\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "parse-filter-no-cap",
+    "label": "Check one filter and add it to the plan",
+    "code": "// Returns an error message, or null after adding the filter to the plan.\nfunction parseFilter(name: string, value: string, plan: Plan): string | null {\n    const [, field, explicitOp] = name.match(/^([a-z_]+)(?:\\[([a-z]+)\\])?$/)!;\n    const rule = FILTERS[field];\n    if (!rule) return `unknown filter \"${field}\"`;\n    const raw = value.split(\",\");\n    const op = explicitOp ?? (raw.length > 1 ? \"in\" : \"eq\");\n    if (!rule.ops.includes(op)) return `operator \"${op}\" is not allowed on \"${field}\"`;\n    if (op !== \"in\" && raw.length > 1) return `\"${name}\" takes one value`;\n    if (raw.length > MAX_LIST * 1000) return `too many values for \"${field}\" (max ${MAX_LIST})`;\n    const values: Value[] = [];\n    for (const v of raw) {\n        const coerced = coerce(rule, v);\n        if (coerced === null) return `invalid value \"${v}\" for \"${field}\": expected ${rule.expected}`;\n        values.push(coerced);\n    }\n    plan.filters.push({ field, op, value: op === \"in\" ? values : values[0] });\n    return null;\n}",
+    "distractor": true
+  },
+  {
+    "id": "parse-sort-any-column",
+    "label": "Check the sort list and add the id tie-break",
+    "code": "function parseSort(value: string): SortKey[] | string {\n    const items = value.split(\",\");\n    if (items.length > MAX_SORT) return `too many sort fields (max ${MAX_SORT})`;\n    const keys: SortKey[] = [];\n    for (const item of items) {\n        const field = item.startsWith(\"-\") ? item.slice(1) : item;\n        if (!/^[a-z_]+$/.test(field)) return `cannot sort by \"${field}\"`;\n        if (keys.some((k) => k.field === field)) return `\"${field}\" appears twice in sort`;\n        keys.push({ field, dir: item.startsWith(\"-\") ? \"desc\" : \"asc\" });\n    }\n    return [...keys, { field: \"id\", dir: keys[keys.length - 1].dir }];\n}",
+    "distractor": true
+  }
+]

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "course-service-reads",
+    "label": "Where the course service gets learner counts",
+    "code": "constructor(\n    private readonly courses: CourseRepository,\n    private readonly enrollments: EnrollmentRepository,\n) {}\n\ncatalog(): CatalogEntry[] {\n    return this.courses.findAll().map((course) => ({\n        id: course.id,\n        title: course.title,\n        learners: this.enrollments.countByCourse(course.id),\n    }));\n}"
+  },
+  {
+    "id": "module-graph",
+    "label": "The modules and what each one imports",
+    "code": "// enrollments/enrollment-data.module.ts: owns the enrollment data. Both features read it, so it sits\n// below both of them in the graph and imports nothing.\nclass EnrollmentDataModule {}\nclass CourseModule {}\nclass EnrollmentModule {}\nclass AppModule {}\n\n// Graph: EnrollmentDataModule <- CourseModule <- EnrollmentModule <- AppModule (no cycle).\nModule(EnrollmentDataModule, {\n    providers: [EnrollmentRepository],\n    exports: [EnrollmentRepository],\n});\nModule(CourseModule, {\n    imports: [EnrollmentDataModule],\n    providers: [CourseRepository, { provide: CourseService, inject: [CourseRepository, EnrollmentRepository] }],\n    exports: [CourseService],\n});\nModule(EnrollmentModule, {\n    imports: [CourseModule, EnrollmentDataModule],\n    providers: [{ provide: EnrollmentService, inject: [EnrollmentRepository, CourseService] }],\n    exports: [EnrollmentService],\n});\nModule(AppModule, { imports: [CourseModule, EnrollmentModule] });"
+  },
+  {
+    "id": "module-graph-not-exported",
+    "label": "The modules and what each one imports",
+    "code": "// enrollments/enrollment-data.module.ts: owns the enrollment data. Both features read it, so it sits\n// below both of them in the graph and imports nothing.\nclass EnrollmentDataModule {}\nclass CourseModule {}\nclass EnrollmentModule {}\nclass AppModule {}\n\n// Graph: EnrollmentDataModule <- CourseModule <- EnrollmentModule <- AppModule (no cycle).\nModule(EnrollmentDataModule, {\n    providers: [EnrollmentRepository],\n});\nModule(CourseModule, {\n    imports: [EnrollmentDataModule],\n    providers: [CourseRepository, { provide: CourseService, inject: [CourseRepository, EnrollmentRepository] }],\n    exports: [CourseService],\n});\nModule(EnrollmentModule, {\n    imports: [CourseModule, EnrollmentDataModule],\n    providers: [{ provide: EnrollmentService, inject: [EnrollmentRepository, CourseService] }],\n    exports: [EnrollmentService],\n});\nModule(AppModule, { imports: [CourseModule, EnrollmentModule] });",
+    "distractor": true
+  },
+  {
+    "id": "module-graph-own-repository",
+    "label": "The modules and what each one imports",
+    "code": "// enrollments/enrollment-data.module.ts: owns the enrollment data. Both features read it, so it sits\n// below both of them in the graph and imports nothing.\nclass EnrollmentDataModule {}\nclass CourseModule {}\nclass EnrollmentModule {}\nclass AppModule {}\n\n// Graph: EnrollmentDataModule <- CourseModule <- EnrollmentModule <- AppModule (no cycle).\nModule(EnrollmentDataModule, {\n    providers: [EnrollmentRepository],\n    exports: [EnrollmentRepository],\n});\nModule(CourseModule, {\n    imports: [EnrollmentDataModule],\n    providers: [CourseRepository, EnrollmentRepository, { provide: CourseService, inject: [CourseRepository, EnrollmentRepository] }],\n    exports: [CourseService],\n});\nModule(EnrollmentModule, {\n    imports: [CourseModule, EnrollmentDataModule],\n    providers: [{ provide: EnrollmentService, inject: [EnrollmentRepository, CourseService] }],\n    exports: [EnrollmentService],\n});\nModule(AppModule, { imports: [CourseModule, EnrollmentModule] });",
+    "distractor": true
+  }
+]

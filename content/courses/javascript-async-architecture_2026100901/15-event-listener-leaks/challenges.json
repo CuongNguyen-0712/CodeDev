@@ -33,6 +33,9 @@
             }
           ]
         }
+      ],
+      "outcomes": [
+        "reliable-async-code"
       ]
     },
     {
@@ -40,7 +43,7 @@
       "name": "fix-leaking-widget-unmount",
       "type": "fix_bug",
       "title": "Fix the leaking widget unmount()",
-      "description": "mountWidget() wires a price widget to its root element, a shared price store and a polling interval. Its unmount() is supposed to undo all of it, but every route change leaves listeners and subscriptions behind. Fix unmount() so nothing the widget registered survives it, without touching other widgets, and so a second unmount() is harmless. Hint: check what each removal call actually matches, and what store.subscribe() returns.",
+      "description": "mountWidget() wires a price widget to its root element, a shared price store and a polling interval. Its unmount() is supposed to undo all of it, but every route change leaves listeners and subscriptions behind. Fix unmount() so nothing the widget registered survives it, without touching other widgets, and so a second unmount() is harmless. Hint: check what each removal call actually matches, and what store.subscribe() returns.\n\nSelect the faulty lines and replace them with the right fix; some fixes are wrong on purpose.",
       "difficulty": "medium",
       "points": 20,
       "coding": {
@@ -319,6 +322,14 @@
           "hidden": true,
           "score": 4
         }
+      ],
+      "outcomes": [
+        "reliable-async-code"
+      ],
+      "hints": [
+        "unmount() must undo exactly what the widget registered: the same listener functions, its subscription and its interval.",
+        "removeEventListener only removes the same function reference (with the same capture flag) that was added; store.subscribe() returns the function that unsubscribes; clearInterval needs the saved id; a flag makes a second unmount() harmless.",
+        "Analogy: a hotel checkout returns the key cards it was given (not every key card of the hotel), cancels its own wake-up call by booking number, and a second checkout at the desk changes nothing."
       ]
     },
     {
@@ -355,6 +366,9 @@
             }
           ]
         }
+      ],
+      "outcomes": [
+        "reliable-async-code"
       ]
     }
   ]

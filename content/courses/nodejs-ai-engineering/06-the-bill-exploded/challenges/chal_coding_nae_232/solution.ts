@@ -75,8 +75,9 @@ function validateHint(text: string): string[] {
     return errors;
 }
 
-// The failing test's file, then its imports, within the token budget.
+// PR #611: the model gives better hints when it sees the whole repository.
 function buildContext(failure: Failure, files: RepoFile[], budgetTokens: number): RepoFile[] {
+    // @piece context-files: Choose the files sent to the model
     const byPath = new Map(files.map((f) => [f.path, f]));
     const test = byPath.get(failure.testFile);
     const wanted = test ? [test.path, ...test.imports] : [];
@@ -92,9 +93,11 @@ function buildContext(failure: Failure, files: RepoFile[], budgetTokens: number)
         used += file.tokens;
     }
     return picked;
+    // @end
 }
 
 async function hintFor(input: Input, llm: Llm): Promise<HintResult> {
+    // @piece ask-the-model: Ask the model and handle an invalid reply
     let messages = hintMessages(input.failure, buildContext(input.failure, input.files, input.budgetTokens));
     for (let repairs = 0; ; repairs++) {
         const reply = await llm.complete(messages);
@@ -103,6 +106,7 @@ async function hintFor(input: Input, llm: Llm): Promise<HintResult> {
         if (repairs === MAX_REPAIRS) return { source: "fallback", hint: FALLBACK_HINT };
         messages = repairMessages(reply, errors);
     }
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

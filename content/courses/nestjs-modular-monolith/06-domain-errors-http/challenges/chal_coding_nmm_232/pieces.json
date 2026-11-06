@@ -1,0 +1,55 @@
+[
+  {
+    "id": "problem-constants",
+    "label": "The problem type base and a safe correlation id",
+    "code": "const TYPE_BASE = \"https://api.codedev.test/problems/\";\nconst SAFE_ID = /^[A-Za-z0-9-]{8,64}$/;"
+  },
+  {
+    "id": "correlation-id",
+    "label": "Pick the correlation id",
+    "code": "const incoming = req.headers[\"x-correlation-id\"];\nconst correlationId = typeof incoming === \"string\" && SAFE_ID.test(incoming) ? incoming : newId();"
+  },
+  {
+    "id": "problem-builder",
+    "label": "Build one problem+json response",
+    "code": "const problem = (status: number, slug: string, title: string, detail: string, extra: Record<string, unknown> = {}): HttpResponse => ({\n    status,\n    headers: { \"Content-Type\": \"application/problem+json\", \"X-Correlation-Id\": correlationId },\n    body: { type: TYPE_BASE + slug, title, status, detail, instance: req.path, correlationId, ...extra },\n});"
+  },
+  {
+    "id": "missing-or-taken",
+    "label": "Course not found, already enrolled",
+    "code": "if (error instanceof CourseNotFound) {\n    return problem(404, \"course-not-found\", \"Course not found\", `Course ${error.courseId} does not exist.`);\n}\nif (error instanceof AlreadyEnrolled) {\n    return problem(409, \"already-enrolled\", \"Already enrolled\", `You are already enrolled in ${error.courseId}.`);\n}"
+  },
+  {
+    "id": "rule-failures",
+    "label": "Missing prerequisites, invalid fields",
+    "code": "if (error instanceof PrerequisitesMissing) {\n    return problem(422, \"prerequisites-missing\", \"Prerequisites missing\",\n        `Finish ${error.missing.join(\", \")} before enrolling in ${error.courseId}.`, { missing: [...error.missing] });\n}\nif (error instanceof ValidationFailed) {\n    return problem(400, \"validation-failed\", \"Invalid request\", `${error.errors.length} field(s) failed validation.`,\n        { errors: error.errors.map((e) => ({ field: e.field, message: e.message })) });\n}"
+  },
+  {
+    "id": "access-and-payment",
+    "label": "Not allowed, payment required",
+    "code": "if (error instanceof NotAllowed) {\n    return problem(403, \"not-allowed\", \"Not allowed\", `You are not allowed to ${error.action}.`);\n}\nif (error instanceof PaymentRequired) {\n    return problem(402, \"payment-required\", \"Payment required\", `${error.courseId} requires a premium plan.`, { priceVnd: error.priceVnd });\n}"
+  },
+  {
+    "id": "unknown-error",
+    "label": "Anything else",
+    "code": "// anything else is a bug until someone maps it: say nothing about it to the client\nreturn problem(500, \"internal-error\", \"Internal server error\",\n    \"An unexpected error occurred. Quote the correlation id when you contact support.\");"
+  },
+  {
+    "id": "correlation-id-always-new",
+    "label": "Pick the correlation id",
+    "code": "const incoming = req.headers[\"x-correlation-id\"];\nconst correlationId = newId();",
+    "distractor": true
+  },
+  {
+    "id": "rule-failures-echo-values",
+    "label": "Missing prerequisites, invalid fields",
+    "code": "if (error instanceof PrerequisitesMissing) {\n    return problem(422, \"prerequisites-missing\", \"Prerequisites missing\",\n        `Finish ${error.missing.join(\", \")} before enrolling in ${error.courseId}.`, { missing: [...error.missing] });\n}\nif (error instanceof ValidationFailed) {\n    return problem(400, \"validation-failed\", \"Invalid request\", `${error.errors.length} field(s) failed validation.`,\n        { errors: error.errors });\n}",
+    "distractor": true
+  },
+  {
+    "id": "unknown-error-message",
+    "label": "Anything else",
+    "code": "// anything else is a bug until someone maps it: say nothing about it to the client\nreturn problem(500, \"internal-error\", \"Internal server error\",\n    error instanceof Error ? error.message : \"An unexpected error occurred. Quote the correlation id when you contact support.\");",
+    "distractor": true
+  }
+]

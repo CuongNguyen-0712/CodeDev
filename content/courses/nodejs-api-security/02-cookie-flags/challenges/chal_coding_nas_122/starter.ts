@@ -52,8 +52,23 @@ type CookieConfig = {
 
 type AuthCookies = { ok: true; login: string[]; logout: string[] } | { ok: false; error: string };
 
+const EPOCH = "Thu, 01 Jan 1970 00:00:00 GMT";
+
+function validate(c: CookieConfig, secure: boolean, accessToken: string, refreshToken: string): string | null {
+    // [ ] Rules 1-2: lifetimes and the refresh path
+    // [ ] Rules 3-4: settings that need Secure
+    // [ ] Rules 5-7: __Host- names and token values
+    return null;
+}
+
 function buildAuthCookies(config: CookieConfig, nowMs: number, accessToken: string, refreshToken: string): AuthCookies {
-    return { ok: false, error: "not implemented" };
+    const secure = config.environment !== "local-http";
+    const error = validate(config, secure, accessToken, refreshToken);
+    if (error) return { ok: false, error };
+
+    // [ ] Build one Set-Cookie value
+
+    // [ ] Login cookies and their clearing cookies
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

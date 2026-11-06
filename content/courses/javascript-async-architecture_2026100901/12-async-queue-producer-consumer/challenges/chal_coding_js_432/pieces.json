@@ -1,0 +1,45 @@
+[
+  {
+    "id": "state",
+    "label": "Buffered items, waiting producers and consumers",
+    "code": "const limit = Math.max(1, Math.floor(capacity) || 1);\nconst buffer = [];\nconst waitingPushers = []; // { item, resolve } - producers waiting for room\nconst waitingPullers = []; // resolve functions - consumers waiting for an item\nlet closed = false;"
+  },
+  {
+    "id": "push",
+    "label": "Add an item, or wait for room",
+    "code": "function push(item) {\n  if (closed) return Promise.reject(new Error(\"QUEUE_CLOSED\"));\n  if (waitingPullers.length > 0) {\n    waitingPullers.shift()({ value: item, done: false });\n    return Promise.resolve();\n  }\n  if (buffer.length < limit) {\n    buffer.push(item);\n    return Promise.resolve();\n  }\n  return new Promise((resolve) => waitingPushers.push({ item, resolve }));\n}"
+  },
+  {
+    "id": "pull",
+    "label": "Take an item, or wait for one",
+    "code": "function pull() {\n  if (buffer.length > 0) {\n    const value = buffer.shift();\n    if (waitingPushers.length > 0) {\n      const next = waitingPushers.shift();\n      buffer.push(next.item);\n      next.resolve();\n    }\n    return Promise.resolve({ value, done: false });\n  }\n  if (closed) return Promise.resolve({ value: undefined, done: true });\n  return new Promise((resolve) => waitingPullers.push(resolve));\n}"
+  },
+  {
+    "id": "close",
+    "label": "Close the queue",
+    "code": "function close() {\n  if (closed) return;\n  closed = true;\n  while (waitingPullers.length > 0) waitingPullers.shift()({ value: undefined, done: true });\n}"
+  },
+  {
+    "id": "iterate",
+    "label": "Iterate the queue with for await",
+    "code": "async *[Symbol.asyncIterator]() {\n  while (true) {\n    const result = await pull();\n    if (result.done) return;\n    yield result.value;\n  }\n},"
+  },
+  {
+    "id": "close-drops-buffer",
+    "label": "Close the queue",
+    "code": "function close() {\n  if (closed) return;\n  closed = true;\n  buffer.length = 0;\n  while (waitingPullers.length > 0) waitingPullers.shift()({ value: undefined, done: true });\n}",
+    "distractor": true
+  },
+  {
+    "id": "pull-forgets-producers",
+    "label": "Take an item, or wait for one",
+    "code": "function pull() {\n  if (buffer.length > 0) return Promise.resolve({ value: buffer.shift(), done: false });\n  if (closed) return Promise.resolve({ value: undefined, done: true });\n  return new Promise((resolve) => waitingPullers.push(resolve));\n}",
+    "distractor": true
+  },
+  {
+    "id": "push-unbounded",
+    "label": "Add an item, or wait for room",
+    "code": "function push(item) {\n  if (closed) return Promise.reject(new Error(\"QUEUE_CLOSED\"));\n  if (waitingPullers.length > 0) {\n    waitingPullers.shift()({ value: item, done: false });\n    return Promise.resolve();\n  }\n  buffer.push(item);\n  return Promise.resolve();\n}",
+    "distractor": true
+  }
+]

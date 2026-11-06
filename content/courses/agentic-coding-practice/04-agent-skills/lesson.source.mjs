@@ -136,7 +136,7 @@ exit "$status"`, "scripts/check-migration.sh"),
 - run: node scripts/check-skills.mjs .claude/skills
 - run: npm run lint
 - run: npm test`, "ci.yml"),
-        p("Now write the validator. The test runner passes one skill folder name and the full text of its SKILL.md, and prints the errors you return, in a fixed order."),
+        p("Now assemble the validator. The test runner passes one skill folder name and the full text of its SKILL.md, and prints the errors you return, in a fixed order."),
         challenge("chal_coding_acp_212"),
 
         h2("6. How to verify a skill works"),

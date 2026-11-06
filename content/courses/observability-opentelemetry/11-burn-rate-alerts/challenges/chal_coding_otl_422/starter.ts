@@ -22,11 +22,23 @@ type Rule = { name: string; severity: Severity; factor: number; longMinutes: num
 type Alert = { rule: string; severity: Severity; start: number; stop: number | null; peak: number };
 
 function burnRate(bad: number, total: number, slo: number): number {
-    return 0;
+    // [ ] Burn rate of a window, to 2 decimals
 }
 
 function evaluate(slo: number, minRequests: number, rules: Rule[], minutes: Minute[]): Alert[] {
-    return [];
+    // [ ] Refuse an SLO, minimum or rule that makes no sense
+    // prefix sums: good[i] = good requests in minutes 0 .. i - 1
+    // [ ] Prefix sums of good and bad requests
+
+    const alerts: Alert[] = [];
+    for (const rule of rules) {
+        let open: Alert | null = null;
+        for (let t = 0; t < minutes.length; t++) {
+            // [ ] Is the rule firing at minute t
+            // [ ] Open, extend or close the rule's alert
+        }
+    }
+    return alerts.sort((a, b) => a.start - b.start); // stable: rule order breaks ties
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

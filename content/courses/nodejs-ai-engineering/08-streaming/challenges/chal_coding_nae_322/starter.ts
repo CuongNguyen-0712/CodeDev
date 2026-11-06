@@ -3,8 +3,9 @@ import { readFileSync } from "node:fs";
 // The AI tutor streams its hints to the browser over SSE. The old client decoded and split every
 // network chunk on its own, and it treated "the stream ended" as "the answer is complete": learners
 // saw replacement characters inside Vietnamese text, and half a sentence was saved as a finished hint.
-// Write assembleStream(chunks): the bytes of one recorded stream, cut into chunks at arbitrary
-// places. The full rules are in the challenge description. Do not change the types or the test runner.
+// Fill assembleStream(chunks) with pieces (some are wrong): the bytes of one recorded stream, cut
+// into chunks at arbitrary places. The full rules are in the challenge description. Do not change
+// the types or the test runner.
 
 type StreamResult = {
     status: "complete" | "truncated" | "error";
@@ -17,7 +18,21 @@ function assembleStream(chunks: Uint8Array[]): StreamResult {
     // 2. keep the text that has no "\n" yet for the next chunk; handle each complete line
     // 3. a blank line ends an event: an "error" event, a "message" with [DONE], or a JSON delta
     // 4. no done marker before the end of the bytes: the answer is truncated
-    return { status: "complete", text: "", error: null };
+    // [ ] Set up the decoder and the stream state
+
+    // Returns a final result when the event ends the stream, otherwise null.
+    // [ ] End an event: error, done, or a text delta
+
+    for (const chunk of chunks) {
+        // [ ] Add the chunk's text to the buffer
+        let newline: number;
+        while ((newline = buffer.indexOf("\n")) !== -1) {
+            // [ ] Take the next complete line
+            // [ ] A blank line ends the event
+            // [ ] Read a comment or a field line
+        }
+    }
+    // [ ] The bytes ended
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

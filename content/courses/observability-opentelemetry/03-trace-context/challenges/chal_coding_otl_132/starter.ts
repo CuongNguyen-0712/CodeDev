@@ -33,19 +33,28 @@ type IdSource = { traceId: () => string; spanId: () => string };
 type Incoming = { traceparent: string | null; tracestate: string | null };
 type Outgoing = { traceparent: string; tracestate: string | null };
 
+const OWS = /^[ \t]+|[ \t]+$/g;
+const isHex = (s: string, length: number): boolean => s.length === length && /^[0-9a-f]+$/.test(s);
+const allZero = (s: string): boolean => /^0+$/.test(s);
+
 function parseTraceparent(header: string | null): ParentContext | null {
-    // TODO
-    return null;
+    // [ ] Check the header's length, version and separators
+    // [ ] Read and check the trace id, parent id and flags
 }
 
+const KEY = /^(?:[a-z][a-z0-9_\-*/]{0,255}|[a-z0-9][a-z0-9_\-*/]{0,240}@[a-z][a-z0-9_\-*/]{0,13})$/;
+const VALUE = /^[\x20-\x2b\x2d-\x3c\x3e-\x7e]{0,255}[\x21-\x2b\x2d-\x3c\x3e-\x7e]$/;
+
 function validTracestate(header: string): boolean {
-    // TODO
-    return false;
+    // [ ] Accept tracestate only when every member is valid
+}
+
+function newId(draw: () => string): string {
+    // [ ] Draw an id that is not all zeros
 }
 
 function childHeaders(incoming: Incoming, ids: IdSource): Outgoing {
-    // TODO: today the API copies the incoming header as is, so grading-service sees the API's parent.
-    return { traceparent: incoming.traceparent ?? "", tracestate: incoming.tracestate };
+    // [ ] Headers for the outgoing call
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

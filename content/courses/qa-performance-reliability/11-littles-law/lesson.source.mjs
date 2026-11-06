@@ -114,7 +114,7 @@ latency the VUs must have seen: 588.2 ms`, "terminal"),
         ]),
         callout("warning", "Count the slots in the same units",
             "Little's Law gives busy slots for the whole box you measured. If the 408/s is spread over 6 API instances, each instance's pool sees about a sixth of it - and the sum of all pools must still fit the database's own connection limit. Write down which box each number belongs to."),
-        p("The checker the team now runs on every load test report does this systematically: it recomputes throughput from the raw counts, applies L = X x W and N = X x (R + Z), sizes each resource against a utilisation target, and labels the report consistent, suspicious or impossible. You write it in the exercise."),
+        p("The checker the team now runs on every load test report does this systematically: it recomputes throughput from the raw counts, applies L = X x W and N = X x (R + Z), sizes each resource against a utilisation target, and labels the report consistent, suspicious or impossible. You assemble it in the exercise."),
 
         challenge("chal_coding_qpr_422"),
 

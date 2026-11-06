@@ -5,7 +5,9 @@ import { readFileSync } from "node:fs";
 //    as ?cursor= and stops when it is null. ?size= is optional: default 20, at most 100. Answer 400
 //    with { code } for a bad size or cursor. Newest courses first."
 //
-// Reference fix: keyset (cursor) pagination on (published_at, id). Same response shape and 400 codes.
+// The code below is what it produced (CoursesRepository.list, with the SQL it runs shown as a
+// comment). It was merged after the endpoint tests passed. The response shape and the 400 errors
+// are the contract with the mobile app: keep them.
 
 type Course = { id: number; title: string; published_at: string };
 type ListQuery = { size?: string; cursor?: string };
@@ -19,6 +21,7 @@ function parseSize(raw: string | undefined): number | null {
     return Math.min(Number(raw), 100);
 }
 
+// @piece cursor-codec: The cursor format and the order of courses
 // Keyset cursor: the position (published_at, id) of the last course on the page, versioned.
 type Position = [string, number];
 
@@ -43,16 +46,20 @@ function newerFirst(a: Position, b: Position): number {
     if (a[0] !== b[0]) return a[0] < b[0] ? 1 : -1;
     return b[1] - a[1];
 }
+// @end
 
 // `scan` is the table as the database reads it: rows in no particular order.
 function listCourses(scan: Course[], query: ListQuery): ListResult {
     const size = parseSize(query.size);
     if (size === null) return { status: 400, body: { code: "invalid_size" } };
+    // @piece read-cursor: Where this page starts
     let after: Position | null = null;
     if (query.cursor !== undefined) {
         after = decodeCursor(query.cursor);
         if (after === null) return { status: 400, body: { code: "invalid_cursor" } };
     }
+    // @end
+    // @piece page-query: The rows of this page and the next cursor
     // SELECT id, title, published_at FROM catalog.courses
     // WHERE ($2::timestamptz IS NULL OR (published_at, id) < ($2, $3))
     // ORDER BY published_at DESC, id DESC
@@ -64,6 +71,7 @@ function listCourses(scan: Course[], query: ListQuery): ListResult {
         .slice(0, size + 1);
     const data = rows.slice(0, size);
     const next_cursor = rows.length > size ? encodeCursor(pos(data[data.length - 1])) : null;
+    // @end
     return { status: 200, body: { data, next_cursor } };
 }
 

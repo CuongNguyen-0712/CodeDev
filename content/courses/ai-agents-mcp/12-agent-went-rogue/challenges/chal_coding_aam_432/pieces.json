@@ -1,0 +1,24 @@
+[
+  {
+    "id": "gateway",
+    "label": "Decide whether the call may run, then return its output",
+    "code": "if (tool.permission === \"write\" && (token === null || !desk.redeem(token, session.id, call))) {\n    return \"error: write tools need an approval token for this exact call\";\n}\nreturn wrapToolOutput(call.name, tool.untrusted ? \"untrusted\" : \"trusted\", tool.run(call.args, session));"
+  },
+  {
+    "id": "agent-step",
+    "label": "Handle the call the model proposes",
+    "code": "const call = turn.toolCall;\ntranscript.push({ role: \"assistant\", content: `${call.name} ${JSON.stringify(call.args)}` });\nlet token: string | null = null;\nif (tools[call.name]?.permission === \"write\") {\n    const answer = desk.request(session.id, call);\n    if (\"declined\" in answer) {\n        transcript.push({ role: \"tool\", content: answer.declined });\n        continue;\n    }\n    token = answer.token;\n}\ntranscript.push({ role: \"tool\", content: executeTool(tools, session, call, desk, token) });"
+  },
+  {
+    "id": "agent-step-refunds-only",
+    "label": "Handle the call the model proposes",
+    "code": "const call = turn.toolCall;\ntranscript.push({ role: \"assistant\", content: `${call.name} ${JSON.stringify(call.args)}` });\nlet token: string | null = null;\nif (call.name === \"refund_order\") {\n    const answer = desk.request(session.id, call);\n    if (\"declined\" in answer) {\n        transcript.push({ role: \"tool\", content: answer.declined });\n        continue;\n    }\n    token = answer.token;\n}\ntranscript.push({ role: \"tool\", content: executeTool(tools, session, call, desk, token) });",
+    "distractor": true
+  },
+  {
+    "id": "gateway-raw-output",
+    "label": "Decide whether the call may run, then return its output",
+    "code": "if (tool.permission === \"write\" && (token === null || !desk.redeem(token, session.id, call))) {\n    return \"error: write tools need an approval token for this exact call\";\n}\nreturn tool.run(call.args, session);",
+    "distractor": true
+  }
+]

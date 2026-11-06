@@ -1,0 +1,67 @@
+[
+  {
+    "id": "stream-state",
+    "label": "Set up the decoder and the stream state",
+    "code": "const decoder = new TextDecoder(\"utf-8\");\nlet buffer = \"\"; // text received but not yet ended by \"\\n\"\nlet eventType = \"\";\nlet data: string[] = [];\nlet text = \"\";"
+  },
+  {
+    "id": "dispatch",
+    "label": "End an event: error, done, or a text delta",
+    "code": "const dispatch = (): StreamResult | null => {\n    const type = eventType || \"message\";\n    const payload = data.join(\"\\n\");\n    const hasData = data.length > 0;\n    eventType = \"\";\n    data = [];\n    if (!hasData) return null;\n    if (type === \"error\") return { status: \"error\", text, error: payload };\n    if (type !== \"message\") return null; // ping, usage and other events are not part of the answer\n    if (payload === \"[DONE]\") return { status: \"complete\", text, error: null };\n    let parsed: unknown;\n    try {\n        parsed = JSON.parse(payload);\n    } catch {\n        return { status: \"error\", text, error: \"malformed event\" };\n    }\n    if (typeof parsed !== \"object\" || parsed === null || !(\"delta\" in parsed) || typeof parsed.delta !== \"string\") {\n        return { status: \"error\", text, error: \"malformed event\" };\n    }\n    text += parsed.delta;\n    return null;\n};"
+  },
+  {
+    "id": "read-chunk",
+    "label": "Add the chunk's text to the buffer",
+    "code": "buffer += decoder.decode(chunk, { stream: true }); // keeps a split character for the next chunk"
+  },
+  {
+    "id": "next-line",
+    "label": "Take the next complete line",
+    "code": "let line = buffer.slice(0, newline);\nbuffer = buffer.slice(newline + 1);\nif (line.endsWith(\"\\r\")) line = line.slice(0, -1);"
+  },
+  {
+    "id": "blank-line",
+    "label": "A blank line ends the event",
+    "code": "if (line === \"\") {\n    const result = dispatch();\n    if (result) return result;\n    continue;\n}"
+  },
+  {
+    "id": "field-line",
+    "label": "Read a comment or a field line",
+    "code": "if (line.startsWith(\":\")) continue; // comment, e.g. a keep-alive\nconst colon = line.indexOf(\":\");\nconst field = colon === -1 ? line : line.slice(0, colon);\nlet value = colon === -1 ? \"\" : line.slice(colon + 1);\nif (value.startsWith(\" \")) value = value.slice(1);\nif (field === \"event\") eventType = value;\nelse if (field === \"data\") data.push(value);\n// id, retry and unknown fields are ignored"
+  },
+  {
+    "id": "end-of-stream",
+    "label": "The bytes ended",
+    "code": "// The stream ended without a done marker: whatever is left in the buffer is an event that never got its blank line.\nreturn { status: \"truncated\", text, error: null };"
+  },
+  {
+    "id": "dispatch-joined-data",
+    "label": "End an event: error, done, or a text delta",
+    "code": "const dispatch = (): StreamResult | null => {\n    const type = eventType || \"message\";\n    const payload = data.join(\"\");\n    const hasData = data.length > 0;\n    eventType = \"\";\n    data = [];\n    if (!hasData) return null;\n    if (type === \"error\") return { status: \"error\", text, error: payload };\n    if (type !== \"message\") return null; // ping, usage and other events are not part of the answer\n    if (payload === \"[DONE]\") return { status: \"complete\", text, error: null };\n    let parsed: unknown;\n    try {\n        parsed = JSON.parse(payload);\n    } catch {\n        return { status: \"error\", text, error: \"malformed event\" };\n    }\n    if (typeof parsed !== \"object\" || parsed === null || !(\"delta\" in parsed) || typeof parsed.delta !== \"string\") {\n        return { status: \"error\", text, error: \"malformed event\" };\n    }\n    text += parsed.delta;\n    return null;\n};",
+    "distractor": true
+  },
+  {
+    "id": "end-of-stream-complete",
+    "label": "The bytes ended",
+    "code": "// The stream ended without a done marker: whatever is left in the buffer is an event that never got its blank line.\nreturn { status: \"complete\", text, error: null };",
+    "distractor": true
+  },
+  {
+    "id": "end-of-stream-dispatch-rest",
+    "label": "The bytes ended",
+    "code": "// The stream ended without a done marker: whatever is left in the buffer is an event that never got its blank line.\nconst last = dispatch();\nif (last) return last;\nreturn { status: \"truncated\", text, error: null };",
+    "distractor": true
+  },
+  {
+    "id": "read-chunk-no-buffer",
+    "label": "Add the chunk's text to the buffer",
+    "code": "buffer = decoder.decode(chunk, { stream: true }) + \"\\n\";",
+    "distractor": true
+  },
+  {
+    "id": "read-chunk-own-decoder",
+    "label": "Add the chunk's text to the buffer",
+    "code": "buffer += new TextDecoder(\"utf-8\").decode(chunk);",
+    "distractor": true
+  }
+]

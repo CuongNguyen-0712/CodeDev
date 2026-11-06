@@ -1,0 +1,24 @@
+[
+  {
+    "id": "find-course",
+    "label": "Look up the course the caller may edit",
+    "code": "const course = courses.get(req.params.id);\n// Same answer for \"no such course\" and \"not your course\": ids of other instructors' courses stay private.\nif (!course || (req.user.role !== \"admin\" && course.ownerId !== req.user.id)) {\n    return { status: 404, body: { error: \"not_found\" } };\n}"
+  },
+  {
+    "id": "check-fields",
+    "label": "Check every field of the body",
+    "code": "// The only fields an instructor may change with PATCH; id, ownerId and createdAt are never editable here.\nconst EDITABLE = new Set([\"title\", \"description\", \"price\"]);\nconst changes = body as Record<string, unknown>;\nfor (const [field, value] of Object.entries(changes)) {\n    if (!EDITABLE.has(field)) return { status: 400, body: { error: \"field_not_editable\", field } };\n    if (field === \"title\" && (typeof value !== \"string\" || value.trim() === \"\")) return invalid(field);\n    if (field === \"description\" && typeof value !== \"string\") return invalid(field);\n    if (field === \"price\" && (typeof value !== \"number\" || !Number.isInteger(value) || value < 0)) return invalid(field);\n}"
+  },
+  {
+    "id": "check-fields-blocklist",
+    "label": "Check every field of the body",
+    "code": "const BLOCKED = new Set([\"id\", \"ownerId\"]);\nconst changes = body as Record<string, unknown>;\nfor (const [field, value] of Object.entries(changes)) {\n    if (BLOCKED.has(field)) return { status: 400, body: { error: \"field_not_editable\", field } };\n    if (field === \"title\" && (typeof value !== \"string\" || value.trim() === \"\")) return invalid(field);\n    if (field === \"description\" && typeof value !== \"string\") return invalid(field);\n    if (field === \"price\" && (typeof value !== \"number\" || !Number.isInteger(value) || value < 0)) return invalid(field);\n}",
+    "distractor": true
+  },
+  {
+    "id": "find-course-forbidden",
+    "label": "Look up the course the caller may edit",
+    "code": "const course = courses.get(req.params.id);\nif (!course) return { status: 404, body: { error: \"not_found\" } };\nif (req.user.role !== \"admin\" && course.ownerId !== req.user.id) {\n    return { status: 403, body: { error: \"forbidden\" } };\n}",
+    "distractor": true
+  }
+]

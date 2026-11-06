@@ -50,6 +50,7 @@ const TOKEN_FORMAT = /^[A-Za-z0-9_-]{43}$/;
 const sha256Hex = (value: string): string => createHash("sha256").update(value).digest("hex");
 
 function issue(deps: Deps, id: string, familyId: string, userId: string, deviceId: string, familyExpiresAt: number): Session {
+    // @piece insert-row: Store a hashed token that ends with its family
     const token = deps.randomBytes(32).toString("base64url");
     const createdAt = deps.now();
     const expiresAt = Math.min(createdAt + deps.idleTimeoutMs, familyExpiresAt);
@@ -58,29 +59,38 @@ function issue(deps: Deps, id: string, familyId: string, userId: string, deviceI
         createdAt, expiresAt, usedAt: null, revokedAt: null, replacedBy: null,
     });
     return { token, id, familyId, userId, deviceId, expiresAt, familyExpiresAt };
+    // @end
 }
 
 function login(deps: Deps, userId: string, deviceId: string): Session {
+    // @piece start-family: Start a family with its first token
     const id = deps.newId("rt");
     const familyId = deps.newId("fam");
     return issue(deps, id, familyId, userId, deviceId, deps.now() + deps.absoluteLifetimeMs);
+    // @end
 }
 
 function refresh(deps: Deps, presented: unknown): RefreshResult {
+    // @piece find-and-state: Find the token and check its state
     if (typeof presented !== "string" || !TOKEN_FORMAT.test(presented)) return { ok: false, reason: "malformed" };
     const hash = sha256Hex(presented);
     const row = deps.store.findByHash(hash);
     if (!row || !timingSafeEqual(Buffer.from(row.tokenHash, "hex"), Buffer.from(hash, "hex"))) return { ok: false, reason: "unknown" };
     if (row.revokedAt !== null) return { ok: false, reason: "revoked" };
     if (row.usedAt !== null) return { ok: false, reason: "used" };
+    // @end
+    // @piece family-window: Family lifetime, then idle timeout
     const now = deps.now();
     const familyStart = Math.min(...deps.store.findFamily(row.familyId).map((r) => r.createdAt));
     const familyExpiresAt = familyStart + deps.absoluteLifetimeMs;
     if (now >= familyExpiresAt) return { ok: false, reason: "family_expired" };
     if (now >= row.expiresAt) return { ok: false, reason: "idle_timeout" };
+    // @end
+    // @piece rotate: Rotate to the next token in the family
     const next = issue(deps, deps.newId("rt"), row.familyId, row.userId, row.deviceId, familyExpiresAt);
     deps.store.update(row.id, { usedAt: now, replacedBy: next.id });
     return { ok: true, ...next };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

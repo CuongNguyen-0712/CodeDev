@@ -1,8 +1,14 @@
 /**
- * Reference solution (never shipped to learners).
- * { stream: true } keeps an incomplete multi-byte sequence at the end of a chunk
- * for the next call; the final decode() flushes whatever is left (a truncated
- * sequence becomes U+FFFD instead of silently disappearing).
+ * Reads a byte stream (for example `(await fetch(url)).body`) to the end and
+ * returns its content as text.
+ *
+ * BUG report from the analytics team: in large exports some customer names come out
+ * as "Nguy��n" or "Caf��" instead of "Nguyễn" and "Café". Small exports are
+ * always fine, and the same file opened in an editor is correct. The reader loop
+ * itself works - look at how the bytes of each chunk are turned into text.
+ *
+ * @param {ReadableStream<Uint8Array>} body
+ * @returns {Promise<string>}
  */
 async function readAllText(body) {
   const reader = body.getReader();
@@ -10,12 +16,14 @@ async function readAllText(body) {
   let text = "";
 
   try {
+    // @piece decode-chunks: Decode every chunk into text
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       text += decoder.decode(value, { stream: true });
     }
     text += decoder.decode();
+    // @end
   } finally {
     reader.releaseLock();
   }

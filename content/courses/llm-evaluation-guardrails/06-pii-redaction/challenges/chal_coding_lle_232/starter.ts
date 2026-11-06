@@ -29,8 +29,18 @@ type PiiType = "EMAIL" | "NATIONAL_ID" | "PHONE" | "NAME";
 type Redaction = { text: string; counts: Record<PiiType, number> };
 type Input = { roster: string[]; text: string };
 
+// [ ] Compare names without case or accents
+
 function redact(text: string, roster: string[]): Redaction {
-    return { text, counts: { EMAIL: 0, NATIONAL_ID: 0, PHONE: 0, NAME: 0 } };
+    const counts: Record<PiiType, number> = { EMAIL: 0, NATIONAL_ID: 0, PHONE: 0, NAME: 0 };
+    const numbers = new Map<string, number>();
+    // [ ] Number each distinct value per type
+
+    // [ ] Redact emails, then national IDs
+    // [ ] Redact phone numbers in any format
+
+    // [ ] Redact roster names as whole words
+    return { text: result, counts };
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

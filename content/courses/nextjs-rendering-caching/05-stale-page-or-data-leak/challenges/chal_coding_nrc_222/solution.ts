@@ -59,8 +59,9 @@ type Res = { status: number; body: string; cacheControl: string };
 
 // ---------------------------------------------------------------- data layer and route handlers
 function getDashboard(userId: string): Dashboard {
-    // Per-user data: the user is an input of the result, so it is part of the key.
+    // @piece dashboard-cache: Cache the dashboard query
     return cached(`dashboard:${userId}`, 60, () => db.dashboardFor(userId));
+    // @end
 }
 
 function getCourses(category: string): string[] {
@@ -72,7 +73,9 @@ function handle(req: Req): Res {
     if (url.pathname === "/api/dashboard") {
         if (!req.userId) return { status: 401, body: JSON.stringify({ error: "sign in" }), cacheControl: "private, no-store" };
         const dashboard = getDashboard(req.userId);
+        // @piece dashboard-response: Send the dashboard
         return { status: 200, body: JSON.stringify(dashboard), cacheControl: "private, no-cache" };
+        // @end
     }
     if (url.pathname === "/api/courses") {
         const category = url.searchParams.get("category")?.trim().toLowerCase() || "all";

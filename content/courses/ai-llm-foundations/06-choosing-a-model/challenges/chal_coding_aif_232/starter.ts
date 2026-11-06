@@ -53,12 +53,16 @@ type Model = {
 type Input = { task: Task; models: Model[] };
 
 function costPer1k(task: Task, m: Model): number {
-    return 0;
+    // [ ] Cost of 1,000 requests of this task
 }
 
 function chooseModel(input: Input): string[] {
-    return [];
+    // [ ] When no model fits, say why for each
+    // [ ] Rank the models that fit
+    // [ ] The choice and its reason
 }
+
+// [ ] Helper: every rule of the task a model breaks
 
 // ---------------------------------------------------------------- test runner (do not change)
 const input: Input = JSON.parse(readFileSync(0, "utf8"));

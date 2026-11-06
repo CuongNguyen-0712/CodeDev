@@ -92,11 +92,15 @@ export function checkLessons(lessons, { legacy = false } = {}) {
 export function checkCourse(course, lessons) {
     const errors = [];
     const warnings = [];
+    // Courses written before the tier quotas ("legacy": true, or "existing" ones whose catalog row lives in
+    // the database) keep their content: metadata, hints and outcome coverage are checked, tier quotas are not.
+    const legacy = Boolean(course.legacy || course.existing);
     const tier = TIER_BY_LEVEL[course.level];
-    if (!tier) return { tier, errors: [`unknown level "${course.level}"`], warnings, counts: null };
+    if (!tier && !legacy) return { tier, errors: [`unknown level "${course.level}"`], warnings, counts: null };
     const need = TIERS[tier];
     const coreFirst = course.template === "core-first";
-    const lessonChecks = checkLessons(lessons, { legacy: Boolean(course.existing) });
+    const relaxed = coreFirst || legacy;
+    const lessonChecks = checkLessons(lessons, { legacy });
     errors.push(...lessonChecks.errors);
     warnings.push(...lessonChecks.warnings);
 
@@ -131,12 +135,12 @@ export function checkCourse(course, lessons) {
     const byBucket = {};
     for (const c of coding) byBucket[`${c.type}.${c.difficulty}`] = (byBucket[`${c.type}.${c.difficulty}`] || 0) + 1;
 
-    if (!coreFirst && lessons.length < need.lessons) errors.push(`tier ${tier} needs ${need.lessons} lessons (has ${lessons.length})`);
+    if (!relaxed && lessons.length < need.lessons) errors.push(`tier ${tier} needs ${need.lessons} lessons (has ${lessons.length})`);
     // A question bank (displayCount) only counts the statements a learner is shown.
     const shown = challenges.filter((c) => c.type === "quiz")
         .reduce((sum, c) => sum + Math.min(c.displayCount ?? Infinity, c.questions.filter(isTrueFalse).length), 0);
-    if (!coreFirst && shown < need.trueFalse) errors.push(`tier ${tier} needs ${need.trueFalse} True/False statements shown to a learner (has ${shown})`);
-    for (const [type, levels] of Object.entries(coreFirst ? {} : need.coding)) {
+    if (!relaxed && shown < need.trueFalse) errors.push(`tier ${tier} needs ${need.trueFalse} True/False statements shown to a learner (has ${shown})`);
+    for (const [type, levels] of Object.entries(relaxed ? {} : need.coding)) {
         for (const [difficulty, min] of Object.entries(levels)) {
             const has = byBucket[`${type}.${difficulty}`] || 0;
             if (has < min) errors.push(`tier ${tier} needs ${min} ${difficulty} ${type} challenges (has ${has})`);
@@ -154,8 +158,8 @@ export function checkCourse(course, lessons) {
     // Scenario: >= 5 statements on one evidence pack + a fix-bug that reproduces the incident.
     const byId = new Map(challenges.map((c) => [c.publicId, c]));
     const scenario = course.scenario;
-    if (coreFirst) {
-        // Core-first courses have no course-wide scenario pack.
+    if (relaxed) {
+        // Core-first and legacy courses have no course-wide scenario pack.
     } else if (!scenario || !nonEmpty(scenario.title)) {
         errors.push(`"scenario" needs { title, quiz, fixBug }`);
     } else {
@@ -165,7 +169,7 @@ export function checkCourse(course, lessons) {
         else if (quiz.displayCount != null) errors.push(`scenario quiz ${quiz.publicId} must not use "displayCount": its statements follow the evidence in order`);
         if (byId.get(scenario.fixBug)?.type !== "fix_bug") errors.push(`scenario.fixBug "${scenario.fixBug}" is not a fix_bug challenge of this course`);
     }
-    if (!coreFirst && !coding.some((c) => c.type === "fix_bug" && /^Spot the AI Mistake/i.test(c.title ?? ""))) {
+    if (!relaxed && !coding.some((c) => c.type === "fix_bug" && /^Spot the AI Mistake/i.test(c.title ?? ""))) {
         errors.push(`no fix_bug challenge titled "Spot the AI Mistake: ..."`);
     }
 

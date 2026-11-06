@@ -57,17 +57,69 @@ type Status = "lookalike" | "not_found" | "new_low_downloads" | "version_not_pub
 
 type Finding = { name: string; range: string; status: Status; detail: string };
 
+const ORDER: Status[] = ["lookalike", "not_found", "new_low_downloads", "version_not_published", "invalid", "ok"];
+const NAME = /^[a-z0-9@/._~-]{1,214}$/;
+const RANGE = /^(\*|[~^]?\d+\.\d+\.\d+)$/;
+
+function parse(version: string): number[] {
+    return version.split(".").map(Number);
+}
+
+function compareVersions(a: string, b: string): number {
+    const [x, y] = [parse(a), parse(b)];
+    for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i];
+    return 0;
+}
+
+function satisfies(version: string, range: string): boolean {
+    // [ ] Does a version fall inside the range
+}
+
+function normalize(name: string): string {
+    // [ ] A name with its separators removed
+}
+
+function levenshtein(a: string, b: string): number {
+    let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+        const row = [i];
+        for (let j = 1; j <= b.length; j++) {
+            row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        }
+        prev = row;
+    }
+    return prev[b.length];
+}
+
+function daysBetween(from: string, to: string): number {
+    return Math.floor((Date.parse(to + "T00:00:00Z") - Date.parse(from + "T00:00:00Z")) / 86_400_000);
+}
+
 function checkDependencies(
     suggested: Suggested[],
     registry: Record<string, RegistryPackage>,
     policy: Policy,
     today: string,
 ): Finding[] {
-    return suggested.map(({ name, range }) => ({ name, range, status: "ok", detail: "" }));
+    const popular = Object.keys(registry).filter((n) => registry[n].weeklyDownloads >= policy.popularWeeklyDownloads);
+
+    const check = ({ name, range }: Suggested): Finding => {
+        const result = (status: Status, detail = ""): Finding => ({ name, range, status, detail });
+        if (!NAME.test(name) || !RANGE.test(range)) return result("invalid");
+        const pkg = Object.prototype.hasOwnProperty.call(registry, name) ? registry[name] : undefined;
+
+        if (!popular.includes(name)) {
+            // [ ] Is the name close to a popular package
+            // [ ] Unknown, or new and barely downloaded
+        }
+
+        // [ ] Is a published version inside the range
+    };
+
+    // [ ] The findings, riskiest first
 }
 
 // ---------------------------------------------------------------- test runner (do not change)
-// Input: { today, policy, registry, suggested }. Output: the findings as JSON.
 type Input = { today: string; policy: Policy; registry: Record<string, RegistryPackage>; suggested: Suggested[] };
 
 const input: Input = JSON.parse(readFileSync(0, "utf8"));

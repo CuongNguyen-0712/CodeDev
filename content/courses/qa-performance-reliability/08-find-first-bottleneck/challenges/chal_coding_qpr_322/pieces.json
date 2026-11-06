@@ -1,0 +1,19 @@
+[
+  {
+    "id": "mark-saturated",
+    "label": "When a resource counts as saturated",
+    "code": "if wait is not None and wait > limit and name not in saturated:\n    saturated[name] = {\"resource\": name, \"from_rate\": step[\"rate\"], \"p95_wait_ms\": wait}"
+  },
+  {
+    "id": "mark-saturated-last-step",
+    "label": "When a resource counts as saturated",
+    "code": "if wait is not None and wait > limit:\n    saturated[name] = {\"resource\": name, \"from_rate\": step[\"rate\"], \"p95_wait_ms\": wait}",
+    "distractor": true
+  },
+  {
+    "id": "mark-saturated-still-busy",
+    "label": "When a resource counts as saturated",
+    "code": "busy = resource.get(\"util\", 0) >= BUSY_UTIL\nif (busy or (wait is not None and wait > limit)) and name not in saturated:\n    saturated[name] = {\"resource\": name, \"from_rate\": step[\"rate\"], \"p95_wait_ms\": wait}",
+    "distractor": true
+  }
+]

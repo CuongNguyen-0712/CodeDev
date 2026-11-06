@@ -1,0 +1,45 @@
+[
+  {
+    "id": "start-rebuild",
+    "label": "Start over with new keys from the beginning of the log",
+    "code": "this.status = \"rebuilding\";\nthis.building++;\nthis.cursor = 0;"
+  },
+  {
+    "id": "rebuild-batch",
+    "label": "Copy one batch of the log into the new keys",
+    "code": "if (this.status !== \"rebuilding\") return;\nconst batch = this.log.read(this.cursor, this.batchSize);\nfor (const event of batch) this.apply(this.building, event);\nif (batch.length > 0) this.cursor = batch[batch.length - 1].seq;"
+  },
+  {
+    "id": "switch-live",
+    "label": "Switch readers to the new keys once caught up",
+    "code": "if (this.cursor >= this.log.headSeq()) {\n    this.live = this.building; // the switch: one assignment, readers never see a half-built board\n    this.appliedSeq = this.cursor;\n    this.status = \"ready\";\n}"
+  },
+  {
+    "id": "live-apply",
+    "label": "Apply a new event once to the live board",
+    "code": "if (this.status !== \"ready\" || event.seq <= this.appliedSeq) return;\nthis.apply(this.live, event);\nthis.appliedSeq = event.seq;"
+  },
+  {
+    "id": "read-board",
+    "label": "Validate, then read the live board or the snapshot",
+    "code": "if (typeof board !== \"string\" || !BOARD_NAME.test(board)) return { status: \"error\", error: \"unknown_board\" };\nif (!Number.isInteger(n) || n < 1 || n > 100) return { status: \"error\", error: \"invalid_limit\" };\nif (this.status === \"ready\") return { status: \"ready\", top: this.cache.ztop(this.key(this.live, board), n) };\nreturn { status: \"rebuilding\", asOfSeq: this.snapshot.asOfSeq, top: (this.snapshot.boards[board] ?? []).slice(0, n) };"
+  },
+  {
+    "id": "live-apply-no-dedupe",
+    "label": "Apply a new event once to the live board",
+    "code": "if (this.status !== \"ready\") return;\nthis.apply(this.live, event);\nthis.appliedSeq = event.seq;",
+    "distractor": true
+  },
+  {
+    "id": "read-board-serve-partial",
+    "label": "Validate, then read the live board or the snapshot",
+    "code": "if (typeof board !== \"string\" || !BOARD_NAME.test(board)) return { status: \"error\", error: \"unknown_board\" };\nif (!Number.isInteger(n) || n < 1 || n > 100) return { status: \"error\", error: \"invalid_limit\" };\nif (this.status === \"ready\" || this.cursor > 0) return { status: \"ready\", top: this.cache.ztop(this.key(this.building, board), n) };\nreturn { status: \"rebuilding\", asOfSeq: this.snapshot.asOfSeq, top: (this.snapshot.boards[board] ?? []).slice(0, n) };",
+    "distractor": true
+  },
+  {
+    "id": "start-rebuild-keep-cursor",
+    "label": "Start over with new keys from the beginning of the log",
+    "code": "this.status = \"rebuilding\";\nthis.building++;",
+    "distractor": true
+  }
+]

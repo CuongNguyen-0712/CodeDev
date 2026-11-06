@@ -17,11 +17,17 @@
  */
 function createIdempotencyStore(options) {
   const { ttlMs, now } = options;
+  // [ ] Where each key's state is kept
 
   return {
     async handle(key, fingerprint, fn) {
-      // TODO: look up the key, handle the in-flight / completed / mismatch cases,
-      // otherwise reserve the key, run fn() and store what it returned.
+      // [ ] Forget a completed key once it has expired
+
+      // [ ] Answer a key that is already known
+
+      // [ ] Reserve the key for this request
+
+      // [ ] Run the charge and keep its result
     },
   };
 }

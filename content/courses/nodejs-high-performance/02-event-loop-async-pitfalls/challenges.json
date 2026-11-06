@@ -57,6 +57,9 @@
             }
           ]
         }
+      ],
+      "outcomes": [
+        "async-correctness"
       ]
     },
     {
@@ -64,7 +67,7 @@
       "name": "fix-foreach-async-settlement",
       "type": "fix_bug",
       "title": "Fix the settlement total that is always 0",
-      "description": "settleMerchant() sums each order's amount minus its gateway fee, but the nightly report says every merchant earned 0. Fix it so the function resolves only after every fee has been looked up and the total is correct. Hint: what does Array.prototype.forEach do with the promise your async callback returns?",
+      "description": "settleMerchant() sums each order's amount minus its gateway fee, but the nightly report says every merchant earned 0. Fix it so the function resolves only after every fee has been looked up and the total is correct. Hint: what does Array.prototype.forEach do with the promise your async callback returns?\n\nSelect the faulty lines and replace them with the right fix; some fixes are wrong on purpose.",
       "difficulty": "easy",
       "points": 20,
       "coding": {
@@ -204,6 +207,14 @@
           "hidden": true,
           "score": 6
         }
+      ],
+      "outcomes": [
+        "async-correctness"
+      ],
+      "hints": [
+        "The total is read before the fee lookups finish. Look at what waits for the async work and what does not.",
+        "Array.prototype.forEach ignores the promises its callback returns. Promise.all over Array.prototype.map returns one promise that settles when every element is done.",
+        "Example: `const sizes = await Promise.all(files.map(async (f) => (await stat(f)).size)); const total = sizes.reduce((a, b) => a + b, 0);`"
       ]
     },
     {
@@ -446,6 +457,14 @@
           "hidden": true,
           "score": 6
         }
+      ],
+      "outcomes": [
+        "async-correctness"
+      ],
+      "hints": [
+        "Batching means collecting every load() made in the same tick and sending one request for all of them.",
+        "queueMicrotask schedules the flush after the current synchronous code; a Map from key to its pending promise deduplicates keys and lets each caller get its own result.",
+        "Example of the tick-batching idea: `if (!queued) { queued = true; queueMicrotask(() => { queued = false; sendAll(buffer.splice(0)); }); } buffer.push(item);`"
       ]
     },
     {
@@ -506,6 +525,9 @@
             }
           ]
         }
+      ],
+      "outcomes": [
+        "async-correctness"
       ]
     }
   ]

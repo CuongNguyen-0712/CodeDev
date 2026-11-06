@@ -1,0 +1,24 @@
+[
+  {
+    "id": "plagiarism-callback",
+    "label": "Call the plagiarism client and record its span",
+    "code": "plagiarismClient.check(submissionId, context.bind(context.active(), (verdict: string) => {\n    // the client has no instrumentation: record its call as a span now that we know how long it took\n    const span = tracer.startSpan(\"plagiarism.check\", { startTime });\n    span.setAttribute(\"submission.id\", submissionId);\n    span.setAttribute(\"plagiarism.verdict\", verdict);\n    span.end();\n    resolve(verdict);\n}));"
+  },
+  {
+    "id": "self-time",
+    "label": "The part of the span no child covers",
+    "code": "const parts = children\n    .map((c) => [Math.max(c.startTime, span.startTime), Math.min(c.endTime, span.endTime)] as const)\n    .filter(([s, e]) => e > s)\n    .sort((a, b) => a[0] - b[0]);\nlet covered = 0;\nlet reach = span.startTime;\nfor (const [s, e] of parts) {\n    if (e <= reach) continue;\n    covered += e - Math.max(s, reach);\n    reach = e;\n}\nreturn span.endTime - span.startTime - covered;"
+  },
+  {
+    "id": "callback-active-context",
+    "label": "Call the plagiarism client and record its span",
+    "code": "plagiarismClient.check(submissionId, (verdict: string) => context.with(context.active(), () => {\n    // the client has no instrumentation: record its call as a span now that we know how long it took\n    const span = tracer.startSpan(\"plagiarism.check\", { startTime });\n    span.setAttribute(\"submission.id\", submissionId);\n    span.setAttribute(\"plagiarism.verdict\", verdict);\n    span.end();\n    resolve(verdict);\n}));",
+    "distractor": true
+  },
+  {
+    "id": "self-time-not-clipped",
+    "label": "The part of the span no child covers",
+    "code": "const parts = children\n    .map((c) => [c.startTime, c.endTime] as const)\n    .filter(([s, e]) => e > s)\n    .sort((a, b) => a[0] - b[0]);\nlet covered = 0;\nlet reach = span.startTime;\nfor (const [s, e] of parts) {\n    if (e <= reach) continue;\n    covered += e - Math.max(s, reach);\n    reach = e;\n}\nreturn span.endTime - span.startTime - covered;",
+    "distractor": true
+  }
+]

@@ -1,0 +1,45 @@
+[
+  {
+    "id": "records",
+    "label": "Where each key's state is kept",
+    "code": "const records = new Map(); // key -> { fingerprint, state: \"in_flight\" | \"completed\", result, expiresAt }"
+  },
+  {
+    "id": "expire-old",
+    "label": "Forget a completed key once it has expired",
+    "code": "let record = records.get(key);\nif (record && record.state === \"completed\" && record.expiresAt <= now()) {\n  records.delete(key);\n  record = undefined;\n}"
+  },
+  {
+    "id": "known-key",
+    "label": "Answer a key that is already known",
+    "code": "if (record) {\n  if (record.fingerprint !== fingerprint) throw httpError(422, \"IDEMPOTENCY_KEY_REUSED\");\n  if (record.state === \"in_flight\") throw httpError(409, \"IDEMPOTENCY_KEY_IN_PROGRESS\");\n  return { replayed: true, result: record.result };\n}"
+  },
+  {
+    "id": "reserve-key",
+    "label": "Reserve the key for this request",
+    "code": "const reserved = { fingerprint, state: \"in_flight\" };\nrecords.set(key, reserved);"
+  },
+  {
+    "id": "run-and-store",
+    "label": "Run the charge and keep its result",
+    "code": "try {\n  const result = await fn();\n  records.set(key, { fingerprint, state: \"completed\", result, expiresAt: now() + ttlMs });\n  return { replayed: false, result };\n} catch (error) {\n  if (records.get(key) === reserved) records.delete(key);\n  throw error;\n}"
+  },
+  {
+    "id": "known-key-no-fingerprint",
+    "label": "Answer a key that is already known",
+    "code": "if (record) {\n  if (record.state === \"in_flight\") throw httpError(409, \"IDEMPOTENCY_KEY_IN_PROGRESS\");\n  return { replayed: true, result: record.result };\n}",
+    "distractor": true
+  },
+  {
+    "id": "reserve-key-after-await",
+    "label": "Reserve the key for this request",
+    "code": "await Promise.resolve();\nconst reserved = { fingerprint, state: \"in_flight\" };\nrecords.set(key, reserved);",
+    "distractor": true
+  },
+  {
+    "id": "run-and-store-keep-key",
+    "label": "Run the charge and keep its result",
+    "code": "const result = await fn();\nrecords.set(key, { fingerprint, state: \"completed\", result, expiresAt: now() + ttlMs });\nreturn { replayed: false, result };",
+    "distractor": true
+  }
+]

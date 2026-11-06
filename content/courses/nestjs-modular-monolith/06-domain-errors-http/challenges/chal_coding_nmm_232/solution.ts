@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
-// Domain errors -> HTTP problem responses (reference solution).
+// Domain errors -> HTTP problem responses. The enrollment service throws the domain errors below and knows
+// nothing about HTTP; one function at the edge decides what the client sees.
 
 // ---------------------------------------------------------------- domain errors (do not change)
 class DomainError extends Error {
@@ -35,25 +36,58 @@ type ProblemRequest = { method: string; path: string; headers: Record<string, st
 type HttpResponse = { status: number; headers: Record<string, string>; body: Record<string, unknown> };
 
 // ---------------------------------------------------------------- your mapping
+// toProblemResponse(error, req, newId) turns anything a handler threw into one HTTP response with an
+// application/problem+json body (RFC 9457). In the NestJS app this runs inside a global exception filter.
+//
+// Correlation id: use req.headers["x-correlation-id"] when it is a string of 8 to 64 characters,
+// each A-Z, a-z, 0-9 or "-" (/^[A-Za-z0-9-]{8,64}$/); otherwise call newId() exactly once and use its value.
+// Do not call newId() when the header is usable.
+//
+// Response: headers { "Content-Type": "application/problem+json", "X-Correlation-Id": <id> }
+//           body    { type, title, status, detail, instance: req.path, correlationId: <id>, ...extensions }
+// type is "https://api.codedev.test/problems/" + slug. Match the classes with instanceof:
+//
+//   error class            status  slug                   title                    detail                                              extensions
+//   CourseNotFound          404    course-not-found       "Course not found"       "Course <courseId> does not exist."
+//   AlreadyEnrolled         409    already-enrolled       "Already enrolled"       "You are already enrolled in <courseId>."
+//   PrerequisitesMissing    422    prerequisites-missing  "Prerequisites missing"  "Finish <missing joined by ", "> before enrolling in <courseId>."   missing: [...]
+//   ValidationFailed        400    validation-failed      "Invalid request"        "<number of errors> field(s) failed validation."      errors: [{ field, message }]
+//   NotAllowed              403    not-allowed            "Not allowed"            "You are not allowed to <action>."
+//   PaymentRequired         402    payment-required       "Payment required"       "<courseId> requires a premium plan."                 priceVnd
+//   anything else           500    internal-error         "Internal server error"  "An unexpected error occurred. Quote the correlation id when you contact support."
+//
+// "Anything else" includes a plain Error, a thrown string or null, an object that only looks like a domain
+// error, and a DomainError subclass that is not in the table. A 500 body never contains the error's message.
+// ValidationFailed errors may carry the rejected value: copy only field and message.
+// Fill every [ ] line with the right piece. Do not change the domain errors, the types or the test runner.
+// @piece problem-constants: The problem type base and a safe correlation id
 const TYPE_BASE = "https://api.codedev.test/problems/";
 const SAFE_ID = /^[A-Za-z0-9-]{8,64}$/;
+// @end
 
 function toProblemResponse(error: unknown, req: ProblemRequest, newId: () => string): HttpResponse {
+    // @piece correlation-id: Pick the correlation id
     const incoming = req.headers["x-correlation-id"];
     const correlationId = typeof incoming === "string" && SAFE_ID.test(incoming) ? incoming : newId();
+    // @end
 
+    // @piece problem-builder: Build one problem+json response
     const problem = (status: number, slug: string, title: string, detail: string, extra: Record<string, unknown> = {}): HttpResponse => ({
         status,
         headers: { "Content-Type": "application/problem+json", "X-Correlation-Id": correlationId },
         body: { type: TYPE_BASE + slug, title, status, detail, instance: req.path, correlationId, ...extra },
     });
+    // @end
 
+    // @piece missing-or-taken: Course not found, already enrolled
     if (error instanceof CourseNotFound) {
         return problem(404, "course-not-found", "Course not found", `Course ${error.courseId} does not exist.`);
     }
     if (error instanceof AlreadyEnrolled) {
         return problem(409, "already-enrolled", "Already enrolled", `You are already enrolled in ${error.courseId}.`);
     }
+    // @end
+    // @piece rule-failures: Missing prerequisites, invalid fields
     if (error instanceof PrerequisitesMissing) {
         return problem(422, "prerequisites-missing", "Prerequisites missing",
             `Finish ${error.missing.join(", ")} before enrolling in ${error.courseId}.`, { missing: [...error.missing] });
@@ -62,15 +96,20 @@ function toProblemResponse(error: unknown, req: ProblemRequest, newId: () => str
         return problem(400, "validation-failed", "Invalid request", `${error.errors.length} field(s) failed validation.`,
             { errors: error.errors.map((e) => ({ field: e.field, message: e.message })) });
     }
+    // @end
+    // @piece access-and-payment: Not allowed, payment required
     if (error instanceof NotAllowed) {
         return problem(403, "not-allowed", "Not allowed", `You are not allowed to ${error.action}.`);
     }
     if (error instanceof PaymentRequired) {
         return problem(402, "payment-required", "Payment required", `${error.courseId} requires a premium plan.`, { priceVnd: error.priceVnd });
     }
+    // @end
+    // @piece unknown-error: Anything else
     // anything else is a bug until someone maps it: say nothing about it to the client
     return problem(500, "internal-error", "Internal server error",
         "An unexpected error occurred. Quote the correlation id when you contact support.");
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

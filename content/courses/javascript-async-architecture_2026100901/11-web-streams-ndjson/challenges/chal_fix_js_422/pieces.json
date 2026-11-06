@@ -1,0 +1,19 @@
+[
+  {
+    "id": "decode-chunks",
+    "label": "Decode every chunk into text",
+    "code": "while (true) {\n  const { value, done } = await reader.read();\n  if (done) break;\n  text += decoder.decode(value, { stream: true });\n}\ntext += decoder.decode();"
+  },
+  {
+    "id": "decode-chunks-char-codes",
+    "label": "Decode every chunk into text",
+    "code": "while (true) {\n  const { value, done } = await reader.read();\n  if (done) break;\n  text += String.fromCharCode(...value);\n}",
+    "distractor": true
+  },
+  {
+    "id": "decode-chunks-no-flush",
+    "label": "Decode every chunk into text",
+    "code": "while (true) {\n  const { value, done } = await reader.read();\n  if (done) break;\n  text += decoder.decode(value, { stream: true });\n}",
+    "distractor": true
+  }
+]

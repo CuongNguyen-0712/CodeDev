@@ -1,0 +1,50 @@
+[
+  {
+    "id": "parse-course",
+    "label": "Check one course and keep only the known fields",
+    "code": "if (!isRecord(value)) return `courses[${i}] is not an object`;\nconst { id, title, category, level, rating, enrolled, publishedAt } = value;\nif (typeof id !== \"string\" || id === \"\") return `courses[${i}].id is invalid`;\nif (typeof title !== \"string\") return `courses[${i}].title is invalid`;\nif (!isCategory(category)) return `courses[${i}].category is invalid`;\nif (!isLevel(level)) return `courses[${i}].level is invalid`;\nif (typeof rating !== \"number\" || !Number.isFinite(rating) || rating < 0 || rating > 5) return `courses[${i}].rating is invalid`;\nif (typeof enrolled !== \"number\" || !Number.isInteger(enrolled) || enrolled < 0) return `courses[${i}].enrolled is invalid`;\nif (typeof publishedAt !== \"string\") return `courses[${i}].publishedAt is invalid`;\nreturn { id, title, category, level, rating, enrolled, publishedAt };"
+  },
+  {
+    "id": "parse-courses",
+    "label": "Check every element of the array",
+    "code": "if (!Array.isArray(json)) return { ok: false, error: { kind: \"invalid-response\", reason: \"expected an array\" } };\nconst data: Course[] = [];\nfor (let i = 0; i < json.length; i++) {\n    const course = parseCourse(json[i], i);\n    if (typeof course === \"string\") return { ok: false, error: { kind: \"invalid-response\", reason: course } };\n    data.push(course);\n}\nreturn { ok: true, data };"
+  },
+  {
+    "id": "http-message",
+    "label": "A message for a failed HTTP status",
+    "code": "const type = header(headers, \"content-type\") ?? \"\";\nif (type.toLowerCase().startsWith(\"application/problem+json\")) {\n    try {\n        const problem: unknown = JSON.parse(body);\n        if (isRecord(problem)) {\n            if (typeof problem.detail === \"string\") return problem.detail;\n            if (typeof problem.title === \"string\") return problem.title;\n        }\n    } catch {\n        // a broken problem body falls back to the status\n    }\n}\nreturn `HTTP ${status}`;"
+  },
+  {
+    "id": "no-response",
+    "label": "A request that never got a response",
+    "code": "if (\"error\" in recorded) {\n    return { ok: false, error: recorded.error.name === \"TimeoutError\" ? { kind: \"timeout\" } : { kind: \"network\" } };\n}"
+  },
+  {
+    "id": "status-codes",
+    "label": "Failed statuses and the empty 204",
+    "code": "if (status < 200 || status > 299) {\n    return { ok: false, error: { kind: \"http\", status, message: httpMessage(status, headers, body) } };\n}\nif (status === 204) return { ok: true, data: [] };"
+  },
+  {
+    "id": "read-json",
+    "label": "Read the body as JSON, then check it",
+    "code": "if (body.trim() === \"\") return { ok: false, error: { kind: \"invalid-response\", reason: \"empty body\" } };\nlet json: unknown;\ntry {\n    json = JSON.parse(body);\n} catch {\n    return { ok: false, error: { kind: \"invalid-response\", reason: \"body is not JSON\" } };\n}\nreturn parseCourses(json);"
+  },
+  {
+    "id": "http-message-exact-header",
+    "label": "A message for a failed HTTP status",
+    "code": "const type = headers[\"content-type\"] ?? \"\";\nif (type.toLowerCase().startsWith(\"application/problem+json\")) {\n    try {\n        const problem: unknown = JSON.parse(body);\n        if (isRecord(problem)) {\n            if (typeof problem.detail === \"string\") return problem.detail;\n            if (typeof problem.title === \"string\") return problem.title;\n        }\n    } catch {\n        // a broken problem body falls back to the status\n    }\n}\nreturn `HTTP ${status}`;",
+    "distractor": true
+  },
+  {
+    "id": "parse-courses-original-objects",
+    "label": "Check every element of the array",
+    "code": "if (!Array.isArray(json)) return { ok: false, error: { kind: \"invalid-response\", reason: \"expected an array\" } };\nconst data: Course[] = [];\nfor (let i = 0; i < json.length; i++) {\n    const course = parseCourse(json[i], i);\n    if (typeof course === \"string\") return { ok: false, error: { kind: \"invalid-response\", reason: course } };\n    data.push(json[i] as Course);\n}\nreturn { ok: true, data };",
+    "distractor": true
+  },
+  {
+    "id": "read-json-trust-array",
+    "label": "Read the body as JSON, then check it",
+    "code": "if (body.trim() === \"\") return { ok: false, error: { kind: \"invalid-response\", reason: \"empty body\" } };\nlet json: unknown;\ntry {\n    json = JSON.parse(body);\n} catch {\n    return { ok: false, error: { kind: \"invalid-response\", reason: \"body is not JSON\" } };\n}\nif (!Array.isArray(json)) return { ok: false, error: { kind: \"invalid-response\", reason: \"expected an array\" } };\nreturn { ok: true, data: json as Course[] };",
+    "distractor": true
+  }
+]

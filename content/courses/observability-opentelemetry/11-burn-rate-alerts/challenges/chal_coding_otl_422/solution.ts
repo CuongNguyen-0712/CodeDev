@@ -22,10 +22,13 @@ type Rule = { name: string; severity: Severity; factor: number; longMinutes: num
 type Alert = { rule: string; severity: Severity; start: number; stop: number | null; peak: number };
 
 function burnRate(bad: number, total: number, slo: number): number {
+    // @piece burn-rate: Burn rate of a window, to 2 decimals
     return Math.round(((bad / total) / (1 - slo)) * 100) / 100;
+    // @end
 }
 
 function evaluate(slo: number, minRequests: number, rules: Rule[], minutes: Minute[]): Alert[] {
+    // @piece validate-inputs: Refuse an SLO, minimum or rule that makes no sense
     if (typeof slo !== "number" || !(slo > 0 && slo < 1)) throw new RangeError("slo must be between 0 and 1");
     if (!Number.isInteger(minRequests) || minRequests < 1) throw new RangeError("minRequests must be a whole number >= 1");
     for (const r of rules) {
@@ -33,7 +36,9 @@ function evaluate(slo: number, minRequests: number, rules: Rule[], minutes: Minu
         if (!Number.isInteger(r.shortMinutes) || r.shortMinutes < 1) throw new RangeError(`${r.name}: shortMinutes`);
         if (!Number.isInteger(r.longMinutes) || r.longMinutes <= r.shortMinutes) throw new RangeError(`${r.name}: longMinutes`);
     }
+    // @end
     // prefix sums: good[i] = good requests in minutes 0 .. i - 1
+    // @piece prefix-sums: Prefix sums of good and bad requests
     const good = [0];
     const bad = [0];
     for (const m of minutes) {
@@ -44,11 +49,13 @@ function evaluate(slo: number, minRequests: number, rules: Rule[], minutes: Minu
         bad.push(bad[bad.length - 1] + m.bad);
     }
     const sum = (p: number[], end: number, length: number) => p[end + 1] - p[end + 1 - length];
+    // @end
 
     const alerts: Alert[] = [];
     for (const rule of rules) {
         let open: Alert | null = null;
         for (let t = 0; t < minutes.length; t++) {
+            // @piece firing-check: Is the rule firing at minute t
             let firing = false;
             let longBurn = 0;
             if (t >= rule.longMinutes - 1) {
@@ -61,6 +68,8 @@ function evaluate(slo: number, minRequests: number, rules: Rule[], minutes: Minu
                     firing = longBurn > rule.factor && burnRate(shortBad, shortTotal, slo) > rule.factor;
                 }
             }
+            // @end
+            // @piece alert-periods: Open, extend or close the rule's alert
             if (firing) {
                 if (open) open.peak = Math.max(open.peak, longBurn);
                 else {
@@ -71,6 +80,7 @@ function evaluate(slo: number, minRequests: number, rules: Rule[], minutes: Minu
                 open.stop = t;
                 open = null;
             }
+            // @end
         }
     }
     return alerts.sort((a, b) => a.start - b.start); // stable: rule order breaks ties

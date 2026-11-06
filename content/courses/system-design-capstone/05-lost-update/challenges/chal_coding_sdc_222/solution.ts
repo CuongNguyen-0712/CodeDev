@@ -63,7 +63,7 @@ function coursePercent(lessons: Record<string, number>, courseLessons: string[])
     return Math.floor(sum / courseLessons.length);
 }
 
-// ---------------------------------------------------------------- the fixed code
+// ---------------------------------------------------------------- the AI's code
 async function recordProgress(db: ProgressDb, bus: EventBus, courseLessons: string[], req: ProgressRequest): Promise<Result> {
     if (!courseLessons.includes(req.lessonId)) return { status: "rejected", error: "UNKNOWN_LESSON" };
     const percent = req.percent;
@@ -71,6 +71,7 @@ async function recordProgress(db: ProgressDb, bus: EventBus, courseLessons: stri
         return { status: "rejected", error: "INVALID_PERCENT" };
     }
 
+    // @piece write-progress: Load, check and save the progress, then announce it
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         const doc = await db.load(req.userId, req.courseId);
         const current = doc.lessons[req.lessonId] ?? 0;
@@ -78,7 +79,6 @@ async function recordProgress(db: ProgressDb, bus: EventBus, courseLessons: stri
 
         const lessons = { ...doc.lessons, [req.lessonId]: percent };
         const next: ProgressDoc = { version: doc.version + 1, lessons, coursePercent: coursePercent(lessons, courseLessons) };
-        // compare-and-set: only writes if nobody else wrote since our load
         if (!(await db.saveIfVersion(req.userId, req.courseId, doc.version, next))) continue;
 
         bus.publish({
@@ -93,6 +93,7 @@ async function recordProgress(db: ProgressDb, bus: EventBus, courseLessons: stri
         return { status: "applied", version: next.version, coursePercent: next.coursePercent };
     }
     return { status: "rejected", error: "CONFLICT" };
+    // @end
 }
 
 // ---------------------------------------------------------------- database + scheduler (do not change)

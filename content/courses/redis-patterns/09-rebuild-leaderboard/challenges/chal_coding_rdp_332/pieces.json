@@ -1,0 +1,39 @@
+[
+  {
+    "id": "check-event",
+    "label": "Refuse an event with a bad id, learner or points",
+    "code": "const { id, learnerId, points } = event;\nif (!Number.isSafeInteger(id) || id < 1) return \"invalid\";\nif (typeof learnerId !== \"string\" || learnerId === \"\") return \"invalid\";\nif (!Number.isSafeInteger(points)) return \"invalid\";"
+  },
+  {
+    "id": "apply-once",
+    "label": "Count the event once per board",
+    "code": "if (redis.hset(seenKey, String(id), \"1\") === 0) return \"duplicate\";\nredis.zincrby(boardKey, points, learnerId);\nreturn \"applied\";"
+  },
+  {
+    "id": "build-copy",
+    "label": "Build a fresh board up to the watermark",
+    "code": "redis.del(NEXT_BOARD, NEXT_SEEN);\nconst watermark = db.maxEventId();\n\nlet after = 0;\nfor (;;) {\n    const page = db.eventsAfter(after, PAGE_SIZE).filter((e) => e.id <= watermark);\n    for (const e of page) applyEvent(redis, NEXT_BOARD, NEXT_SEEN, e);\n    if (page.length < PAGE_SIZE) break;\n    after = page[page.length - 1].id;\n}"
+  },
+  {
+    "id": "swap-boards",
+    "label": "Put the fresh board in place",
+    "code": "if (redis.exists(NEXT_BOARD)) {\n    redis.rename(NEXT_BOARD, BOARD);\n    redis.rename(NEXT_SEEN, SEEN);\n} else {\n    redis.del(BOARD, SEEN);\n}"
+  },
+  {
+    "id": "catch-up",
+    "label": "Apply the events that arrived during the rebuild",
+    "code": "let cursor = watermark;\nfor (;;) {\n    const page = db.eventsAfter(cursor, PAGE_SIZE);\n    if (page.length === 0) break;\n    for (const e of page) applyEvent(redis, BOARD, SEEN, e);\n    cursor = page[page.length - 1].id;\n}"
+  },
+  {
+    "id": "catch-up-without-dedupe",
+    "label": "Apply the events that arrived during the rebuild",
+    "code": "let cursor = watermark;\nfor (;;) {\n    const page = db.eventsAfter(cursor, PAGE_SIZE);\n    if (page.length === 0) break;\n    for (const e of page) redis.zincrby(BOARD, e.points, e.learnerId);\n    cursor = page[page.length - 1].id;\n}",
+    "distractor": true
+  },
+  {
+    "id": "swap-without-check",
+    "label": "Put the fresh board in place",
+    "code": "redis.rename(NEXT_BOARD, BOARD);\nredis.rename(NEXT_SEEN, SEEN);",
+    "distractor": true
+  }
+]

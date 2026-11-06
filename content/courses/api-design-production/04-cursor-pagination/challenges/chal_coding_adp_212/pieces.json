@@ -1,0 +1,50 @@
+[
+  {
+    "id": "encode-payload",
+    "label": "Turn the payload into the opaque cursor text",
+    "code": "return Buffer.from(JSON.stringify({ v: payload.v, o: payload.o, k: payload.k })).toString(\"base64url\");"
+  },
+  {
+    "id": "decode-parse",
+    "label": "Read the cursor text back into an object",
+    "code": "if (!/^[A-Za-z0-9_-]+$/.test(cursor)) return null;\nlet raw: unknown;\ntry {\n    raw = JSON.parse(Buffer.from(cursor, \"base64url\").toString(\"utf8\"));\n} catch {\n    return null;\n}\nif (typeof raw !== \"object\" || raw === null) return null;"
+  },
+  {
+    "id": "decode-validate",
+    "label": "Accept only a cursor this API could have made",
+    "code": "const { v, o, k } = raw as { v?: unknown; o?: unknown; k?: unknown };\nif (v !== 1 || (o !== \"asc\" && o !== \"desc\")) return null;\nif (!Array.isArray(k) || k.length !== 2) return null;\nconst [ts, id] = k;\nif (typeof ts !== \"string\" || !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/.test(ts)) return null;\nif (typeof id !== \"number\" || !Number.isInteger(id) || id < 1) return null;\nreturn { v: 1, o, k: [ts, id] };"
+  },
+  {
+    "id": "read-query",
+    "label": "Check limit, then order, then cursor",
+    "code": "let limit = 20;\nif (query.limit !== undefined) {\n    if (!/^\\d+$/.test(query.limit) || Number(query.limit) < 1) return { status: 400, code: \"invalid_limit\" };\n    limit = Math.min(Number(query.limit), 100);\n}\nconst order = query.order ?? \"desc\";\nif (order !== \"asc\" && order !== \"desc\") return { status: 400, code: \"invalid_order\" };\nlet after: [string, number] | null = null;\nif (query.cursor !== undefined) {\n    const decoded = decodeCursor(query.cursor);\n    if (decoded === null || decoded.o !== order) return { status: 400, code: \"invalid_cursor\" };\n    after = decoded.k;\n}"
+  },
+  {
+    "id": "page-rows",
+    "label": "The page after the cursor and the next cursor",
+    "code": "const sign = order === \"asc\" ? 1 : -1;\nconst key = (c: Course): [string, number] => [c.published_at, c.id];\n// WHERE (published_at, id) < ($1, $2) ORDER BY published_at DESC, id DESC LIMIT limit + 1\nconst rows = table\n    .filter((c) => after === null || sign * compareKey(key(c), after) > 0)\n    .sort((a, b) => sign * compareKey(key(a), key(b)))\n    .slice(0, limit + 1);\nconst data = rows.slice(0, limit);\nconst last = data[data.length - 1];\nconst next_cursor = rows.length > limit ? encodeCursor({ v: 1, o: order, k: key(last) }) : null;\nreturn { status: 200, data, next_cursor };"
+  },
+  {
+    "id": "compare-key",
+    "label": "Order two (published_at, id) keys",
+    "code": "// -1 when a comes first in ascending (published_at, id) order\nfunction compareKey(a: [string, number], b: [string, number]): number {\n    if (a[0] !== b[0]) return a[0] < b[0] ? -1 : 1;\n    return a[1] - b[1];\n}"
+  },
+  {
+    "id": "compare-key-no-tie-break",
+    "label": "Order two (published_at, id) keys",
+    "code": "function compareKey(a: [string, number], b: [string, number]): number {\n    if (a[0] !== b[0]) return a[0] < b[0] ? -1 : 1;\n    return 0;\n}",
+    "distractor": true
+  },
+  {
+    "id": "decode-validate-trusting",
+    "label": "Accept only a cursor this API could have made",
+    "code": "const { o, k } = raw as { v?: unknown; o?: unknown; k?: unknown };\nif (!Array.isArray(k)) return null;\nreturn { v: 1, o: o as Order, k: k as [string, number] };",
+    "distractor": true
+  },
+  {
+    "id": "page-rows-cursor-on-full-page",
+    "label": "The page after the cursor and the next cursor",
+    "code": "const sign = order === \"asc\" ? 1 : -1;\nconst key = (c: Course): [string, number] => [c.published_at, c.id];\nconst rows = table\n    .filter((c) => after === null || sign * compareKey(key(c), after) > 0)\n    .sort((a, b) => sign * compareKey(key(a), key(b)))\n    .slice(0, limit);\nconst data = rows.slice(0, limit);\nconst last = data[data.length - 1];\nconst next_cursor = rows.length === limit ? encodeCursor({ v: 1, o: order, k: key(last) }) : null;\nreturn { status: 200, data, next_cursor };",
+    "distractor": true
+  }
+]

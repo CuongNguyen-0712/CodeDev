@@ -1,0 +1,51 @@
+[
+  {
+    "id": "parse-object",
+    "label": "Parse the raw arguments as a JSON object",
+    "code": "let parsed: unknown;\ntry {\n    parsed = JSON.parse(raw);\n} catch {\n    return \"arguments are not valid JSON\";\n}\nif (!isRecord(parsed)) return \"arguments must be a JSON object\";"
+  },
+  {
+    "id": "reject-keys",
+    "label": "Reject a userId and any unknown argument",
+    "code": "if (Object.hasOwn(parsed, \"userId\")) return \"userId comes from the session\";\nfor (const key of Object.keys(parsed)) {\n    if (!Object.hasOwn(tool.parameters, key)) return `unexpected argument \"${key}\"`;\n}"
+  },
+  {
+    "id": "missing-argument",
+    "label": "Handle an argument the model left out",
+    "code": "if (!Object.hasOwn(parsed, name)) {\n    if (spec.required) return `missing argument \"${name}\"`;\n    continue;\n}"
+  },
+  {
+    "id": "value-checks",
+    "label": "Check the value against its parameter spec",
+    "code": "const value = parsed[name];\nif (spec.type === \"integer\") {\n    if (typeof value !== \"number\" || !Number.isInteger(value)) return `argument \"${name}\" must be integer`;\n    if ((spec.minimum !== undefined && value < spec.minimum) || (spec.maximum !== undefined && value > spec.maximum)) {\n        return `argument \"${name}\" is out of range`;\n    }\n    args[name] = value;\n} else if (spec.type === \"string\") {\n    if (typeof value !== \"string\") return `argument \"${name}\" must be string`;\n    if (spec.maxLength !== undefined && value.length > spec.maxLength) return `argument \"${name}\" is too long`;\n    if (spec.enum !== undefined && !spec.enum.includes(value)) return `argument \"${name}\" is not an allowed value`;\n    args[name] = value;\n} else {\n    if (typeof value !== \"boolean\") return `argument \"${name}\" must be boolean`;\n    args[name] = value;\n}"
+  },
+  {
+    "id": "decide-calls",
+    "label": "Decide run or rejected for each call",
+    "code": "const tools = new Map(input.tools.map((t) => [t.name, t]));\nconst confirmed = new Set(input.confirmedCallIds);\nreturn input.calls.map((call): Decision => {\n    const reject = (reason: string): Decision => ({ id: call.id, tool: call.name, status: \"rejected\", reason });\n    const tool = tools.get(call.name);\n    if (!tool) return reject(`unknown tool \"${call.name}\"`);\n    const args = checkArguments(tool, call.arguments);\n    if (typeof args === \"string\") return reject(args);\n    if (tool.permission === \"needs-confirmation\" && !confirmed.has(call.id)) return reject(\"needs confirmation\");\n    if (tool.scope === \"user\") args.userId = input.sessionUserId;\n    return { id: call.id, tool: call.name, status: \"run\", args };\n});"
+  },
+  {
+    "id": "decide-calls-confirm-first",
+    "label": "Decide run or rejected for each call",
+    "code": "const tools = new Map(input.tools.map((t) => [t.name, t]));\nconst confirmed = new Set(input.confirmedCallIds);\nreturn input.calls.map((call): Decision => {\n    const reject = (reason: string): Decision => ({ id: call.id, tool: call.name, status: \"rejected\", reason });\n    const tool = tools.get(call.name);\n    if (!tool) return reject(`unknown tool \"${call.name}\"`);\n    if (tool.permission === \"needs-confirmation\" && !confirmed.has(call.id)) return reject(\"needs confirmation\");\n    const args = checkArguments(tool, call.arguments);\n    if (typeof args === \"string\") return reject(args);\n    if (tool.scope === \"user\") args.userId = input.sessionUserId;\n    return { id: call.id, tool: call.name, status: \"run\", args };\n});",
+    "distractor": true
+  },
+  {
+    "id": "reject-keys-in-operator",
+    "label": "Reject a userId and any unknown argument",
+    "code": "if (Object.hasOwn(parsed, \"userId\")) return \"userId comes from the session\";\nfor (const key of Object.keys(parsed)) {\n    if (!(key in tool.parameters)) return `unexpected argument \"${key}\"`;\n}",
+    "distractor": true
+  },
+  {
+    "id": "reject-keys-model-user-id",
+    "label": "Reject a userId and any unknown argument",
+    "code": "for (const key of Object.keys(parsed)) {\n    if (key !== \"userId\" && !Object.hasOwn(tool.parameters, key)) return `unexpected argument \"${key}\"`;\n}",
+    "distractor": true
+  },
+  {
+    "id": "value-checks-any-number",
+    "label": "Check the value against its parameter spec",
+    "code": "const value = parsed[name];\nif (spec.type === \"integer\") {\n    if (typeof value !== \"number\") return `argument \"${name}\" must be integer`;\n    if ((spec.minimum !== undefined && value < spec.minimum) || (spec.maximum !== undefined && value > spec.maximum)) {\n        return `argument \"${name}\" is out of range`;\n    }\n    args[name] = value;\n} else if (spec.type === \"string\") {\n    if (typeof value !== \"string\") return `argument \"${name}\" must be string`;\n    if (spec.maxLength !== undefined && value.length > spec.maxLength) return `argument \"${name}\" is too long`;\n    if (spec.enum !== undefined && !spec.enum.includes(value)) return `argument \"${name}\" is not an allowed value`;\n    args[name] = value;\n} else {\n    if (typeof value !== \"boolean\") return `argument \"${name}\" must be boolean`;\n    args[name] = value;\n}",
+    "distractor": true
+  }
+]

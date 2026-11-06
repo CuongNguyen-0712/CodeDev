@@ -1,0 +1,19 @@
+[
+  {
+    "id": "handle-once",
+    "label": "Record the message and credit the wallet exactly once",
+    "code": "return db.transaction(async (tx) => {\n  const firstTime = await tx.insertProcessed(message.id);\n  if (!firstTime) return \"duplicate\";\n\n  await tx.creditWallet(message.walletId, message.amount);\n  return \"applied\";\n});"
+  },
+  {
+    "id": "handle-once-dedupe-outside",
+    "label": "Record the message and credit the wallet exactly once",
+    "code": "const firstTime = await db.insertProcessed(message.id);\nif (!firstTime) return \"duplicate\";\nawait db.creditWallet(message.walletId, message.amount);\nreturn \"applied\";",
+    "distractor": true
+  },
+  {
+    "id": "handle-once-select-first",
+    "label": "Record the message and credit the wallet exactly once",
+    "code": "return db.transaction(async (tx) => {\n  if (await tx.isProcessed(message.id)) return \"duplicate\";\n  await tx.insertProcessed(message.id);\n  await tx.creditWallet(message.walletId, message.amount);\n  return \"applied\";\n});",
+    "distractor": true
+  }
+]

@@ -1,0 +1,29 @@
+[
+  {
+    "id": "counters",
+    "label": "Track what is running, finished and failed",
+    "code": "let nextIndex = 0;\nlet running = 0;\nlet finished = 0;\nlet failed = false;\n\nif (items.length === 0) {\n  resolve(results);\n  return;\n}"
+  },
+  {
+    "id": "run-task",
+    "label": "Run one task and record its outcome",
+    "code": "new Promise((res) => res(task(items[index], index)))\n  .then(\n    (value) => {\n      results[index] = stopOnError ? value : { status: \"fulfilled\", value };\n    },\n    (reason) => {\n      if (stopOnError) {\n        if (!failed) reject(reason);\n        failed = true;\n      } else {\n        results[index] = { status: \"rejected\", reason };\n      }\n    },\n  )"
+  },
+  {
+    "id": "next-item",
+    "label": "Free the slot, then finish or start the next item",
+    "code": "  .then(() => {\n    running -= 1;\n    finished += 1;\n    if (failed) return;\n    if (finished === items.length) resolve(results);\n    else startMore();\n  });"
+  },
+  {
+    "id": "next-item-no-refill",
+    "label": "Free the slot, then finish or start the next item",
+    "code": ".then(() => {\n  running -= 1;\n  finished += 1;\n  if (failed) return;\n  if (finished === items.length) resolve(results);\n});",
+    "distractor": true
+  },
+  {
+    "id": "run-task-completion-order",
+    "label": "Run one task and record its outcome",
+    "code": "new Promise((res) => res(task(items[index], index)))\n  .then(\n    (value) => {\n      results[finished] = stopOnError ? value : { status: \"fulfilled\", value };\n    },\n    (reason) => {\n      if (stopOnError) {\n        if (!failed) reject(reason);\n        failed = true;\n      } else {\n        results[finished] = { status: \"rejected\", reason };\n      }\n    },\n  )",
+    "distractor": true
+  }
+]

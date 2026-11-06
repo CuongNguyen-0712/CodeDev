@@ -1,0 +1,45 @@
+[
+  {
+    "id": "week-key",
+    "label": "The ISO week key of a timestamp",
+    "code": "const thursday = new Date(weekStart(ts) + 3 * DAY_MS);\nconst isoYear = thursday.getUTCFullYear();\nconst week = 1 + Math.floor((thursday.getTime() - Date.UTC(isoYear, 0, 1)) / (7 * DAY_MS));\nreturn `lb:week:${isoYear}-W${String(week).padStart(2, \"0\")}`;"
+  },
+  {
+    "id": "check-event",
+    "label": "Refuse an event with a bad learner, points or time",
+    "code": "const { learnerId, points, ts } = event;\nif (typeof learnerId !== \"string\" || learnerId === \"\") return false;\nif (!Number.isInteger(points) || points < 1 || points > 10000) return false;\nif (!Number.isInteger(ts) || ts < 0) return false;"
+  },
+  {
+    "id": "record-scores",
+    "label": "Add the points to all-time and to the event's week",
+    "code": "redis.zincrby(ALL_TIME, points, learnerId);\nconst retentionEnd = weekStart(ts) + 14 * DAY_MS;\nif (retentionEnd <= now) return true;\nconst key = weekKey(ts);\nredis.zincrby(key, points, learnerId);\nredis.expire(key, Math.ceil((retentionEnd - now) / 1000));\nreturn true;"
+  },
+  {
+    "id": "top-n",
+    "label": "The first n entries, highest score first",
+    "code": "if (n < 1) return [];\nreturn redis.zrevrange(key, 0, n - 1).map((e, i) => ({ rank: i + 1, learnerId: e.member, score: e.score }));"
+  },
+  {
+    "id": "rank-around",
+    "label": "A learner's rank with two neighbours on each side",
+    "code": "const index = redis.zrevrank(key, learnerId);\nif (index === null) return null;\nconst start = Math.max(0, index - 2);\nconst around = redis.zrevrange(key, start, index + 2).map((e, i) => ({ rank: start + i + 1, learnerId: e.member, score: e.score }));\nreturn { rank: index + 1, score: around[index - start].score, around };"
+  },
+  {
+    "id": "rank-unclamped",
+    "label": "A learner's rank with two neighbours on each side",
+    "code": "const index = redis.zrevrank(key, learnerId);\nif (index === null) return null;\nconst start = index - 2;\nconst around = redis.zrevrange(key, start, index + 2).map((e, i) => ({ rank: start + i + 1, learnerId: e.member, score: e.score }));\nreturn { rank: index + 1, score: around[index - start].score, around };",
+    "distractor": true
+  },
+  {
+    "id": "record-sliding-ttl",
+    "label": "Add the points to all-time and to the event's week",
+    "code": "redis.zincrby(ALL_TIME, points, learnerId);\nconst retentionEnd = weekStart(ts) + 14 * DAY_MS;\nif (retentionEnd <= now) return true;\nconst key = weekKey(ts);\nredis.zincrby(key, points, learnerId);\nredis.expire(key, 14 * 86_400);\nreturn true;",
+    "distractor": true
+  },
+  {
+    "id": "top-zero-returns-all",
+    "label": "The first n entries, highest score first",
+    "code": "return redis.zrevrange(key, 0, n - 1).map((e, i) => ({ rank: i + 1, learnerId: e.member, score: e.score }));",
+    "distractor": true
+  }
+]

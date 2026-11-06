@@ -77,16 +77,47 @@ type ModelTool = {
 type ToolCall = { name: string; args: unknown };
 type Registry = Map<string, ToolSpec>;
 
+const TYPES = ["string", "integer", "number", "boolean"];
+const NAME = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
+const KEYWORDS = ["enum", "minimum", "maximum", "minLength", "maxLength", "pattern"] as const;
+
+function compiles(pattern: string): boolean {
+    try {
+        new RegExp(pattern);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 function registerTool(registry: Registry, spec: ToolSpec): string[] {
-    return [];
+    const errors: string[] = [];
+    // [ ] Name: snake_case and not taken
+    // [ ] Description length and parameters type
+
+    // [ ] Each parameter, the required list, then register
+    return errors;
 }
 
 function listTools(registry: Registry): ModelTool[] {
-    return [];
+    // [ ] The tools as the model receives them
+}
+
+function hasType(value: unknown, type: string): boolean {
+    // [ ] Does a value have a parameter's type
 }
 
 function validateCall(registry: Registry, call: ToolCall): string[] {
-    return [];
+    const tool = registry.get(call.name);
+    if (tool === undefined) return [`unknown tool "${call.name}"`];
+    if (typeof call.args !== "object" || call.args === null || Array.isArray(call.args)) return ["arguments must be an object"];
+    const args = call.args as Record<string, unknown>; // checked just above
+    const { properties, required } = tool.parameters;
+    const errors: string[] = [];
+
+    // [ ] Check each declared argument
+    // [ ] Reject arguments the tool does not declare
+    return errors;
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

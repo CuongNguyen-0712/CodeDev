@@ -23,19 +23,17 @@ type Headers = Record<string, string>;
 
 /** Returns a function that runs `fn` in the context that is active when bind() is called. */
 function bind<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
-    // TODO: capture the active context now and run fn inside it when the returned function is called
-    return fn;
+    // [ ] Capture the context and run fn inside it
 }
 
 /** Writes the active span context into `headers.traceparent` ("00-<trace id>-<span id>-01"). */
 function inject(headers: Headers): void {
-    // TODO: write nothing when no context is active
+    // [ ] Write the active span into traceparent
 }
 
 /** Reads `headers.traceparent`; returns null when the header is missing or invalid. */
 function extract(headers: Headers): SpanContext | null {
-    // TODO: version 00, 32 lowercase hex trace id, 16 lowercase hex span id, 2 hex flags, ids not all zeros
-    return null;
+    // [ ] Read and validate traceparent
 }
 
 // ---------------------------------------------------- context store and tracer (do not change)

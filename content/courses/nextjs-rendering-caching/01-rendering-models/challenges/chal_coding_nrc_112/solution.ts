@@ -40,24 +40,36 @@ const MAX_BUILD_PAGES = 1000;
 const REQUEST_APIS: RequestApi[] = ["cookies", "headers", "searchParams"];
 
 function isValid(page: PageTraits): boolean {
+    // @piece valid-traits: Check the traits before any rule
     const f: unknown = page.freshnessSeconds;
     if (f !== null && !(typeof f === "number" && Number.isInteger(f) && f >= 0)) return false;
     if (!(typeof page.pageCount === "number" && Number.isInteger(page.pageCount) && page.pageCount >= 1)) return false;
     if (!Array.isArray(page.reads)) return false;
     return page.reads.every((r) => REQUEST_APIS.includes(r));
+    // @end
 }
 
 function chooseRendering(page: PageTraits): Decision {
     const route = page.route;
+    // @piece invalid-and-personal: Rules 1 and 2: invalid traits, per-user data
     if (!isValid(page)) return { route, strategy: "invalid", reason: "invalid traits" };
     if (page.perUserData) return { route, strategy: "dynamic", reason: "per-user data" };
+    // @end
+    // @piece request-reads: Rule 3: pages that read request-time APIs
     const reads = REQUEST_APIS.filter((api) => page.reads.includes(api));
     if (reads.length > 0) return { route, strategy: "dynamic", reason: `reads ${reads.join(", ")}` };
+    // @end
+    // @piece fresh-every-request: Rule 4: HTML that must be fresh every time
     if (page.freshnessSeconds === 0) return { route, strategy: "dynamic", reason: "must be fresh on every request" };
+    // @end
+    // @piece html-source: Rule 5: where the HTML comes from
     const where = page.dataAtBuild && page.pageCount <= MAX_BUILD_PAGES ? "prerendered at build" : "rendered on first request";
+    // @end
+    // @piece static-or-isr: Rules 6 and 7: static or ISR
     if (page.freshnessSeconds === null) return { route, strategy: "static", reason: where };
     const s = page.freshnessSeconds;
     return { route, strategy: `isr:${s}`, reason: `${where}, revalidated every ${s} s` };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

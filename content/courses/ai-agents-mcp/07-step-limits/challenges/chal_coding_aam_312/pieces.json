@@ -1,0 +1,50 @@
+[
+  {
+    "id": "canonical",
+    "label": "One text per argument value, whatever the key order",
+    "code": "if (Array.isArray(value)) return `[${value.map(canonical).join(\",\")}]`;\nif (value !== null && typeof value === \"object\") {\n    const entries = Object.keys(value as Record<string, unknown>).sort();\n    return `{${entries.map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`).join(\",\")}}`;\n}\nreturn JSON.stringify(value) ?? \"null\";"
+  },
+  {
+    "id": "parse-call",
+    "label": "Read a tool call out of the model's reply",
+    "code": "if (raw === null || typeof raw !== \"object\" || !(\"toolCall\" in raw)) return null;\nconst call = (raw as { toolCall: unknown }).toolCall;\nif (call === null || typeof call !== \"object\") return null;\nconst name = (call as { name?: unknown }).name;\nif (typeof name !== \"string\" || name === \"\") return null;\nreturn { name, args: (call as { args?: unknown }).args ?? {} };"
+  },
+  {
+    "id": "step-limit",
+    "label": "Ask the model again unless the step budget is spent",
+    "code": "if (steps >= limits.maxSteps) return stop(\"max_steps\");\nconst raw = model.next(transcript);\nsteps++;"
+  },
+  {
+    "id": "final",
+    "label": "A reply that is not a tool call must be a real answer",
+    "code": "const call = asToolCall(raw);\nif (!call) {\n    const final = raw !== null && typeof raw === \"object\" ? (raw as { final?: unknown }).final : undefined;\n    if (typeof final === \"string\" && final.trim() !== \"\") return stop(\"final\", final);\n    return stop(\"no_final_answer\");\n}"
+  },
+  {
+    "id": "repeat-check",
+    "label": "Stop when the same call keeps repeating",
+    "code": "const key = `${call.name} ${canonical(call.args)}`;\nsameInARow = key === lastKey ? sameInARow + 1 : 1;\nlastKey = key;\nif (sameInARow >= limits.maxSameCall) return stop(\"repeated_call\");"
+  },
+  {
+    "id": "progress",
+    "label": "Count tool results that bring nothing new",
+    "code": "if (seen.has(result)) {\n    noProgress++;\n    if (noProgress >= limits.maxNoProgress) return stop(\"no_progress\");\n} else {\n    seen.add(result);\n    partial.push(result);\n    noProgress = 0;\n}"
+  },
+  {
+    "id": "final-any-string",
+    "label": "A reply that is not a tool call must be a real answer",
+    "code": "const call = asToolCall(raw);\nif (!call) {\n    const final = raw !== null && typeof raw === \"object\" ? (raw as { final?: unknown }).final : undefined;\n    if (typeof final === \"string\") return stop(\"final\", final);\n    return stop(\"no_final_answer\");\n}",
+    "distractor": true
+  },
+  {
+    "id": "progress-no-reset",
+    "label": "Count tool results that bring nothing new",
+    "code": "if (seen.has(result)) {\n    noProgress++;\n    if (noProgress >= limits.maxNoProgress) return stop(\"no_progress\");\n} else {\n    seen.add(result);\n    partial.push(result);\n}",
+    "distractor": true
+  },
+  {
+    "id": "step-limit-one-more",
+    "label": "Ask the model again unless the step budget is spent",
+    "code": "if (steps > limits.maxSteps) return stop(\"max_steps\");\nconst raw = model.next(transcript);\nsteps++;",
+    "distractor": true
+  }
+]

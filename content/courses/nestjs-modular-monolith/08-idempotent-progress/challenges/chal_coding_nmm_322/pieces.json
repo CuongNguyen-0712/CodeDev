@@ -1,0 +1,45 @@
+[
+  {
+    "id": "validate-event",
+    "label": "Reject an event that names nothing real",
+    "code": "const { eventId, userId, courseId, lessonId, percent } = event;\nif (typeof eventId !== \"string\" || eventId === \"\" || typeof userId !== \"string\" || userId === \"\") {\n    return { status: \"invalid\" };\n}\nconst lessons = typeof courseId === \"string\" ? this.catalog.lessonIds(courseId) : undefined;\nif (!lessons || !lessons.includes(lessonId)) return { status: \"invalid\" };\nif (!Number.isInteger(percent) || percent < 0 || percent > 100) return { status: \"invalid\" };"
+  },
+  {
+    "id": "dedupe-event",
+    "label": "Handle each event id once",
+    "code": "if (this.processed.has(eventId)) return { status: \"duplicate\" };\nthis.processed.add(eventId);"
+  },
+  {
+    "id": "stale-progress",
+    "label": "Ignore progress that is not higher",
+    "code": "const before = this.coursePercent(userId, courseId, lessons);\nconst stored = this.progress.get(userId, courseId, lessonId) ?? 0;\nif (percent <= stored) return { status: \"stale\", lessonPercent: stored, coursePercent: before };"
+  },
+  {
+    "id": "apply-progress",
+    "label": "Store it and announce a newly completed course",
+    "code": "this.progress.set(userId, courseId, lessonId, percent);\nconst after = this.coursePercent(userId, courseId, lessons);\nconst courseCompleted = before < 100 && after === 100;\nif (courseCompleted) this.bus.publish({ type: \"course.completed\", userId, courseId });\nreturn { status: \"applied\", lessonPercent: percent, coursePercent: after, courseCompleted };"
+  },
+  {
+    "id": "course-percent",
+    "label": "The course percent from its lessons",
+    "code": "private coursePercent(userId: string, courseId: string, lessons: string[]): number {\n    let sum = 0;\n    for (const id of lessons) sum += this.progress.get(userId, courseId, id) ?? 0;\n    return Math.floor(sum / lessons.length);\n}"
+  },
+  {
+    "id": "apply-progress-old-percent",
+    "label": "Store it and announce a newly completed course",
+    "code": "this.progress.set(userId, courseId, lessonId, percent);\nconst after = this.coursePercent(userId, courseId, lessons);\nconst courseCompleted = before < 100 && after === 100;\nif (courseCompleted) this.bus.publish({ type: \"course.completed\", userId, courseId });\nreturn { status: \"applied\", lessonPercent: percent, coursePercent: before, courseCompleted };",
+    "distractor": true
+  },
+  {
+    "id": "course-percent-rounded",
+    "label": "The course percent from its lessons",
+    "code": "private coursePercent(userId: string, courseId: string, lessons: string[]): number {\n    let sum = 0;\n    for (const id of lessons) sum += this.progress.get(userId, courseId, id) ?? 0;\n    return Math.round(sum / lessons.length);\n}",
+    "distractor": true
+  },
+  {
+    "id": "dedupe-event-never-remembered",
+    "label": "Handle each event id once",
+    "code": "if (this.processed.has(eventId)) return { status: \"duplicate\" };\n// the event id is remembered by the store",
+    "distractor": true
+  }
+]

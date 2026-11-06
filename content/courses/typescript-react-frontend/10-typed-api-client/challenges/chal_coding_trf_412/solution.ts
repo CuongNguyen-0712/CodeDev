@@ -51,6 +51,7 @@ function header(headers: Record<string, string>, name: string): string | undefin
 
 /** One element of the array: a Course with only the known fields, or the reason it is invalid. */
 function parseCourse(value: unknown, i: number): Course | string {
+    // @piece parse-course: Check one course and keep only the known fields
     if (!isRecord(value)) return `courses[${i}] is not an object`;
     const { id, title, category, level, rating, enrolled, publishedAt } = value;
     if (typeof id !== "string" || id === "") return `courses[${i}].id is invalid`;
@@ -61,9 +62,11 @@ function parseCourse(value: unknown, i: number): Course | string {
     if (typeof enrolled !== "number" || !Number.isInteger(enrolled) || enrolled < 0) return `courses[${i}].enrolled is invalid`;
     if (typeof publishedAt !== "string") return `courses[${i}].publishedAt is invalid`;
     return { id, title, category, level, rating, enrolled, publishedAt };
+    // @end
 }
 
 function parseCourses(json: unknown): Result<Course[]> {
+    // @piece parse-courses: Check every element of the array
     if (!Array.isArray(json)) return { ok: false, error: { kind: "invalid-response", reason: "expected an array" } };
     const data: Course[] = [];
     for (let i = 0; i < json.length; i++) {
@@ -72,9 +75,11 @@ function parseCourses(json: unknown): Result<Course[]> {
         data.push(course);
     }
     return { ok: true, data };
+    // @end
 }
 
 function httpMessage(status: number, headers: Record<string, string>, body: string): string {
+    // @piece http-message: A message for a failed HTTP status
     const type = header(headers, "content-type") ?? "";
     if (type.toLowerCase().startsWith("application/problem+json")) {
         try {
@@ -88,17 +93,23 @@ function httpMessage(status: number, headers: Record<string, string>, body: stri
         }
     }
     return `HTTP ${status}`;
+    // @end
 }
 
 function toResult(recorded: Recorded): Result<Course[]> {
+    // @piece no-response: A request that never got a response
     if ("error" in recorded) {
         return { ok: false, error: recorded.error.name === "TimeoutError" ? { kind: "timeout" } : { kind: "network" } };
     }
+    // @end
     const { status, headers, body } = recorded;
+    // @piece status-codes: Failed statuses and the empty 204
     if (status < 200 || status > 299) {
         return { ok: false, error: { kind: "http", status, message: httpMessage(status, headers, body) } };
     }
     if (status === 204) return { ok: true, data: [] };
+    // @end
+    // @piece read-json: Read the body as JSON, then check it
     if (body.trim() === "") return { ok: false, error: { kind: "invalid-response", reason: "empty body" } };
     let json: unknown;
     try {
@@ -107,6 +118,7 @@ function toResult(recorded: Recorded): Result<Course[]> {
         return { ok: false, error: { kind: "invalid-response", reason: "body is not JSON" } };
     }
     return parseCourses(json);
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

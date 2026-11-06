@@ -150,7 +150,7 @@ test("stored percent = max sent, one event per increase, version = events", () =
         p("Run it with a deliberately broken `decide` (replace `<=` with `===` in the monotonic check, or divide by the number of started lessons) and fast-check prints the shortest sequence that breaks an invariant, often just two updates. That is the evidence that the test is strong enough."),
         callout("info", "When one SQL statement is enough",
             "If you only need \"never lower one lesson\", PostgreSQL can do it atomically in one statement, as the quiz showed: `SET percent = GREATEST(percent, $3)` on a per-lesson row, with `RETURNING` to see whether it changed. The pure function earns its place when the rules grow (enrollment, required challenges, a derived course percent, events): those are hard to express and to test in SQL, and easy in code."),
-        p("Now write the core yourself. The challenge gives you the catalog, enrollments and passed challenges as data, an in-memory `ProgressStore` with one document per learner and course, and an `EventBus`. The runner sends a sequence of updates, including invalid, late and repeated ones, and prints each result, every published event and the final documents."),
+        p("Now assemble the core. The challenge gives you the catalog, enrollments and passed challenges as data, an in-memory `ProgressStore` with one document per learner and course, and an `EventBus`. The runner sends a sequence of updates, including invalid, late and repeated ones, and prints each result, every published event and the final documents."),
         challenge("chal_coding_sdc_212"),
 
         h2("5. How to verify"),

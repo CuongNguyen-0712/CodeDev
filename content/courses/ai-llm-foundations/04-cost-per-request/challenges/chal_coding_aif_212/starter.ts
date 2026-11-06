@@ -33,12 +33,26 @@ type Input = {
 };
 
 function requestCost(price: Price, r: LlmRequest): number {
-    return 0;
+    // [ ] The cost of one request in USD
 }
 
 function estimate(input: Input): string[] {
-    return [];
+    const lines: string[] = [];
+    const perModel = new Map<string, { count: number; cost: number }>();
+    let count = 0;
+    let errors = 0;
+    let total = 0;
+    input.requests.forEach((r, i) => {
+        // [ ] A model missing from the price table
+        // [ ] Token counts that make no sense
+        // [ ] Price the request and add it up
+    });
+    // [ ] One line per model
+    // [ ] The total and the monthly projection
+    return lines;
 }
+
+// [ ] Helper: is a value a whole number >= 0
 
 // ---------------------------------------------------------------- test runner (do not change)
 const input: Input = JSON.parse(readFileSync(0, "utf8"));

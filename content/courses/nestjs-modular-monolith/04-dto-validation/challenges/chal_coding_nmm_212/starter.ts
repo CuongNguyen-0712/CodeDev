@@ -25,7 +25,8 @@ import { readFileSync } from "node:fs";
 //              below 1 or above 50 -> "seats must be between 1 and 50"
 //
 // Never convert or trim a value: "PREMIUM", "2" and " c_12" are errors, not guesses.
-// Ignore any other key in the body (it never reaches value). Do not change the types or the test runner.
+// Ignore any other key in the body (it never reaches value). Fill every [ ] line with the right piece.
+// Do not change the types or the test runner.
 
 const PLANS = ["free", "premium"] as const;
 type Plan = (typeof PLANS)[number];
@@ -34,8 +35,19 @@ type EnrollRequest = { courseId: string; email: string; plan: Plan; seats: numbe
 type FieldError = { field: string; message: string };
 type ValidationResult = { ok: true; value: EnrollRequest } | { ok: false; errors: FieldError[] };
 
+// [ ] The formats a course id, an email and a coupon must match
+
 function validateEnrollRequest(body: unknown): ValidationResult {
-    return { ok: false, errors: [] };
+    // [ ] Reject a body that is not an object, then read fields
+
+    // [ ] courseId and email
+    // [ ] plan
+
+    // [ ] couponCode
+
+    // [ ] seats
+
+    // [ ] Errors, or the clean request
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

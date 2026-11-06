@@ -39,12 +39,14 @@ type Verdict = "lookalike" | "invalid" | "clear" | "exact";
 type Result = { name: string; nearest: string | null; distance: number | null; verdict: Verdict };
 
 function normalize(name: string): string {
+    // @piece normalize-steps: Normalize a name (steps 1-5)
     let n = name.toLowerCase();
     if (n.startsWith("@") && n.includes("/")) n = n.slice(n.indexOf("/") + 1);
     n = n.replace(/[_.]/g, "-").replace(/1/g, "l").replace(/0/g, "o");
     if (n.startsWith("js-") && n.length > 3) n = n.slice(3);
     if (n.endsWith("-js") && n.length > 3) n = n.slice(0, -3);
     return n;
+    // @end
 }
 
 function distance(a: string, b: string): number {
@@ -56,17 +58,21 @@ function distance(a: string, b: string): number {
                 d[i].push(j);
                 continue;
             }
+            // @piece distance-cell: One table cell: edit, substitute or swap
             const cost = a[i - 1] === b[j - 1] ? 0 : 1;
             let best = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
             if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) best = Math.min(best, d[i - 2][j - 2] + 1);
             d[i].push(best);
+            // @end
         }
     }
     return d[a.length][b.length];
 }
 
 function threshold(n: number): number {
+    // @piece threshold: How many edits still count as a lookalike
     return n <= 3 ? 0 : n <= 7 ? 1 : 2;
+    // @end
 }
 
 const VALID = /^[A-Za-z0-9@/._~-]{1,214}$/;
@@ -75,8 +81,11 @@ const ORDER: Verdict[] = ["lookalike", "invalid", "clear", "exact"];
 function detectTyposquats(popular: string[], candidates: string[]): Result[] {
     const known = popular.map((name) => ({ name, normalized: normalize(name) }));
     const results = candidates.map((name): Result => {
+        // @piece invalid-and-exact: Invalid names and exact matches
         if (!VALID.test(name)) return { name, nearest: null, distance: null, verdict: "invalid" };
         if (popular.includes(name)) return { name, nearest: name, distance: 0, verdict: "exact" };
+        // @end
+        // @piece nearest: Find the nearest popular name and decide
         const n = normalize(name);
         let nearest = known[0].name;
         let best = Infinity;
@@ -88,11 +97,14 @@ function detectTyposquats(popular: string[], candidates: string[]): Result[] {
             }
         }
         return { name, nearest, distance: best, verdict: best <= threshold(n.length) ? "lookalike" : "clear" };
+        // @end
     });
+    // @piece sort-results: Order the results
     return results.sort((x, y) =>
         ORDER.indexOf(x.verdict) - ORDER.indexOf(y.verdict)
         || (x.distance ?? 0) - (y.distance ?? 0)
         || (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

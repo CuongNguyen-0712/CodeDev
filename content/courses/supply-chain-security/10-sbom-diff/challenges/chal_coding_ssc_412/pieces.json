@@ -1,0 +1,50 @@
+[
+  {
+    "id": "component-key",
+    "label": "Key and purl version of one component",
+    "code": "if (typeof c.purl === \"string\" && c.purl !== \"\") {\n    let base = c.purl;\n    const hash = base.indexOf(\"#\");\n    if (hash >= 0) base = base.slice(0, hash);\n    const query = base.indexOf(\"?\");\n    if (query >= 0) base = base.slice(0, query);\n    let purlVersion = \"\";\n    const at = base.lastIndexOf(\"@\");\n    if (at > base.lastIndexOf(\"/\")) {\n        purlVersion = base.slice(at + 1);\n        base = base.slice(0, at);\n    }\n    return { key: base.replace(/%40/gi, \"@\"), fromPurl: true, purlVersion };\n}\nif (typeof c.name === \"string\" && c.name !== \"\") {\n    return { key: `name:${c.group ? `${c.group}/` : \"\"}${c.name}`, fromPurl: false, purlVersion: \"\" };\n}\nreturn null;"
+  },
+  {
+    "id": "semver-compare",
+    "label": "SemVer precedence of two versions",
+    "code": "const x = parseSemver(a);\nconst y = parseSemver(b);\nif (!x || !y) return null;\nfor (const k of [\"major\", \"minor\", \"patch\"] as const) {\n    if (x[k] !== y[k]) return x[k] < y[k] ? -1 : 1;\n}\nif (x.pre.length === 0 || y.pre.length === 0) return Math.sign(y.pre.length - x.pre.length);\nfor (let i = 0; i < Math.min(x.pre.length, y.pre.length); i++) {\n    const c = compareIdentifiers(x.pre[i], y.pre[i]);\n    if (c !== 0) return c;\n}\nreturn Math.sign(x.pre.length - y.pre.length);"
+  },
+  {
+    "id": "collect-walk",
+    "label": "Walk every component, keep the first key + version",
+    "code": "for (const c of list) {\n    const k = componentKey(c);\n    if (!k) {\n        bad = true;\n        return;\n    }\n    const version = typeof c.version === \"string\" && c.version !== \"\" ? c.version : k.purlVersion;\n    let versions = entries.get(k.key);\n    if (!versions) entries.set(k.key, (versions = new Map()));\n    if (versions.has(version)) duplicates++;\n    else {\n        const hashes = new Map<string, string>();\n        for (const h of c.hashes ?? []) if (!hashes.has(h.alg)) hashes.set(h.alg, h.content.toLowerCase());\n        versions.set(version, { key: k.key, version, fromPurl: k.fromPurl, licenses: licenseList(c), hashes });\n    }\n    if (Array.isArray(c.components)) walk(c.components);\n    if (bad) return;\n}"
+  },
+  {
+    "id": "same-version-changes",
+    "label": "License and hash changes of the same version",
+    "code": "for (const [version, be] of [...bv].sort((x, y) => byString(x[0], y[0]))) {\n    const ae = av.get(version);\n    if (!ae) continue;\n    if (!sameList(be.licenses, ae.licenses)) res.licenseChanged.push({ key, version, from: be.licenses, to: ae.licenses });\n    const algs = [...be.hashes.keys()].filter((alg) => ae.hashes.has(alg) && ae.hashes.get(alg) !== be.hashes.get(alg));\n    if (algs.length) res.hashChanged.push({ key, version, algs: algs.sort(byString) });\n}"
+  },
+  {
+    "id": "version-change",
+    "label": "Version changes, additions and removals",
+    "code": "const bOnly = [...bv.keys()].filter((v) => !av.has(v)).sort(byString);\nconst aOnly = [...av.keys()].filter((v) => !bv.has(v)).sort(byString);\nif (bOnly.length === 1 && aOnly.length === 1) {\n    const from = bOnly[0];\n    const to = aOnly[0];\n    const cmp = compareSemver(from, to);\n    const direction: Direction = cmp === null ? \"unknown\" : cmp < 0 ? \"upgrade\" : cmp > 0 ? \"downgrade\" : \"same\";\n    const sameMajor = cmp !== null && parseSemver(from)!.major === parseSemver(to)!.major;\n    res.versionChanged.push({ key, from, to, direction, sameMajor });\n    const bl = bv.get(from)!.licenses;\n    const al = av.get(to)!.licenses;\n    if (!sameList(bl, al)) res.licenseChanged.push({ key, version: to, from: bl, to: al });\n} else {\n    for (const v of bOnly) res.removed.push({ key, version: v });\n    for (const v of aOnly) res.added.push({ key, version: v });\n}"
+  },
+  {
+    "id": "sort-and-summary",
+    "label": "Sort the lists and add the summary",
+    "code": "const order = (x: { key: string; version: string }, y: { key: string; version: string }) =>\n    byString(x.key, y.key) || byString(x.version, y.version);\nres.licenseChanged.sort(order);\nres.hashChanged.sort(order);\nreturn {\n    ...res,\n    summary: {\n        before: countBefore,\n        after: countAfter,\n        added: res.added.length,\n        removed: res.removed.length,\n        versionChanged: res.versionChanged.length,\n        licenseChanged: res.licenseChanged.length,\n        hashChanged: res.hashChanged.length,\n        duplicatesCollapsed: b.duplicates + a.duplicates,\n        withoutPurl: fallback.size,\n    },\n};"
+  },
+  {
+    "id": "collect-last-wins",
+    "label": "Walk every component, keep the first key + version",
+    "code": "for (const c of list) {\n    const k = componentKey(c);\n    if (!k) {\n        bad = true;\n        return;\n    }\n    const version = typeof c.version === \"string\" && c.version !== \"\" ? c.version : k.purlVersion;\n    let versions = entries.get(k.key);\n    if (!versions) entries.set(k.key, (versions = new Map()));\n    if (versions.has(version)) duplicates++;\n    {\n        const hashes = new Map<string, string>();\n        for (const h of c.hashes ?? []) if (!hashes.has(h.alg)) hashes.set(h.alg, h.content.toLowerCase());\n        versions.set(version, { key: k.key, version, fromPurl: k.fromPurl, licenses: licenseList(c), hashes });\n    }\n    if (Array.isArray(c.components)) walk(c.components);\n    if (bad) return;\n}",
+    "distractor": true
+  },
+  {
+    "id": "component-key-with-version",
+    "label": "Key and purl version of one component",
+    "code": "if (typeof c.purl === \"string\" && c.purl !== \"\") {\n    let base = c.purl;\n    const hash = base.indexOf(\"#\");\n    if (hash >= 0) base = base.slice(0, hash);\n    const query = base.indexOf(\"?\");\n    if (query >= 0) base = base.slice(0, query);\n    let purlVersion = \"\";\n    const at = base.lastIndexOf(\"@\");\n    if (at > base.lastIndexOf(\"/\")) {\n        purlVersion = base.slice(at + 1);\n    }\n    return { key: base.replace(/%40/gi, \"@\"), fromPurl: true, purlVersion };\n}\nif (typeof c.name === \"string\" && c.name !== \"\") {\n    return { key: `name:${c.group ? `${c.group}/` : \"\"}${c.name}`, fromPurl: false, purlVersion: \"\" };\n}\nreturn null;",
+    "distractor": true
+  },
+  {
+    "id": "semver-as-strings",
+    "label": "SemVer precedence of two versions",
+    "code": "const x = parseSemver(a);\nconst y = parseSemver(b);\nif (!x || !y) return null;\nif (a !== b) return byString(a, b);\nfor (const k of [\"major\", \"minor\", \"patch\"] as const) {\n    if (x[k] !== y[k]) return x[k] < y[k] ? -1 : 1;\n}\nif (x.pre.length === 0 || y.pre.length === 0) return Math.sign(y.pre.length - x.pre.length);\nfor (let i = 0; i < Math.min(x.pre.length, y.pre.length); i++) {\n    const c = compareIdentifiers(x.pre[i], y.pre[i]);\n    if (c !== 0) return c;\n}\nreturn Math.sign(x.pre.length - y.pre.length);",
+    "distractor": true
+  }
+]

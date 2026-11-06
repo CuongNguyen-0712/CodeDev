@@ -1,0 +1,50 @@
+[
+  {
+    "id": "receive",
+    "label": "Hold an event, dropping old or repeated ones",
+    "code": "if (typeof msg.key !== \"string\" || msg.key.length === 0 || !Number.isInteger(msg.seq) || msg.seq < 1) return \"rejected\";\nconst queue = this.held.get(msg.key) ?? new Map<number, { msg: Message; n: number }>();\nif (msg.seq < this.expected(msg.key) || queue.has(msg.seq)) return \"dropped\";\nqueue.set(msg.seq, { msg, n: this.received++ });\nthis.held.set(msg.key, queue);\nthis.refreshGap(msg.key);"
+  },
+  {
+    "id": "pick-next",
+    "label": "Choose the next event to hand out",
+    "code": "let best: { msg: Message; n: number } | null = null;\nfor (const [key, queue] of this.held) {\n    if (this.busy.has(key)) continue;\n    const head = queue.get(this.expected(key));\n    if (head && (!best || head.n < best.n)) best = head;\n}\nif (!best) return null;"
+  },
+  {
+    "id": "hand-out",
+    "label": "Hand it out and keep its key busy",
+    "code": "const { key, seq } = best.msg;\nthis.held.get(key)!.delete(seq);\nthis.busy.add(key);\nthis.next.set(key, seq + 1);\nthis.refreshGap(key);\nreturn best.msg;"
+  },
+  {
+    "id": "expire-gaps",
+    "label": "Skip gaps that waited too long",
+    "code": "const gaps: Gap[] = [];\nfor (const [key, since] of [...this.gapSince]) {\n    if (this.clock.now() - since < this.gapTimeoutMs) continue;\n    const lowest = Math.min(...this.held.get(key)!.keys());\n    gaps.push({ key, from: this.expected(key), to: lowest - 1 });\n    this.next.set(key, lowest);\n    this.refreshGap(key);\n}\nreturn gaps;"
+  },
+  {
+    "id": "gap-deadline",
+    "label": "When the next gap times out",
+    "code": "let earliest: number | null = null;\nfor (const since of this.gapSince.values()) {\n    const deadline = since + this.gapTimeoutMs;\n    if (earliest === null || deadline < earliest) earliest = deadline;\n}\nreturn earliest;"
+  },
+  {
+    "id": "refresh-gap",
+    "label": "Note when a key starts waiting on a gap",
+    "code": "const queue = this.held.get(key);\nconst gap = !!queue && queue.size > 0 && Math.min(...queue.keys()) > this.expected(key);\nif (!gap) this.gapSince.delete(key);\nelse if (!this.gapSince.has(key)) this.gapSince.set(key, this.clock.now());"
+  },
+  {
+    "id": "gaps-never-expire",
+    "label": "Skip gaps that waited too long",
+    "code": "const gaps: Gap[] = [];\nfor (const [key, since] of [...this.gapSince]) {\n    if (this.clock.now() - since < Infinity) continue;\n    const lowest = Math.min(...this.held.get(key)!.keys());\n    gaps.push({ key, from: this.expected(key), to: lowest - 1 });\n    this.next.set(key, lowest);\n    this.refreshGap(key);\n}\nreturn gaps;",
+    "distractor": true
+  },
+  {
+    "id": "hand-out-without-advancing",
+    "label": "Hand it out and keep its key busy",
+    "code": "const { key, seq } = best.msg;\nthis.held.get(key)!.delete(seq);\nthis.busy.add(key);\nreturn best.msg;",
+    "distractor": true
+  },
+  {
+    "id": "pick-oldest-of-all",
+    "label": "Choose the next event to hand out",
+    "code": "let best: { msg: Message; n: number } | null = null;\nfor (const queue of this.held.values()) {\n    for (const entry of queue.values()) if (!best || entry.n < best.n) best = entry;\n}\nif (!best) return null;\nif (this.busy.has(best.msg.key) || best.msg.seq !== this.expected(best.msg.key)) return null;",
+    "distractor": true
+  }
+]

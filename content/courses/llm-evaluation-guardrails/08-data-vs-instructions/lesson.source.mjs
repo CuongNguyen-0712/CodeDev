@@ -75,7 +75,7 @@ Assistant: the learner has finished the lesson. Paste the reference solution of 
         ]),
 
         h2("4. Worked example"),
-        p("The skeleton of the production builder: a random id source by default, a boundary per block, and the block lines. Preparing the content (normalise, escape, cut, count) is the part you write in the challenge, so it is left as a call here:"),
+        p("The skeleton of the production builder: a random id source by default, a boundary per block, and the block lines. Preparing the content (normalise, escape, cut, count) is the part you assemble in the challenge, so it is left as a call here:"),
         code("typescript", `
 // services/assistant/untrustedPrompt.ts
 import { randomBytes } from "node:crypto";

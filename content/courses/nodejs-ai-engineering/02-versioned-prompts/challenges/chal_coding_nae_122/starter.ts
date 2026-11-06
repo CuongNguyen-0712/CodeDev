@@ -5,7 +5,8 @@ import { readFileSync } from "node:fs";
 // became the word "undefined" in the prompt, nobody could tell which template version produced a
 // hint, and learner code that contained "{{...}}" was treated as part of the template.
 //
-// Write renderPrompt(template, variables). The full rules are in the challenge description:
+// Fill renderPrompt(template, variables) with pieces (some are wrong). The full rules are in the
+// challenge description:
 //   - ref is "<id>@<version>" (it goes into every log line and every stored hint)
 //   - {{name}} is a placeholder (name: a letter, then letters, digits or underscores)
 //   - \{{ in the template text is a literal "{{"; any other "{{" is a malformed placeholder
@@ -23,8 +24,29 @@ type RenderResult =
     | { ok: true; ref: string; prompt: string; warnings: string[] }
     | { ok: false; ref: string; errors: string[]; warnings: string[] };
 
+const PLACEHOLDER = /\{\{([A-Za-z][A-Za-z0-9_]*)\}\}/y;
+
 function renderPrompt(template: PromptTemplate, variables: Variables): RenderResult {
-    return { ok: false, ref: "", errors: [], warnings: [] };
+    // [ ] The ref every log line carries
+    const text = template.text;
+    const errors: string[] = [];
+    const used = new Set<string>();
+    const reported = new Set<string>();
+    let out = "";
+    let i = 0;
+    while (i < text.length) {
+        // [ ] Turn an escaped {{ into a literal one
+        if (!text.startsWith("{{", i)) {
+            out += text[i];
+            i += 1;
+            continue;
+        }
+        // [ ] Match a placeholder or report it malformed
+        // [ ] Insert the value or report a missing variable
+        i += match[0].length;
+    }
+    // [ ] List the variables no placeholder used
+    // [ ] Return the result
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

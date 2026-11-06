@@ -17,7 +17,8 @@ import { readFileSync } from "node:fs";
 //      (same id: there is never a second row for one user and one course)
 //   7. otherwise create one with enrollments.create(userId, courseId), outcome "created"
 //
-// Do not change the types, the error classes, the repositories or the test runner.
+// Fill every [ ] line with the right piece. Do not change the types, the error classes, the repositories
+// or the test runner.
 
 type Course = { id: string; published: boolean; premium: boolean; prerequisites: string[] };
 type EnrollmentStatus = "active" | "cancelled";
@@ -88,7 +89,12 @@ class EnrollmentService {
     }
 
     enroll(userId: string, courseId: string): EnrollResult {
-        throw new Error("not implemented");
+        // [ ] The course must exist
+        // [ ] An active enrollment is returned as it is
+        // [ ] Only published courses take enrollments
+        // [ ] Every prerequisite completed
+        // [ ] Premium courses need an entitlement
+        // [ ] Reactivate the old enrollment or create one
     }
 }
 

@@ -1,0 +1,25 @@
+[
+  {
+    "id": "send-once",
+    "label": "Send the certificate email",
+    "code": "const key = `certificate-email/${job.certId}`; // one key per certificate, not per delivery\nfor (;;) {\n    const cert = await ctx.db.get(job.certId);\n    if (!cert) return;\n    if (cert.status === \"pending\") {\n        // claim first: the marker is written before the side effect\n        await ctx.db.update(cert.id, \"pending\", { status: \"sending\", claimedAt: ctx.now() });\n        continue; // read it again: either our claim or the other worker's state\n    }\n    if (cert.status !== \"sending\") return; // \"sent\" or \"needs-review\"\n    if (ctx.now() - (cert.claimedAt ?? 0) >= DAY_SECONDS) {\n        // the provider has forgotten the key: a resend could deliver twice, so ask a person\n        await ctx.db.update(cert.id, \"sending\", { status: \"needs-review\" });\n        return;\n    }\n    await ctx.email.send({ to: cert.email, template: \"certificate-issued\", certId: cert.id, idempotencyKey: key });\n    await ctx.db.update(cert.id, \"sending\", { status: \"sent\" });\n    return;\n}"
+  },
+  {
+    "id": "key-per-delivery",
+    "label": "Send the certificate email",
+    "code": "const key = `certificate-email/${job.certId}/${job.delivery}`;\nfor (;;) {\n    const cert = await ctx.db.get(job.certId);\n    if (!cert) return;\n    if (cert.status === \"pending\") {\n        await ctx.db.update(cert.id, \"pending\", { status: \"sending\", claimedAt: ctx.now() });\n        continue;\n    }\n    if (cert.status !== \"sending\") return;\n    if (ctx.now() - (cert.claimedAt ?? 0) >= DAY_SECONDS) {\n        await ctx.db.update(cert.id, \"sending\", { status: \"needs-review\" });\n        return;\n    }\n    await ctx.email.send({ to: cert.email, template: \"certificate-issued\", certId: cert.id, idempotencyKey: key });\n    await ctx.db.update(cert.id, \"sending\", { status: \"sent\" });\n    return;\n}",
+    "distractor": true
+  },
+  {
+    "id": "mark-sent-before-send",
+    "label": "Send the certificate email",
+    "code": "const cert = await ctx.db.get(job.certId);\nif (!cert || cert.status !== \"pending\") return;\nif (!(await ctx.db.update(cert.id, \"pending\", { status: \"sent\" }))) return;\nawait ctx.email.send({ to: cert.email, template: \"certificate-issued\", certId: cert.id });",
+    "distractor": true
+  },
+  {
+    "id": "send-with-key-only",
+    "label": "Send the certificate email",
+    "code": "const cert = await ctx.db.get(job.certId);\nif (!cert || cert.status !== \"pending\") return;\nawait ctx.email.send({ to: cert.email, template: \"certificate-issued\", certId: cert.id, idempotencyKey: `certificate-email/${cert.id}` });\nawait ctx.db.update(cert.id, \"pending\", { status: \"sent\" });",
+    "distractor": true
+  }
+]

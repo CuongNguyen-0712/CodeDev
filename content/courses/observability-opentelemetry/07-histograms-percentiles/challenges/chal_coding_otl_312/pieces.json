@@ -1,0 +1,34 @@
+[
+  {
+    "id": "counter-increase",
+    "label": "How much one counter grew between two scrapes",
+    "code": "return end < start ? end : end - start;"
+  },
+  {
+    "id": "merge-increases",
+    "label": "Add up the increases of every instance per bucket",
+    "code": "const sums = new Map<number, number>();\nfor (const instance of instances) {\n    const startCounts = new Map(instance.start.map((b): [number, number] => [b.le, b.count]));\n    for (const b of instance.end) {\n        const increase = counterIncrease(startCounts.get(b.le) ?? 0, b.count);\n        sums.set(b.le, (sums.get(b.le) ?? 0) + increase);\n    }\n}\nreturn [...sums].map(([le, count]) => ({ le, count })).sort((a, b) => a.le - b.le);"
+  },
+  {
+    "id": "quantile-guards",
+    "label": "Answer the cases with no usable data",
+    "code": "if (q < 0) return -Infinity;\nif (q > 1) return Infinity;\nconst sorted = [...buckets].sort((a, b) => a.le - b.le);\nif (sorted.length < 2 || sorted[sorted.length - 1].le !== Infinity) return NaN;\nconst total = sorted[sorted.length - 1].count;\nif (total === 0) return NaN;"
+  },
+  {
+    "id": "quantile-interpolate",
+    "label": "Find the bucket and interpolate inside it",
+    "code": "const rank = q * total;\nconst finite = sorted.slice(0, -1);\nconst i = finite.findIndex((b) => b.count >= rank);\nif (i === -1) return finite[finite.length - 1].le;\nconst lower = i === 0 ? 0 : finite[i - 1].le;\nconst before = i === 0 ? 0 : finite[i - 1].count;\nreturn lower + ((finite[i].le - lower) * (rank - before)) / (finite[i].count - before);"
+  },
+  {
+    "id": "increase-ignores-reset",
+    "label": "How much one counter grew between two scrapes",
+    "code": "return end - start;",
+    "distractor": true
+  },
+  {
+    "id": "interpolate-bucket-bound",
+    "label": "Find the bucket and interpolate inside it",
+    "code": "const rank = q * total;\nconst finite = sorted.slice(0, -1);\nconst i = finite.findIndex((b) => b.count >= rank);\nif (i === -1) return finite[finite.length - 1].le;\nconst lower = i === 0 ? 0 : finite[i - 1].le;\nconst before = i === 0 ? 0 : finite[i - 1].count;\nreturn finite[i].le;",
+    "distractor": true
+  }
+]

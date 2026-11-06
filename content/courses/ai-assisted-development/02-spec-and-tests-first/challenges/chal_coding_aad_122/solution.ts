@@ -26,7 +26,9 @@ type RemoveResult = "removed" | "not_bookmarked" | "invalid_request";
 type Bookmark = { lessonId: string; at: number; seq: number };
 
 function isId(value: unknown): value is string {
+    // @piece is-id: Is this value a usable id
     return typeof value === "string" && value.trim() !== "";
+    // @end
 }
 
 class BookmarkService {
@@ -39,29 +41,37 @@ class BookmarkService {
     }
 
     add(userId: string, lessonId: string, at: number): AddResult {
+        // @piece add-checks: Validate the request, then refuse repeats and a full list
         if (!isId(userId) || !isId(lessonId) || typeof at !== "number" || !Number.isFinite(at)) return "invalid_request";
         if (!this.lessons.has(lessonId)) return "lesson_not_found";
         const bookmarks = this.byUser.get(userId) ?? [];
         if (bookmarks.some((b) => b.lessonId === lessonId)) return "already_bookmarked";
         if (bookmarks.length >= MAX_BOOKMARKS_PER_USER) return "limit_reached";
+        // @end
+        // @piece add-store: Store the new bookmark
         bookmarks.push({ lessonId, at, seq: this.seq++ });
         this.byUser.set(userId, bookmarks);
         return "added";
+        // @end
     }
 
     remove(userId: string, lessonId: string): RemoveResult {
+        // @piece remove: Remove one bookmark
         if (!isId(userId) || !isId(lessonId)) return "invalid_request";
         const bookmarks = this.byUser.get(userId) ?? [];
         const index = bookmarks.findIndex((b) => b.lessonId === lessonId);
         if (index === -1) return "not_bookmarked";
         bookmarks.splice(index, 1);
         return "removed";
+        // @end
     }
 
     list(userId: string): string[] {
+        // @piece list: The user's lessons, most recent bookmark first
         return [...(this.byUser.get(userId) ?? [])]
             .sort((a, b) => b.at - a.at || b.seq - a.seq)
             .map((b) => b.lessonId);
+        // @end
     }
 }
 

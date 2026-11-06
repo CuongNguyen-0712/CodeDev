@@ -32,13 +32,10 @@ const db = {
 };
 
 // ------------------------------------------------------------------ the assistant's code
-// One helper spells the tag for the reader and for every writer.
-const courseTag = (id: string): string => `course:${id}`;
-
 // lib/catalog.ts: the course page data, cached for an hour and tagged with the course id.
 const getCourse = cached((id: string) => db.findCourse(id), {
     keyParts: ["getCourse"],
-    tags: (id: string) => [courseTag(id)],
+    tags: (id: string) => [`course:${id}`],
     revalidate: 3600,
 });
 
@@ -53,15 +50,19 @@ function saveCourseDetails(id: string, patch: { title?: string }): ActionResult 
     if (!db.courses.has(id)) return { ok: false, error: "course not found" };
     if (patch.title !== undefined && patch.title.trim() === "") return { ok: false, error: "title is required" };
     db.updateCourse(id, patch);
-    updateTag(courseTag(id));
+    // @piece details-cache: Refresh the cached course after saving details
+    updateTag(`course:${id}`);
+    // @end
     return { ok: true };
 }
 
 function changeCoursePrice(id: string, price: number): ActionResult {
     if (!db.courses.has(id)) return { ok: false, error: "course not found" };
     if (!Number.isInteger(price) || price < 0) return { ok: false, error: "invalid price" };
+    // @piece price-save: Save the new price
     db.updateCourse(id, { price });
-    updateTag(courseTag(id));
+    updateTag(`course:${id}`);
+    // @end
     return { ok: true };
 }
 

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "script-rules",
+    "label": "Which scripts exist and when one is blocked",
+    "code": "const LIFECYCLE = [\"preinstall\", \"install\", \"postinstall\", \"prepare\"];\n\nconst isGitDependency = (pkg: LockedPackage): boolean =>\n    [\"git+\", \"git://\", \"github:\"].some((prefix) => pkg.resolved.startsWith(prefix));\n\n// Blocked by default: a script runs only for an exact name + version + integrity match.\nconst blockReason = (pkg: LockedPackage, allowlist: AllowEntry[]): Reason | null => {\n    if (isGitDependency(pkg)) return \"git_dependency\";\n    const sameName = allowlist.filter((entry) => entry.name === pkg.name);\n    if (sameName.length === 0) return \"not_allowlisted\";\n    const sameVersion = sameName.filter((entry) => entry.version === pkg.version);\n    if (sameVersion.length === 0) return \"version_mismatch\";\n    if (pkg.integrity === \"\" || !sameVersion.some((entry) => entry.integrity === pkg.integrity)) return \"integrity_mismatch\";\n    return null;\n};"
+  },
+  {
+    "id": "plan-scripts",
+    "label": "Plan every script of every package",
+    "code": "const plan: Plan = { run: [], blocked: [] };\nfor (const pkg of lock) {\n    const git = isGitDependency(pkg);\n    const reason = blockReason(pkg, allowlist);\n    for (const script of LIFECYCLE) {\n        if (!pkg.scripts[script]) continue;\n        if (script === \"prepare\" && !git) continue; // npm never runs prepare of a registry package\n        const id = `${pkg.name}@${pkg.version}`;\n        if (reason === null) plan.run.push({ package: id, script });\n        else plan.blocked.push({ package: id, script, reason });\n    }\n}"
+  },
+  {
+    "id": "plan-prepare-everywhere",
+    "label": "Plan every script of every package",
+    "code": "const plan: Plan = { run: [], blocked: [] };\nfor (const pkg of lock) {\n    const git = isGitDependency(pkg);\n    const reason = blockReason(pkg, allowlist);\n    for (const script of LIFECYCLE) {\n        if (!pkg.scripts[script]) continue;\n            const id = `${pkg.name}@${pkg.version}`;\n        if (reason === null) plan.run.push({ package: id, script });\n        else plan.blocked.push({ package: id, script, reason });\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "rules-empty-integrity-ok",
+    "label": "Which scripts exist and when one is blocked",
+    "code": "const LIFECYCLE = [\"preinstall\", \"install\", \"postinstall\", \"prepare\"];\n\nconst isGitDependency = (pkg: LockedPackage): boolean =>\n    [\"git+\", \"git://\", \"github:\"].some((prefix) => pkg.resolved.startsWith(prefix));\n\n// Blocked by default: a script runs only for an exact name + version + integrity match.\nconst blockReason = (pkg: LockedPackage, allowlist: AllowEntry[]): Reason | null => {\n    if (isGitDependency(pkg)) return \"git_dependency\";\n    const sameName = allowlist.filter((entry) => entry.name === pkg.name);\n    if (sameName.length === 0) return \"not_allowlisted\";\n    const sameVersion = sameName.filter((entry) => entry.version === pkg.version);\n    if (sameVersion.length === 0) return \"version_mismatch\";\n    if (!sameVersion.some((entry) => entry.integrity === pkg.integrity)) return \"integrity_mismatch\";\n    return null;\n};",
+    "distractor": true
+  },
+  {
+    "id": "rules-name-is-enough",
+    "label": "Which scripts exist and when one is blocked",
+    "code": "const LIFECYCLE = [\"preinstall\", \"install\", \"postinstall\", \"prepare\"];\n\nconst isGitDependency = (pkg: LockedPackage): boolean =>\n    [\"git+\", \"git://\", \"github:\"].some((prefix) => pkg.resolved.startsWith(prefix));\n\n// Blocked by default: a script runs only for an exact name + version + integrity match.\nconst blockReason = (pkg: LockedPackage, allowlist: AllowEntry[]): Reason | null => {\n    if (isGitDependency(pkg)) return \"git_dependency\";\n    const sameName = allowlist.filter((entry) => entry.name === pkg.name);\n    if (sameName.length === 0) return \"not_allowlisted\";\n    return null;\n};",
+    "distractor": true
+  }
+]

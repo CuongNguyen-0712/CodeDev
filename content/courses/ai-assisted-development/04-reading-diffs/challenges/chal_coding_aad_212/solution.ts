@@ -58,6 +58,7 @@ function parseDiff(diff: string): FileChange[] {
 
     for (const line of diff.split("\n")) {
         if (line.startsWith("diff --git ")) {
+            // @piece file-header: A diff --git line starts the next file
             const [a, b] = line.slice("diff --git ".length).split(" ");
             const oldPath = a.slice(2); // strip "a/"
             const newPath = b.slice(2); // strip "b/"
@@ -73,21 +74,26 @@ function parseDiff(diff: string): FileChange[] {
             files.push(current);
             inHunks = false;
             continue;
+            // @end
         }
+        // @piece preamble: Lines before the first file
         if (current === null) continue; // text before the first file
+        // @end
 
         if (inHunks) {
-            // classify by the first character only: "+-- x" and "--- x" are changed lines here
+            // @piece hunk-lines: Inside the hunks: count added and removed lines
             if (line.startsWith("+")) current.added++;
             else if (line.startsWith("-")) current.removed++;
-            // " " context, "@@" next hunk, "\ No newline at end of file": not counted
             continue;
+            // @end
         }
 
+        // @piece file-metadata: Before the first hunk: status and binary markers
         if (line.startsWith("@@")) inHunks = true;
         else if (line.startsWith("new file mode")) current.status = "added";
         else if (line.startsWith("deleted file mode")) current.status = "deleted";
         else if (line.startsWith("Binary files ")) current.binary = true;
+        // @end
     }
     return files;
 }

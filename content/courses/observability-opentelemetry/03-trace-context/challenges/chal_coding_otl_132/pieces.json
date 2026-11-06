@@ -1,0 +1,45 @@
+[
+  {
+    "id": "parse-shape",
+    "label": "Check the header's length, version and separators",
+    "code": "if (header === null) return null;\nconst h = header.replace(OWS, \"\");\nif (h.length < 55) return null;\nconst version = h.slice(0, 2);\nif (!isHex(version, 2) || version === \"ff\" || h[2] !== \"-\") return null;\nif (version === \"00\" && h.length !== 55) return null;\nif (h.length > 55 && h[55] !== \"-\") return null;"
+  },
+  {
+    "id": "parse-fields",
+    "label": "Read and check the trace id, parent id and flags",
+    "code": "const traceId = h.slice(3, 35);\nconst parentId = h.slice(36, 52);\nconst flags = h.slice(53, 55);\nif (!isHex(traceId, 32) || h[35] !== \"-\" || !isHex(parentId, 16) || h[52] !== \"-\" || !isHex(flags, 2)) return null;\nif (allZero(traceId) || allZero(parentId)) return null;\nreturn { version, traceId, parentId, sampled: (parseInt(flags, 16) & 0x01) === 1 };"
+  },
+  {
+    "id": "tracestate-members",
+    "label": "Accept tracestate only when every member is valid",
+    "code": "if (header.length > 512) return false;\nconst keys = new Set<string>();\nfor (const raw of header.split(\",\")) {\n    const member = raw.replace(OWS, \"\");\n    if (member === \"\") continue;\n    const eq = member.indexOf(\"=\");\n    if (eq < 0) return false;\n    const key = member.slice(0, eq);\n    if (!KEY.test(key) || !VALUE.test(member.slice(eq + 1)) || keys.has(key)) return false;\n    keys.add(key);\n}\nreturn keys.size >= 1 && keys.size <= 32;"
+  },
+  {
+    "id": "new-id",
+    "label": "Draw an id that is not all zeros",
+    "code": "let id = draw();\nwhile (allZero(id)) id = draw();\nreturn id;"
+  },
+  {
+    "id": "child-headers",
+    "label": "Headers for the outgoing call",
+    "code": "const parent = parseTraceparent(incoming.traceparent);\nif (!parent) return { traceparent: `00-${newId(ids.traceId)}-${newId(ids.spanId)}-01`, tracestate: null };\nconst state = incoming.tracestate !== null && validTracestate(incoming.tracestate) ? incoming.tracestate : null;\nreturn { traceparent: `00-${parent.traceId}-${newId(ids.spanId)}-${parent.sampled ? \"01\" : \"00\"}`, tracestate: state };"
+  },
+  {
+    "id": "child-reuses-parent-id",
+    "label": "Headers for the outgoing call",
+    "code": "const parent = parseTraceparent(incoming.traceparent);\nif (!parent) return { traceparent: `00-${newId(ids.traceId)}-${newId(ids.spanId)}-01`, tracestate: null };\nconst state = incoming.tracestate !== null && validTracestate(incoming.tracestate) ? incoming.tracestate : null;\nreturn { traceparent: `00-${parent.traceId}-${parent.parentId}-${parent.sampled ? \"01\" : \"00\"}`, tracestate: state };",
+    "distractor": true
+  },
+  {
+    "id": "fields-zero-ids-allowed",
+    "label": "Read and check the trace id, parent id and flags",
+    "code": "const traceId = h.slice(3, 35);\nconst parentId = h.slice(36, 52);\nconst flags = h.slice(53, 55);\nif (!isHex(traceId, 32) || h[35] !== \"-\" || !isHex(parentId, 16) || h[52] !== \"-\" || !isHex(flags, 2)) return null;\nreturn { version, traceId, parentId, sampled: (parseInt(flags, 16) & 0x01) === 1 };",
+    "distractor": true
+  },
+  {
+    "id": "shape-only-version-00",
+    "label": "Check the header's length, version and separators",
+    "code": "if (header === null) return null;\nconst h = header.replace(OWS, \"\");\nif (h.length < 55) return null;\nconst version = h.slice(0, 2);\nif (!isHex(version, 2) || version === \"ff\" || h[2] !== \"-\") return null;\nif (h.length !== 55) return null;",
+    "distractor": true
+  }
+]

@@ -1,0 +1,19 @@
+[
+  {
+    "id": "chunk-loop",
+    "label": "Go through the entries chunk by chunk",
+    "code": "for (let start = 0; start < entries.length; start += chunkSize) {\n  const end = Math.min(start + chunkSize, entries.length);\n  for (let i = start; i < end; i++) {\n    const entry = entries[i];\n    if (entry.level === \"error\") summary.errors++;\n    else if (entry.level === \"warn\") summary.warnings++;\n    if (entry.durationMs > summary.slowestMs) summary.slowestMs = entry.durationMs;\n  }\n\n  onProgress(end, entries.length);\n  if (end < entries.length) await yieldToMain();\n}"
+  },
+  {
+    "id": "chunk-loop-full-chunks-only",
+    "label": "Go through the entries chunk by chunk",
+    "code": "for (let i = 0; i < entries.length; i++) {\n  const entry = entries[i];\n  if (entry.level === \"error\") summary.errors++;\n  else if (entry.level === \"warn\") summary.warnings++;\n  if (entry.durationMs > summary.slowestMs) summary.slowestMs = entry.durationMs;\n\n  if ((i + 1) % chunkSize === 0) {\n    onProgress(i + 1, entries.length);\n    if (i + 1 < entries.length) await yieldToMain();\n  }\n}",
+    "distractor": true
+  },
+  {
+    "id": "chunk-loop-yield-after-last",
+    "label": "Go through the entries chunk by chunk",
+    "code": "for (let start = 0; start < entries.length; start += chunkSize) {\n  const end = Math.min(start + chunkSize, entries.length);\n  for (let i = start; i < end; i++) {\n    const entry = entries[i];\n    if (entry.level === \"error\") summary.errors++;\n    else if (entry.level === \"warn\") summary.warnings++;\n    if (entry.durationMs > summary.slowestMs) summary.slowestMs = entry.durationMs;\n  }\n\n  onProgress(end, entries.length);\n  await yieldToMain();\n}",
+    "distractor": true
+  }
+]

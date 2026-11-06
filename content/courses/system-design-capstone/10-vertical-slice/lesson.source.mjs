@@ -162,7 +162,7 @@ consumer: before Lua                 nothing in Redis                 redelivere
         p("Notice the asymmetry in the relay: **publish, then mark** can only produce duplicates, which the consumer removes; **mark, then publish** can lose an event, which nothing downstream can recover. When you cannot have both, choose the failure that the next hop can repair."),
 
         h2("6. The challenge: the slice in one file"),
-        p("The challenge gives you the slice as in-memory components with scripted crashes: a `ProgressStore` whose transaction commits all writes together, an `EventBus` that redelivers anything not acked, and a `Leaderboard` with an `atomically` method that behaves like a Lua script. The script crashes the process before and after commits, in the middle of the relay and before consumer acks, then runs a final replay. You write the handler, the relay and the consumer so that the responses are stable under retries and the final progress, outbox and board agree."),
+        p("The challenge gives you the slice as in-memory components with scripted crashes: a `ProgressStore` whose transaction commits all writes together, an `EventBus` that redelivers anything not acked, and a `Leaderboard` with an `atomically` method that behaves like a Lua script. The script crashes the process before and after commits, in the middle of the relay and before consumer acks, then runs a final replay. You assemble the handler, the relay and the consumer so that the responses are stable under retries and the final progress, outbox and board agree."),
         challenge("chal_coding_sdc_412"),
 
         h2("7. How to verify"),

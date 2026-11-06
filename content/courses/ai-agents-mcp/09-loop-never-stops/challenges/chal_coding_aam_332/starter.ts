@@ -31,6 +31,17 @@ type Outcome =
     | { status: "answered"; answer: string }
     | { status: "escalated"; reason: "max_steps" | "repeated_call"; summary: string };
 
+const TEMPORARY = new Set(["TIMEOUT", "UNAVAILABLE", "RATE_LIMITED"]);
+
+function canonical(value: unknown): string {
+    if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+    if (value !== null && typeof value === "object") {
+        const obj = value as Record<string, unknown>;
+        return `{${Object.keys(obj).sort().map((k) => `${JSON.stringify(k)}:${canonical(obj[k])}`).join(",")}}`;
+    }
+    return JSON.stringify(value) ?? "null";
+}
+
 function runSupportAgent(transcript: Message[], model: Model, tools: Tools, clock: Clock, policy: Policy): Outcome {
     // Keep going until the model has an answer for the learner.
     for (;;) {

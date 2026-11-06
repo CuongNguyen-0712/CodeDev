@@ -19,7 +19,7 @@ import { readFileSync } from "node:fs";
 //   When an event moves coursePercent from below 100 to 100, publish exactly one
 //   { type: "course.completed", userId, courseId } and return courseCompleted: true; otherwise courseCompleted: false.
 //
-// Do not change the types, the stores or the test runner.
+// Fill every [ ] line with the right piece. Do not change the types, the stores or the test runner.
 
 type ProgressEvent = { eventId: string; userId: string; courseId: string; lessonId: string; percent: number };
 type CourseCompleted = { type: "course.completed"; userId: string; courseId: string };
@@ -58,8 +58,16 @@ class ProgressService {
     }
 
     record(event: ProgressEvent): RecordResult {
-        return { status: "invalid" };
+        // [ ] Reject an event that names nothing real
+
+        // [ ] Handle each event id once
+
+        // [ ] Ignore progress that is not higher
+
+        // [ ] Store it and announce a newly completed course
     }
+
+    // [ ] The course percent from its lessons
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

@@ -1,6 +1,32 @@
 import { readFileSync } from "node:fs";
 
-// POST /enrollments request validation (reference solution).
+// POST /enrollments request validation. In the NestJS app a ValidationPipe and the EnrollDto do this job;
+// the code runner has no NestJS, so you write the same rules as one plain function.
+//
+// validateEnrollRequest(body) receives the parsed JSON body exactly as the client sent it and returns
+//   { ok: true, value }    - value has courseId, email, plan, seats and couponCode (only when one was given)
+//   { ok: false, errors }  - one { field, message } per invalid field, in the order
+//                            courseId, email, plan, couponCode, seats (the first rule a field fails)
+//
+// Rules ("missing" means the key is absent or its value is null):
+//   body       not a JSON object (null, an array, a string, a number)
+//              -> the only error: body "body must be a JSON object"
+//   courseId   missing -> "courseId is required"; not a string -> "courseId must be a string";
+//              not c_ followed by 1 to 9 digits (/^c_[0-9]{1,9}$/) -> "courseId must be c_ followed by 1 to 9 digits"
+//   email      missing -> "email is required"; not a string -> "email must be a string";
+//              longer than 254 characters or not matching /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+//              -> "email must be a valid email address"
+//   plan       missing -> "plan is required"; not a string -> "plan must be a string";
+//              not exactly "free" or "premium" -> "plan must be one of: free, premium"
+//   couponCode optional (missing = no coupon); not a string -> "couponCode must be a string";
+//              not 4 to 12 characters A-Z or 0-9 -> "couponCode must be 4 to 12 characters, A-Z or 0-9";
+//              a well-formed coupon with plan "free" -> "couponCode is only allowed with plan premium"
+//   seats      optional (missing = 1); not a number or not an integer -> "seats must be an integer";
+//              below 1 or above 50 -> "seats must be between 1 and 50"
+//
+// Never convert or trim a value: "PREMIUM", "2" and " c_12" are errors, not guesses.
+// Ignore any other key in the body (it never reaches value). Fill every [ ] line with the right piece.
+// Do not change the types or the test runner.
 
 const PLANS = ["free", "premium"] as const;
 type Plan = (typeof PLANS)[number];
@@ -9,11 +35,14 @@ type EnrollRequest = { courseId: string; email: string; plan: Plan; seats: numbe
 type FieldError = { field: string; message: string };
 type ValidationResult = { ok: true; value: EnrollRequest } | { ok: false; errors: FieldError[] };
 
+// @piece formats: The formats a course id, an email and a coupon must match
 const COURSE_ID = /^c_[0-9]{1,9}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const COUPON = /^[A-Z0-9]{4,12}$/;
+// @end
 
 function validateEnrollRequest(body: unknown): ValidationResult {
+    // @piece body-check: Reject a body that is not an object, then read fields
     if (typeof body !== "object" || body === null || Array.isArray(body)) {
         return { ok: false, errors: [{ field: "body", message: "body must be a JSON object" }] };
     }
@@ -29,7 +58,9 @@ function validateEnrollRequest(body: unknown): ValidationResult {
         else return v;
         return undefined;
     };
+    // @end
 
+    // @piece course-and-email: courseId and email
     let courseId = requiredString("courseId");
     if (courseId !== undefined && !COURSE_ID.test(courseId)) {
         errors.push({ field: "courseId", message: "courseId must be c_ followed by 1 to 9 digits" });
@@ -40,13 +71,17 @@ function validateEnrollRequest(body: unknown): ValidationResult {
         errors.push({ field: "email", message: "email must be a valid email address" });
         email = undefined;
     }
+    // @end
+    // @piece plan: plan
     const planText = requiredString("plan");
     let plan: Plan | undefined;
     if (planText !== undefined) {
         plan = PLANS.find((p) => p === planText);
         if (plan === undefined) errors.push({ field: "plan", message: "plan must be one of: free, premium" });
     }
+    // @end
 
+    // @piece coupon: couponCode
     let couponCode: string | undefined;
     const coupon = b.couponCode;
     if (!missing(coupon)) {
@@ -55,7 +90,9 @@ function validateEnrollRequest(body: unknown): ValidationResult {
         else if (plan === "free") errors.push({ field: "couponCode", message: "couponCode is only allowed with plan premium" });
         else couponCode = coupon;
     }
+    // @end
 
+    // @piece seats: seats
     let seats = 1;
     const s = b.seats;
     if (!missing(s)) {
@@ -63,13 +100,16 @@ function validateEnrollRequest(body: unknown): ValidationResult {
         else if (s < 1 || s > 50) errors.push({ field: "seats", message: "seats must be between 1 and 50" });
         else seats = s;
     }
+    // @end
 
+    // @piece result: Errors, or the clean request
     if (errors.length > 0 || courseId === undefined || email === undefined || plan === undefined) {
         return { ok: false, errors };
     }
     const value: EnrollRequest = { courseId, email, plan, seats };
     if (couponCode !== undefined) value.couponCode = couponCode;
     return { ok: true, value };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

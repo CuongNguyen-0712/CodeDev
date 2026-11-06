@@ -39,8 +39,17 @@ type Decision = { route: string; strategy: string; reason: string };
 const MAX_BUILD_PAGES = 1000;
 const REQUEST_APIS: RequestApi[] = ["cookies", "headers", "searchParams"];
 
+function isValid(page: PageTraits): boolean {
+    // [ ] Check the traits before any rule
+}
+
 function chooseRendering(page: PageTraits): Decision {
-    return { route: page.route, strategy: "dynamic", reason: "" };
+    const route = page.route;
+    // [ ] Rules 1 and 2: invalid traits, per-user data
+    // [ ] Rule 3: pages that read request-time APIs
+    // [ ] Rule 4: HTML that must be fresh every time
+    // [ ] Rule 5: where the HTML comes from
+    // [ ] Rules 6 and 7: static or ISR
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

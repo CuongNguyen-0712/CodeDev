@@ -1,0 +1,45 @@
+[
+  {
+    "id": "user-columns",
+    "label": "Rules for a user's email and name",
+    "code": "email    TEXT NOT NULL COLLATE NOCASE\n         CONSTRAINT users_email_unique UNIQUE\n         CONSTRAINT users_email_has_at CHECK (instr(email, '@') > 0),\nname     TEXT NOT NULL"
+  },
+  {
+    "id": "course-columns",
+    "label": "Rules for a course's title and level",
+    "code": "title      TEXT NOT NULL,\nlevel      TEXT NOT NULL\n           CONSTRAINT courses_level_check\n           CHECK (level IN ('beginner', 'intermediate', 'advanced'))"
+  },
+  {
+    "id": "enrollment-links",
+    "label": "Who and what an enrollment points to",
+    "code": "user_id      INTEGER NOT NULL\n             REFERENCES users (user_id) ON DELETE CASCADE,\ncourse_id    INTEGER NOT NULL\n             REFERENCES courses (course_id) ON DELETE RESTRICT,"
+  },
+  {
+    "id": "enrollment-state",
+    "label": "Date, status and the key of an enrollment",
+    "code": "enrolled_at  TEXT NOT NULL,\nstatus       TEXT NOT NULL DEFAULT 'active'\n             CONSTRAINT enrollments_status_check\n             CHECK (status IN ('active', 'completed', 'cancelled')),\nCONSTRAINT enrollments_pkey PRIMARY KEY (user_id, course_id)"
+  },
+  {
+    "id": "course-lookup",
+    "label": "Find a course's enrollments fast",
+    "code": "CREATE INDEX enrollments_course_id_idx ON enrollments (course_id);"
+  },
+  {
+    "id": "enrollment-links-cascade-course",
+    "label": "Who and what an enrollment points to",
+    "code": "user_id      INTEGER NOT NULL\n             REFERENCES users (user_id) ON DELETE CASCADE,\ncourse_id    INTEGER NOT NULL\n             REFERENCES courses (course_id) ON DELETE CASCADE,",
+    "distractor": true
+  },
+  {
+    "id": "enrollment-state-default-completed",
+    "label": "Date, status and the key of an enrollment",
+    "code": "enrolled_at  TEXT NOT NULL,\nstatus       TEXT NOT NULL DEFAULT 'completed'\n             CONSTRAINT enrollments_status_check\n             CHECK (status IN ('active', 'completed', 'cancelled')),\nCONSTRAINT enrollments_pkey PRIMARY KEY (user_id, course_id)",
+    "distractor": true
+  },
+  {
+    "id": "user-columns-case-sensitive",
+    "label": "Rules for a user's email and name",
+    "code": "email    TEXT NOT NULL\n         CONSTRAINT users_email_unique UNIQUE\n         CONSTRAINT users_email_has_at CHECK (instr(email, '@') > 0),\nname     TEXT NOT NULL",
+    "distractor": true
+  }
+]

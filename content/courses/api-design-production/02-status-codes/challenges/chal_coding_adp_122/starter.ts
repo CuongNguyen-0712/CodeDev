@@ -30,7 +30,8 @@ import { readFileSync } from "node:fs";
 //   No method left (or no allowed list) gives an empty Allow header.
 // - A POST "created" or any "accepted" without a non-empty location is a handler bug: 500, no headers.
 // Header names are exactly Location, Retry-After, Allow and WWW-Authenticate.
-// Write chooseResponse. Do not change the types, the constants or the test runner.
+// Complete chooseResponse: fill every [ ] line with the right piece. Do not change the types, the
+// constants or the test runner.
 
 type Outcome = {
     kind: string;
@@ -45,8 +46,18 @@ const ALLOW_ORDER = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 const DEFAULT_RETRY_AFTER = 60;
 
 function chooseResponse(method: string, outcome: Outcome): Reply {
-    return { status: 200, headers: {} };
+    // [ ] Method, location check and a reply without headers
+
+    switch (outcome.kind) {
+        // [ ] Outcomes that succeeded (2xx)
+        // [ ] Rejections that need no header
+        // [ ] Replies that tell the client what to do next
+        default:
+            return plain(500);
+    }
 }
+
+// [ ] Retry-After value in seconds
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { cases: [{ method, outcome }] }. Output: one { status, headers } per case, in order.

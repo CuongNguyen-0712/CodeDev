@@ -1,0 +1,45 @@
+[
+  {
+    "id": "is-date",
+    "label": "A real calendar date",
+    "code": "if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(text)) return false;\nconst ms = Date.parse(`${text}T00:00:00Z`);\nreturn !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === text; // rejects 2026-02-30"
+  },
+  {
+    "id": "allowlist-match",
+    "label": "Is the package on the allowlist?",
+    "code": "return allowlist.some((entry) =>\n    entry.startsWith(\"@\") && entry.endsWith(\"/*\") ? name.startsWith(entry.slice(0, -1)) : name === entry);"
+  },
+  {
+    "id": "registry-reasons",
+    "label": "Registry reasons no exception can lift",
+    "code": "const published: string | undefined = registry[change.name]?.[change.to];\nif (published === undefined) fixed.push(\"not in registry\");\nconst ms = published !== undefined && ISO.test(published) ? Date.parse(published) : NaN;\nif (published !== undefined && Number.isNaN(ms)) fixed.push(\"publish date unknown\");"
+  },
+  {
+    "id": "liftable-reasons",
+    "label": "Allowlist and quarantine reasons",
+    "code": "if (!onAllowlist(change.name, policy.allowlist)) liftable.push(\"not on allowlist\");\nif (!Number.isNaN(ms)) {\n    const day = new Date(ms).toISOString().slice(0, 10);\n    const ends = new Date(Date.parse(`${day}T00:00:00Z`) + policy.quarantineDays * DAY).toISOString().slice(0, 10);\n    if (today < ends) liftable.push(`quarantined until ${ends} (published ${day})`);\n}"
+  },
+  {
+    "id": "exceptions",
+    "label": "Apply a matching exception",
+    "code": "const matching = policy.exceptions.filter((e) => e.name === change.name && e.version === change.to);\nconst valid = matching.find((e) => isDate(e.expires) && today <= e.expires);\nif (valid && fixed.length === 0) return { allow: true, reasons: [`exception ${valid.ticket} (expires ${valid.expires})`] };\nif (!valid && matching.length > 0) reasons.push(`exception ${matching[0].ticket} not valid (expires ${matching[0].expires})`);\nreturn { allow: false, reasons };"
+  },
+  {
+    "id": "allowlist-scope-no-slash",
+    "label": "Is the package on the allowlist?",
+    "code": "return allowlist.some((entry) =>\n    entry.startsWith(\"@\") && entry.endsWith(\"/*\") ? name.startsWith(entry.slice(0, -2)) : name === entry);",
+    "distractor": true
+  },
+  {
+    "id": "exceptions-lift-everything",
+    "label": "Apply a matching exception",
+    "code": "const matching = policy.exceptions.filter((e) => e.name === change.name && e.version === change.to);\nconst valid = matching.find((e) => isDate(e.expires) && today <= e.expires);\nif (valid) return { allow: true, reasons: [`exception ${valid.ticket} (expires ${valid.expires})`] };\nif (!valid && matching.length > 0) reasons.push(`exception ${matching[0].ticket} not valid (expires ${matching[0].expires})`);\nreturn { allow: false, reasons };",
+    "distractor": true
+  },
+  {
+    "id": "liftable-local-date",
+    "label": "Allowlist and quarantine reasons",
+    "code": "if (!onAllowlist(change.name, policy.allowlist)) liftable.push(\"not on allowlist\");\nif (!Number.isNaN(ms)) {\n    const day = published!.slice(0, 10); // the date as written\n    const ends = new Date(Date.parse(`${day}T00:00:00Z`) + policy.quarantineDays * DAY).toISOString().slice(0, 10);\n    if (today < ends) liftable.push(`quarantined until ${ends} (published ${day})`);\n}",
+    "distractor": true
+  }
+]

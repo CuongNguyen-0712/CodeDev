@@ -112,7 +112,7 @@ async function top(redis: Redis, key: string, n: number): Promise<Entry[]> {
     return toEntries(flat, 1);
 }`, "leaderboard.read.ts"),
         p("Two details carry most of the weight. The guard on `n` is not decoration: with `n = 0` the stop index is `-1`, which means \"to the last member\", so a request for zero entries returns all 4,812. And the rank is computed from the position (`firstRank + i / 2`), never typed in by hand - which is also how the \"Around you\" window works: ask ZREVRANK for the learner's index, start the window two places above it but **not below index 0**, and number the entries from the start you actually used."),
-        p("Write the rest yourself. The challenge gives you an in-memory model of the Redis commands (same names and semantics, including negative indexes and expiry on a fake clock) and asks for the weekly key, recording a score on both boards with the retention rule, top N, and a learner's rank with neighbours:"),
+        p("Assemble the rest. The challenge gives you an in-memory model of the Redis commands (same names and semantics, including negative indexes and expiry on a fake clock) and asks for the weekly key, recording a score on both boards with the retention rule, top N, and a learner's rank with neighbours:"),
         challenge("chal_coding_rdp_312"),
 
         h2("6. How to verify a leaderboard"),

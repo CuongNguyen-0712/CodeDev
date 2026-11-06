@@ -1,19 +1,19 @@
 import { readFileSync } from "node:fs";
 
 // Ship a Breaking Change Safely. Release 2026.10.22-2 of the CodeDev API "cleaned up" the course
-// DTO: it renamed `rating` to `averageRating` and `instructor` to `teacher`, and turned `price`
-// into a string. Android 3.8 (40% of Android users, cannot be force-updated for two weeks) still
-// reads `rating`, `instructor` and an integer `price`, and crashes on every catalog response.
+// DTO below. Since then Android app 3.8 (40% of Android users; it cannot be force-updated for two
+// weeks) crashes on every catalog screen with "Fields [rating, instructor] are required", while
+// the web app, deployed together with the API, works. The test runner checks every response
+// against what app 3.8 decodes (old client) and what the web app decodes (new client).
 //
-// Fix the mapper with expand/contract: every course response carries the old fields with their
-// old types AND the new fields, so app 3.8 and the new web app both work:
+// The contract both clients must get from every course response:
 //   old (deprecated): rating (number or null, key always present), instructor { id, name },
 //                     price (integer, in dong)
 //   new:              averageRating (number or null, key always present), teacher { id, name },
 //                     priceAmount (the price in dong as a decimal string without separators, "149000")
 //   unchanged:        id, slug, title, ratingCount
 //
-// deprecationHeaders(policy) announces the deprecated fields on every course response:
+// deprecationHeaders(policy) must announce the deprecated fields on every course response:
 //   Deprecation: "@" + policy.deprecatedAt in whole Unix seconds, rounded down (RFC 9745 form)
 //   Sunset:      policy.sunsetAt as an HTTP-date, e.g. "Mon, 30 Nov 2026 00:00:00 GMT" (RFC 8594);
 //                no Sunset header at all when policy.sunsetAt is null (no date decided yet)
@@ -35,6 +35,7 @@ type CourseRow = {
 type DeprecationPolicy = { deprecatedAt: string; sunsetAt: string | null };
 
 type Person = { id: string; name: string };
+// @piece course-dto: The fields a course response carries
 type CourseDto = {
     id: string;
     slug: string;
@@ -50,10 +51,12 @@ type CourseDto = {
     price: number;
     priceAmount: string;
 };
+// @end
 
-const MIN_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
-
+// src/courses/course.mapper.ts as shipped in 2026.10.22-2:
+// "renamed rating to averageRating, cleaned up the course DTO"
 function toCourseDto(row: CourseRow): CourseDto {
+    // @piece course-mapper: Map a course row to the response
     return {
         id: row.id,
         slug: row.slug,
@@ -66,9 +69,13 @@ function toCourseDto(row: CourseRow): CourseDto {
         price: row.priceVnd,
         priceAmount: String(row.priceVnd),
     };
+    // @end
 }
 
+// The release removed the old fields outright, so it had nothing to announce.
 function deprecationHeaders(policy: DeprecationPolicy): Record<string, string> {
+    // @piece deprecation-headers: Announce the deprecated fields
+    const MIN_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
     const deprecatedMs = Date.parse(policy.deprecatedAt);
     if (Number.isNaN(deprecatedMs)) throw new Error(`invalid deprecatedAt: ${policy.deprecatedAt}`);
     const headers: Record<string, string> = { Deprecation: `@${Math.floor(deprecatedMs / 1000)}` };
@@ -78,6 +85,7 @@ function deprecationHeaders(policy: DeprecationPolicy): Record<string, string> {
     if (sunsetMs < deprecatedMs + MIN_WINDOW_MS) throw new Error("sunset is less than 14 days after deprecation");
     headers.Sunset = new Date(sunsetMs).toUTCString();
     return headers;
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

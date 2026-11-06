@@ -1,0 +1,46 @@
+[
+  {
+    "id": "counters",
+    "label": "Start the conversation and the counters",
+    "code": "let messages = hintMessages(req);\nlet repairs = 0;\nlet retries = 0;\nlet calls = 0;\nlet inputTokens = 0;\nlet outputTokens = 0;\nconst fallback = (reason: string): HintResult => ({ source: \"fallback\", hint: FALLBACK_HINT, reason, calls, inputTokens, outputTokens });"
+  },
+  {
+    "id": "call-with-retry",
+    "label": "Call the model, retrying only transient errors",
+    "code": "let reply: Reply;\ncalls++;\ntry {\n    reply = await llm.complete(messages);\n} catch (error) {\n    if (!(error instanceof LlmError)) return fallback(\"error\");\n    if (!TRANSIENT.includes(error.status) || retries >= opts.maxRetries) return fallback(`error ${error.status}`);\n    retries++;\n    await clock.sleep(opts.baseDelayMs * 2 ** (retries - 1));\n    continue;\n}"
+  },
+  {
+    "id": "count-tokens",
+    "label": "Add the reply's token usage",
+    "code": "inputTokens += reply.usage.inputTokens;\noutputTokens += reply.usage.outputTokens;"
+  },
+  {
+    "id": "accept-or-repair",
+    "label": "Accept a valid reply or ask for a repair",
+    "code": "const errors = validateHint(reply.text);\nif (errors.length === 0) {\n    return { source: repairs === 0 ? \"model\" : \"repair\", hint: JSON.parse(reply.text) as Hint, reason: null, calls, inputTokens, outputTokens };\n}\nif (repairs >= opts.maxRepairs) return fallback(\"invalid output\");\nrepairs++;\nmessages = repairMessages(reply.text, errors);"
+  },
+  {
+    "id": "accept-or-repair-whole-chat",
+    "label": "Accept a valid reply or ask for a repair",
+    "code": "const errors = validateHint(reply.text);\nif (errors.length === 0) {\n    return { source: repairs === 0 ? \"model\" : \"repair\", hint: JSON.parse(reply.text) as Hint, reason: null, calls, inputTokens, outputTokens };\n}\nif (repairs >= opts.maxRepairs) return fallback(\"invalid output\");\nrepairs++;\nmessages = [...messages, { role: \"user\", content: reply.text }, ...repairMessages(reply.text, errors)];",
+    "distractor": true
+  },
+  {
+    "id": "call-with-retry-any-error",
+    "label": "Call the model, retrying only transient errors",
+    "code": "let reply: Reply;\ncalls++;\ntry {\n    reply = await llm.complete(messages);\n} catch (error) {\n    if (!(error instanceof LlmError)) return fallback(\"error\");\n    if (retries >= opts.maxRetries) return fallback(`error ${error.status}`);\n    retries++;\n    await clock.sleep(opts.baseDelayMs * 2 ** (retries - 1));\n    continue;\n}",
+    "distractor": true
+  },
+  {
+    "id": "call-with-retry-count-replies",
+    "label": "Call the model, retrying only transient errors",
+    "code": "let reply: Reply;\ntry {\n    reply = await llm.complete(messages);\n    calls++;\n} catch (error) {\n    if (!(error instanceof LlmError)) return fallback(\"error\");\n    if (!TRANSIENT.includes(error.status) || retries >= opts.maxRetries) return fallback(`error ${error.status}`);\n    retries++;\n    await clock.sleep(opts.baseDelayMs * 2 ** (retries - 1));\n    continue;\n}",
+    "distractor": true
+  },
+  {
+    "id": "call-with-retry-fixed-delay",
+    "label": "Call the model, retrying only transient errors",
+    "code": "let reply: Reply;\ncalls++;\ntry {\n    reply = await llm.complete(messages);\n} catch (error) {\n    if (!(error instanceof LlmError)) return fallback(\"error\");\n    if (!TRANSIENT.includes(error.status) || retries >= opts.maxRetries) return fallback(`error ${error.status}`);\n    retries++;\n    await clock.sleep(opts.baseDelayMs);\n    continue;\n}",
+    "distractor": true
+  }
+]

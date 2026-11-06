@@ -30,21 +30,18 @@ def tokens(text: str) -> list[str]:
 
 
 def bm25_rank(docs: list[dict], query: str, k: int, k1: float = 1.5, b: float = 0.75) -> list[list]:
-    # BUG (on purpose): this is raw TF-IDF - no saturation, no length normalisation,
-    # and a term found in every document scores 0.
-    n_docs = len(docs)
+    # [ ] Tokens of every document and the average length
+
+    # [ ] Inverse document frequency of each query term
+
     scored = []
-    for doc in docs:
-        tf = Counter(tokens(doc["text"]))
-        score = 0.0
-        for term in tokens(query):
-            df = sum(1 for d in docs if term in tokens(d["text"]))
-            if tf[term]:
-                score += tf[term] * math.log(n_docs / df)
+    for doc, toks in zip(docs, doc_tokens):
+        tf = Counter(toks)
+        # [ ] BM25 score of one document
         if score > 0:
-            scored.append([doc["id"], round(score, 4)])
-    scored.sort(key=lambda item: item[1], reverse=True)
-    return scored[:k]
+            scored.append((doc["id"], score))
+
+    # [ ] Best k documents, highest score first
 
 
 # ---------------------------------------------------------------- test runner (do not change)

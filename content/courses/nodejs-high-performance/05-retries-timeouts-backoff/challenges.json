@@ -57,6 +57,9 @@
             }
           ]
         }
+      ],
+      "outcomes": [
+        "resilience"
       ]
     },
     {
@@ -64,7 +67,7 @@
       "name": "fix-leaking-timeout",
       "type": "fix_bug",
       "title": "Fix the timeout that leaks timers and sockets",
-      "description": "callWithTimeout() puts a deadline on the fraud-scoring call with Promise.race. It returns the right errors, yet under load the process leaks timers and keeps timed-out requests running. Fix it so the deadline timer is always cleaned up and a timed-out request is actually cancelled.",
+      "description": "callWithTimeout() puts a deadline on the fraud-scoring call with Promise.race. It returns the right errors, yet under load the process leaks timers and keeps timed-out requests running. Fix it so the deadline timer is always cleaned up and a timed-out request is actually cancelled.\n\nSelect the faulty lines and replace them with the right fix; some fixes are wrong on purpose.",
       "difficulty": "medium",
       "points": 20,
       "coding": {
@@ -205,6 +208,14 @@
           "hidden": true,
           "score": 6
         }
+      ],
+      "outcomes": [
+        "resilience"
+      ],
+      "hints": [
+        "A timeout has two jobs: stop waiting, and stop the work and the timer it started.",
+        "AbortController.abort() cancels a request that accepts a signal; clearing the timer in a finally block runs whether the call won, failed or timed out.",
+        "Example with a database query: `const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 2000); try { return await query(sql, { signal: ac.signal }); } finally { clearTimeout(t); }`"
       ]
     },
     {
@@ -524,6 +535,14 @@
           "hidden": true,
           "score": 6
         }
+      ],
+      "outcomes": [
+        "resilience"
+      ],
+      "hints": [
+        "A circuit breaker is a small state machine: closed, open, and half-open after a cool-down.",
+        "Count consecutive failures while closed, remember when the circuit opened, and use the injected clock to decide when trial calls may go through; limit how many trials run at once.",
+        "Example of the state check in another client: `const state = open && now() - openedAt >= coolDownMs ? 'half_open' : open ? 'open' : 'closed';`"
       ]
     }
   ]

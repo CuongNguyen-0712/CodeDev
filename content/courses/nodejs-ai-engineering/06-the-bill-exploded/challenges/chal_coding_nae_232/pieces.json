@@ -1,0 +1,24 @@
+[
+  {
+    "id": "context-files",
+    "label": "Choose the files sent to the model",
+    "code": "const byPath = new Map(files.map((f) => [f.path, f]));\nconst test = byPath.get(failure.testFile);\nconst wanted = test ? [test.path, ...test.imports] : [];\nconst picked: RepoFile[] = [];\nconst seen = new Set<string>();\nlet used = 0;\nfor (const path of wanted) {\n    const file = byPath.get(path);\n    if (!file || seen.has(path)) continue;\n    seen.add(path);\n    if (used + file.tokens > budgetTokens) continue;\n    picked.push(file);\n    used += file.tokens;\n}\nreturn picked;"
+  },
+  {
+    "id": "ask-the-model",
+    "label": "Ask the model and handle an invalid reply",
+    "code": "let messages = hintMessages(input.failure, buildContext(input.failure, input.files, input.budgetTokens));\nfor (let repairs = 0; ; repairs++) {\n    const reply = await llm.complete(messages);\n    const errors = validateHint(reply);\n    if (errors.length === 0) return { source: repairs === 0 ? \"model\" : \"repair\", hint: JSON.parse(reply) as Hint };\n    if (repairs === MAX_REPAIRS) return { source: \"fallback\", hint: FALLBACK_HINT };\n    messages = repairMessages(reply, errors);\n}"
+  },
+  {
+    "id": "ask-the-model-same-messages",
+    "label": "Ask the model and handle an invalid reply",
+    "code": "let messages = hintMessages(input.failure, buildContext(input.failure, input.files, input.budgetTokens));\nfor (let repairs = 0; ; repairs++) {\n    const reply = await llm.complete(messages);\n    const errors = validateHint(reply);\n    if (errors.length === 0) return { source: repairs === 0 ? \"model\" : \"repair\", hint: JSON.parse(reply) as Hint };\n    if (repairs === MAX_REPAIRS) return { source: \"fallback\", hint: FALLBACK_HINT };\n    // retry the same messages, at most MAX_REPAIRS more times\n}",
+    "distractor": true
+  },
+  {
+    "id": "context-files-every-file",
+    "label": "Choose the files sent to the model",
+    "code": "const byPath = new Map(files.map((f) => [f.path, f]));\nconst test = byPath.get(failure.testFile);\nconst wanted = test ? [test.path, ...files.map((f) => f.path)] : [];\nconst picked: RepoFile[] = [];\nconst seen = new Set<string>();\nlet used = 0;\nfor (const path of wanted) {\n    const file = byPath.get(path);\n    if (!file || seen.has(path)) continue;\n    seen.add(path);\n    if (used + file.tokens > budgetTokens) continue;\n    picked.push(file);\n    used += file.tokens;\n}\nreturn picked;",
+    "distractor": true
+  }
+]

@@ -140,6 +140,15 @@ then apply `db/seeds/<course>.sql` (test it on a Neon branch first).
   piece goes to the start of the function body), or drags it onto a line on desktop, and
   ticks the ones used. Stored in `challenge.coding_configs.snippets` (migration `20261104_019`); the
   definition is cached 10 min. Older hand-written `coding.snippets` lists still work for existing courses.
+- Fix-bug pieces (`type: "fix_bug"` with `bugs/`): the marked blocks of `solution.<ext>` are the fixes, and
+  `bugs/<piece id>.<ext>` (same first line as a distractor) holds the faulty code of each block. The starter is
+  then the faulty program itself, no `[ ]` lines: the learner finds the faulty lines, selects them and clicks
+  (or drops) the fix, which replaces the whole selected lines. Every block needs its bug; distractors are
+  plausible wrong fixes. Text outside the pieces is what the learner reads, so it describes the symptom, not
+  the fix. verify-challenges also checks that each bug, left alone with every other block fixed, fails.
+- verify-challenges rejects a distractor (or a "bug left") whose only failures are build errors, undefined
+  names or timeouts: a wrong piece must be caught by what it does, or the compiler gives it away (for a "bug
+  left" of dependent fix blocks this is only a note). A starter whose tests time out is rejected too.
 - Config-file challenges: `coding.language` `dockerfile`, `nginx` or `yaml` (`starter.Dockerfile`,
   `starter.conf`, `starter.yml`). They run like javascript: the file text becomes the global `__source` and
   `harness.js` parses and simulates it (no entry function, no real Docker or Nginx).

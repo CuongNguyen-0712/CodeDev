@@ -1,0 +1,55 @@
+[
+  {
+    "id": "validate-request",
+    "label": "Reject a request without ids",
+    "code": "if (!req || !isId(req.requestId) || !isId(req.userId) || !isId(req.lessonId)) {\n    return { status: 400, error: \"invalid_request\" };\n}"
+  },
+  {
+    "id": "request-key",
+    "label": "The idempotency key of this request",
+    "code": "const { requestId, userId, lessonId } = req;\nconst key = `${userId}/${requestId}`;"
+  },
+  {
+    "id": "replay-saved",
+    "label": "Replay a saved answer, refuse a reused id or unknown lesson",
+    "code": "const saved = tx.getRequest(key);\nif (saved) return saved.lessonId === lessonId ? saved.response : { status: 422, error: \"request_id_reused\" };\nif (!Object.prototype.hasOwnProperty.call(ctx.lessonPoints, lessonId)) return { status: 404, error: \"unknown_lesson\" };"
+  },
+  {
+    "id": "record-completion",
+    "label": "Complete the lesson and add its event to the outbox",
+    "code": "const progress = tx.getProgress(userId) ?? { completed: [], points: 0 };\nlet response: ApiResponse;\nif (progress.completed.includes(lessonId)) {\n    response = { status: 200, lessonId, newlyCompleted: false, totalPoints: progress.points };\n} else {\n    const points = ctx.lessonPoints[lessonId];\n    const next = { completed: [...progress.completed, lessonId], points: progress.points + points };\n    tx.putProgress(userId, next);\n    tx.appendOutbox({ eventId: `lesson-completed:${userId}:${lessonId}`, userId, lessonId, points });\n    response = { status: 200, lessonId, newlyCompleted: true, totalPoints: next.points };\n}"
+  },
+  {
+    "id": "save-response",
+    "label": "Save the answer for later retries",
+    "code": "tx.putRequest(key, { lessonId, response });\nreturn response;"
+  },
+  {
+    "id": "relay-outbox",
+    "label": "Publish the unpublished outbox rows in order",
+    "code": "for (const row of ctx.store.unpublished()) {\n    ctx.bus.publish(row.event);\n    ctx.store.markPublished(row.seq);\n}"
+  },
+  {
+    "id": "consume-once",
+    "label": "Add the points once per event",
+    "code": "if (board.isProcessed(event.eventId)) return;\nboard.markProcessed(event.eventId);\nboard.incrementBy(event.userId, event.points);"
+  },
+  {
+    "id": "consume-once-no-dedupe",
+    "label": "Add the points once per event",
+    "code": "board.markProcessed(event.eventId);\nboard.incrementBy(event.userId, event.points);",
+    "distractor": true
+  },
+  {
+    "id": "relay-outbox-mark-first",
+    "label": "Publish the unpublished outbox rows in order",
+    "code": "for (const row of ctx.store.unpublished()) {\n    ctx.store.markPublished(row.seq);\n    ctx.bus.publish(row.event);\n}",
+    "distractor": true
+  },
+  {
+    "id": "request-key-global",
+    "label": "The idempotency key of this request",
+    "code": "const { requestId, userId, lessonId } = req;\nconst key = requestId;",
+    "distractor": true
+  }
+]

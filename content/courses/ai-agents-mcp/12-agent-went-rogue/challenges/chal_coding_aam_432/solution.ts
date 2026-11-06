@@ -133,12 +133,12 @@ function makeTools(world: World): Record<string, Tool> {
 function executeTool(tools: Record<string, Tool>, session: Session, call: ToolCall, desk: ApprovalDesk, token: string | null): string {
     const tool = tools[call.name];
     if (!tool) return `error: unknown tool ${call.name}`;
-    // A write runs only with a token the human path issued for exactly this call in this session.
+    // @piece gateway: Decide whether the call may run, then return its output
     if (tool.permission === "write" && (token === null || !desk.redeem(token, session.id, call))) {
         return "error: write tools need an approval token for this exact call";
     }
-    // Tool output goes back to the model as delimited data, never as raw text.
     return wrapToolOutput(call.name, tool.untrusted ? "untrusted" : "trusted", tool.run(call.args, session));
+    // @end
 }
 
 function runAgent(session: Session, model: FakeModel, tools: Record<string, Tool>, desk: ApprovalDesk): void {
@@ -146,11 +146,11 @@ function runAgent(session: Session, model: FakeModel, tools: Record<string, Tool
     for (let step = 0; step < 20; step++) {
         const turn = model.next(transcript);
         if ("final" in turn) return;
+        // @piece agent-step: Handle the call the model proposes
         const call = turn.toolCall;
         transcript.push({ role: "assistant", content: `${call.name} ${JSON.stringify(call.args)}` });
         let token: string | null = null;
         if (tools[call.name]?.permission === "write") {
-            // Every write is shown to a human; a decline goes back to the model as the tool result.
             const answer = desk.request(session.id, call);
             if ("declined" in answer) {
                 transcript.push({ role: "tool", content: answer.declined });
@@ -159,6 +159,7 @@ function runAgent(session: Session, model: FakeModel, tools: Record<string, Tool
             token = answer.token;
         }
         transcript.push({ role: "tool", content: executeTool(tools, session, call, desk, token) });
+        // @end
     }
 }
 

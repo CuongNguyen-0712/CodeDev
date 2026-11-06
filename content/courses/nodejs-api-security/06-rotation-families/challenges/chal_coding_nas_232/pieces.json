@@ -1,0 +1,45 @@
+[
+  {
+    "id": "insert-row",
+    "label": "Store a hashed token that ends with its family",
+    "code": "const token = deps.randomBytes(32).toString(\"base64url\");\nconst createdAt = deps.now();\nconst expiresAt = Math.min(createdAt + deps.idleTimeoutMs, familyExpiresAt);\ndeps.store.insert({\n    id, familyId, userId, deviceId, tokenHash: sha256Hex(token),\n    createdAt, expiresAt, usedAt: null, revokedAt: null, replacedBy: null,\n});\nreturn { token, id, familyId, userId, deviceId, expiresAt, familyExpiresAt };"
+  },
+  {
+    "id": "start-family",
+    "label": "Start a family with its first token",
+    "code": "const id = deps.newId(\"rt\");\nconst familyId = deps.newId(\"fam\");\nreturn issue(deps, id, familyId, userId, deviceId, deps.now() + deps.absoluteLifetimeMs);"
+  },
+  {
+    "id": "find-and-state",
+    "label": "Find the token and check its state",
+    "code": "if (typeof presented !== \"string\" || !TOKEN_FORMAT.test(presented)) return { ok: false, reason: \"malformed\" };\nconst hash = sha256Hex(presented);\nconst row = deps.store.findByHash(hash);\nif (!row || !timingSafeEqual(Buffer.from(row.tokenHash, \"hex\"), Buffer.from(hash, \"hex\"))) return { ok: false, reason: \"unknown\" };\nif (row.revokedAt !== null) return { ok: false, reason: \"revoked\" };\nif (row.usedAt !== null) return { ok: false, reason: \"used\" };"
+  },
+  {
+    "id": "family-window",
+    "label": "Family lifetime, then idle timeout",
+    "code": "const now = deps.now();\nconst familyStart = Math.min(...deps.store.findFamily(row.familyId).map((r) => r.createdAt));\nconst familyExpiresAt = familyStart + deps.absoluteLifetimeMs;\nif (now >= familyExpiresAt) return { ok: false, reason: \"family_expired\" };\nif (now >= row.expiresAt) return { ok: false, reason: \"idle_timeout\" };"
+  },
+  {
+    "id": "rotate",
+    "label": "Rotate to the next token in the family",
+    "code": "const next = issue(deps, deps.newId(\"rt\"), row.familyId, row.userId, row.deviceId, familyExpiresAt);\ndeps.store.update(row.id, { usedAt: now, replacedBy: next.id });\nreturn { ok: true, ...next };"
+  },
+  {
+    "id": "family-window-from-token",
+    "label": "Family lifetime, then idle timeout",
+    "code": "const now = deps.now();\nconst familyStart = row.createdAt;\nconst familyExpiresAt = familyStart + deps.absoluteLifetimeMs;\nif (now >= familyExpiresAt) return { ok: false, reason: \"family_expired\" };\nif (now >= row.expiresAt) return { ok: false, reason: \"idle_timeout\" };",
+    "distractor": true
+  },
+  {
+    "id": "find-used-first",
+    "label": "Find the token and check its state",
+    "code": "if (typeof presented !== \"string\" || !TOKEN_FORMAT.test(presented)) return { ok: false, reason: \"malformed\" };\nconst hash = sha256Hex(presented);\nconst row = deps.store.findByHash(hash);\nif (!row || !timingSafeEqual(Buffer.from(row.tokenHash, \"hex\"), Buffer.from(hash, \"hex\"))) return { ok: false, reason: \"unknown\" };\nif (row.usedAt !== null) return { ok: false, reason: \"used\" };\nif (row.revokedAt !== null) return { ok: false, reason: \"revoked\" };",
+    "distractor": true
+  },
+  {
+    "id": "rotate-new-family",
+    "label": "Rotate to the next token in the family",
+    "code": "const next = issue(deps, deps.newId(\"rt\"), deps.newId(\"fam\"), row.userId, row.deviceId, familyExpiresAt);\ndeps.store.update(row.id, { usedAt: now, replacedBy: next.id });\nreturn { ok: true, ...next };",
+    "distractor": true
+  }
+]

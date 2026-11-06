@@ -50,18 +50,22 @@ CREATE TABLE enrollments (
     user_id       INTEGER NOT NULL REFERENCES users (user_id),
     course_id     INTEGER NOT NULL REFERENCES courses (course_id),
     enrolled_at   TEXT    NOT NULL,
+    # @piece one-per-course: The last column and what the table guarantees
     status        TEXT    NOT NULL CHECK (status IN ('active', 'cancelled', 'completed')),
-    UNIQUE (user_id, course_id)  -- one enrollment per learner and course, enforced at insert time
+    UNIQUE (user_id, course_id)
+    # @end
 );
 """
 
-# The UNIQUE constraint decides; a duplicate becomes a no-op, a cancelled enrollment is reactivated.
+# BUG (on purpose): inserts blindly, so two requests that both passed the check both insert.
 ENROLL = """
+# @piece enroll: Insert the enrollment
 INSERT INTO enrollments (user_id, course_id, enrolled_at, status)
 VALUES (:user_id, :course_id, :at, 'active')
 ON CONFLICT (user_id, course_id) DO UPDATE
     SET status = 'active', enrolled_at = excluded.enrolled_at
     WHERE enrollments.status = 'cancelled'
+# @end
 """
 
 

@@ -17,7 +17,9 @@ type DeadLetter = { id: string; attempts: number; lastError: string; at: number 
 type Worker = { queue: Message[]; dlq: DeadLetter[]; processed: string[] };
 
 const RETRY_DELAY_SECONDS = 30;
+// @piece max-attempts: How many attempts a message gets
 const MAX_ATTEMPTS = 3;
+// @end
 
 // ---------------------------------------------------------------- grader (do not change)
 // Grades one submission. Throws when the test report cannot be graded.
@@ -49,6 +51,7 @@ function workOnce(w: Worker, now: number): void {
         w.processed.push(`${head.id}@${now}`);
     } catch (err) {
         head.lastError = (err as Error).message;
+        // @piece on-failure: What happens after a failed attempt
         if (head.attempts >= MAX_ATTEMPTS) {
             // poison: park it with the evidence, alert on DLQ depth, and let the next message run
             w.queue.shift();
@@ -56,6 +59,7 @@ function workOnce(w: Worker, now: number): void {
             return;
         }
         head.notBefore = now + RETRY_DELAY_SECONDS;
+        // @end
     }
 }
 

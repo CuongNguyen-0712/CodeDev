@@ -60,18 +60,71 @@ const key = (o: Order): string => `${o.userId}:${o.courseId}`;
 // Each action runs inside one transaction (t is the transaction copy of the tables) and must be idempotent:
 // running it again after it already committed changes nothing. Throw BusinessError for a business refusal.
 const ACTIONS: Record<ActionName, (t: Tables, order: Order) => void> = {
-    pay(t, o) {},
-    enroll(t, o) {},
-    grant(t, o) {},
-    receipt(t, o) {},
-    refund(t, o) {},
-    cancelEnrollment(t, o) {},
-    revokeEntitlement(t, o) {},
+    pay(t, o) {
+        // [ ] Take the payment, once per saga
+    },
+    enroll(t, o) {
+        // [ ] Enroll, unless the seat belongs to another saga
+    },
+    grant(t, o) {
+        t.entitlements.set(key(o), { sagaId: o.sagaId, active: true });
+    },
+    receipt(t, o) {
+        if (t.receipts.some((r) => r.sagaId === o.sagaId)) return;
+        t.receipts.push({ sagaId: o.sagaId, userId: o.userId, amount: o.price });
+    },
+    refund(t, o) {
+        // [ ] Refund a captured payment, once
+    },
+    cancelEnrollment(t, o) {
+        const e = t.enrollments.get(key(o));
+        if (e && e.sagaId === o.sagaId && e.status === "active") e.status = "cancelled";
+    },
+    revokeEntitlement(t, o) {
+        const e = t.entitlements.get(key(o));
+        if (e && e.sagaId === o.sagaId && e.active) e.active = false;
+    },
 };
+
+const FORWARD: StepName[] = ["pay", "enroll", "grant"];
+const UNDO: Record<string, CompName> = { pay: "refund", enroll: "cancelEnrollment", grant: "revokeEntitlement" };
+
+/** Runs the action up to maxAttempts times. Returns null on success, else the reason it failed. */
+function attempt(ctx: Ctx, action: ActionName, order: Order): string | null {
+    // [ ] Try an action, retrying only transient failures
+}
+
+function compensate(ctx: Ctx, rec: SagaRecord): void {
+    // [ ] Undo the finished steps
+}
+
+function sendReceipt(ctx: Ctx, rec: SagaRecord): void {
+    const failure = attempt(ctx, "receipt", rec.order);
+    if (failure === null) {
+        rec.done.push("receipt");
+        rec.status = "completed";
+        rec.error = null;
+    } else {
+        rec.status = "receipt_pending";
+        rec.error = `receipt: ${failure}`;
+    }
+    ctx.save(rec);
+}
 
 /** Starts the saga of this order, or resumes it from the record stored in the database. */
 function runSaga(ctx: Ctx, order: Order): void {
-    // load the record (or create and save it), then run, compensate or retry the receipt by its status
+    let rec = ctx.load(order.sagaId);
+    if (!rec) {
+        const valid = (order.method === "points" || order.method === "card") && Number.isInteger(order.price) && order.price > 0;
+        rec = { order, status: valid ? "running" : "aborted", done: [], undone: [], error: valid ? null : "invalid order" };
+        ctx.save(rec);
+    }
+    if (rec.status === "running") {
+        // [ ] Run the forward steps, saving progress
+    } else if (rec.status === "receipt_pending") {
+        sendReceipt(ctx, rec);
+    }
+    if (rec.status === "compensating" || rec.status === "stuck") compensate(ctx, rec);
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "open",
+    "label": "Start the unit of work",
+    "code": "\"BEGIN\","
+  },
+  {
+    "id": "close",
+    "label": "Finish the unit of work",
+    "code": "\"COMMIT\","
+  },
+  {
+    "id": "close-rollback",
+    "label": "Finish the unit of work",
+    "code": "\"ROLLBACK\",",
+    "distractor": true
+  }
+]

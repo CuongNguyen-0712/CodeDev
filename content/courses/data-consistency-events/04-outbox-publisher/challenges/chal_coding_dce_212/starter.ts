@@ -30,13 +30,29 @@ const TOPIC = "enrollment-events";
 type Config = { batchSize: number; leaseMs: number; backoffMs: number; maxAttempts: number };
 
 function claimBatch(db: FakeDb, owner: string, now: number, cfg: Config): number[] {
-    // TODO: one db.tx that leases up to cfg.batchSize rows for this owner, keeping per-aggregate order
-    return [];
+    // [ ] Refuse an invalid configuration
+    return db.tx((t) => {
+        // [ ] Lease rows in order, per aggregate
+    });
 }
 
 function publishClaimed(db: FakeDb, broker: FakeBroker, owner: string, now: number, cfg: Config): void {
-    // TODO: publish the rows this owner still holds a lease on, mark each one sent after its publish,
-    // back off on BrokerError, then release the leases you did not use
+    const mine = db.tx((t) =>
+        [...t.outbox.values()]
+            .filter((r) => r.status === "pending" && r.leaseOwner === owner && r.leaseUntil > now)
+            .sort((a, b) => a.id - b.id),
+    );
+    const blocked = new Set<string>();
+    for (const row of mine) {
+        if (blocked.has(row.aggregate)) continue;
+        try {
+            broker.publish(TOPIC, { id: row.id, key: row.aggregate, payload: { type: row.type } });
+        } catch (error) {
+            // [ ] Back off after a broker error
+        }
+        // [ ] Mark the row sent after its publish
+    }
+    // [ ] Give back the leases left unused
 }
 // ------------------------------------------------------------ building blocks (do not change)
 type Status = "pending" | "sent" | "failed";

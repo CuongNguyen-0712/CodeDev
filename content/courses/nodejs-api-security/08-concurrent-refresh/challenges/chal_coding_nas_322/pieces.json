@@ -1,0 +1,24 @@
+[
+  {
+    "id": "claim-token",
+    "label": "Take the token before rotating it",
+    "code": "// Compare-and-swap: only one request can move used_at from NULL to a time.\nif (!(await db.markUsed(row.id, req.now))) {\n    const fresh = await db.findById(row.id);\n    if (!fresh || fresh.revokedAt !== null) return { status: \"revoked\" };\n    return handleReuse(db, fresh, req);\n}"
+  },
+  {
+    "id": "grace-window",
+    "label": "A retry from the same device in the grace window",
+    "code": "if (req.deviceId === row.deviceId && req.now - usedAt < GRACE_MS) {\n    if (row.replacedBy === null) return { status: \"retry\" }; // the winner has not recorded its successor yet\n    const successor = await db.findById(row.replacedBy);\n    const reply = await db.getReply(row.id);\n    if (successor && successor.usedAt === null && successor.revokedAt === null && reply !== null) {\n        return { status: \"grace\", token: reply };\n    }\n}"
+  },
+  {
+    "id": "claim-loser-replay",
+    "label": "Take the token before rotating it",
+    "code": "// Compare-and-swap: only one request can move used_at from NULL to a time.\nif (!(await db.markUsed(row.id, req.now))) {\n    const fresh = await db.findById(row.id);\n    if (!fresh || fresh.revokedAt !== null) return { status: \"revoked\" };\n    await db.revokeFamily(row.familyId, req.now);\n    await db.recordEvent({ type: \"refresh_token_reuse\", userId: row.userId, familyId: row.familyId, tokenId: row.id, deviceId: req.deviceId, at: req.now });\n    return { status: \"replay_detected\" };\n}",
+    "distractor": true
+  },
+  {
+    "id": "claim-loser-retries",
+    "label": "Take the token before rotating it",
+    "code": "// Compare-and-swap: only one request can move used_at from NULL to a time.\nif (!(await db.markUsed(row.id, req.now))) {\n    const fresh = await db.findById(row.id);\n    if (!fresh || fresh.revokedAt !== null) return { status: \"revoked\" };\n    return { status: \"retry\" };\n}",
+    "distractor": true
+  }
+]

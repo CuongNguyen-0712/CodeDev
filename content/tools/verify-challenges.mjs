@@ -39,14 +39,16 @@ function detectEntryName(source = "") {
 }
 
 async function runOne({ code, harness, entry, input, timeLimitMs }) {
-    const factory = new Function(
-        `${code}\n;\n${harness || ""}\n;\nreturn { harness: typeof __harness === "function" ? __harness : null, entry: typeof ${entry} !== "undefined" ? ${entry} : null };`
-    );
-    const exported = factory();
-    const run = exported.harness ? exported.harness(input, {}) : exported.entry(input);
     let timer;
     const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`timed out after ${timeLimitMs}ms`)), timeLimitMs); });
     try {
+        // A syntax error or a synchronous throw is this variant's result, not a crash of the tool.
+        // shortcut: a synchronous endless loop still hangs the tool (in-process), move to a worker if one shows up.
+        const factory = new Function(
+            `${code}\n;\n${harness || ""}\n;\nreturn { harness: typeof __harness === "function" ? __harness : null, entry: typeof ${entry} !== "undefined" ? ${entry} : null };`
+        );
+        const exported = factory();
+        const run = exported.harness ? exported.harness(input, {}) : exported.entry(input);
         return { ok: true, output: await Promise.race([run, timeout]) };
     } catch (error) {
         return { ok: false, error: error.message };
@@ -96,8 +98,23 @@ async function runStdio({ language, code, tests, timeLimitMs, memoryLimitMb }) {
     return tests.map((test, i) => {
         const r = results[String(i)];
         const passed = Boolean(r?.ok) && stdoutMatches(r.output, JSON.stringify(test.expected));
-        return { test, passed, got: r?.ok ? JSON.stringify(r.output) : `ERROR ${String(r?.error || "no result").slice(0, 300)}` };
+        return { test, passed, got: r?.ok ? JSON.stringify(r.output) : `ERROR ${r?.timedOut ? "timed out: " : ""}${String(r?.error || "no result").slice(0, 300)}` };
     });
+}
+
+// A wrong piece must be caught by what the code does, not by the code failing to build or run: a
+// piece that only breaks compilation (or names something undefined) gives itself away. A timeout is a
+// real symptom (a deadlock, a missing await) for a wrong piece; only a starter must not hang.
+const BROKEN_RE = /Compilation failed|SyntaxError(?!: Invalid regular expression)|IndentationError|TabError|NameError|ReferenceError|is not defined/i;
+const TIMEOUT_RE = /timed out|time limit/i;
+
+/** Why a variant that should fail does not count, or null. */
+function weakFailure(label, outcomes) {
+    const failing = outcomes.filter((o) => !o.passed);
+    if (label === "starter" && failing.some((o) => TIMEOUT_RE.test(o.got))) return "the starter hangs (a test timed out): keep loops inside the pieces";
+    if (!/^(distractor|bug left):/.test(label) || !failing.length) return null;
+    if (failing.every((o) => BROKEN_RE.test(o.got))) return `fails only because it does not build or run (${failing[0].got.slice(6, 120).replace(/\s+/g, " ")}): a test must catch what it does`;
+    return null;
 }
 
 let failures = 0;
@@ -122,10 +139,12 @@ for (const challenge of challenges.filter((c) => c.type !== "quiz")) {
         const gen = generatePieces(dir, language);
         const problems = [...gen.errors];
         const solution = stripMarkers(read(`solution.${ext}`));
-        if (norm(starter) !== gen.base) problems.push(`starter.${ext} is stale: run build-pieces.mjs`);
+        if (norm(starter) !== gen.starter) problems.push(`starter.${ext} is stale: run build-pieces.mjs`);
         if (read("pieces.json") === null || norm(read("pieces.json")) !== piecesJson(gen.pieces)) problems.push("pieces.json is stale: run build-pieces.mjs");
         if (challenge.coding?.snippets) problems.push("coding.snippets and pieces.json: keep one");
-        if (!problems.length && !config && detectEntryName(gen.base) !== detectEntryName(solution)) {
+        // Only browser javascript runs an entry function (the first one in the learner's file: the base
+        // with placeholders, or the faulty program in fix mode); stdio languages run their test runner.
+        if (!problems.length && browser && !config && detectEntryName(gen.fix ? gen.starter : gen.base) !== detectEntryName(solution)) {
             problems.push("the entry function must stay outside the pieces");
         }
         if (!problems.length && restore(gen.base, gen.real) !== solution) problems.push("base + pieces does not rebuild the solution");
@@ -138,6 +157,12 @@ for (const challenge of challenges.filter((c) => c.type !== "quiz")) {
         for (const d of gen.distractors) {
             const swapped = gen.real.map((p) => (p.id === d.for ? { ...p, code: d.code } : p));
             variants.push([`distractor:${d.id}`, restore(gen.base, swapped), "fail"]);
+        }
+        // Fix-bug mode: every bug must matter on its own (all other blocks fixed, this one left).
+        for (const b of gen.bugs) {
+            if (gen.bugs.length < 2) break; // the starter already is this variant
+            const swapped = gen.real.map((p) => (p.id === b.id ? { ...p, code: b.code } : p));
+            variants.push([`bug left:${b.id}`, restore(gen.base, swapped), "fail"]);
         }
     }
     const variantDir = path.join(dir, "variants");
@@ -162,6 +187,15 @@ for (const challenge of challenges.filter((c) => c.type !== "quiz")) {
         const asExpected = expectation === "pass" ? allPassed : !allPassed;
         if (!asExpected) failures++;
         console.log(`  ${asExpected ? "ok  " : "BAD "} ${label.padEnd(28)} ${passedCount}/${outcomes.length} passed (expected to ${expectation})`);
+        const weak = asExpected && expectation === "fail" ? weakFailure(label, outcomes) : null;
+        // A "bug left" that only breaks the build is a fix spread over dependent blocks: the build error
+        // points the learner at the other block, so it is a note. A wrong piece that only breaks the
+        // build gives itself away, and a hanging starter wastes the runner: those fail the check.
+        if (weak && label.startsWith("bug left:")) console.log(`  note ${label}: ${weak}`);
+        else if (weak) {
+            failures++;
+            console.log(`  BAD  ${label}: ${weak}`);
+        }
         for (const o of outcomes.filter((x) => !x.passed && expectation === "pass")) {
             console.log(`         - ${o.test.name}: got ${o.got}`);
         }

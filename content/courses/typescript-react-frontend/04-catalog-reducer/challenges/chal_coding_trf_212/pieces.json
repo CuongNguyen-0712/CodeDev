@@ -1,0 +1,60 @@
+[
+  {
+    "id": "known-value",
+    "label": "Is the value one of the allowed ones?",
+    "code": "return typeof value === \"string\" && (list as readonly string[]).includes(value);"
+  },
+  {
+    "id": "search",
+    "label": "Search text typed",
+    "code": "if (typeof action.text !== \"string\" || action.text === state.search) return state;\nreturn { ...state, search: action.text, page: 1 };"
+  },
+  {
+    "id": "category-toggle",
+    "label": "Category toggled on or off",
+    "code": "const category = action.category;\nif (!isOneOf(CATEGORIES, category)) return state;\nconst categories = state.categories.includes(category)\n    ? state.categories.filter((c) => c !== category)\n    : [...state.categories, category];\nreturn { ...state, categories, page: 1 };"
+  },
+  {
+    "id": "level",
+    "label": "Level chosen",
+    "code": "if (!isOneOf(LEVELS, action.level) || action.level === state.level) return state;\nreturn { ...state, level: action.level, page: 1 };"
+  },
+  {
+    "id": "sort",
+    "label": "Sort changed",
+    "code": "if (!isOneOf(SORTS, action.sort) || action.sort === state.sort) return state;\nreturn { ...state, sort: action.sort, page: 1 };"
+  },
+  {
+    "id": "page",
+    "label": "Page changed",
+    "code": "const page = action.page;\nif (!Number.isInteger(page) || page < 1 || page > state.totalPages || page === state.page) return state;\nreturn { ...state, page };"
+  },
+  {
+    "id": "reset",
+    "label": "Filters reset",
+    "code": "if (state.search === \"\" && state.categories.length === 0 && state.level === \"all\" && state.page === 1) return state;\nreturn { ...state, search: \"\", categories: [], level: \"all\", page: 1 };"
+  },
+  {
+    "id": "results",
+    "label": "Results loaded",
+    "code": "if (!Number.isInteger(action.totalPages) || action.totalPages < 0) return state;\nconst totalPages = Math.max(1, action.totalPages);\nconst page = Math.min(state.page, totalPages);\nif (totalPages === state.totalPages && page === state.page) return state;\nreturn { ...state, totalPages, page };"
+  },
+  {
+    "id": "category-toggle-in-place",
+    "label": "Category toggled on or off",
+    "code": "const category = action.category;\nif (!isOneOf(CATEGORIES, category)) return state;\nconst categories = state.categories;\nconst index = categories.indexOf(category);\nif (index >= 0) categories.splice(index, 1);\nelse categories.push(category);\nreturn { ...state, categories, page: 1 };",
+    "distractor": true
+  },
+  {
+    "id": "category-toggle-keep-page",
+    "label": "Category toggled on or off",
+    "code": "const category = action.category;\nif (!isOneOf(CATEGORIES, category)) return state;\nconst categories = state.categories.includes(category)\n    ? state.categories.filter((c) => c !== category)\n    : [...state.categories, category];\nreturn { ...state, categories };",
+    "distractor": true
+  },
+  {
+    "id": "page-range-only",
+    "label": "Page changed",
+    "code": "const page = action.page;\nif (page < 1 || page > state.totalPages || page === state.page) return state;\nreturn { ...state, page };",
+    "distractor": true
+  }
+]

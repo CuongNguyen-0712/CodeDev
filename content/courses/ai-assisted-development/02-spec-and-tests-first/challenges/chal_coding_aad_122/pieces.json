@@ -1,0 +1,45 @@
+[
+  {
+    "id": "is-id",
+    "label": "Is this value a usable id",
+    "code": "return typeof value === \"string\" && value.trim() !== \"\";"
+  },
+  {
+    "id": "add-checks",
+    "label": "Validate the request, then refuse repeats and a full list",
+    "code": "if (!isId(userId) || !isId(lessonId) || typeof at !== \"number\" || !Number.isFinite(at)) return \"invalid_request\";\nif (!this.lessons.has(lessonId)) return \"lesson_not_found\";\nconst bookmarks = this.byUser.get(userId) ?? [];\nif (bookmarks.some((b) => b.lessonId === lessonId)) return \"already_bookmarked\";\nif (bookmarks.length >= MAX_BOOKMARKS_PER_USER) return \"limit_reached\";"
+  },
+  {
+    "id": "add-store",
+    "label": "Store the new bookmark",
+    "code": "bookmarks.push({ lessonId, at, seq: this.seq++ });\nthis.byUser.set(userId, bookmarks);\nreturn \"added\";"
+  },
+  {
+    "id": "remove",
+    "label": "Remove one bookmark",
+    "code": "if (!isId(userId) || !isId(lessonId)) return \"invalid_request\";\nconst bookmarks = this.byUser.get(userId) ?? [];\nconst index = bookmarks.findIndex((b) => b.lessonId === lessonId);\nif (index === -1) return \"not_bookmarked\";\nbookmarks.splice(index, 1);\nreturn \"removed\";"
+  },
+  {
+    "id": "list",
+    "label": "The user's lessons, most recent bookmark first",
+    "code": "return [...(this.byUser.get(userId) ?? [])]\n    .sort((a, b) => b.at - a.at || b.seq - a.seq)\n    .map((b) => b.lessonId);"
+  },
+  {
+    "id": "add-checks-limit-first",
+    "label": "Validate the request, then refuse repeats and a full list",
+    "code": "if (!isId(userId) || !isId(lessonId) || typeof at !== \"number\" || !Number.isFinite(at)) return \"invalid_request\";\nif (!this.lessons.has(lessonId)) return \"lesson_not_found\";\nconst bookmarks = this.byUser.get(userId) ?? [];\nif (bookmarks.length >= MAX_BOOKMARKS_PER_USER) return \"limit_reached\";\nif (bookmarks.some((b) => b.lessonId === lessonId)) return \"already_bookmarked\";",
+    "distractor": true
+  },
+  {
+    "id": "is-id-any-string",
+    "label": "Is this value a usable id",
+    "code": "return typeof value === \"string\" && value !== \"\";",
+    "distractor": true
+  },
+  {
+    "id": "list-ties-unordered",
+    "label": "The user's lessons, most recent bookmark first",
+    "code": "return [...(this.byUser.get(userId) ?? [])]\n    .sort((a, b) => b.at - a.at)\n    .map((b) => b.lessonId);",
+    "distractor": true
+  }
+]

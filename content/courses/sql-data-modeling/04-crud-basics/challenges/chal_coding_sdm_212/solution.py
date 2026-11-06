@@ -33,22 +33,28 @@ Q1 = """
 SELECT c.course_id, c.title, e.status
 FROM enrollments e
 JOIN courses c ON c.course_id = e.course_id
+# @piece my-courses-filter: Only this learner's live enrollments, in title order
 WHERE e.user_id = :user_id
   AND e.status <> 'cancelled'
 ORDER BY c.title, c.course_id
+# @end
 """
 
 Q2 = """
+# @piece enroll: Insert one active enrollment
 INSERT INTO enrollments (user_id, course_id, enrolled_at, status)
 VALUES (:user_id, :course_id, :enrolled_at, 'active')
+# @end
 """
 
 Q3 = """
 UPDATE enrollments
 SET status = 'cancelled'
+# @piece cancel-filter: Exactly the enrollment to cancel
 WHERE user_id = :user_id
   AND course_id = :course_id
   AND status = 'active'
+# @end
 """
 
 

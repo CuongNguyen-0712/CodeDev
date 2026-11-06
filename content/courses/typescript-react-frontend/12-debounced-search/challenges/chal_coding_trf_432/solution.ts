@@ -52,21 +52,28 @@ type SearchBox = {
 
 // ---------------------------------------------------------------- your code
 function createDebouncedSearch({ clock, debounceMs, search, show, showError }: SearchDeps): SearchBox {
+    // @piece state: The pending timer, the request in flight, the latest id
     let timer: number | null = null;
     let inFlight: FakeAbortController | null = null;
     let latest = 0; // id of the only request whose answer may still be shown
+    // @end
 
+    // @piece cancel-timer: Cancel a scheduled search
     function cancelTimer(): void {
         if (timer !== null) clock.clearTimeout(timer);
         timer = null;
     }
+    // @end
 
+    // @piece abort-request: Abort the request in flight
     function abortInFlight(): void {
         inFlight?.abort();
         inFlight = null;
     }
+    // @end
 
     function send(query: string): void {
+        // @piece send: Send one request; show only the latest answer
         abortInFlight();
         const id = ++latest;
         const controller = new FakeAbortController();
@@ -83,10 +90,12 @@ function createDebouncedSearch({ clock, debounceMs, search, show, showError }: S
                 showError(error instanceof Error ? error.message : String(error));
             },
         );
+        // @end
     }
 
     return {
         onInput(text: string): void {
+            // @piece on-input: Wait for a pause in typing
             cancelTimer();
             const query = text.trim();
             if (query === "") {
@@ -99,11 +108,14 @@ function createDebouncedSearch({ clock, debounceMs, search, show, showError }: S
                 timer = null;
                 send(query);
             }, debounceMs);
+            // @end
         },
         dispose(): void {
+            // @piece dispose: Stop everything when the box goes away
             cancelTimer();
             latest++;
             abortInFlight();
+            // @end
         },
     };
 }

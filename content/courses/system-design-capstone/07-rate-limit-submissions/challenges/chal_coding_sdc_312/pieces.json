@@ -1,0 +1,50 @@
+[
+  {
+    "id": "limits-in-force",
+    "label": "The capacity and refill rate in force right now",
+    "code": "const exam = this.config.examDay;\nlet capacity = limit.capacity;\nlet perSec = limit.refillPerSec;\nif (exam !== null && exam.fromMs <= now && now < exam.toMs) {\n    capacity = Math.min(capacity, exam.capacity);\n    perSec = Math.min(perSec, exam.refillPerSec);\n}\nreturn { capacity: capacity * TOKEN, rate: Math.round(perSec * 1000) };"
+  },
+  {
+    "id": "refill",
+    "label": "Tokens in a bucket after refilling until now",
+    "code": "const { capacity, rate } = this.inForce(bucket.limit, now);\nreturn Math.min(capacity, bucket.tokens + (now - bucket.last) * rate);"
+  },
+  {
+    "id": "evict-idle",
+    "label": "Forget idle buckets that are already full",
+    "code": "for (const [key, bucket] of this.buckets) {\n    const full = this.refilled(bucket, now) >= this.inForce(bucket.limit, now).capacity;\n    if (now - bucket.last >= this.config.idleTtlMs && full) this.buckets.delete(key);\n}"
+  },
+  {
+    "id": "pick-bucket",
+    "label": "Whose bucket this request uses, and its limit",
+    "code": "if (typeof req.userId === \"string\" && req.userId !== \"\") {\n    key = `user:${req.userId}`;\n    limit = this.config.user;\n} else if (typeof req.ip === \"string\" && req.ip !== \"\") {\n    key = `ip:${req.ip}`;\n    limit = this.config.anonymous;\n} else {\n    return { status: 400, retryAfterSec: null, remaining: 0 };\n}"
+  },
+  {
+    "id": "load-bucket",
+    "label": "Create or refill the bucket",
+    "code": "const { capacity, rate } = this.inForce(limit, now);\nlet bucket = this.buckets.get(key);\nif (bucket === undefined) {\n    bucket = { tokens: capacity, last: now, limit };\n    this.buckets.set(key, bucket);\n} else {\n    bucket.tokens = this.refilled(bucket, now);\n    bucket.last = now;\n}"
+  },
+  {
+    "id": "take-token",
+    "label": "Take a token, or answer 429 with Retry-After",
+    "code": "if (bucket.tokens >= TOKEN) {\n    bucket.tokens -= TOKEN;\n    return { status: 200, retryAfterSec: null, remaining: Math.floor(bucket.tokens / TOKEN) };\n}\nconst waitMs = Math.ceil((TOKEN - bucket.tokens) / rate);\nreturn { status: 429, retryAfterSec: Math.ceil(waitMs / 1000), remaining: Math.floor(bucket.tokens / TOKEN) };"
+  },
+  {
+    "id": "evict-idle-not-full",
+    "label": "Forget idle buckets that are already full",
+    "code": "for (const [key, bucket] of this.buckets) {\n    if (now - bucket.last >= this.config.idleTtlMs) this.buckets.delete(key);\n}",
+    "distractor": true
+  },
+  {
+    "id": "limits-in-force-exam-replaces",
+    "label": "The capacity and refill rate in force right now",
+    "code": "const exam = this.config.examDay;\nlet capacity = limit.capacity;\nlet perSec = limit.refillPerSec;\nif (exam !== null && exam.fromMs <= now && now < exam.toMs) {\n    capacity = exam.capacity;\n    perSec = exam.refillPerSec;\n}\nreturn { capacity: capacity * TOKEN, rate: Math.round(perSec * 1000) };",
+    "distractor": true
+  },
+  {
+    "id": "take-token-retry-rounded",
+    "label": "Take a token, or answer 429 with Retry-After",
+    "code": "if (bucket.tokens >= TOKEN) {\n    bucket.tokens -= TOKEN;\n    return { status: 200, retryAfterSec: null, remaining: Math.floor(bucket.tokens / TOKEN) };\n}\nconst waitMs = Math.ceil((TOKEN - bucket.tokens) / rate);\nreturn { status: 429, retryAfterSec: Math.round(waitMs / 1000), remaining: Math.floor(bucket.tokens / TOKEN) };",
+    "distractor": true
+  }
+]

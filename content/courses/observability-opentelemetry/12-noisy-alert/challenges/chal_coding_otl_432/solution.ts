@@ -8,16 +8,8 @@ type Minute = { good: number; bad: number };
 type Severity = "page" | "ticket";
 type Firing = { rule: string; severity: Severity };
 type Notification = { rule: string; severity: Severity; start: number; stop: number | null };
-type Rule = { name: string; severity: Severity; factor: number; longMinutes: number; shortMinutes: number };
 
 const SLO = 0.995; // 99.5% of eligible submit requests are good, over a rolling 28 days
-const MIN_REQUESTS = 100;
-
-const RULES: Rule[] = [
-    { name: "burn-1h", severity: "page", factor: 14.4, longMinutes: 60, shortMinutes: 5 },
-    { name: "burn-6h", severity: "page", factor: 6, longMinutes: 360, shortMinutes: 30 },
-    { name: "burn-3d", severity: "ticket", factor: 1, longMinutes: 4320, shortMinutes: 360 },
-];
 
 // Requests in the `length` minutes that end at minute `end` (inclusive), clipped at minute 0.
 function windowTotals(minutes: Minute[], end: number, length: number): { bad: number; total: number } {
@@ -31,9 +23,20 @@ function windowTotals(minutes: Minute[], end: number, length: number): { bad: nu
 }
 
 // How many times faster than "exactly on budget" the window spends the error budget, to 2 decimals.
+// Shared with the SLO dashboard.
 function burnRate(bad: number, total: number): number {
     return Math.round(((bad / total) / (1 - SLO)) * 100) / 100;
 }
+
+// @piece burn-rate-rules: Decide which alert rules fire at minute t
+type Rule = { name: string; severity: Severity; factor: number; longMinutes: number; shortMinutes: number };
+const MIN_REQUESTS = 100;
+
+const RULES: Rule[] = [
+    { name: "burn-1h", severity: "page", factor: 14.4, longMinutes: 60, shortMinutes: 5 },
+    { name: "burn-6h", severity: "page", factor: 6, longMinutes: 360, shortMinutes: 30 },
+    { name: "burn-3d", severity: "ticket", factor: 1, longMinutes: 4320, shortMinutes: 360 },
+];
 
 // The rules that are firing at minute t.
 function firingRules(minutes: Minute[], t: number): Firing[] {
@@ -49,6 +52,7 @@ function firingRules(minutes: Minute[], t: number): Firing[] {
     }
     return firing;
 }
+// @end
 
 // One notification per firing period of a rule: start = first firing minute,
 // stop = first minute after it that is not firing (null when still firing at the end).

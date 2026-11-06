@@ -75,6 +75,7 @@ class BudgetTracker {
     }
 
     startSession(userId: string, day: string): void {
+        // @piece start-session: Reset the session; daily spend is per user and day
         this.dayKey = `${userId} ${day}`;
         this.startedAt = this.clock.now();
         this.modelCalls = 0;
@@ -82,22 +83,28 @@ class BudgetTracker {
         this.outputTokens = 0;
         this.costMicros = 0;
         this.toolCalls = {};
+        // @end
     }
 
     beforeModelCall(model: string, inputTokens: number): string | null {
+        // @piece estimate: Price the call at its worst case before sending it
         const price = this.config.prices[model];
         if (!price) return "unknown_model";
         const { session, maxOutputTokens } = this.config;
         const tokens = inputTokens + maxOutputTokens;
         const cost = inputTokens * price.inputPerMTok + maxOutputTokens * price.outputPerMTok;
+        // @end
+        // @piece model-limits: Refuse the call if any budget would be exceeded
         if (this.inputTokens + this.outputTokens + tokens > session.maxTokens) return "max_tokens";
         if (this.costMicros + cost > session.maxCostMicros) return "max_cost";
         if (this.spentToday() + cost > this.config.dailyCostMicrosPerUser) return "daily_cost";
         if (this.elapsed() + this.config.modelCallMsEstimate > session.maxWallMs) return "max_wall_ms";
         return null;
+        // @end
     }
 
     recordModelCall(model: string, usage: Usage): void {
+        // @piece record-model: Add the call's real usage and cost
         const price = this.config.prices[model];
         const cost = usage.inputTokens * price.inputPerMTok + usage.outputTokens * price.outputPerMTok;
         this.modelCalls++;
@@ -105,12 +112,15 @@ class BudgetTracker {
         this.outputTokens += usage.outputTokens;
         this.costMicros += cost;
         this.daily.set(this.dayKey, this.spentToday() + cost);
+        // @end
     }
 
     beforeToolCall(tool: string): string | null {
+        // @piece tool-limit: Refuse a tool call beyond its limit
         const limit = this.config.session.maxToolCalls[tool];
         if (limit !== undefined && (this.toolCalls[tool] ?? 0) + 1 > limit) return `tool_calls:${tool}`;
         return null;
+        // @end
     }
 
     recordToolCall(tool: string): void {
@@ -118,6 +128,7 @@ class BudgetTracker {
     }
 
     report(): Report {
+        // @piece report: What was used and what is left
         const { session } = this.config;
         const left = (limit: number, used: number): number => Math.max(0, limit - used);
         const toolsLeft: Record<string, number> = {};
@@ -137,6 +148,7 @@ class BudgetTracker {
                 toolCalls: toolsLeft,
             },
         };
+        // @end
     }
 
     private spentToday(): number {

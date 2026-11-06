@@ -9,6 +9,7 @@ case = {"a": [[latency_ms, ...], ...],   # one list of samples per run of build 
 1. p95 of each run, nearest rank: sort the run's samples, rank = ceil(95 * n / 100),
    p95 = sorted[rank - 1].
 2. diff = mean(p95 of A's runs) - mean(p95 of B's runs)   (positive: B is faster)
+   every mean here is sum(values) / len(values) in floats (not statistics.mean)
 3. Bootstrap over RUNS (a run is the unit, not a sample). PRNG: state starts at S;
    next() sets state = (1103515245 * state + 12345) % 2**31 and returns state; a draw from
    a list of k items picks index next() % k. For each of the R resamples, in this order:
@@ -30,9 +31,11 @@ MODULUS = 2 ** 31
 
 
 def p95(samples):
+    # @piece p95-rank: Nearest-rank p95 of one run
     ordered = sorted(samples)
     rank = (95 * len(ordered) + 99) // 100     # ceil(95 * n / 100) in exact integers
     return ordered[rank - 1]
+    # @end
 
 
 def mean(values):
@@ -46,9 +49,11 @@ def compare_runs(case):
     if any(len(run) == 0 for run in runs_a + runs_b):
         return {"error": "empty run"}
 
+    # @piece run-p95s: One p95 per run, and the difference of their means
     p95_a = [p95(run) for run in runs_a]
     p95_b = [p95(run) for run in runs_b]
     diff = mean(p95_a) - mean(p95_b)
+    # @end
 
     state = case["seed"]
 
@@ -57,22 +62,28 @@ def compare_runs(case):
         state = (1103515245 * state + 12345) % MODULUS
         return values[state % len(values)]
 
+    # @piece bootstrap: Resample runs and collect the differences
     diffs = []
     for _ in range(case["resamples"]):
         picked_a = [draw(p95_a) for _ in p95_a]
         picked_b = [draw(p95_b) for _ in p95_b]
         diffs.append(mean(picked_a) - mean(picked_b))
+    # @end
+    # @piece ci-bounds: The 2.5th and 97.5th percentile of the differences
     diffs.sort()
     resamples = len(diffs)
     low = diffs[(25 * resamples + 999) // 1000 - 1]
     high = diffs[(975 * resamples + 999) // 1000 - 1]
+    # @end
 
+    # @piece verdict: The verdict from the interval
     if low > 0:
         verdict = "B is faster"
     elif high < 0:
         verdict = "B is slower"
     else:
         verdict = "no clear difference"
+    # @end
     return {"p95_a": p95_a, "p95_b": p95_b, "diff_ms": round(diff, 1),
             "ci_ms": [round(low, 1), round(high, 1)], "verdict": verdict}
 

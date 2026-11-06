@@ -28,9 +28,26 @@ type Policy = { allowlist: string[]; quarantineDays: number; exceptions: Excepti
 type Registry = Record<string, Record<string, string>>; // name -> version -> publish timestamp
 type Decision = { allow: boolean; reasons: string[] };
 
-// Write decide (helpers are welcome). Do not change the types or the test runner.
+const DAY = 86_400_000;
+const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
+function isDate(text: string): boolean {
+    // [ ] A real calendar date
+}
+
+function onAllowlist(name: string, allowlist: string[]): boolean {
+    // [ ] Is the package on the allowlist?
+}
+
 function decide(change: Change, policy: Policy, registry: Registry, today: string): Decision {
-    return { allow: true, reasons: [] };
+    const fixed: string[] = []; // reasons no exception can lift
+    const liftable: string[] = [];
+    // [ ] Registry reasons no exception can lift
+    // [ ] Allowlist and quarantine reasons
+    const reasons = [...fixed, ...liftable];
+    if (reasons.length === 0) return { allow: true, reasons: [] };
+
+    // [ ] Apply a matching exception
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

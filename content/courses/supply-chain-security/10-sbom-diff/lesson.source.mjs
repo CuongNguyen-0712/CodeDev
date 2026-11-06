@@ -148,7 +148,7 @@ diff before.txt after.txt`, "terminal"),
             "**Dropping hash changes as generator noise.** The same version with different bytes is exactly what a tampered mirror or a dependency confusion attack looks like. Spot it: your report has no section for it, or it only compares hashes when the version changed.",
             "**Generating the SBOM from package.json.** It lists ranges, not what was installed. Spot it: versions like `^2.0.0` in the SBOM, or the SBOM does not change when only the lockfile changes.",
         ]),
-        p("In the challenge you write the diff the release job runs: keys from purls (with the fallback for components without one), nested components, duplicates, semver direction, license and hash changes, a sorted report and a summary. The tests run it on small SBOMs like the one above, on prereleases and build metadata, on a package installed in two versions, on a large SBOM and on invalid input."),
+        p("In the challenge you assemble the diff the release job runs: keys from purls (with the fallback for components without one), nested components, duplicates, semver direction, license and hash changes, a sorted report and a summary. The tests run it on small SBOMs like the one above, on prereleases and build metadata, on a package installed in two versions, on a large SBOM and on invalid input."),
         challenge("chal_coding_ssc_412"),
 
         h2("7. Summary"),

@@ -54,6 +54,7 @@ interface Report {
 const TYPES = new Set(["enqueue", "dequeue", "complete"]);
 
 function parseLine(line: string): LogEvent | null {
+    // @piece parse-line: Parse one log line, refusing malformed ones
     const fields = line.trim().split(/\s+/);
     if (fields.length !== 4) return null;
     const [ts, type, queue, jobId] = fields;
@@ -63,11 +64,14 @@ function parseLine(line: string): LogEvent | null {
     // Date.parse rolls "02-30" over to March: a real time must print back as the same text
     if (Number.isNaN(ms) || new Date(ms).toISOString() !== ts.replace("Z", ".000Z")) return null;
     return { at: ms / 1000, type: type as EventType, queue, jobId };
+    // @end
 }
 
 function nearestRank(sorted: number[], p: number): number | null {
+    // @piece percentile: Nearest-rank percentile of sorted values
     if (sorted.length === 0) return null;
     return sorted[Math.ceil((p / 100) * sorted.length) - 1];
+    // @end
 }
 
 function queueLag(sloSeconds: number, lines: string[]): Report {
@@ -76,6 +80,7 @@ function queueLag(sloSeconds: number, lines: string[]): Report {
     const queues = new Set<string>();
     let first = Infinity;
     let last = -Infinity;
+    // @piece collect-jobs: Read the lines into one record per job
     for (const line of lines) {
         const e = parseLine(line);
         if (!e) {
@@ -91,6 +96,7 @@ function queueLag(sloSeconds: number, lines: string[]): Report {
         if (seen === undefined || e.at < seen) job[e.type] = e.at;
         jobs.set(key, job);
     }
+    // @end
     const windows: Window[] = [];
     if (queues.size === 0) return { skippedLines, windows };
     const firstMinute = Math.floor(first / 60) * 60;
@@ -100,10 +106,13 @@ function queueLag(sloSeconds: number, lines: string[]): Report {
         const qJobs = known.filter((j) => j.queue === queue);
         for (let start = firstMinute; start <= lastMinute; start += 60) {
             const end = start + 60;
+            // @piece waiting: Jobs still waiting at the end of the minute
             const waiting = qJobs.filter(
                 (j) => j.enqueue! < end && (j.dequeue ?? Infinity) >= end && (j.complete ?? Infinity) >= end,
             );
             const oldestAgeSec = waiting.reduce((max, j) => Math.max(max, end - j.enqueue!), 0);
+            // @end
+            // @piece window-row: Wait and processing times, then the row
             const waits = qJobs
                 .filter((j) => j.dequeue !== undefined && j.dequeue >= start && j.dequeue < end)
                 .map((j) => j.dequeue! - j.enqueue!)
@@ -122,6 +131,7 @@ function queueLag(sloSeconds: number, lines: string[]): Report {
                 processingP95Sec: nearestRank(processing, 95),
                 breach: oldestAgeSec > sloSeconds,
             });
+            // @end
         }
     }
     return { skippedLines, windows };

@@ -26,26 +26,24 @@ import sqlite3
 import sys
 
 QUERY = """
-WITH learner_counts AS (
-    SELECT course_id, COUNT(*) AS learners
-    FROM enrollments
-    WHERE status <> 'cancelled'
-    GROUP BY course_id
-),
-completed_counts AS (
-    SELECT l.course_id, COUNT(*) AS completed_lessons
-    FROM lesson_progress lp
-    JOIN lessons l ON l.lesson_id = lp.lesson_id
-    WHERE lp.completed_at IS NOT NULL
-    GROUP BY l.course_id
-)
 SELECT c.course_id,
        c.title,
+       # @piece counts: The two numbers of each course
        COALESCE(lc.learners, 0)          AS learners,
        COALESCE(cc.completed_lessons, 0) AS completed_lessons
+       # @end
 FROM courses c
-LEFT JOIN learner_counts lc   ON lc.course_id = c.course_id
-LEFT JOIN completed_counts cc ON cc.course_id = c.course_id
+# @piece joins: Where the numbers come from
+LEFT JOIN (SELECT course_id, COUNT(*) AS learners
+           FROM enrollments
+           WHERE status <> 'cancelled'
+           GROUP BY course_id) lc ON lc.course_id = c.course_id
+LEFT JOIN (SELECT l.course_id, COUNT(*) AS completed_lessons
+           FROM lesson_progress lp
+           JOIN lessons l ON l.lesson_id = lp.lesson_id
+           WHERE lp.completed_at IS NOT NULL
+           GROUP BY l.course_id) cc ON cc.course_id = c.course_id
+# @end
 ORDER BY c.course_id
 """
 

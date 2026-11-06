@@ -1,0 +1,55 @@
+[
+  {
+    "id": "locale",
+    "label": "Reduce the locale to a supported language",
+    "code": "const language = (locale ?? \"\").trim().toLowerCase().split(\"-\")[0];\nreturn LOCALES.includes(language) ? language : DEFAULT_LOCALE;"
+  },
+  {
+    "id": "resource",
+    "label": "Look up the resource",
+    "code": "const spec = Object.prototype.hasOwnProperty.call(RESOURCES, req.resource) ? RESOURCES[req.resource] : undefined;\nif (!spec) throw new Error(`unknown resource: ${req.resource}`);"
+  },
+  {
+    "id": "params",
+    "label": "Check the route params",
+    "code": "const params = req.params ?? {};\nconst paramValues = spec.params.map((name) => {\n    const value = (params[name] ?? \"\").trim();\n    if (value === \"\") throw new Error(`missing param: ${name}`);\n    return value;\n});"
+  },
+  {
+    "id": "user",
+    "label": "Check the user; skip caching what must not be stored",
+    "code": "const userId = (req.userId ?? \"\").trim();\nif (spec.classification !== \"public\" && userId === \"\") throw new Error(\"personal data needs a signed-in user\");\nif (spec.classification === \"private-no-store\") return { key: null, cacheControl: \"private, no-store\" };"
+  },
+  {
+    "id": "base-key",
+    "label": "Start the key from the resource and its params",
+    "code": "let key = [req.resource, ...paramValues.map(encodeURIComponent)].join(\"/\");"
+  },
+  {
+    "id": "query-part",
+    "label": "Add the query values that change the result",
+    "code": "const names = Object.keys(spec.query).sort();\nif (names.length > 0) {\n    const query = req.query ?? {};\n    const pairs = names.map((name) => {\n        const raw = query[name];\n        const first = Array.isArray(raw) ? raw[0] : raw;\n        const value = (first ?? \"\").trim().toLowerCase();\n        return `${name}=${encodeURIComponent(value === \"\" ? spec.query[name] : value)}`;\n    });\n    key += `?${pairs.join(\"&\")}`;\n}"
+  },
+  {
+    "id": "locale-user-header",
+    "label": "Add locale and user, then pick Cache-Control",
+    "code": "if (spec.localized) key += `|locale=${normalizeLocale(req.locale)}`;\nif (spec.classification === \"per-user\") {\n    key += `|user=${encodeURIComponent(userId)}`;\n    return { key, cacheControl: \"private, no-cache\" };\n}\nreturn { key, cacheControl: `public, max-age=0, s-maxage=${spec.sMaxAge}` };"
+  },
+  {
+    "id": "base-key-raw-params",
+    "label": "Start the key from the resource and its params",
+    "code": "let key = [req.resource, ...paramValues].join(\"/\");",
+    "distractor": true
+  },
+  {
+    "id": "locale-user-header-raw-locale",
+    "label": "Add locale and user, then pick Cache-Control",
+    "code": "if (spec.localized) key += `|locale=${req.locale ?? DEFAULT_LOCALE}`;\nif (spec.classification === \"per-user\") {\n    key += `|user=${encodeURIComponent(userId)}`;\n    return { key, cacheControl: \"private, no-cache\" };\n}\nreturn { key, cacheControl: `public, max-age=0, s-maxage=${spec.sMaxAge}` };",
+    "distractor": true
+  },
+  {
+    "id": "query-part-no-defaults",
+    "label": "Add the query values that change the result",
+    "code": "const names = Object.keys(spec.query).sort();\nif (names.length > 0) {\n    const query = req.query ?? {};\n    const pairs = names.flatMap((name) => {\n        const raw = query[name];\n        const first = Array.isArray(raw) ? raw[0] : raw;\n        const value = (first ?? \"\").trim().toLowerCase();\n        return value === \"\" ? [] : [`${name}=${encodeURIComponent(value)}`];\n    });\n    key += `?${pairs.join(\"&\")}`;\n}",
+    "distractor": true
+  }
+]

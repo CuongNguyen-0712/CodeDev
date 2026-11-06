@@ -1,0 +1,40 @@
+[
+  {
+    "id": "corpus-stats",
+    "label": "Tokens of every document and the average length",
+    "code": "doc_tokens = [tokens(doc[\"text\"]) for doc in docs]\nn_docs = len(docs)\navgdl = sum(len(t) for t in doc_tokens) / n_docs if n_docs else 0\nif avgdl == 0:\n    return []"
+  },
+  {
+    "id": "idf",
+    "label": "Inverse document frequency of each query term",
+    "code": "terms = list(dict.fromkeys(tokens(query)))  # each distinct query term once\ndoc_sets = [set(t) for t in doc_tokens]\nidf = {}\nfor term in terms:\n    df = sum(1 for s in doc_sets if term in s)\n    idf[term] = math.log((n_docs - df + 0.5) / (df + 0.5) + 1)"
+  },
+  {
+    "id": "score",
+    "label": "BM25 score of one document",
+    "code": "norm = k1 * (1 - b + b * len(toks) / avgdl)\nscore = sum(idf[t] * tf[t] * (k1 + 1) / (tf[t] + norm) for t in terms if tf[t])"
+  },
+  {
+    "id": "rank",
+    "label": "Best k documents, highest score first",
+    "code": "scored.sort(key=lambda item: item[1], reverse=True)  # stable: equal scores keep corpus order\nreturn [[doc_id, round(score, 4)] for doc_id, score in scored[:k]]"
+  },
+  {
+    "id": "idf-without-plus-one",
+    "label": "Inverse document frequency of each query term",
+    "code": "terms = list(dict.fromkeys(tokens(query)))  # each distinct query term once\ndoc_sets = [set(t) for t in doc_tokens]\nidf = {}\nfor term in terms:\n    df = sum(1 for s in doc_sets if term in s)\n    idf[term] = math.log((n_docs - df + 0.5) / (df + 0.5))",
+    "distractor": true
+  },
+  {
+    "id": "rank-ties-by-id",
+    "label": "Best k documents, highest score first",
+    "code": "scored.sort(key=lambda item: (-item[1], item[0]))\nreturn [[doc_id, round(score, 4)] for doc_id, score in scored[:k]]",
+    "distractor": true
+  },
+  {
+    "id": "score-no-length-norm",
+    "label": "BM25 score of one document",
+    "code": "norm = k1\nscore = sum(idf[t] * tf[t] * (k1 + 1) / (tf[t] + norm) for t in terms if tf[t])",
+    "distractor": true
+  }
+]

@@ -1,0 +1,55 @@
+[
+  {
+    "id": "schedule",
+    "label": "Register a timer and return its id",
+    "code": "function schedule(fn, ms, repeat) {\n  const delay = Math.max(0, Number(ms) || 0);\n  const every = repeat ? Math.max(1, delay) : 0;\n  const id = nextId++;\n  timers.set(id, { id, at: current + (repeat ? every : delay), fn, every });\n  return id;\n}"
+  },
+  {
+    "id": "next-due",
+    "label": "Pick the next timer that is due",
+    "code": "function nextDue(until) {\n  let best = null;\n  for (const timer of timers.values()) {\n    if (timer.at > until) continue;\n    if (!best || timer.at < best.at || (timer.at === best.at && timer.id < best.id)) best = timer;\n  }\n  return best;\n}"
+  },
+  {
+    "id": "fire",
+    "label": "Fire one timer",
+    "code": "function fire(timer) {\n  current = timer.at;\n  if (timer.every) timer.at += timer.every;\n  else timers.delete(timer.id);\n  timer.fn();\n}"
+  },
+  {
+    "id": "register-timeout",
+    "label": "Register a one-shot timer",
+    "code": "return schedule(fn, ms, false);"
+  },
+  {
+    "id": "register-interval",
+    "label": "Register a repeating timer",
+    "code": "return schedule(fn, ms, true);"
+  },
+  {
+    "id": "tick",
+    "label": "Advance the clock and fire what is due",
+    "code": "const end = current + Math.max(0, Number(ms) || 0);\nlet timer;\nwhile ((timer = nextDue(end))) fire(timer);\ncurrent = end;"
+  },
+  {
+    "id": "run-all",
+    "label": "Fire everything pending, within the limit",
+    "code": "let fired = 0;\nwhile (timers.size > 0) {\n  if (fired >= limit) {\n    throw new Error(`runAll: ${timers.size} timer(s) still pending after ${limit} callbacks - is an interval never cleared?`);\n  }\n  fire(nextDue(Infinity));\n  fired++;\n}\nreturn fired;"
+  },
+  {
+    "id": "next-due-insertion-order",
+    "label": "Pick the next timer that is due",
+    "code": "function nextDue(until) {\n  for (const timer of timers.values()) {\n    if (timer.at <= until) return timer;\n  }\n  return null;\n}",
+    "distractor": true
+  },
+  {
+    "id": "run-all-silent-stop",
+    "label": "Fire everything pending, within the limit",
+    "code": "let fired = 0;\nwhile (timers.size > 0 && fired < limit) {\n  fire(nextDue(Infinity));\n  fired++;\n}\nreturn fired;",
+    "distractor": true
+  },
+  {
+    "id": "tick-snapshot",
+    "label": "Advance the clock and fire what is due",
+    "code": "const end = current + Math.max(0, Number(ms) || 0);\nconst due = [...timers.values()].filter((t) => t.at <= end).sort((a, b) => a.at - b.at || a.id - b.id);\nfor (const timer of due) fire(timer);\ncurrent = end;",
+    "distractor": true
+  }
+]

@@ -1,0 +1,45 @@
+[
+  {
+    "id": "check-percent",
+    "label": "percent must be a whole number from 0 to 100",
+    "code": "if (typeof percent !== \"number\" || !Number.isInteger(percent) || percent < 0 || percent > 100) {\n    return { status: \"rejected\", error: \"INVALID_PERCENT\" };\n}"
+  },
+  {
+    "id": "check-course",
+    "label": "The course, the lesson and the enrollment exist",
+    "code": "const course = Object.hasOwn(catalog.courses, courseId) ? catalog.courses[courseId] : undefined;\nif (!course) return { status: \"rejected\", error: \"UNKNOWN_COURSE\" };\nif (!course.lessons.includes(lessonId)) return { status: \"rejected\", error: \"LESSON_NOT_IN_COURSE\" };\nif (!(catalog.enrollments[userId] ?? []).includes(courseId)) return { status: \"rejected\", error: \"NOT_ENROLLED\" };"
+  },
+  {
+    "id": "check-completion",
+    "label": "100% only when the lesson's challenges are passed",
+    "code": "if (percent === 100) {\n    const passed = catalog.passed[userId] ?? [];\n    const required = course.required?.[lessonId] ?? [];\n    if (!required.every((id) => passed.includes(id))) return { status: \"rejected\", error: \"CHALLENGES_NOT_PASSED\" };\n}"
+  },
+  {
+    "id": "skip-lower",
+    "label": "Leave the progress alone when it would not go up",
+    "code": "const doc = store.get(userId, courseId);\nconst current = doc.lessons[lessonId] ?? 0;\nif (percent <= current) return { status: \"unchanged\", lessonPercent: current };"
+  },
+  {
+    "id": "save-progress",
+    "label": "Store the lesson and the recomputed course percent",
+    "code": "doc.lessons[lessonId] = percent;\nconst sum = course.lessons.reduce((total, id) => total + (doc.lessons[id] ?? 0), 0);\ndoc.coursePercent = Math.floor(sum / course.lessons.length);\ndoc.version += 1;\nstore.put(userId, courseId, doc);"
+  },
+  {
+    "id": "check-completion-never",
+    "label": "100% only when the lesson's challenges are passed",
+    "code": "if (percent > 100) {\n    const passed = catalog.passed[userId] ?? [];\n    const required = course.required?.[lessonId] ?? [];\n    if (!required.every((id) => passed.includes(id))) return { status: \"rejected\", error: \"CHALLENGES_NOT_PASSED\" };\n}",
+    "distractor": true
+  },
+  {
+    "id": "save-progress-started-only",
+    "label": "Store the lesson and the recomputed course percent",
+    "code": "doc.lessons[lessonId] = percent;\nconst started = Object.values(doc.lessons);\ndoc.coursePercent = Math.floor(started.reduce((a, b) => a + b, 0) / started.length);\ndoc.version += 1;\nstore.put(userId, courseId, doc);",
+    "distractor": true
+  },
+  {
+    "id": "skip-lower-only-equal",
+    "label": "Leave the progress alone when it would not go up",
+    "code": "const doc = store.get(userId, courseId);\nconst current = doc.lessons[lessonId] ?? 0;\nif (percent === current) return { status: \"unchanged\", lessonPercent: current };",
+    "distractor": true
+  }
+]

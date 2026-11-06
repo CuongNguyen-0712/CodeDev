@@ -57,17 +57,27 @@ interface Leaderboard {
 }
 type Ctx = { store: ProgressStore; bus: EventBus; board: Leaderboard; lessonPoints: Record<string, number> };
 
+const isId = (value: unknown): value is string => typeof value === "string" && value.length > 0;
+
 function completeLesson(req: CompleteLessonRequest, ctx: Ctx): ApiResponse {
-    // TODO: validate, then one transaction: idempotency key, progress, outbox event, saved response
-    return { status: 400, error: "invalid_request" };
+    // [ ] Reject a request without ids
+    // [ ] The idempotency key of this request
+    return ctx.store.transaction((tx): ApiResponse => {
+        // [ ] Replay a saved answer, refuse a reused id or unknown lesson
+
+        // [ ] Complete the lesson and add its event to the outbox
+        // [ ] Save the answer for later retries
+    });
 }
 
 function relayOutbox(ctx: Ctx): void {
-    // TODO: publish the unpublished outbox rows, in order
+    // [ ] Publish the unpublished outbox rows in order
 }
 
 function onLessonCompleted(event: LessonCompleted, ctx: Ctx): void {
-    // TODO: add the points to the board once per eventId
+    ctx.board.atomically((board) => {
+        // [ ] Add the points once per event
+    });
 }
 
 // ---------------------------------------------------------------- fakes and test runner (do not change)

@@ -65,8 +65,11 @@ type AccessResult = "ok" | "expired" | "revoked";
 type SessionView = { familyId: string; deviceId: string; createdAt: number; lastUsedAt: number };
 
 function revokeFamily(s: AuthState, userId: string, familyId: string, now: number): boolean {
+    // @piece family-owner: Find the family and check who owns it
     const family = s.rows.filter((r) => r.familyId === familyId);
     if (!family.some((r) => r.userId === userId)) return false;
+    // @end
+    // @piece revoke-and-deny: Revoke its rows and deny its access tokens
     let changed = 0;
     for (const row of family) {
         if (row.revokedAt === null) {
@@ -75,30 +78,38 @@ function revokeFamily(s: AuthState, userId: string, familyId: string, now: numbe
         }
     }
     if (changed > 0) s.deniedFamilies.set(familyId, now + ACCESS_TTL_MS);
+    // @end
     return true;
 }
 
 function signOutAll(s: AuthState, userId: string, now: number): void {
+    // @piece sign-out-all: Sign out every session of the user
     s.sessionVersion.set(userId, (s.sessionVersion.get(userId) ?? 0) + 1);
     for (const row of s.rows) {
         if (row.userId === userId && row.revokedAt === null) row.revokedAt = now;
     }
+    // @end
 }
 
 function checkAccess(s: AuthState, claims: AccessClaims, now: number): AccessResult {
+    // @piece check-access: Expiry, session version and the deny list
     if (now >= claims.exp) return "expired";
     if (claims.ver < (s.sessionVersion.get(claims.sub) ?? 0)) return "revoked";
     if (s.deniedFamilies.has(claims.sid)) return "revoked";
+    // @end
     return "ok";
 }
 
 function pruneDenyList(s: AuthState, now: number): void {
+    // @piece prune: Drop deny-list entries that ran out
     for (const [familyId, until] of s.deniedFamilies) {
         if (until <= now) s.deniedFamilies.delete(familyId);
     }
+    // @end
 }
 
 function listSessions(s: AuthState, userId: string, now: number): SessionView[] {
+    // @piece live-sessions: The user's live sessions, most recent first
     const families = new Map<string, SessionView & { live: boolean }>();
     for (const row of s.rows) {
         if (row.userId !== userId) continue;
@@ -116,6 +127,7 @@ function listSessions(s: AuthState, userId: string, now: number): SessionView[] 
         .filter((v) => v.live)
         .map(({ familyId, deviceId, createdAt, lastUsedAt }) => ({ familyId, deviceId, createdAt, lastUsedAt }))
         .sort((a, b) => b.lastUsedAt - a.lastUsedAt || (a.familyId < b.familyId ? -1 : a.familyId > b.familyId ? 1 : 0));
+    // @end
 }
 
 // ------------------------------------------------- issuing and refresh (from lessons 2.3 and 3.1, do not change)

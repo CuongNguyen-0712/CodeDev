@@ -1,0 +1,55 @@
+[
+  {
+    "id": "patterns",
+    "label": "The secret patterns to look for",
+    "code": "const ALLOW_MARKER = \"codedev-scan:allow\";\n\nconst PATTERNS: { rule: string; regex: RegExp; group: number }[] = [\n    { rule: \"aws-access-key-id\", regex: /(?<![A-Za-z0-9])(?:AKIA|ASIA)[A-Z0-9]{16}(?![A-Za-z0-9])/g, group: 0 },\n    { rule: \"github-token\", regex: /(?<![A-Za-z0-9_])(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})/g, group: 0 },\n    { rule: \"slack-token\", regex: /(?<![A-Za-z0-9])xox[baprs]-[A-Za-z0-9-]{10,}/g, group: 0 },\n    { rule: \"private-key\", regex: /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----/g, group: 0 },\n    {\n        rule: \"generic-secret\",\n        regex: /(?<![A-Za-z0-9_.-])[A-Za-z0-9_]*?(?:key|token|secret|password)[\"']?\\s*[:=]\\s*[\"']?([A-Za-z0-9_\\-+/=.]{8,})/gi,\n        group: 1,\n    },\n];"
+  },
+  {
+    "id": "entropy",
+    "label": "Shannon entropy in bits per character",
+    "code": "const counts = new Map<string, number>();\nfor (const ch of s) counts.set(ch, (counts.get(ch) ?? 0) + 1);\nlet h = 0;\nfor (const n of counts.values()) {\n    const p = n / s.length;\n    h -= p * Math.log2(p);\n}\nreturn h;"
+  },
+  {
+    "id": "known-patterns",
+    "label": "Look for the known secret patterns",
+    "code": "const found: { rule: string; secret: string }[] = [];\nfor (const { rule, regex, group } of PATTERNS) {\n    for (const m of content.matchAll(regex)) {\n        const secret = m[group];\n        if (rule === \"generic-secret\" && secret.startsWith(\"process.env.\")) continue;\n        found.push({ rule, secret });\n        break;\n    }\n}\nif (found.length > 0) return found;"
+  },
+  {
+    "id": "high-entropy",
+    "label": "Otherwise look for random-looking literals",
+    "code": "for (const m of content.matchAll(/\"([^\"]*)\"|'([^']*)'/g)) {\n    const s = m[1] ?? m[2];\n    if (s.length < 20 || !/^[A-Za-z0-9+/=_-]+$/.test(s)) continue;\n    const hex = /^[0-9a-fA-F]+$/.test(s);\n    const h = shannonEntropy(s);\n    if (hex ? h >= 3.0 : h >= 4.5) return [{ rule: hex ? \"high-entropy-hex\" : \"high-entropy-base64\", secret: s }];\n}\nreturn [];"
+  },
+  {
+    "id": "diff-headers",
+    "label": "Follow the file and hunk headers",
+    "code": "const line = raw.endsWith(\"\\r\") ? raw.slice(0, -1) : raw;\nif (line.startsWith(\"diff --git \")) {\n    file = null;\n    inHunk = false;\n    continue;\n}\nif (line.startsWith(\"@@\")) {\n    const m = /^@@ -\\d+(?:,\\d+)? \\+(\\d+)(?:,\\d+)? @@/.exec(line);\n    inHunk = m !== null;\n    if (m) newLine = Number(m[1]);\n    continue;\n}\nif (!inHunk) {\n    if (line.startsWith(\"+++ \")) {\n        const path = line.slice(4);\n        file = path === \"/dev/null\" ? null : path.startsWith(\"b/\") ? path.slice(2) : path;\n    }\n    continue;\n}"
+  },
+  {
+    "id": "added-lines",
+    "label": "Scan added lines and keep the line number",
+    "code": "if (line.startsWith(\"+\")) {\n    const lineNo = newLine++;\n    const content = line.slice(1);\n    if (file === null || allowPaths.some((p) => file!.startsWith(p)) || content.includes(ALLOW_MARKER)) continue;\n    for (const { rule, secret } of scanLine(content)) findings.push({ file, line: lineNo, rule, preview: preview(secret) });\n} else if (line.startsWith(\" \") || line === \"\") {\n    newLine++;\n}\n// \"-\" (removed) and \"\\\" (no newline at end of file) do not move the new-file line number."
+  },
+  {
+    "id": "sort-findings",
+    "label": "Order the findings",
+    "code": "return findings.sort((a, b) =>\n    a.file !== b.file ? (a.file < b.file ? -1 : 1) : a.line !== b.line ? a.line - b.line : a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0,\n);"
+  },
+  {
+    "id": "added-lines-and-removed",
+    "label": "Scan added lines and keep the line number",
+    "code": "if (line.startsWith(\"+\") || line.startsWith(\"-\")) {\n    const lineNo = newLine++;\n    const content = line.slice(1);\n    if (file === null || allowPaths.some((p) => file!.startsWith(p)) || content.includes(ALLOW_MARKER)) continue;\n    for (const { rule, secret } of scanLine(content)) findings.push({ file, line: lineNo, rule, preview: preview(secret) });\n} else if (line.startsWith(\" \") || line === \"\") {\n    newLine++;\n}\n// \"-\" (removed) and \"\\\" (no newline at end of file) do not move the new-file line number.",
+    "distractor": true
+  },
+  {
+    "id": "diff-headers-anywhere",
+    "label": "Follow the file and hunk headers",
+    "code": "const line = raw.endsWith(\"\\r\") ? raw.slice(0, -1) : raw;\nif (line.startsWith(\"diff --git \")) {\n    file = null;\n    inHunk = false;\n    continue;\n}\nif (line.startsWith(\"@@\")) {\n    const m = /^@@ -\\d+(?:,\\d+)? \\+(\\d+)(?:,\\d+)? @@/.exec(line);\n    inHunk = m !== null;\n    if (m) newLine = Number(m[1]);\n    continue;\n}\nif (line.startsWith(\"+++\") || line.startsWith(\"---\")) inHunk = false;\nif (!inHunk) {\n    if (line.startsWith(\"+++ \")) {\n        const path = line.slice(4);\n        file = path === \"/dev/null\" ? null : path.startsWith(\"b/\") ? path.slice(2) : path;\n    }\n    continue;\n}",
+    "distractor": true
+  },
+  {
+    "id": "entropy-natural-log",
+    "label": "Shannon entropy in bits per character",
+    "code": "const counts = new Map<string, number>();\nfor (const ch of s) counts.set(ch, (counts.get(ch) ?? 0) + 1);\nlet h = 0;\nfor (const n of counts.values()) {\n    const p = n / s.length;\n    h -= p * Math.log(p);\n}\nreturn h;",
+    "distractor": true
+  }
+]

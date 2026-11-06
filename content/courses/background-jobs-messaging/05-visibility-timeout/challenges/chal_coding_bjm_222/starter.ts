@@ -24,23 +24,35 @@ import { readFileSync } from "node:fs";
 
 type Delivery = { messageId: string; body: string; receiptHandle: string; receiveCount: number };
 
+type Stored = { id: string; body: string; seq: number; visibleAt: number; receiveCount: number; receipt: string | null };
+
+const MAX_VISIBILITY_MS = 43_200_000; // 12 hours, the SQS maximum
+
 class VisibilityQueue {
+    private readonly messages = new Map<string, Stored>();
+    private sent = 0;
+
     constructor(private readonly visibilityTimeoutMs: number) {}
 
     send(messageId: string, body: string, now: number): void {
-        // TODO
+        // [ ] Store a new message, visible at once
     }
 
     receive(now: number): Delivery | null {
-        return null; // TODO
+        // [ ] Hand out the oldest visible message
+    }
+
+    /** The message this handle belongs to, only while the handle is the latest one issued. */
+    private current(receiptHandle: string): Stored | undefined {
+        // [ ] The message, only for its latest handle
     }
 
     ack(receiptHandle: string, now: number): boolean {
-        return false; // TODO
+        // [ ] Delete the message for a current handle
     }
 
     extendVisibility(receiptHandle: string, timeoutMs: number, now: number): boolean {
-        return false; // TODO
+        // [ ] Hide an in-flight message for longer
     }
 }
 

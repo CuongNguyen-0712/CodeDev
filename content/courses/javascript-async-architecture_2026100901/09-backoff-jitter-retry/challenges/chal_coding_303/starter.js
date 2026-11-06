@@ -47,10 +47,13 @@ async function retry(fn, options = {}) {
     shouldRetry = isRetryable,
   } = options;
 
-  // TODO: the retry loop, and a cancellable wait built on timers.setTimeout / clearTimeout.
+  // [ ] Try, and on failure wait before the next attempt
+
+  // [ ] How long to wait before the next attempt
 }
 
+// [ ] A wait that the signal can cancel
+
 function isRetryable(error) {
-  // TODO: classify the error (see the rules above).
-  return false;
+  // [ ] Which errors are worth another attempt
 }

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "validate",
+    "label": "Refuse sizes that cannot make windows",
+    "code": "if size < 1 or overlap < 0 or overlap >= size:\n    raise ValueError(f\"need size >= 1 and 0 <= overlap < size, got size={size}, overlap={overlap}\")"
+  },
+  {
+    "id": "windows",
+    "label": "Start a window every size - overlap words",
+    "code": "step = size - overlap\nchunks = []\nstart = 0\nwhile start < len(words):\n    chunks.append(\" \".join(words[start:start + size]))\n    if start + size >= len(words):\n        break  # this window already reaches the last word\n    start += step\nreturn chunks"
+  },
+  {
+    "id": "validate-allows-negative",
+    "label": "Refuse sizes that cannot make windows",
+    "code": "if size < 1 or overlap >= size:\n    raise ValueError(f\"need size >= 1 and overlap < size, got size={size}, overlap={overlap}\")",
+    "distractor": true
+  },
+  {
+    "id": "windows-trailing-chunk",
+    "label": "Start a window every size - overlap words",
+    "code": "step = size - overlap\nreturn [\" \".join(words[i:i + size]) for i in range(0, len(words), step)]",
+    "distractor": true
+  }
+]

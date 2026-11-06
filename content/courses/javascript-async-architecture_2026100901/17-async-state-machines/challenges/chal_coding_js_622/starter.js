@@ -38,11 +38,19 @@
  * @returns {RequestState}
  */
 function transition(state, event) {
+  // [ ] Is this answer for the request still loading?
+
   switch (event.type) {
     case "FETCH":
       return { status: "loading", requestId: state.requestId + 1, attempt: 1 };
 
-    // TODO: RESOLVE, REJECT, CANCEL and RETRY - with their guards
+    // [ ] A successful answer
+
+    // [ ] A failed answer
+
+    // [ ] The user cancels
+
+    // [ ] The user retries
 
     default:
       return state;

@@ -1,0 +1,35 @@
+[
+  {
+    "id": "count-event",
+    "label": "Record a valid score event",
+    "code": "if (!(await this.db.insertScoreEvent(event))) return \"duplicate\";\n// A ZINCRBY on a missing key would create a leaderboard holding one learner.\nif (this.redis.exists(LEADERBOARD_KEY) === 1) this.redis.zincrby(LEADERBOARD_KEY, event.points, event.userId);"
+  },
+  {
+    "id": "read-top",
+    "label": "Answer the top n",
+    "code": "if (this.redis.exists(LEADERBOARD_KEY) === 0) {\n    for (const { userId, total } of await this.db.totalsByUser()) this.redis.zadd(LEADERBOARD_KEY, total, userId);\n}\nreturn this.redis.zrevrange(LEADERBOARD_KEY, 0, n - 1);"
+  },
+  {
+    "id": "read-score",
+    "label": "Answer one learner's score",
+    "code": "if (this.redis.exists(LEADERBOARD_KEY) === 0) {\n    for (const { userId, total } of await this.db.totalsByUser()) this.redis.zadd(LEADERBOARD_KEY, total, userId);\n}\nreturn this.redis.zscore(LEADERBOARD_KEY, userId) ?? 0;"
+  },
+  {
+    "id": "count-ignores-duplicates",
+    "label": "Record a valid score event",
+    "code": "await this.db.insertScoreEvent(event);\n// A ZINCRBY on a missing key would create a leaderboard holding one learner.\nif (this.redis.exists(LEADERBOARD_KEY) === 1) this.redis.zincrby(LEADERBOARD_KEY, event.points, event.userId);",
+    "distractor": true
+  },
+  {
+    "id": "count-when-missing",
+    "label": "Record a valid score event",
+    "code": "if (!(await this.db.insertScoreEvent(event))) return \"duplicate\";\nthis.redis.zincrby(LEADERBOARD_KEY, event.points, event.userId);",
+    "distractor": true
+  },
+  {
+    "id": "top-rebuild-every-read",
+    "label": "Answer the top n",
+    "code": "for (const { userId, total } of await this.db.totalsByUser()) this.redis.zadd(LEADERBOARD_KEY, total, userId);\nreturn this.redis.zrevrange(LEADERBOARD_KEY, 0, n - 1);",
+    "distractor": true
+  }
+]

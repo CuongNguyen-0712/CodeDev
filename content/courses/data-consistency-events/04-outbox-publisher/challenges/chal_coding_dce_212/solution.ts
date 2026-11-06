@@ -30,9 +30,12 @@ const TOPIC = "enrollment-events";
 type Config = { batchSize: number; leaseMs: number; backoffMs: number; maxAttempts: number };
 
 function claimBatch(db: FakeDb, owner: string, now: number, cfg: Config): number[] {
+    // @piece check-config: Refuse an invalid configuration
     const positive = (n: number): boolean => Number.isInteger(n) && n > 0;
     if (!positive(cfg.batchSize) || !positive(cfg.leaseMs)) throw new Error("invalid config");
+    // @end
     return db.tx((t) => {
+        // @piece lease-rows: Lease rows in order, per aggregate
         const claimed: number[] = [];
         const blocked = new Set<string>();
         const rows = [...t.outbox.values()].filter((r) => r.status !== "sent").sort((a, b) => a.id - b.id);
@@ -49,6 +52,7 @@ function claimBatch(db: FakeDb, owner: string, now: number, cfg: Config): number
             claimed.push(row.id);
         }
         return claimed;
+        // @end
     });
 }
 
@@ -64,6 +68,7 @@ function publishClaimed(db: FakeDb, broker: FakeBroker, owner: string, now: numb
         try {
             broker.publish(TOPIC, { id: row.id, key: row.aggregate, payload: { type: row.type } });
         } catch (error) {
+            // @piece on-broker-error: Back off after a broker error
             if (!(error instanceof BrokerError)) throw error; // a Crash ends the process
             db.tx((t) => {
                 const r = t.outbox.get(row.id)!;
@@ -75,7 +80,9 @@ function publishClaimed(db: FakeDb, broker: FakeBroker, owner: string, now: numb
             });
             blocked.add(row.aggregate);
             continue;
+            // @end
         }
+        // @piece mark-sent: Mark the row sent after its publish
         // a crash here (after publish, before this commit) means the row is published again later
         db.tx((t) => {
             const r = t.outbox.get(row.id)!;
@@ -84,7 +91,9 @@ function publishClaimed(db: FakeDb, broker: FakeBroker, owner: string, now: numb
             r.leaseOwner = null;
             r.leaseUntil = 0;
         });
+        // @end
     }
+    // @piece release-leases: Give back the leases left unused
     db.tx((t) => {
         for (const r of t.outbox.values()) {
             if (r.status === "pending" && r.leaseOwner === owner) {
@@ -93,6 +102,7 @@ function publishClaimed(db: FakeDb, broker: FakeBroker, owner: string, now: numb
             }
         }
     });
+    // @end
 }
 // ------------------------------------------------------------ building blocks (do not change)
 type Status = "pending" | "sent" | "failed";

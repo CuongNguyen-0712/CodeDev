@@ -1,0 +1,55 @@
+[
+  {
+    "id": "canonical",
+    "label": "One JSON text per value, whatever the key order",
+    "code": "if (Array.isArray(value)) return `[${value.map(canonicalJson).join(\",\")}]`;\nif (value !== null && typeof value === \"object\") {\n    const obj = value as Record<string, unknown>;\n    return `{${Object.keys(obj).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`).join(\",\")}}`;\n}\nreturn JSON.stringify(value) ?? \"null\"; // undefined (no args) -> null"
+  },
+  {
+    "id": "clean",
+    "label": "Shorten long strings, hide secret-looking keys",
+    "code": "if (typeof value === \"string\") return cut(value);\nif (Array.isArray(value)) return value.map(clean);\nif (value !== null && typeof value === \"object\") {\n    const out: Record<string, unknown> = {};\n    for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {\n        const norm = key.toLowerCase().replace(/[_-]/g, \"\");\n        out[key] = REDACT.some((word) => norm.includes(word)) ? \"[REDACTED]\" : clean(inner);\n    }\n    return out;\n}\nreturn value;"
+  },
+  {
+    "id": "summary",
+    "label": "The arguments as a short, safe summary",
+    "code": "const json = canonicalJson(clean(args));\nreturn json.length > MAX_SUMMARY ? `${json.slice(0, MAX_SUMMARY)}...(truncated)` : json;"
+  },
+  {
+    "id": "record-hash",
+    "label": "Hash a record together with the previous hash",
+    "code": "const { prevHash, ...fields } = record;\nreturn createHash(\"sha256\").update(`${prevHash}\\n${canonicalJson(fields)}`).digest(\"hex\");"
+  },
+  {
+    "id": "outcome",
+    "label": "Decide the outcome and run the tool if allowed",
+    "code": "const start = this.clock.now();\nlet result: CallResult;\nif (!Object.prototype.hasOwnProperty.call(this.tools, tool)) {\n    result = { outcome: \"error\", message: `unknown tool: ${tool}` };\n} else if (!this.policy(ctx.userId, tool)) {\n    result = { outcome: \"denied\" };\n} else {\n    try {\n        result = { outcome: \"ok\", value: this.tools[tool](args) };\n    } catch (thrown) {\n        result = { outcome: \"error\", message: thrown instanceof Error ? thrown.message : String(thrown) };\n    }\n}"
+  },
+  {
+    "id": "append-record",
+    "label": "Append the record that chains to the last one",
+    "code": "const prevHash = this.records.length === 0 ? GENESIS : this.records[this.records.length - 1].hash;\nconst body: Omit<AuditRecord, \"hash\"> = {\n    seq: this.records.length + 1,\n    at: new Date(start).toISOString(),\n    sessionId: ctx.sessionId,\n    userId: ctx.userId,\n    tool,\n    args: summarizeArgs(args),\n    outcome: result.outcome,\n    error: result.outcome === \"error\" ? cut(result.message) : null,\n    durationMs: this.clock.now() - start,\n    prevHash,\n};\nthis.records.push({ ...body, hash: hashRecord(body) });"
+  },
+  {
+    "id": "verify",
+    "label": "Check every record's link and hash",
+    "code": "for (let i = 0; i < records.length; i++) {\n    const record = records[i];\n    const expectedPrev = i === 0 ? GENESIS : records[i - 1].hash;\n    if (record.prevHash !== expectedPrev) return { ok: false, brokenAt: record.seq, reason: \"prev_hash\" };\n    const { hash, ...body } = record;\n    if (hash !== hashRecord(body)) return { ok: false, brokenAt: record.seq, reason: \"hash\" };\n}\nreturn { ok: true };"
+  },
+  {
+    "id": "canonical-unsorted",
+    "label": "One JSON text per value, whatever the key order",
+    "code": "if (Array.isArray(value)) return `[${value.map(canonicalJson).join(\",\")}]`;\nif (value !== null && typeof value === \"object\") {\n    const obj = value as Record<string, unknown>;\n    return `{${Object.keys(obj).map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`).join(\",\")}}`;\n}\nreturn JSON.stringify(value) ?? \"null\"; // undefined (no args) -> null",
+    "distractor": true
+  },
+  {
+    "id": "outcome-throw-skips-record",
+    "label": "Decide the outcome and run the tool if allowed",
+    "code": "const start = this.clock.now();\nlet result: CallResult;\nif (!Object.prototype.hasOwnProperty.call(this.tools, tool)) {\n    result = { outcome: \"error\", message: `unknown tool: ${tool}` };\n} else if (!this.policy(ctx.userId, tool)) {\n    result = { outcome: \"denied\" };\n} else {\n    try {\n        result = { outcome: \"ok\", value: this.tools[tool](args) };\n    } catch (thrown) {\n        return { outcome: \"error\", message: thrown instanceof Error ? thrown.message : String(thrown) };\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "verify-hash-only",
+    "label": "Check every record's link and hash",
+    "code": "for (let i = 0; i < records.length; i++) {\n    const record = records[i];\n    const { hash, ...body } = record;\n    if (hash !== hashRecord(body)) return { ok: false, brokenAt: record.seq, reason: \"hash\" };\n}\nreturn { ok: true };",
+    "distractor": true
+  }
+]

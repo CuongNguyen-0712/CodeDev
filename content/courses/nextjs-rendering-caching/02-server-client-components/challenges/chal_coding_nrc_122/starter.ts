@@ -50,8 +50,25 @@ const CLIENT_FEATURES: Feature[] = ["state", "effect", "eventHandler", "browserA
 const SERVER_ONLY_FEATURES: Feature[] = ["secret", "database"];
 const CAN_CROSS: string[] = ["string", "number", "boolean", "null", "array", "plainObject", "date", "jsx", "serverAction"];
 
+function kb(value: unknown): number {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
 function planBoundaries(root: ComponentNode): BoundaryPlan {
-    return { components: [], useClient: [], badProps: [], conflicts: [], clientKb: 0 };
+    const plan: BoundaryPlan = { components: [], useClient: [], badProps: [], conflicts: [], clientKb: 0 };
+    let total = 0;
+
+    function visit(node: ComponentNode, parentOnClient: boolean | null): void {
+        // [ ] Decide where this component runs
+        if (onClient) {
+            // [ ] Count its code toward the client bundle
+            // [ ] Mark the boundary and check the props crossing it
+            // [ ] Flag server-only features on the client
+        }
+        // [ ] Visit the children
+    }
+
+    // [ ] Walk the tree and report the size
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

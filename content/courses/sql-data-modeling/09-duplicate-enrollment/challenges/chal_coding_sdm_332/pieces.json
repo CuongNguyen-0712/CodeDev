@@ -1,0 +1,24 @@
+[
+  {
+    "id": "one-per-course",
+    "label": "The last column and what the table guarantees",
+    "code": "status        TEXT    NOT NULL CHECK (status IN ('active', 'cancelled', 'completed')),\nUNIQUE (user_id, course_id)"
+  },
+  {
+    "id": "enroll",
+    "label": "Insert the enrollment",
+    "code": "INSERT INTO enrollments (user_id, course_id, enrolled_at, status)\nVALUES (:user_id, :course_id, :at, 'active')\nON CONFLICT (user_id, course_id) DO UPDATE\n    SET status = 'active', enrolled_at = excluded.enrolled_at\n    WHERE enrollments.status = 'cancelled'"
+  },
+  {
+    "id": "enroll-do-nothing",
+    "label": "Insert the enrollment",
+    "code": "INSERT INTO enrollments (user_id, course_id, enrolled_at, status)\nVALUES (:user_id, :course_id, :at, 'active')\nON CONFLICT (user_id, course_id) DO NOTHING",
+    "distractor": true
+  },
+  {
+    "id": "enroll-update-always",
+    "label": "Insert the enrollment",
+    "code": "INSERT INTO enrollments (user_id, course_id, enrolled_at, status)\nVALUES (:user_id, :course_id, :at, 'active')\nON CONFLICT (user_id, course_id) DO UPDATE\n    SET status = 'active', enrolled_at = excluded.enrolled_at",
+    "distractor": true
+  }
+]

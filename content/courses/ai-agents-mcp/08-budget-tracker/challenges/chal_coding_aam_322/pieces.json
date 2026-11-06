@@ -1,0 +1,50 @@
+[
+  {
+    "id": "start-session",
+    "label": "Reset the session; daily spend is per user and day",
+    "code": "this.dayKey = `${userId} ${day}`;\nthis.startedAt = this.clock.now();\nthis.modelCalls = 0;\nthis.inputTokens = 0;\nthis.outputTokens = 0;\nthis.costMicros = 0;\nthis.toolCalls = {};"
+  },
+  {
+    "id": "estimate",
+    "label": "Price the call at its worst case before sending it",
+    "code": "const price = this.config.prices[model];\nif (!price) return \"unknown_model\";\nconst { session, maxOutputTokens } = this.config;\nconst tokens = inputTokens + maxOutputTokens;\nconst cost = inputTokens * price.inputPerMTok + maxOutputTokens * price.outputPerMTok;"
+  },
+  {
+    "id": "model-limits",
+    "label": "Refuse the call if any budget would be exceeded",
+    "code": "if (this.inputTokens + this.outputTokens + tokens > session.maxTokens) return \"max_tokens\";\nif (this.costMicros + cost > session.maxCostMicros) return \"max_cost\";\nif (this.spentToday() + cost > this.config.dailyCostMicrosPerUser) return \"daily_cost\";\nif (this.elapsed() + this.config.modelCallMsEstimate > session.maxWallMs) return \"max_wall_ms\";\nreturn null;"
+  },
+  {
+    "id": "record-model",
+    "label": "Add the call's real usage and cost",
+    "code": "const price = this.config.prices[model];\nconst cost = usage.inputTokens * price.inputPerMTok + usage.outputTokens * price.outputPerMTok;\nthis.modelCalls++;\nthis.inputTokens += usage.inputTokens;\nthis.outputTokens += usage.outputTokens;\nthis.costMicros += cost;\nthis.daily.set(this.dayKey, this.spentToday() + cost);"
+  },
+  {
+    "id": "tool-limit",
+    "label": "Refuse a tool call beyond its limit",
+    "code": "const limit = this.config.session.maxToolCalls[tool];\nif (limit !== undefined && (this.toolCalls[tool] ?? 0) + 1 > limit) return `tool_calls:${tool}`;\nreturn null;"
+  },
+  {
+    "id": "report",
+    "label": "What was used and what is left",
+    "code": "const { session } = this.config;\nconst left = (limit: number, used: number): number => Math.max(0, limit - used);\nconst toolsLeft: Record<string, number> = {};\nfor (const [tool, limit] of Object.entries(session.maxToolCalls)) toolsLeft[tool] = left(limit, this.toolCalls[tool] ?? 0);\nreturn {\n    modelCalls: this.modelCalls,\n    inputTokens: this.inputTokens,\n    outputTokens: this.outputTokens,\n    costMicros: this.costMicros,\n    wallMs: this.elapsed(),\n    toolCalls: { ...this.toolCalls },\n    remaining: {\n        tokens: left(session.maxTokens, this.inputTokens + this.outputTokens),\n        costMicros: left(session.maxCostMicros, this.costMicros),\n        wallMs: left(session.maxWallMs, this.elapsed()),\n        dailyCostMicros: left(this.config.dailyCostMicrosPerUser, this.spentToday()),\n        toolCalls: toolsLeft,\n    },\n};"
+  },
+  {
+    "id": "estimate-input-only",
+    "label": "Price the call at its worst case before sending it",
+    "code": "const price = this.config.prices[model];\nif (!price) return \"unknown_model\";\nconst { session, maxOutputTokens } = this.config;\nconst tokens = inputTokens;\nconst cost = inputTokens * price.inputPerMTok;",
+    "distractor": true
+  },
+  {
+    "id": "model-limits-after-the-fact",
+    "label": "Refuse the call if any budget would be exceeded",
+    "code": "if (this.inputTokens + this.outputTokens >= session.maxTokens) return \"max_tokens\";\nif (this.costMicros >= session.maxCostMicros) return \"max_cost\";\nif (this.spentToday() >= this.config.dailyCostMicrosPerUser) return \"daily_cost\";\nif (this.elapsed() >= session.maxWallMs) return \"max_wall_ms\";\nreturn null;",
+    "distractor": true
+  },
+  {
+    "id": "start-session-per-user",
+    "label": "Reset the session; daily spend is per user and day",
+    "code": "this.dayKey = userId;\nthis.startedAt = this.clock.now();\nthis.modelCalls = 0;\nthis.inputTokens = 0;\nthis.outputTokens = 0;\nthis.costMicros = 0;\nthis.toolCalls = {};",
+    "distractor": true
+  }
+]

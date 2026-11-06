@@ -1,0 +1,39 @@
+[
+  {
+    "id": "validate-record",
+    "label": "Reject a record that does not match the spec",
+    "code": "if (typeof record !== \"object\" || record === null || Array.isArray(record)) {\n    return { eligible: false, reasons: [\"invalid_record\"] };\n}\nconst r = record as Record<string, unknown>;\nconst valid =\n    typeof r.userId === \"string\" &&\n    r.userId.trim() !== \"\" &&\n    isStringArray(r.completedLessons) &&\n    isStringArray(r.passedQuizzes) &&\n    isStringArray(r.passedCoding) &&\n    typeof r.revoked === \"boolean\" &&\n    (r.issuedAt === null || typeof r.issuedAt === \"number\");\nif (!valid) return { eligible: false, reasons: [\"invalid_record\"] };"
+  },
+  {
+    "id": "learner-sets",
+    "label": "The learner's ids and the course quizzes, once each",
+    "code": "const lessons = new Set(r.completedLessons as string[]);\nconst quizzes = new Set(r.passedQuizzes as string[]);\nconst coding = new Set(r.passedCoding as string[]);\nconst courseQuizzes = new Set(course.quizzes);"
+  },
+  {
+    "id": "collect-reasons",
+    "label": "Every reason that applies, in spec order",
+    "code": "const reasons: Reason[] = [];\nif (!course.requiredLessons.every((id) => lessons.has(id))) reasons.push(\"lessons_incomplete\");\nconst passed = [...courseQuizzes].filter((id) => quizzes.has(id)).length;\nif (passed * 100 < course.quizPassPercent * courseQuizzes.size) reasons.push(\"quiz_rate_too_low\");\nif (!course.codingChallenges.every((id) => coding.has(id))) reasons.push(\"coding_not_passed\");\nif (r.revoked === true) reasons.push(\"revoked\");\nif (r.issuedAt !== null) reasons.push(\"already_issued\");"
+  },
+  {
+    "id": "result",
+    "label": "The eligibility answer",
+    "code": "return { eligible: reasons.length === 0, reasons };"
+  },
+  {
+    "id": "string-list",
+    "label": "Helper: is a value a list of strings?",
+    "code": "function isStringArray(value: unknown): value is string[] {\n    return Array.isArray(value) && value.every((v) => typeof v === \"string\");\n}"
+  },
+  {
+    "id": "collect-reasons-all-quizzes",
+    "label": "Every reason that applies, in spec order",
+    "code": "const reasons: Reason[] = [];\nif (!course.requiredLessons.every((id) => lessons.has(id))) reasons.push(\"lessons_incomplete\");\nconst passed = (r.passedQuizzes as string[]).length;\nif (passed * 100 < course.quizPassPercent * courseQuizzes.size) reasons.push(\"quiz_rate_too_low\");\nif (!course.codingChallenges.every((id) => coding.has(id))) reasons.push(\"coding_not_passed\");\nif (r.revoked === true) reasons.push(\"revoked\");\nif (r.issuedAt !== null) reasons.push(\"already_issued\");",
+    "distractor": true
+  },
+  {
+    "id": "result-first-reason",
+    "label": "The eligibility answer",
+    "code": "return { eligible: reasons.length === 0, reasons: reasons.slice(0, 1) };",
+    "distractor": true
+  }
+]

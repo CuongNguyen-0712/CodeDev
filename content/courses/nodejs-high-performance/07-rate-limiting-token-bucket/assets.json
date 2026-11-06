@@ -2,7 +2,7 @@
   "images": {
     "fixed-window-vs-token-bucket": {
       "publicId": "codedev/courses/nodejs-high-performance/07-rate-limiting-token-bucket/fixed-window-vs-token-bucket",
-      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1792168360/codedev/courses/nodejs-high-performance/07-rate-limiting-token-bucket/fixed-window-vs-token-bucket.png?_a=BAMAROWQ0",
+      "url": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/q_auto/v1793945081/codedev/courses/nodejs-high-performance/07-rate-limiting-token-bucket/fixed-window-vs-token-bucket.png?_a=BAMAROiw0",
       "width": 1200,
       "height": 600
     }

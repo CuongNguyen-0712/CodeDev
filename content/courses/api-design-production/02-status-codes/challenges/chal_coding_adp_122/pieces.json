@@ -1,0 +1,45 @@
+[
+  {
+    "id": "shared-values",
+    "label": "Method, location check and a reply without headers",
+    "code": "const m = method.toUpperCase();\nconst hasLocation = typeof outcome.location === \"string\" && outcome.location !== \"\";\nconst plain = (status: number): Reply => ({ status, headers: {} });"
+  },
+  {
+    "id": "success-outcomes",
+    "label": "Outcomes that succeeded (2xx)",
+    "code": "case \"ok\":\n    return plain(m === \"DELETE\" ? 204 : 200);\ncase \"created\":\n    if (m !== \"POST\") return plain(201);\n    return hasLocation ? { status: 201, headers: { Location: outcome.location! } } : plain(500);\ncase \"accepted\":\n    return hasLocation ? { status: 202, headers: { Location: outcome.location! } } : plain(500);\ncase \"already_exists\":\n    return plain(200);"
+  },
+  {
+    "id": "plain-rejections",
+    "label": "Rejections that need no header",
+    "code": "case \"validation_failed\":\n    return plain(400);\ncase \"rule_violated\":\n    return plain(422);\ncase \"forbidden\":\n    return plain(outcome.hidden === true ? 404 : 403);\ncase \"not_found\":\n    return plain(404);\ncase \"version_conflict\":\n    return plain(409);\ncase \"payment_required\":\n    return plain(402);\ncase \"gone\":\n    return plain(410);"
+  },
+  {
+    "id": "header-replies",
+    "label": "Replies that tell the client what to do next",
+    "code": "case \"unauthenticated\":\n    return { status: 401, headers: { \"WWW-Authenticate\": 'Bearer realm=\"codedev\"' } };\ncase \"rate_limited\":\n    return { status: 429, headers: { \"Retry-After\": retryAfter(outcome.retryAfterSeconds) } };\ncase \"dependency_down\":\n    return { status: 503, headers: { \"Retry-After\": retryAfter(outcome.retryAfterSeconds) } };\ncase \"method_not_allowed\": {\n    const allowed = new Set((outcome.allowed ?? []).map((a) => a.toUpperCase()));\n    return { status: 405, headers: { Allow: ALLOW_ORDER.filter((a) => allowed.has(a)).join(\", \") } };\n}"
+  },
+  {
+    "id": "retry-after",
+    "label": "Retry-After value in seconds",
+    "code": "function retryAfter(seconds: unknown): string {\n    const valid = typeof seconds === \"number\" && Number.isInteger(seconds) && seconds >= 0;\n    return String(valid ? seconds : DEFAULT_RETRY_AFTER);\n}"
+  },
+  {
+    "id": "location-on-every-201",
+    "label": "Outcomes that succeeded (2xx)",
+    "code": "case \"ok\":\n    return plain(m === \"DELETE\" ? 204 : 200);\ncase \"created\":\n    return hasLocation ? { status: 201, headers: { Location: outcome.location! } } : plain(500);\ncase \"accepted\":\n    return hasLocation ? { status: 202, headers: { Location: outcome.location! } } : plain(500);\ncase \"already_exists\":\n    return plain(200);",
+    "distractor": true
+  },
+  {
+    "id": "rejections-422-no-hiding",
+    "label": "Rejections that need no header",
+    "code": "case \"validation_failed\":\n    return plain(422);\ncase \"rule_violated\":\n    return plain(422);\ncase \"forbidden\":\n    return plain(403);\ncase \"not_found\":\n    return plain(404);\ncase \"version_conflict\":\n    return plain(409);\ncase \"payment_required\":\n    return plain(402);\ncase \"gone\":\n    return plain(410);",
+    "distractor": true
+  },
+  {
+    "id": "retry-after-no-default",
+    "label": "Retry-After value in seconds",
+    "code": "function retryAfter(seconds: unknown): string {\n    return String(seconds);\n}",
+    "distractor": true
+  }
+]

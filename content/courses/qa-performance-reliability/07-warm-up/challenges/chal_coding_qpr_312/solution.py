@@ -1,6 +1,10 @@
 """
 Compare two load test runs of POST /api/submissions fairly: find where each run's warm-up ends,
-exclude it, and compare the p95 of the steady parts (see the challenge description for the rule).
+exclude it, and compare the p95 of the steady parts. The exact rule is in the challenge description.
+
+Input (stdin): {"window_ms": 10000, "band": 0.2, "baseline": [[t_ms, latency_ms], ...], "candidate": [...]}
+Output: {"baseline": run, "candidate": run, "p95_change_pct": x, "naive_p95_change_pct": y}
+where run = {"warmup_end_ms", "excluded", "steady_samples", "p95", "dropped"}.
 """
 import json
 import math
@@ -19,6 +23,7 @@ def percentile(values, p):
     return ordered[max(rank, 1) - 1]
 
 
+# @piece valid-samples: Keep only well-formed samples
 def is_number(x):
     return isinstance(x, (int, float)) and not isinstance(x, bool)
 
@@ -29,31 +34,40 @@ def valid_samples(samples):
         if isinstance(s, list) and len(s) == 2 and is_number(s[0]) and is_number(s[1]) and s[0] >= 0 and s[1] > 0:
             valid.append((s[0], s[1]))
     return valid
+# @end
 
 
 def warmup_end(samples, window_ms, band):
     """Start (ms) of the first window after which every window p95 stays in the band, or None."""
+    # @piece window-p95s: The p95 of every time window
     windows = {}
     for t, latency in samples:
         windows.setdefault(int(t // window_ms), []).append(latency)
     keys = sorted(windows)
     p95s = [percentile(windows[k], 95) for k in keys]
+    # @end
     n = len(p95s)
     if n == 0:
         return None
+    # @piece steady-start: Walk back from the end while windows stay in the band
     reference = statistics.median(p95s[n // 2:])
     start = n
     while start > 0 and abs(p95s[start - 1] - reference) <= band * reference:
         start -= 1
+    # @end
+    # @piece enough-steady: The warm-up end, only with enough steady windows
     if n - start < MIN_STEADY_WINDOWS:
         return None
     return keys[start] * window_ms
+    # @end
 
 
 def analyse_run(samples, window_ms, band):
     valid = valid_samples(samples)
+    # @piece steady-part: The samples after the warm-up
     end = warmup_end(valid, window_ms, band)
     steady = [latency for t, latency in valid if end is not None and t >= end]
+    # @end
     p95 = percentile(steady, 95)
     report = {
         "warmup_end_ms": end,

@@ -34,16 +34,22 @@ def search_courses(db, q, level=None):
     q = q.strip()
     if not q:
         return []
+    # @piece search-condition: Build the title search
     sql = (
         "SELECT course_id, title, level FROM courses "
         "WHERE title LIKE ? ESCAPE '\\' AND status = 'published'"
     )
     params = ["%" + escape_like(q) + "%"]
+    # @end
+    # @piece level-filter: Filter by level when one is given
     if level:
         sql += " AND level = ?"
         params.append(level)
+    # @end
     sql += " ORDER BY title, course_id LIMIT 20"
+    # @piece run-query: Run the query
     return [list(row) for row in db.execute(sql, params)]
+    # @end
 
 
 # ---------------------------------------------------------------- test runner (do not change)

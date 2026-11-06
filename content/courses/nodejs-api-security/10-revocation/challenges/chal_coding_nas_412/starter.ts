@@ -65,19 +65,26 @@ type AccessResult = "ok" | "expired" | "revoked";
 type SessionView = { familyId: string; deviceId: string; createdAt: number; lastUsedAt: number };
 
 function revokeFamily(s: AuthState, userId: string, familyId: string, now: number): boolean {
-    return false;
+    // [ ] Find the family and check who owns it
+    // [ ] Revoke its rows and deny its access tokens
+    return true;
 }
 
-function signOutAll(s: AuthState, userId: string, now: number): void {}
+function signOutAll(s: AuthState, userId: string, now: number): void {
+    // [ ] Sign out every session of the user
+}
 
 function checkAccess(s: AuthState, claims: AccessClaims, now: number): AccessResult {
+    // [ ] Expiry, session version and the deny list
     return "ok";
 }
 
-function pruneDenyList(s: AuthState, now: number): void {}
+function pruneDenyList(s: AuthState, now: number): void {
+    // [ ] Drop deny-list entries that ran out
+}
 
 function listSessions(s: AuthState, userId: string, now: number): SessionView[] {
-    return [];
+    // [ ] The user's live sessions, most recent first
 }
 
 // ------------------------------------------------- issuing and refresh (from lessons 2.3 and 3.1, do not change)

@@ -28,8 +28,8 @@ import { readFileSync } from "node:fs";
 // - traceId is ctx.traceId when it is a non-empty string, otherwise "unknown"; instance is ctx.path.
 // - headers: exactly { "Content-Type": "application/problem+json" }.
 //
-// Write formatError (add helpers if you like). Do not change the classes, the types, the constants
-// or the test runner.
+// Complete formatError: fill every [ ] line with the right piece. Do not change the classes, the types,
+// the constants or the test runner.
 
 type FieldError = { field: string; code: string; message: string };
 
@@ -73,13 +73,17 @@ const TITLES: Record<number, string> = {
 };
 
 function formatError(thrown: unknown, ctx: RequestContext): ErrorResponse {
-    const message = thrown instanceof Error ? thrown.message : String(thrown);
-    return {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-        body: { type: "about:blank", title: "Error", status: 500, code: "", message, details: [], traceId: "", instance: ctx.path },
-    };
+    // [ ] What an unknown failure answers
+
+    // [ ] Map each kind of thrown value to the contract
+    // [ ] What a 5xx may reveal
+
+    // [ ] The problem+json response
 }
+
+// [ ] Statuses a handler may set
+
+// [ ] Clean, sort and cap the field errors
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { cases: [{ thrown, ctx }] }. thrown describes what the handler threw:

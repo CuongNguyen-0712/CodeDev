@@ -1,0 +1,24 @@
+[
+  {
+    "id": "after-update",
+    "label": "After the price is saved",
+    "code": "if (row === null) return false;\n// Invalidate: bump the version, then drop the copy (a fill that started earlier will not SET it back).\nfor (const key of [`course:${id}`, `courses:category:${row.category}`]) {\n    this.redis.incr(`${key}:ver`);\n    this.redis.del(key);\n}\nreturn true;"
+  },
+  {
+    "id": "fill-cache",
+    "label": "Load on a miss and store the copy",
+    "code": "const version = this.redis.get(`${key}:ver`);\nconst value = await load();\n// An invalidation ran while we were loading: our value may be older than the database.\nif (this.redis.get(`${key}:ver`) === version) {\n    this.redis.set(key, JSON.stringify(value), { ex: CACHE_TTL_SECONDS });\n}"
+  },
+  {
+    "id": "fill-version-after-load",
+    "label": "Load on a miss and store the copy",
+    "code": "const value = await load();\nconst version = this.redis.get(`${key}:ver`);\n// An invalidation ran while we were loading: our value may be older than the database.\nif (this.redis.get(`${key}:ver`) === version) {\n    this.redis.set(key, JSON.stringify(value), { ex: CACHE_TTL_SECONDS });\n}",
+    "distractor": true
+  },
+  {
+    "id": "update-delete-only",
+    "label": "After the price is saved",
+    "code": "if (row === null) return false;\n// Invalidate: drop the copy.\nfor (const key of [`course:${id}`, `courses:category:${row.category}`]) {\n    this.redis.del(key);\n}\nreturn true;",
+    "distractor": true
+  }
+]

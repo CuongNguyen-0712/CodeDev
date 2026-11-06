@@ -1,0 +1,50 @@
+[
+  {
+    "id": "find-course",
+    "label": "The course must exist",
+    "code": "const course = this.courses.findById(courseId);\nif (!course) throw new CourseNotFoundError(courseId);"
+  },
+  {
+    "id": "already-active",
+    "label": "An active enrollment is returned as it is",
+    "code": "const current = this.enrollments.findByUserAndCourse(userId, courseId);\nif (current && current.status === \"active\") return { outcome: \"existing\", enrollment: current };"
+  },
+  {
+    "id": "must-be-published",
+    "label": "Only published courses take enrollments",
+    "code": "if (!course.published) throw new CourseNotPublishedError(courseId);"
+  },
+  {
+    "id": "prerequisites",
+    "label": "Every prerequisite completed",
+    "code": "const missing = course.prerequisites.filter((id) => !this.completions.hasCompleted(userId, id));\nif (missing.length > 0) throw new PrerequisitesMissingError(courseId, missing);"
+  },
+  {
+    "id": "premium-entitlement",
+    "label": "Premium courses need an entitlement",
+    "code": "if (course.premium && !this.entitlements.hasEntitlement(userId, courseId)) {\n    throw new EntitlementRequiredError(courseId);\n}"
+  },
+  {
+    "id": "save-enrollment",
+    "label": "Reactivate the old enrollment or create one",
+    "code": "if (current) {\n    const reactivated: Enrollment = { ...current, status: \"active\" };\n    this.enrollments.save(reactivated);\n    return { outcome: \"reactivated\", enrollment: reactivated };\n}\nreturn { outcome: \"created\", enrollment: this.enrollments.create(userId, courseId) };"
+  },
+  {
+    "id": "already-active-any-status",
+    "label": "An active enrollment is returned as it is",
+    "code": "const current = this.enrollments.findByUserAndCourse(userId, courseId);\nconst existing = this.enrollments.findByUserAndCourse(userId, courseId);\nif (existing) return { outcome: \"existing\", enrollment: existing };",
+    "distractor": true
+  },
+  {
+    "id": "prerequisites-first-only",
+    "label": "Every prerequisite completed",
+    "code": "const first = course.prerequisites.find((id) => !this.completions.hasCompleted(userId, id));\nconst missing = first === undefined ? [] : [first];\nif (missing.length > 0) throw new PrerequisitesMissingError(courseId, missing);",
+    "distractor": true
+  },
+  {
+    "id": "save-enrollment-in-place",
+    "label": "Reactivate the old enrollment or create one",
+    "code": "if (current) {\n    current.status = \"active\";\n    return { outcome: \"reactivated\", enrollment: current };\n}\nreturn { outcome: \"created\", enrollment: this.enrollments.create(userId, courseId) };",
+    "distractor": true
+  }
+]

@@ -27,14 +27,20 @@ import { readFileSync } from "node:fs";
 
 type Decision = { allowed: boolean; remaining: number; retryAfter: number };
 
+function checkConfig(limit: number, windowSeconds: number): void {
+    // [ ] Refuse a limit or window that is not a whole number >= 1
+}
+
 function fixedWindow(redis: FakeRedis, key: string, limit: number, windowSeconds: number): Decision {
-    // TODO
-    return { allowed: true, remaining: limit, retryAfter: 0 };
+    checkConfig(limit, windowSeconds);
+    // [ ] Count the request in the fixed window and decide
 }
 
 function slidingWindow(redis: FakeRedis, clock: FakeClock, key: string, limit: number, windowSeconds: number): Decision {
-    // TODO
-    return { allowed: true, remaining: limit, retryAfter: 0 };
+    checkConfig(limit, windowSeconds);
+    // [ ] Estimate the requests of the sliding window
+    // [ ] Allow the request and count it
+    // [ ] Deny the request with the time until it would pass
 }
 
 // ---------------------------------------------------------------- in-memory Redis and database (do not change)

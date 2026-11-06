@@ -1,0 +1,56 @@
+[
+  {
+    "id": "compare",
+    "label": "Order the commands for the fix list",
+    "code": "const r = rank(a) - rank(b);\nif (r !== 0) return r;\nif (a.op === \"leaderboard.upsert\" && b.op === \"leaderboard.upsert\" && a.was !== null && b.was !== null) {\n    const d = Math.abs(b.xp - b.was) - Math.abs(a.xp - a.was); // larger difference first\n    if (d !== 0) return d;\n}\nconst ka = [a.userId, \"courseId\" in a ? a.courseId : \"\"];\nconst kb = [b.userId, \"courseId\" in b ? b.courseId : \"\"];\nfor (let i = 0; i < 2; i++) if (ka[i] !== kb[i]) return ka[i] < kb[i] ? -1 : 1;\nreturn 0;"
+  },
+  {
+    "id": "validate",
+    "label": "Refuse invalid options",
+    "code": "const okInt = (n: number) => Number.isInteger(n) && n >= 0;\nif (!okInt(opts.graceSeconds) || !okInt(opts.maxFixes)) return { error: \"invalid options\" };"
+  },
+  {
+    "id": "expected-state",
+    "label": "Work out the expected state from the source",
+    "code": "const progressByKey = new Map(source.progress.map((p) => [`${p.userId}:${p.courseId}`, p]));\nconst expectedXp = new Map<string, number>();\nconst expectedCerts = new Set<string>();\nfor (const e of source.enrollments) {\n    if (e.status !== \"active\") continue;\n    const key = `${e.userId}:${e.courseId}`;\n    const p = progressByKey.get(key);\n    expectedXp.set(e.userId, (expectedXp.get(e.userId) ?? 0) + (p?.xp ?? 0));\n    if (p && p.totalLessons > 0 && p.completedLessons >= p.totalLessons) expectedCerts.add(key);\n}"
+  },
+  {
+    "id": "last-change",
+    "label": "When each learner and enrollment last changed",
+    "code": "const lastByUser = new Map<string, number>();\nconst lastByKey = new Map<string, number>();\nfor (const row of [...source.enrollments, ...source.progress]) {\n    const key = `${row.userId}:${row.courseId}`;\n    lastByUser.set(row.userId, Math.max(lastByUser.get(row.userId) ?? -Infinity, row.updatedAt));\n    lastByKey.set(key, Math.max(lastByKey.get(key) ?? -Infinity, row.updatedAt));\n}\nconst inFlight = (last: number | undefined) => last !== undefined && opts.now - last < opts.graceSeconds;"
+  },
+  {
+    "id": "candidates",
+    "label": "Collect what differs from the source",
+    "code": "const candidates: { cmd: Command; flying: boolean }[] = [];\nfor (const key of expectedCerts) {\n    if (model.certificates.has(key)) continue;\n    const [userId, courseId] = key.split(\":\");\n    candidates.push({ cmd: { op: \"certificate.issue\", userId, courseId }, flying: inFlight(lastByKey.get(key)) });\n}\nfor (const [key, c] of model.certificates) {\n    if (expectedCerts.has(key)) continue;\n    candidates.push({ cmd: { op: \"certificate.revoke\", userId: c.userId, courseId: c.courseId }, flying: inFlight(lastByKey.get(key)) });\n}\nfor (const [userId, xp] of expectedXp) {\n    const was = model.leaderboard.get(userId);\n    if (was === xp) continue;\n    candidates.push({ cmd: { op: \"leaderboard.upsert\", userId, xp, was: was ?? null }, flying: inFlight(lastByUser.get(userId)) });\n}\nfor (const [userId, was] of model.leaderboard) {\n    if (expectedXp.has(userId)) continue;\n    candidates.push({ cmd: { op: \"leaderboard.delete\", userId, was }, flying: inFlight(lastByUser.get(userId)) });\n}"
+  },
+  {
+    "id": "split-apply",
+    "label": "Split, cap and apply the fixes",
+    "code": "const ready = candidates.filter((c) => !c.flying).map((c) => c.cmd).sort(compareCommands);\nconst deferred = candidates.filter((c) => c.flying).map((c) => c.cmd).sort(compareCommands);\nconst fixes = ready.slice(0, opts.maxFixes);\nconst skippedByCap = ready.slice(opts.maxFixes);\n\nif (!opts.dryRun) {\n    for (const c of fixes) {\n        if (c.op === \"certificate.issue\") model.certificates.set(`${c.userId}:${c.courseId}`, { userId: c.userId, courseId: c.courseId, issuedAt: opts.now });\n        else if (c.op === \"certificate.revoke\") model.certificates.delete(`${c.userId}:${c.courseId}`);\n        else if (c.op === \"leaderboard.upsert\") model.leaderboard.set(c.userId, c.xp);\n        else model.leaderboard.delete(c.userId);\n    }\n}"
+  },
+  {
+    "id": "cap-counts-deferred",
+    "label": "Split, cap and apply the fixes",
+    "code": "const ready = candidates.filter((c) => !c.flying).map((c) => c.cmd).sort(compareCommands);\nconst deferred = candidates.filter((c) => c.flying).map((c) => c.cmd).sort(compareCommands);\nconst fixes = ready.slice(0, Math.max(0, opts.maxFixes - deferred.length));\nconst skippedByCap = ready.slice(opts.maxFixes);\n\nif (!opts.dryRun) {\n    for (const c of fixes) {\n        if (c.op === \"certificate.issue\") model.certificates.set(`${c.userId}:${c.courseId}`, { userId: c.userId, courseId: c.courseId, issuedAt: opts.now });\n        else if (c.op === \"certificate.revoke\") model.certificates.delete(`${c.userId}:${c.courseId}`);\n        else if (c.op === \"leaderboard.upsert\") model.leaderboard.set(c.userId, c.xp);\n        else model.leaderboard.delete(c.userId);\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "expected-counts-cancelled",
+    "label": "Work out the expected state from the source",
+    "code": "const progressByKey = new Map(source.progress.map((p) => [`${p.userId}:${p.courseId}`, p]));\nconst expectedXp = new Map<string, number>();\nconst expectedCerts = new Set<string>();\nfor (const e of source.enrollments) {\n    const key = `${e.userId}:${e.courseId}`;\n    const p = progressByKey.get(key);\n    expectedXp.set(e.userId, (expectedXp.get(e.userId) ?? 0) + (p?.xp ?? 0));\n    if (e.status !== \"active\") continue;\n    if (p && p.totalLessons > 0 && p.completedLessons >= p.totalLessons) expectedCerts.add(key);\n}",
+    "distractor": true
+  },
+  {
+    "id": "grace-boundary-inclusive",
+    "label": "When each learner and enrollment last changed",
+    "code": "const lastByUser = new Map<string, number>();\nconst lastByKey = new Map<string, number>();\nfor (const row of [...source.enrollments, ...source.progress]) {\n    const key = `${row.userId}:${row.courseId}`;\n    lastByUser.set(row.userId, Math.max(lastByUser.get(row.userId) ?? -Infinity, row.updatedAt));\n    lastByKey.set(key, Math.max(lastByKey.get(key) ?? -Infinity, row.updatedAt));\n}\nconst inFlight = (last: number | undefined) => last !== undefined && opts.now - last <= opts.graceSeconds;",
+    "distractor": true
+  },
+  {
+    "id": "order-ignores-kind",
+    "label": "Order the commands for the fix list",
+    "code": "const r = 0;\nif (r !== 0) return r;\nif (a.op === \"leaderboard.upsert\" && b.op === \"leaderboard.upsert\" && a.was !== null && b.was !== null) {\n    const d = Math.abs(b.xp - b.was) - Math.abs(a.xp - a.was); // larger difference first\n    if (d !== 0) return d;\n}\nconst ka = [a.userId, \"courseId\" in a ? a.courseId : \"\"];\nconst kb = [b.userId, \"courseId\" in b ? b.courseId : \"\"];\nfor (let i = 0; i < 2; i++) if (ka[i] !== kb[i]) return ka[i] < kb[i] ? -1 : 1;\nreturn 0;",
+    "distractor": true
+  }
+]

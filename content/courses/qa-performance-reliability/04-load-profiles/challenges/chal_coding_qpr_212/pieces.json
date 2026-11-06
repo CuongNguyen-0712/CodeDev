@@ -1,0 +1,45 @@
+[
+  {
+    "id": "check-profile",
+    "label": "Stages present and a valid start rate",
+    "code": "stages = profile.get(\"stages\")\nif not isinstance(stages, list) or not stages:\n    return {\"error\": \"no stages\"}\nrate = profile.get(\"start_rate\", 0)\nif not is_int(rate) or rate < 0:\n    return {\"error\": \"bad start_rate\"}"
+  },
+  {
+    "id": "check-stages",
+    "label": "Each stage valid, and the whole test short enough",
+    "code": "for n, stage in enumerate(stages, 1):\n    if not is_int(stage.get(\"duration_s\")) or stage[\"duration_s\"] < 1:\n        return {\"error\": f\"stage {n}: bad duration_s\"}\n    if not is_int(stage.get(\"target\")) or stage[\"target\"] < 0:\n        return {\"error\": f\"stage {n}: bad target\"}\nif sum(stage[\"duration_s\"] for stage in stages) > MAX_DURATION_S:\n    return {\"error\": \"longer than 3600 s\"}"
+  },
+  {
+    "id": "track-steady",
+    "label": "Remember the longest stage that holds a rate",
+    "code": "if a == b and b > 0 and (steady is None or d > steady[\"end_s\"] - steady[\"start_s\"]):\n    steady = {\"start_s\": len(schedule), \"end_s\": len(schedule) + d, \"rate\": b}"
+  },
+  {
+    "id": "ramp-seconds",
+    "label": "One target rate per second of the stage",
+    "code": "# // floors toward minus infinity, so a ramp-down rounds down too\nschedule.extend(a + (b - a) * k // d for k in range(1, d + 1))"
+  },
+  {
+    "id": "totals",
+    "label": "The schedule and its totals",
+    "code": "return {\n    \"duration_s\": len(schedule),\n    \"total_requests\": sum(schedule),\n    \"peak_rate\": max(schedule),\n    \"steady\": steady,\n    \"schedule\": schedule,\n}"
+  },
+  {
+    "id": "ramp-seconds-start-of-second",
+    "label": "One target rate per second of the stage",
+    "code": "schedule.extend(a + (b - a) * k // d for k in range(d))",
+    "distractor": true
+  },
+  {
+    "id": "ramp-seconds-truncate",
+    "label": "One target rate per second of the stage",
+    "code": "schedule.extend(a + int((b - a) * k / d) for k in range(1, d + 1))",
+    "distractor": true
+  },
+  {
+    "id": "track-steady-includes-pauses",
+    "label": "Remember the longest stage that holds a rate",
+    "code": "if a == b and (steady is None or d > steady[\"end_s\"] - steady[\"start_s\"]):\n    steady = {\"start_s\": len(schedule), \"end_s\": len(schedule) + d, \"rate\": b}",
+    "distractor": true
+  }
+]

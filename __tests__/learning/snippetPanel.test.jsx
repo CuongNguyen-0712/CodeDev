@@ -68,6 +68,21 @@ describe("CodeEditor insertAtCursor", () => {
         expect(onChange).toHaveBeenCalledWith("a();\nmid();\nb();\n");
     });
 
+    it("replaceSelection swaps the selected faulty lines for the fix, and needs a selection", () => {
+        const ref = createRef();
+        const onChange = vi.fn();
+        const value = "function f(a) {\n  if (a > 2) {\n    run();\n  }\n  return a;\n}\n";
+        render(<CodeEditor ref={ref} value={value} onChange={onChange} />);
+        expect(ref.current.replaceSelection("x();")).toBeNull(); // nothing selected yet
+
+        const textarea = screen.getByRole("textbox");
+        fireEvent.focus(textarea);
+        textarea.setSelectionRange(value.indexOf("a > 2"), value.indexOf("  }") + 3);
+        fireEvent.select(textarea);
+        expect(ref.current.replaceSelection("if (a >= 2) {\n  run();\n}")).toEqual({ line: 2 });
+        expect(onChange).toHaveBeenCalledWith("function f(a) {\n  if (a >= 2) {\n    run();\n  }\n  return a;\n}\n");
+    });
+
     it("ignores inserts while read-only", () => {
         const ref = createRef();
         const onChange = vi.fn();

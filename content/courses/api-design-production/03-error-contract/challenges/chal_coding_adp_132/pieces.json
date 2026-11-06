@@ -1,0 +1,50 @@
+[
+  {
+    "id": "safe-defaults",
+    "label": "What an unknown failure answers",
+    "code": "let status = 500;\nlet code = \"INTERNAL_ERROR\";\nlet message = \"server.error\";\nlet details: FieldError[] = [];"
+  },
+  {
+    "id": "classify-thrown",
+    "label": "Map each kind of thrown value to the contract",
+    "code": "if (thrown instanceof AppError && validStatus(thrown.status)) {\n    ({ status, code, message } = thrown);\n    details = toDetails(thrown.details);\n} else if (thrown instanceof ValidationFailed) {\n    status = 400;\n    code = \"VALIDATION_FAILED\";\n    message = \"request.invalid\";\n    details = toDetails(thrown.errors);\n} else if (thrown instanceof HttpError && validStatus(thrown.status)) {\n    status = thrown.status;\n    code = `HTTP_${status}`;\n    message = thrown.message;\n}"
+  },
+  {
+    "id": "hide-server-errors",
+    "label": "What a 5xx may reveal",
+    "code": "if (status >= 500) {\n    message = \"server.error\";\n    details = [];\n}"
+  },
+  {
+    "id": "problem-response",
+    "label": "The problem+json response",
+    "code": "return {\n    status,\n    headers: { \"Content-Type\": \"application/problem+json\" },\n    body: {\n        type: PROBLEM_BASE + code.toLowerCase().replace(/_/g, \"-\"),\n        title: TITLES[status] ?? \"Error\",\n        status,\n        code,\n        message,\n        details,\n        traceId: typeof ctx.traceId === \"string\" && ctx.traceId !== \"\" ? ctx.traceId : \"unknown\",\n        instance: ctx.path,\n    },\n};"
+  },
+  {
+    "id": "valid-status",
+    "label": "Statuses a handler may set",
+    "code": "const validStatus = (s: number) => Number.isInteger(s) && s >= 400 && s <= 599;"
+  },
+  {
+    "id": "to-details",
+    "label": "Clean, sort and cap the field errors",
+    "code": "function toDetails(list: unknown[]): FieldError[] {\n    const clean: FieldError[] = [];\n    for (const d of list) {\n        if (typeof d !== \"object\" || d === null) continue;\n        const { field, code, message } = d as Record<string, unknown>;\n        if (typeof field !== \"string\") continue;\n        clean.push({ field, code: typeof code === \"string\" ? code : \"\", message: typeof message === \"string\" ? message : \"\" });\n    }\n    const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);\n    clean.sort((a, b) => cmp(a.field, b.field) || cmp(a.code, b.code));\n    return clean.length > MAX_DETAILS ? [...clean.slice(0, MAX_DETAILS), { ...TRUNCATION_MARKER }] : clean;\n}"
+  },
+  {
+    "id": "hide-server-errors-keeps-details",
+    "label": "What a 5xx may reveal",
+    "code": "if (status >= 500) {\n    message = \"server.error\";\n}",
+    "distractor": true
+  },
+  {
+    "id": "hide-server-errors-leaks-message",
+    "label": "What a 5xx may reveal",
+    "code": "if (status >= 500 && thrown instanceof Error) message = thrown.message;\nelse if (status >= 500) {\n    message = \"server.error\";\n    details = [];\n}",
+    "distractor": true
+  },
+  {
+    "id": "to-details-no-marker",
+    "label": "Clean, sort and cap the field errors",
+    "code": "function toDetails(list: unknown[]): FieldError[] {\n    const clean: FieldError[] = [];\n    for (const d of list) {\n        if (typeof d !== \"object\" || d === null) continue;\n        const { field, code, message } = d as Record<string, unknown>;\n        if (typeof field !== \"string\") continue;\n        clean.push({ field, code: typeof code === \"string\" ? code : \"\", message: typeof message === \"string\" ? message : \"\" });\n    }\n    const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);\n    clean.sort((a, b) => cmp(a.field, b.field) || cmp(a.code, b.code));\n    return clean.length > MAX_DETAILS ? clean.slice(0, MAX_DETAILS) : clean;\n}",
+    "distractor": true
+  }
+]

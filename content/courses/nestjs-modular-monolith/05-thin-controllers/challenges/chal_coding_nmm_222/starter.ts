@@ -83,21 +83,26 @@ class CatalogService {
 //
 // Every 400 is: headers {}, body { error: "<message>" }. Response bodies contain exactly the listed
 // fields: never passwordHash, email, role, internalNotes, paymentRef, published or authorPayoutPercent.
+// Fill every [ ] line with the right piece.
 class CodeDevController {
     constructor(private readonly service: CatalogService) {}
 
     listCourses(req: HttpRequest): HttpResponse {
-        return { status: 501, headers: {}, body: null };
+        // [ ] Read page, limit and level from the query
+        // [ ] Ask the service once and answer with the page
     }
 
     enroll(req: HttpRequest): HttpResponse {
-        return { status: 501, headers: {}, body: null };
+        // [ ] Read the course id from the body
+        // [ ] Enroll the signed-in learner and answer 201
     }
 
     getProfile(req: HttpRequest): HttpResponse {
-        return { status: 501, headers: {}, body: null };
+        // [ ] The public profile, or 404
     }
 }
+
+// [ ] The shape of every 400
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { "courses"?: CourseRecord[], "generateCourses"?: n, "users"?: UserRecord[], "requests": [...] }.

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "range-match",
+    "label": "Does a version fall inside the range",
+    "code": "if (range === \"*\") return true;\nconst op = range[0] === \"^\" || range[0] === \"~\" ? range[0] : \"\";\nconst base = op ? range.slice(1) : range;\nconst [v, b] = [parse(version), parse(base)];\nif (op === \"\") return compareVersions(version, base) === 0;\nif (compareVersions(version, base) < 0) return false;\nif (op === \"~\" || b[0] === 0) return v[0] === b[0] && v[1] === b[1];\nreturn v[0] === b[0];"
+  },
+  {
+    "id": "normalize",
+    "label": "A name with its separators removed",
+    "code": "return name.replace(/[@/._~-]/g, \"\");"
+  },
+  {
+    "id": "lookalike",
+    "label": "Is the name close to a popular package",
+    "code": "const n = normalize(name);\nlet best: { distance: number; name: string } | null = null;\nfor (const p of popular) {\n    const np = normalize(p);\n    const distance = levenshtein(n, np);\n    if (distance > (np.length <= 4 ? 1 : 2)) continue;\n    if (!best || distance < best.distance || (distance === best.distance && p < best.name)) best = { distance, name: p };\n}\nif (best) return result(\"lookalike\", best.name);"
+  },
+  {
+    "id": "unknown-or-new",
+    "label": "Unknown, or new and barely downloaded",
+    "code": "if (!pkg) return result(\"not_found\");\nconst first = Object.values(pkg.versions).sort()[0];\nconst age = daysBetween(first, today);\nif (age < policy.newPackageDays && pkg.weeklyDownloads < policy.minWeeklyDownloads) {\n    return result(\"new_low_downloads\", `${age} days, ${pkg.weeklyDownloads}/week`);\n}"
+  },
+  {
+    "id": "versions",
+    "label": "Is a published version inside the range",
+    "code": "const versions = Object.keys(pkg!.versions).sort(compareVersions);\nconst matching = versions.filter((v) => satisfies(v, range));\nif (matching.length === 0) return result(\"version_not_published\", versions[versions.length - 1]);\nreturn result(\"ok\", matching[matching.length - 1]);"
+  },
+  {
+    "id": "report-order",
+    "label": "The findings, riskiest first",
+    "code": "return suggested\n    .map(check)\n    .sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));"
+  },
+  {
+    "id": "lookalike-always-two",
+    "label": "Is the name close to a popular package",
+    "code": "const n = normalize(name);\nlet best: { distance: number; name: string } | null = null;\nfor (const p of popular) {\n    const np = normalize(p);\n    const distance = levenshtein(n, np);\n    if (distance > 2) continue;\n    if (!best || distance < best.distance || (distance === best.distance && p < best.name)) best = { distance, name: p };\n}\nif (best) return result(\"lookalike\", best.name);",
+    "distractor": true
+  },
+  {
+    "id": "normalize-as-is",
+    "label": "A name with its separators removed",
+    "code": "return name;",
+    "distractor": true
+  },
+  {
+    "id": "unknown-or-new-latest-date",
+    "label": "Unknown, or new and barely downloaded",
+    "code": "if (!pkg) return result(\"not_found\");\nconst first = Object.values(pkg.versions).sort().reverse()[0];\nconst age = daysBetween(first, today);\nif (age < policy.newPackageDays && pkg.weeklyDownloads < policy.minWeeklyDownloads) {\n    return result(\"new_low_downloads\", `${age} days, ${pkg.weeklyDownloads}/week`);\n}",
+    "distractor": true
+  }
+]

@@ -1,0 +1,19 @@
+[
+  {
+    "id": "apply-event",
+    "label": "Apply one delivered event",
+    "code": "const seenKey = `lb:seen:${event.eventId}`; // exists once this event was processed\nif (this.redis.exists(seenKey) === 1) return \"duplicate\";\n\nconst stored = this.redis.hget(\"lb:version\", event.userId); // version of the learner's last applied event\nconst isNewer = stored === null || event.version > Number(stored);\nif (isNewer) {\n    // A newer version may carry a lower total (a correction): it is still applied.\n    this.redis.zadd(LEADERBOARD, event.total, event.userId);\n    this.redis.hset(\"lb:version\", event.userId, String(event.version));\n}\n// The queue redelivers an unacknowledged message for up to 24 hours: keep the marker twice as long.\n// In production these commands run as one Lua script, so a crash cannot split them.\nthis.redis.set(seenKey, \"1\", { ex: 48 * 60 * 60 });\nreturn isNewer ? \"applied\" : \"stale\";"
+  },
+  {
+    "id": "apply-never-lower",
+    "label": "Apply one delivered event",
+    "code": "const seenKey = `lb:seen:${event.eventId}`; // exists once this event was processed\nif (this.redis.exists(seenKey) === 1) return \"duplicate\";\n\nconst stored = this.redis.hget(\"lb:version\", event.userId); // version of the learner's last applied event\nconst current = this.redis.zscore(LEADERBOARD, event.userId);\nconst isNewer = current === null || event.total > current;\nif (isNewer) {\n    this.redis.zadd(LEADERBOARD, event.total, event.userId);\n    this.redis.hset(\"lb:version\", event.userId, String(event.version));\n}\n// The queue redelivers an unacknowledged message for up to 24 hours: keep the marker twice as long.\n// In production these commands run as one Lua script, so a crash cannot split them.\nthis.redis.set(seenKey, \"1\", { ex: 48 * 60 * 60 });\nreturn isNewer ? \"applied\" : \"stale\";",
+    "distractor": true
+  },
+  {
+    "id": "apply-one-hour-marker",
+    "label": "Apply one delivered event",
+    "code": "const seenKey = `lb:seen:${event.eventId}`; // exists once this event was processed\nif (this.redis.exists(seenKey) === 1) return \"duplicate\";\n\nconst stored = this.redis.hget(\"lb:version\", event.userId); // version of the learner's last applied event\nconst isNewer = stored === null || event.version > Number(stored);\nif (isNewer) {\n    // A newer version may carry a lower total (a correction): it is still applied.\n    this.redis.zadd(LEADERBOARD, event.total, event.userId);\n    this.redis.hset(\"lb:version\", event.userId, String(event.version));\n}\n// The queue redelivers an unacknowledged message for up to 24 hours: keep the marker for an hour.\n// In production these commands run as one Lua script, so a crash cannot split them.\nthis.redis.set(seenKey, \"1\", { ex: 60 * 60 });\nreturn isNewer ? \"applied\" : \"stale\";",
+    "distractor": true
+  }
+]

@@ -198,8 +198,8 @@ Run  npx vitest run tests/bookmarks.test.ts  and show the output.`, "the request
             "Read the code for what the tests cannot see: I/O hidden in the service, `Date.now()` used instead of `at`, the list returned by reference so a caller can change it.",
         ]),
 
-        h2("6. Your turn: implement the spec"),
-        p("The exercise gives you the full bookmark spec and a starter with the test runner. Implement it yourself, or with an AI assistant: if you use one, give it the spec, write your own acceptance tests first, and see which rules it gets wrong on the first try. The hidden tests check every rule in the spec, including the places where two rules meet."),
+        h2("6. Your turn: assemble the spec"),
+        p("The exercise gives you the full bookmark spec and a starter with the test runner. Put the right piece on each `[ ]` line: some pieces are wrong on purpose, and each wrong one breaks a rule of the spec. The hidden tests check every rule in the spec, including the places where two rules meet."),
         challenge("chal_coding_aad_122"),
 
         h2("7. How to verify that the tests are a real contract"),

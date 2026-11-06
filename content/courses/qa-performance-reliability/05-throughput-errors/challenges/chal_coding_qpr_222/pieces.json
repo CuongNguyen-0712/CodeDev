@@ -1,0 +1,45 @@
+[
+  {
+    "id": "classify-status",
+    "label": "The class of one response status",
+    "code": "def classify(status):\n    if 200 <= status <= 399:\n        return \"ok\"\n    if status == 429:\n        return \"throttled\"\n    if 400 <= status <= 499:\n        return \"client_errors\"\n    return \"errors\"  # 5xx, and 0 = no response"
+  },
+  {
+    "id": "endpoint-rates",
+    "label": "Counts plus throughput and error rate",
+    "code": "def finish(counts, seconds):\n    n = counts[\"requests\"]\n    return {\n        **counts,\n        \"rps\": round(n / seconds, 2),\n        \"ok_rps\": round(counts[\"ok\"] / seconds, 2),\n        \"error_rate\": round(counts[\"errors\"] / n, 4) if n else None,\n    }"
+  },
+  {
+    "id": "window-seconds",
+    "label": "Check the window and its length in seconds",
+    "code": "start, end = run[\"window\"][\"start_ms\"], run[\"window\"][\"end_ms\"]\nif not (isinstance(start, int) and isinstance(end, int)) or end - start < 1000 or (end - start) % 1000:\n    return {\"error\": \"window must be a whole number of seconds\"}\nseconds = (end - start) // 1000"
+  },
+  {
+    "id": "in-window",
+    "label": "Keep only requests sent inside the window",
+    "code": "if not start <= sent_ms < end:\n    continue"
+  },
+  {
+    "id": "count-request",
+    "label": "Count the request for its endpoint and the total",
+    "code": "counts = per_endpoint.setdefault(endpoint, dict.fromkeys(FIELDS, 0))\nfor c in (counts, total):\n    c[\"requests\"] += 1\n    c[classify(status)] += 1\n    if status == 0:\n        c[\"timeouts\"] += 1"
+  },
+  {
+    "id": "classify-status-throttled-as-client",
+    "label": "The class of one response status",
+    "code": "def classify(status):\n    if 200 <= status <= 399:\n        return \"ok\"\n    if 400 <= status <= 499:\n        return \"client_errors\"\n    return \"errors\"  # 5xx, and 0 = no response",
+    "distractor": true
+  },
+  {
+    "id": "in-window-by-completion",
+    "label": "Keep only requests sent inside the window",
+    "code": "if not start <= sent_ms + _duration_ms < end:\n    continue",
+    "distractor": true
+  },
+  {
+    "id": "in-window-skip-no-response",
+    "label": "Keep only requests sent inside the window",
+    "code": "if status == 0 or not start <= sent_ms < end:\n    continue",
+    "distractor": true
+  }
+]

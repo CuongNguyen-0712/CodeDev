@@ -37,26 +37,23 @@ import sqlite3
 import sys
 
 SCHEMA = """
--- The schema the import script used: it accepts anything.
--- TODO: add NOT NULL, UNIQUE, CHECK, DEFAULT, PRIMARY KEY and FOREIGN KEY rules from the docstring.
+-- The NOT NULL, UNIQUE, CHECK, DEFAULT, PRIMARY KEY and FOREIGN KEY rules from the docstring.
 CREATE TABLE users (
     user_id  INTEGER PRIMARY KEY,
-    email    TEXT,
-    name     TEXT
+    # [ ] Rules for a user's email and name
 );
 
 CREATE TABLE courses (
     course_id  INTEGER PRIMARY KEY,
-    title      TEXT,
-    level      TEXT
+    # [ ] Rules for a course's title and level
 );
 
 CREATE TABLE enrollments (
-    user_id      INTEGER,
-    course_id    INTEGER,
-    enrolled_at  TEXT,
-    status       TEXT
+    # [ ] Who and what an enrollment points to
+    # [ ] Date, status and the key of an enrollment
 );
+
+# [ ] Find a course's enrollments fast
 """
 
 

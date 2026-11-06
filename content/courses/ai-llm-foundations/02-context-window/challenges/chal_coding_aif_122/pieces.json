@@ -1,0 +1,45 @@
+[
+  {
+    "id": "validate",
+    "label": "Reject a request that breaks the input rules",
+    "code": "const { contextLimit, reservedOutputTokens, system, history } = req;\nif (!isCount(contextLimit) || !isCount(reservedOutputTokens) || reservedOutputTokens >= contextLimit) {\n    return { error: \"invalid_input\" };\n}\nif (!isCount(system.tokens) || history.length === 0 || !history.every((m) => isCount(m.tokens))) {\n    return { error: \"invalid_input\" };\n}\nconst newest = history[history.length - 1];\nif (newest.role !== \"user\") return { error: \"invalid_input\" };"
+  },
+  {
+    "id": "budget",
+    "label": "The input budget; the newest message must fit",
+    "code": "const budget = contextLimit - reservedOutputTokens;\nlet total = system.tokens + newest.tokens;\nif (total > budget) return { error: \"does_not_fit\" };"
+  },
+  {
+    "id": "keep-history",
+    "label": "Keep older messages while they still fit",
+    "code": "// first = index of the oldest message kept; walk back while the next older message still fits\nlet first = history.length - 1;\nwhile (first > 0 && total + history[first - 1].tokens <= budget) {\n    first--;\n    total += history[first].tokens;\n}"
+  },
+  {
+    "id": "plan",
+    "label": "The plan: what is sent, dropped and counted",
+    "code": "return {\n    sent: [system.id, ...history.slice(first).map((m) => m.id)],\n    dropped: history.slice(0, first).map((m) => m.id),\n    inputTokens: total,\n};"
+  },
+  {
+    "id": "is-count",
+    "label": "Helper: is a number a valid token count",
+    "code": "function isCount(n: number): boolean {\n    return Number.isInteger(n) && n >= 0;\n}"
+  },
+  {
+    "id": "budget-ignores-reserved-output",
+    "label": "The input budget; the newest message must fit",
+    "code": "const budget = contextLimit;\nlet total = system.tokens + newest.tokens;\nif (total > budget) return { error: \"does_not_fit\" };",
+    "distractor": true
+  },
+  {
+    "id": "keep-history-strict-less-than",
+    "label": "Keep older messages while they still fit",
+    "code": "// first = index of the oldest message kept; walk back while the next older message still fits\nlet first = history.length - 1;\nwhile (first > 0 && total + history[first - 1].tokens < budget) {\n    first--;\n    total += history[first].tokens;\n}",
+    "distractor": true
+  },
+  {
+    "id": "plan-newest-first",
+    "label": "The plan: what is sent, dropped and counted",
+    "code": "return {\n    sent: [system.id, ...history.slice(first).map((m) => m.id).reverse()],\n    dropped: history.slice(0, first).map((m) => m.id),\n    inputTokens: total,\n};",
+    "distractor": true
+  }
+]

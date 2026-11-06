@@ -1,0 +1,55 @@
+[
+  {
+    "id": "instructor",
+    "label": "An instructor rename (no course id)",
+    "code": "if (event.type === \"instructor_renamed\") {\n    tags.add(`instructor:${event.instructorId}`);\n    for (const c of catalog) if (c.published && c.instructorId === event.instructorId) listings(c.category);\n    return result();\n}"
+  },
+  {
+    "id": "find-course",
+    "label": "Find the course the event is about",
+    "code": "const course = catalog.find((c) => c.id === event.courseId);\nif (!course) return result();"
+  },
+  {
+    "id": "changed-fields",
+    "label": "Keep only the fields whose value changes",
+    "code": "const changes: CourseChanges = event.type === \"price_changed\" ? { price: event.price } : event.changes ?? {};\nconst changed = COURSE_FIELDS.filter((f) => changes[f] !== undefined && changes[f] !== course[f]);"
+  },
+  {
+    "id": "course-tag",
+    "label": "Tag the course when something changed",
+    "code": "if (changed.length === 0) break;\ntags.add(`course:${course.id}`);\nif (!course.published) break;"
+  },
+  {
+    "id": "edit-listings",
+    "label": "Listings and pages an edit affects",
+    "code": "if (changed.some((f) => CARD_FIELDS.includes(f))) listings(course.category);\nif (changed.includes(\"category\")) {\n    listings(changes.category as string);\n    paths.add(\"/courses\");\n}\nif (changed.includes(\"slug\")) {\n    paths.add(`/course/${course.slug}`);\n    paths.add(`/course/${changes.slug}`);\n}"
+  },
+  {
+    "id": "lesson-added",
+    "label": "A new lesson",
+    "code": "tags.add(`course:${course.id}`);\nbreak;"
+  },
+  {
+    "id": "publish-toggle",
+    "label": "Publishing or unpublishing",
+    "code": "if (course.published === (event.type === \"course_published\")) break;\ntags.add(`course:${course.id}`);\nlistings(course.category);\npaths.add(\"/courses\");\npaths.add(`/course/${course.slug}`);\nbreak;"
+  },
+  {
+    "id": "changed-fields-any-given",
+    "label": "Keep only the fields whose value changes",
+    "code": "const changes: CourseChanges = event.type === \"price_changed\" ? { price: event.price } : event.changes ?? {};\nconst changed = COURSE_FIELDS.filter((f) => changes[f] !== undefined);",
+    "distractor": true
+  },
+  {
+    "id": "edit-listings-always",
+    "label": "Listings and pages an edit affects",
+    "code": "listings(course.category);\nif (changed.includes(\"category\")) {\n    listings(changes.category as string);\n    paths.add(\"/courses\");\n}\nif (changed.includes(\"slug\")) {\n    paths.add(`/course/${course.slug}`);\n    paths.add(`/course/${changes.slug}`);\n}",
+    "distractor": true
+  },
+  {
+    "id": "instructor-tag-only",
+    "label": "An instructor rename (no course id)",
+    "code": "if (event.type === \"instructor_renamed\") {\n    tags.add(`instructor:${event.instructorId}`);\n    return result();\n}",
+    "distractor": true
+  }
+]

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "inline-spans",
+    "label": "Turn code, links and bold into HTML",
+    "code": "let out = \"\";\nlet last = 0;\nfor (const m of text.matchAll(INLINE)) {\n    out += escapeHtml(text.slice(last, m.index));\n    if (m[1] !== undefined) {\n        out += `<code>${escapeHtml(m[1])}</code>`;\n    } else if (m[2] !== undefined) {\n        out += /^https?:\\/\\//i.test(m[3])\n            ? `<a href=\"${escapeHtml(m[3])}\" rel=\"noopener noreferrer\">${escapeHtml(m[2])}</a>`\n            : escapeHtml(m[2]);\n    } else {\n        out += `<strong>${escapeHtml(m[4])}</strong>`;\n    }\n    last = m.index + m[0].length;\n}\nreturn out + escapeHtml(text.slice(last));"
+  },
+  {
+    "id": "code-block",
+    "label": "Write a fenced code block",
+    "code": "blocks.push(`<pre><code>${escapeHtml(code.join(\"\\n\"))}</code></pre>`);"
+  },
+  {
+    "id": "inline-spans-any-scheme",
+    "label": "Turn code, links and bold into HTML",
+    "code": "let out = \"\";\nlet last = 0;\nfor (const m of text.matchAll(INLINE)) {\n    out += escapeHtml(text.slice(last, m.index));\n    if (m[1] !== undefined) {\n        out += `<code>${escapeHtml(m[1])}</code>`;\n    } else if (m[2] !== undefined) {\n        out += m[3].length > 0\n            ? `<a href=\"${escapeHtml(m[3])}\" rel=\"noopener noreferrer\">${escapeHtml(m[2])}</a>`\n            : escapeHtml(m[2]);\n    } else {\n        out += `<strong>${escapeHtml(m[4])}</strong>`;\n    }\n    last = m.index + m[0].length;\n}\nreturn out + escapeHtml(text.slice(last));",
+    "distractor": true
+  },
+  {
+    "id": "inline-spans-escape-then-replace",
+    "label": "Turn code, links and bold into HTML",
+    "code": "return escapeHtml(text)\n    .replace(/`([^`]+)`/g, \"<code>$1</code>\")\n    .replace(/\\*\\*([^*]+)\\*\\*/g, \"<strong>$1</strong>\")\n    .replace(/\\[([^\\]]+)\\]\\(([^)\\s]+)\\)/g, (_all: string, label: string, url: string) =>\n        /^https?:\\/\\//i.test(url) ? `<a href=\"${url}\" rel=\"noopener noreferrer\">${label}</a>` : label);",
+    "distractor": true
+  },
+  {
+    "id": "inline-spans-javascript-blocklist",
+    "label": "Turn code, links and bold into HTML",
+    "code": "let out = \"\";\nlet last = 0;\nfor (const m of text.matchAll(INLINE)) {\n    out += escapeHtml(text.slice(last, m.index));\n    if (m[1] !== undefined) {\n        out += `<code>${escapeHtml(m[1])}</code>`;\n    } else if (m[2] !== undefined) {\n        out += !m[3].toLowerCase().startsWith(\"javascript:\")\n            ? `<a href=\"${escapeHtml(m[3])}\" rel=\"noopener noreferrer\">${escapeHtml(m[2])}</a>`\n            : escapeHtml(m[2]);\n    } else {\n        out += `<strong>${escapeHtml(m[4])}</strong>`;\n    }\n    last = m.index + m[0].length;\n}\nreturn out + escapeHtml(text.slice(last));",
+    "distractor": true
+  }
+]

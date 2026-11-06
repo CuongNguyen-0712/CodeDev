@@ -36,8 +36,16 @@ type StabilityRow = {
 type StabilityReport = { results: StabilityRow[]; ignored: number };
 
 function measureStability(runs: RecordedRun[], threshold: number): StabilityReport {
-    return { results: [], ignored: 0 };
+    // [ ] Group usable runs by prompt and temperature
+
+    // [ ] Agreement and the flag for each group
+    // [ ] Sort the rows
+    return { results, ignored };
 }
+
+// [ ] Helper: the form two outputs are compared in
+
+// [ ] Helper: is a recorded run usable
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { threshold, runs } as JSON. Output: the StabilityReport, as JSON.

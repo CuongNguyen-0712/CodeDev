@@ -47,6 +47,7 @@ def differs(a, b, tolerance_pct):
 def check_report(case):
     report, resources = case["report"], case["resources"]
     tol, target = case["tolerance_pct"], case["target_utilization_pct"]
+    # @piece validate-input: Reject impossible report and resource values
     for field, bad in (("duration_s", lambda v: v <= 0), ("requests", lambda v: v < 0),
                        ("mean_latency_ms", lambda v: v <= 0), ("think_time_ms", lambda v: v < 0)):
         if bad(report[field]):
@@ -56,15 +57,19 @@ def check_report(case):
     for res in resources:
         if res["size"] <= 0 or res["hold_ms"] < 0:
             return {"error": f"invalid resource {res['name']}"}
+    # @end
 
+    # @piece throughput-in-flight: Throughput from the raw counts, and requests in flight
     x = Fraction(report["requests"], report["duration_s"])
     latency = report["mean_latency_ms"]
     in_flight = x * latency / 1000
+    # @end
     findings = []
 
     if report["throughput_rps"] is not None and differs(Fraction(report["throughput_rps"]), x, tol):
         findings.append("throughput_mismatch")
 
+    # @piece closed-limit: The rate a closed model can reach, and how it compares
     closed_limit = None
     if report["vus"] is not None:
         closed_limit = Fraction(report["vus"] * 1000, latency + report["think_time_ms"])
@@ -72,12 +77,14 @@ def check_report(case):
             findings.append("above_closed_limit")
         elif x * 100 < (100 - tol) * closed_limit:
             findings.append("idle_virtual_users")
+    # @end
 
     if report["mean_in_flight"] is not None and differs(Fraction(report["mean_in_flight"]), in_flight, tol):
         findings.append("in_flight_mismatch")
 
     sized = []
     for res in resources:
+        # @piece size-resource: How busy one resource is, and the size it needs
         needed = x * res["hold_ms"] / 1000
         utilization = needed * 100 / res["size"]
         if needed > res["size"]:
@@ -87,7 +94,9 @@ def check_report(case):
         sized.append({"name": res["name"], "needed": round(float(needed), 1),
                       "utilization_pct": round(float(utilization), 1),
                       "min_size": math.ceil(needed * 100 / target)})
+        # @end
 
+    # @piece verdict: The overall verdict from the findings
     soft = {"idle_virtual_users"}
     if any(f not in soft and not f.startswith("above_target:") for f in findings):
         verdict = "impossible"
@@ -95,6 +104,7 @@ def check_report(case):
         verdict = "suspicious"
     else:
         verdict = "consistent"
+    # @end
     return {"throughput_rps": round(float(x), 1), "in_flight": round(float(in_flight), 1),
             "closed_limit_rps": None if closed_limit is None else round(float(closed_limit), 1),
             "resources": sized, "findings": findings, "verdict": verdict}

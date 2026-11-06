@@ -1,0 +1,19 @@
+[
+  {
+    "id": "close-server",
+    "label": "Close the server and wait for in-flight requests",
+    "code": "await new Promise((resolve) => {\n  server.close(() => {\n    timers.clearTimeout(deadline);\n    resolve();\n  });\n});"
+  },
+  {
+    "id": "close-server-resolve-now",
+    "label": "Close the server and wait for in-flight requests",
+    "code": "await new Promise((resolve) => {\n  server.close(() => timers.clearTimeout(deadline));\n  resolve();\n});",
+    "distractor": true
+  },
+  {
+    "id": "close-server-timer-left",
+    "label": "Close the server and wait for in-flight requests",
+    "code": "await new Promise((resolve) => server.close(resolve));",
+    "distractor": true
+  }
+]

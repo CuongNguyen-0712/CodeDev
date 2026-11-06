@@ -39,11 +39,8 @@ type ContextPlan =
     | { sent: string[]; dropped: string[]; inputTokens: number }
     | { error: "invalid_input" | "does_not_fit" };
 
-function isCount(n: number): boolean {
-    return Number.isInteger(n) && n >= 0;
-}
-
 function fitContext(req: ContextRequest): ContextPlan {
+    // @piece validate: Reject a request that breaks the input rules
     const { contextLimit, reservedOutputTokens, system, history } = req;
     if (!isCount(contextLimit) || !isCount(reservedOutputTokens) || reservedOutputTokens >= contextLimit) {
         return { error: "invalid_input" };
@@ -53,23 +50,36 @@ function fitContext(req: ContextRequest): ContextPlan {
     }
     const newest = history[history.length - 1];
     if (newest.role !== "user") return { error: "invalid_input" };
+    // @end
 
+    // @piece budget: The input budget; the newest message must fit
     const budget = contextLimit - reservedOutputTokens;
     let total = system.tokens + newest.tokens;
     if (total > budget) return { error: "does_not_fit" };
+    // @end
 
+    // @piece keep-history: Keep older messages while they still fit
     // first = index of the oldest message kept; walk back while the next older message still fits
     let first = history.length - 1;
     while (first > 0 && total + history[first - 1].tokens <= budget) {
         first--;
         total += history[first].tokens;
     }
+    // @end
+    // @piece plan: The plan: what is sent, dropped and counted
     return {
         sent: [system.id, ...history.slice(first).map((m) => m.id)],
         dropped: history.slice(0, first).map((m) => m.id),
         inputTokens: total,
     };
+    // @end
 }
+
+// @piece is-count: Helper: is a number a valid token count
+function isCount(n: number): boolean {
+    return Number.isInteger(n) && n >= 0;
+}
+// @end
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { requests: ContextRequest[] }. Output: the ContextPlan of each request, as JSON.

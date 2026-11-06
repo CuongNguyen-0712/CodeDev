@@ -5,7 +5,7 @@
       "name": "reciprocal-rank-fusion",
       "type": "mini_coding",
       "title": "Write rrf(rankings, top, k, weights)",
-      "description": "Merge the rankings of several retrievers with weighted Reciprocal Rank Fusion: score(d) = sum of weights[i] / (k + rank_i(d)) over the rankings that contain d, with 1-based ranks and k = 60 by default. A document repeated inside one ranking counts once, at its first position. weights default to 1 and must have one entry per ranking (ValueError otherwise). Return the top documents as [[id, score], ...], highest first, scores rounded to 6 decimals; equal scores are ordered by id.",
+      "description": "Merge the rankings of several retrievers with weighted Reciprocal Rank Fusion: score(d) = sum of weights[i] / (k + rank_i(d)) over the rankings that contain d, with 1-based ranks and k = 60 by default. A document repeated inside one ranking counts once, at its first position. weights default to 1 and must have one entry per ranking (ValueError otherwise). Return the top documents as [[id, score], ...], highest first, scores rounded to 6 decimals; equal scores are ordered by id.\n\nPut the right piece on each `[ ]` line; some pieces are wrong on purpose.",
       "difficulty": "medium",
       "points": 30,
       "coding": {
@@ -266,6 +266,14 @@
           "hidden": true,
           "score": 4
         }
+      ],
+      "outcomes": [
+        "retrieval-ranking"
+      ],
+      "hints": [
+        "Reciprocal rank fusion only uses positions: a document gains weight / (k + rank) from every list that contains it.",
+        "Use 1-based ranks, skip a repeated id inside one list, check that there is one weight per list, and sort by score descending, then by id.",
+        "Example with two votes: an item ranked 1st in one list and 3rd in another gets `1 / (60 + 1) + 1 / (60 + 3)` points."
       ]
     }
   ]

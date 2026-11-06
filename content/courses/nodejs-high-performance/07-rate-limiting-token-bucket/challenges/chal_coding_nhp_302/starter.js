@@ -17,14 +17,19 @@
  * @returns {{ take(cost?: number): { allowed: boolean, retryAfterMs: number } }}
  */
 function createTokenBucket({ capacity, refillPerSecond }, now) {
+  // [ ] The bucket's tokens and the time they were counted
+
   return {
     /**
      * @param {number} [cost=1] tokens this request needs
      * @returns {{ allowed: boolean, retryAfterMs: number }}
      */
     take(cost = 1) {
-      // TODO: refill the tokens earned since the last call (capped at capacity),
-      // then allow and consume, or deny and report how long to wait.
+      // [ ] Add the tokens earned since the last call
+
+      // [ ] Allow the request when there are enough tokens
+
+      // [ ] Deny it and say how long to wait
     },
   };
 }

@@ -1,0 +1,19 @@
+[
+  {
+    "id": "burn-rate-rules",
+    "label": "Decide which alert rules fire at minute t",
+    "code": "type Rule = { name: string; severity: Severity; factor: number; longMinutes: number; shortMinutes: number };\nconst MIN_REQUESTS = 100;\n\nconst RULES: Rule[] = [\n    { name: \"burn-1h\", severity: \"page\", factor: 14.4, longMinutes: 60, shortMinutes: 5 },\n    { name: \"burn-6h\", severity: \"page\", factor: 6, longMinutes: 360, shortMinutes: 30 },\n    { name: \"burn-3d\", severity: \"ticket\", factor: 1, longMinutes: 4320, shortMinutes: 360 },\n];\n\n// The rules that are firing at minute t.\nfunction firingRules(minutes: Minute[], t: number): Firing[] {\n    const firing: Firing[] = [];\n    for (const rule of RULES) {\n        if (t < rule.longMinutes - 1) continue; // the recording does not cover the long window yet\n        const long = windowTotals(minutes, t, rule.longMinutes);\n        const short = windowTotals(minutes, t, rule.shortMinutes);\n        if (long.total < MIN_REQUESTS || short.total < MIN_REQUESTS) continue;\n        if (burnRate(long.bad, long.total) > rule.factor && burnRate(short.bad, short.total) > rule.factor) {\n            firing.push({ rule: rule.name, severity: rule.severity });\n        }\n    }\n    return firing;\n}"
+  },
+  {
+    "id": "rules-long-window-only",
+    "label": "Decide which alert rules fire at minute t",
+    "code": "type Rule = { name: string; severity: Severity; factor: number; longMinutes: number; shortMinutes: number };\nconst MIN_REQUESTS = 100;\n\nconst RULES: Rule[] = [\n    { name: \"burn-1h\", severity: \"page\", factor: 14.4, longMinutes: 60, shortMinutes: 5 },\n    { name: \"burn-6h\", severity: \"page\", factor: 6, longMinutes: 360, shortMinutes: 30 },\n    { name: \"burn-3d\", severity: \"ticket\", factor: 1, longMinutes: 4320, shortMinutes: 360 },\n];\n\n// The rules that are firing at minute t.\nfunction firingRules(minutes: Minute[], t: number): Firing[] {\n    const firing: Firing[] = [];\n    for (const rule of RULES) {\n        if (t < rule.longMinutes - 1) continue; // the recording does not cover the long window yet\n        const long = windowTotals(minutes, t, rule.longMinutes);\n        const short = windowTotals(minutes, t, rule.shortMinutes);\n        if (long.total < MIN_REQUESTS || short.total < MIN_REQUESTS) continue;\n        if (burnRate(long.bad, long.total) > rule.factor) {\n            firing.push({ rule: rule.name, severity: rule.severity });\n        }\n    }\n    return firing;\n}",
+    "distractor": true
+  },
+  {
+    "id": "rules-no-minimum-traffic",
+    "label": "Decide which alert rules fire at minute t",
+    "code": "type Rule = { name: string; severity: Severity; factor: number; longMinutes: number; shortMinutes: number };\nconst MIN_REQUESTS = 100;\n\nconst RULES: Rule[] = [\n    { name: \"burn-1h\", severity: \"page\", factor: 14.4, longMinutes: 60, shortMinutes: 5 },\n    { name: \"burn-6h\", severity: \"page\", factor: 6, longMinutes: 360, shortMinutes: 30 },\n    { name: \"burn-3d\", severity: \"ticket\", factor: 1, longMinutes: 4320, shortMinutes: 360 },\n];\n\n// The rules that are firing at minute t.\nfunction firingRules(minutes: Minute[], t: number): Firing[] {\n    const firing: Firing[] = [];\n    for (const rule of RULES) {\n        if (t < rule.longMinutes - 1) continue; // the recording does not cover the long window yet\n        const long = windowTotals(minutes, t, rule.longMinutes);\n        const short = windowTotals(minutes, t, rule.shortMinutes);\n        if (burnRate(long.bad, long.total) > rule.factor && burnRate(short.bad, short.total) > rule.factor) {\n            firing.push({ rule: rule.name, severity: rule.severity });\n        }\n    }\n    return firing;\n}",
+    "distractor": true
+  }
+]

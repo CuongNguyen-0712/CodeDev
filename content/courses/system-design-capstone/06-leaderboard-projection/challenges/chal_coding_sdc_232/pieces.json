@@ -1,0 +1,50 @@
+[
+  {
+    "id": "parse-body",
+    "label": "Turn a raw event into a valid event, or null",
+    "code": "if (typeof raw !== \"object\" || raw === null) return null;\nconst e = raw as Record<string, unknown>;\nif (!isText(e.eventId) || !isText(e.userId) || !isText(e.week) || !isInt(e.learnerSeq, 1, Number.MAX_SAFE_INTEGER)) return null;\nif (e.type === \"challenge.passed\" && isInt(e.points, 1, 500)) return e as GoodEvent;\nif (e.type === \"progress.updated\" && isInt(e.lessonPercent, 0, 100) && isInt(e.coursePercent, 0, 100)) return e as GoodEvent;\nreturn null;"
+  },
+  {
+    "id": "points-of",
+    "label": "Points an event is worth",
+    "code": "if (e.type === \"challenge.passed\") return e.points;\nreturn (e.lessonPercent === 100 ? 10 : 0) + (e.coursePercent === 100 ? 50 : 0);"
+  },
+  {
+    "id": "accept-event",
+    "label": "Classify the event and keep an accepted one waiting",
+    "code": "const e = parse(raw);\nif (!e) return \"invalid\";\nif (this.seen.has(e.eventId)) return \"duplicate\";\nconst last = this.applied.get(e.userId) ?? 0;\nconst waiting = this.buffered.get(e.userId) ?? new Map<number, GoodEvent>();\nif (e.learnerSeq <= last || waiting.has(e.learnerSeq)) return \"stale\";\nthis.seen.add(e.eventId);\nwaiting.set(e.learnerSeq, e);\nthis.buffered.set(e.userId, waiting);"
+  },
+  {
+    "id": "apply-in-order",
+    "label": "Apply the learner's waiting events in sequence",
+    "code": "let next = last + 1;\nwhile (waiting.has(next)) {\n    this.score(waiting.get(next)!);\n    waiting.delete(next);\n    this.applied.set(e.userId, next);\n    next++;\n}"
+  },
+  {
+    "id": "score-boards",
+    "label": "Add the points to all-time and the week's board",
+    "code": "this.counter++;\nconst points = pointsOf(e);\nif (points === 0) return;\nfor (const name of [\"all-time\", e.week]) {\n    const board = this.boards.get(name) ?? new Map<string, Score>();\n    const old = board.get(e.userId)?.points ?? 0;\n    board.set(e.userId, { points: old + points, since: this.counter });\n    this.boards.set(name, board);\n}"
+  },
+  {
+    "id": "order-board",
+    "label": "Rank a board: more points first, earlier on a tie",
+    "code": "const rows = [...(this.boards.get(board) ?? new Map<string, Score>()).entries()];\nrows.sort(([ua, a], [ub, b]) => b.points - a.points || a.since - b.since || (ua < ub ? -1 : ua > ub ? 1 : 0));\nreturn rows.map(([userId, s], i) => ({ rank: i + 1, userId, points: s.points }));"
+  },
+  {
+    "id": "accept-event-no-duplicate-check",
+    "label": "Classify the event and keep an accepted one waiting",
+    "code": "const e = parse(raw);\nif (!e) return \"invalid\";\nconst last = this.applied.get(e.userId) ?? 0;\nconst waiting = this.buffered.get(e.userId) ?? new Map<number, GoodEvent>();\nif (e.learnerSeq <= last || waiting.has(e.learnerSeq)) return \"stale\";\nthis.seen.add(e.eventId);\nwaiting.set(e.learnerSeq, e);\nthis.buffered.set(e.userId, waiting);",
+    "distractor": true
+  },
+  {
+    "id": "apply-in-order-no-reordering",
+    "label": "Apply the learner's waiting events in sequence",
+    "code": "let next = e.learnerSeq;\nwhile (waiting.has(next)) {\n    this.score(waiting.get(next)!);\n    waiting.delete(next);\n    this.applied.set(e.userId, next);\n    next++;\n}",
+    "distractor": true
+  },
+  {
+    "id": "order-board-ties-by-id",
+    "label": "Rank a board: more points first, earlier on a tie",
+    "code": "const rows = [...(this.boards.get(board) ?? new Map<string, Score>()).entries()];\nrows.sort(([ua, a], [ub, b]) => b.points - a.points || (ua < ub ? -1 : ua > ub ? 1 : 0));\nreturn rows.map(([userId, s], i) => ({ rank: i + 1, userId, points: s.points }));",
+    "distractor": true
+  }
+]

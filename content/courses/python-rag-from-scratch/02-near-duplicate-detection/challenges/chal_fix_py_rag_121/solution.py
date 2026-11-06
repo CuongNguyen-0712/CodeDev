@@ -1,4 +1,21 @@
-"""Drop near-duplicate documents before they are indexed."""
+"""
+Drop near-duplicate documents before they are indexed.
+
+The knowledge base is imported from three tools (help center, PDF exports, Confluence), so the
+same article often arrives several times with small differences: capitalisation, punctuation,
+a "Last updated" footer. dedupe() should keep the first copy and drop the others - but in
+production it lets copies through, drops short FAQ entries that only quote a longer article,
+and crashes on empty documents.
+
+Intended behaviour:
+  - tokens(): lower-case words and numbers; punctuation and whitespace only separate them.
+  - shingles(): every run of k consecutive tokens. A text shorter than k is a single shingle
+    (all of its tokens); an empty text has no shingles.
+  - jaccard(): size of the intersection divided by the size of the union. Two empty sets are
+    identical (1.0).
+  - dedupe(): keep documents in input order; drop a document when its Jaccard similarity to a
+    document already KEPT is >= threshold. Return the ids that were kept.
+"""
 import json
 import re
 import sys
@@ -7,28 +24,29 @@ type Shingle = tuple[str, ...]
 
 
 def tokens(text: str) -> list[str]:
-    """Lower-case words and numbers; punctuation and whitespace only separate them."""
+    # @piece tokens: Split a text into tokens
     return re.findall(r"[a-z0-9]+", text.lower())
+    # @end
 
 
 def shingles(text: str, k: int) -> set[Shingle]:
-    """Every run of k consecutive tokens. A text shorter than k is one shingle (none if empty)."""
     words = tokens(text)
+    # @piece shingles: Every run of k consecutive tokens
     if len(words) < k:
         return {tuple(words)} if words else set()
     return {tuple(words[i:i + k]) for i in range(len(words) - k + 1)}
+    # @end
 
 
 def jaccard(a: set[Shingle], b: set[Shingle]) -> float:
-    """|a & b| / |a | b|; two empty sets are identical."""
+    # @piece jaccard: Similarity of two shingle sets
     if not a and not b:
         return 1.0
     return len(a & b) / len(a | b)
+    # @end
 
 
 def dedupe(docs: list[dict], k: int, threshold: float) -> list[str]:
-    """Ids of the documents to index, in input order: a document is dropped when its
-    similarity to a document already kept is >= threshold."""
     kept: list[tuple[str, set[Shingle]]] = []
     for doc in docs:
         signature = shingles(doc["text"], k)

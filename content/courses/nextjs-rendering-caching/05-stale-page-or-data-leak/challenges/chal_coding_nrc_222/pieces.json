@@ -1,0 +1,24 @@
+[
+  {
+    "id": "dashboard-cache",
+    "label": "Cache the dashboard query",
+    "code": "return cached(`dashboard:${userId}`, 60, () => db.dashboardFor(userId));"
+  },
+  {
+    "id": "dashboard-response",
+    "label": "Send the dashboard",
+    "code": "return { status: 200, body: JSON.stringify(dashboard), cacheControl: \"private, no-cache\" };"
+  },
+  {
+    "id": "dashboard-cache-skip-cache",
+    "label": "Cache the dashboard query",
+    "code": "return db.dashboardFor(userId);",
+    "distractor": true
+  },
+  {
+    "id": "dashboard-response-zero-max-age",
+    "label": "Send the dashboard",
+    "code": "return { status: 200, body: JSON.stringify(dashboard), cacheControl: \"public, max-age=0, s-maxage=0\" };",
+    "distractor": true
+  }
+]

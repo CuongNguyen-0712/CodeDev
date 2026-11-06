@@ -38,16 +38,21 @@ const NEXT_SEEN = "lb:seen:rebuild";
 const PAGE_SIZE = 100;
 
 function applyEvent(redis: FakeRedis, boardKey: string, seenKey: string, event: ScoreEvent): Applied {
+    // @piece check-event: Refuse an event with a bad id, learner or points
     const { id, learnerId, points } = event;
     if (!Number.isSafeInteger(id) || id < 1) return "invalid";
     if (typeof learnerId !== "string" || learnerId === "") return "invalid";
     if (!Number.isSafeInteger(points)) return "invalid";
+    // @end
+    // @piece apply-once: Count the event once per board
     if (redis.hset(seenKey, String(id), "1") === 0) return "duplicate";
     redis.zincrby(boardKey, points, learnerId);
     return "applied";
+    // @end
 }
 
 function rebuild(redis: FakeRedis, db: FakeDb): void {
+    // @piece build-copy: Build a fresh board up to the watermark
     redis.del(NEXT_BOARD, NEXT_SEEN);
     const watermark = db.maxEventId();
 
@@ -58,14 +63,18 @@ function rebuild(redis: FakeRedis, db: FakeDb): void {
         if (page.length < PAGE_SIZE) break;
         after = page[page.length - 1].id;
     }
+    // @end
 
+    // @piece swap-boards: Put the fresh board in place
     if (redis.exists(NEXT_BOARD)) {
         redis.rename(NEXT_BOARD, BOARD);
         redis.rename(NEXT_SEEN, SEEN);
     } else {
         redis.del(BOARD, SEEN);
     }
+    // @end
 
+    // @piece catch-up: Apply the events that arrived during the rebuild
     let cursor = watermark;
     for (;;) {
         const page = db.eventsAfter(cursor, PAGE_SIZE);
@@ -73,6 +82,7 @@ function rebuild(redis: FakeRedis, db: FakeDb): void {
         for (const e of page) applyEvent(redis, BOARD, SEEN, e);
         cursor = page[page.length - 1].id;
     }
+    // @end
 }
 
 // ---------------------------------------------------------------- in-memory Redis model (do not change)

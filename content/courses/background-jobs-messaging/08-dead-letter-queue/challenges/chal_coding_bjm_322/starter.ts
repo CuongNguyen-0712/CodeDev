@@ -42,19 +42,32 @@ function handle(state: State, msg: Message): void {
 }
 
 // ---------------------------------------------------------------- your code
+const MINUTES_PER_DAY = 1440;
+
 /** One minute: advance the clock, move redriven messages back, deliver one message. Returns the events. */
 function tick(state: State): string[] {
-    return [];
+    const events: string[] = [];
+    state.now += 1;
+
+    // 1. redrive, rate-limited: at most redrivePerTick pending ids are handled per minute
+    // [ ] Move a limited batch of redrives back
+
+    // 2. one delivery from the head
+    // [ ] Deliver one message, park it after the last attempt
+    return events;
 }
 
 /** Selects dead letters by ids or by last error and queues them for redrive. Returns the events. */
 function redrive(state: State, cmd: RedriveCommand): string[] {
-    return [];
+    // [ ] Choose the dead letters to redrive
+
+    // [ ] Queue each chosen letter, if it may go back
+    return events;
 }
 
 /** Deletes dead letters whose last failure is at least `olderThanDays` days old. Returns the events. */
 function purge(state: State, olderThanDays: number): string[] {
-    return [];
+    // [ ] Purge dead letters older than the limit
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "price-unit",
+    "label": "What one price in the table is for",
+    "code": "// Prices are per 1M tokens.\nconst TOKENS_PER_PRICE_UNIT = 1_000_000;"
+  },
+  {
+    "id": "call-cost",
+    "label": "The cost of one call",
+    "code": "return (c.inputTokens * price.input + c.outputTokens * price.output) / TOKENS_PER_PRICE_UNIT;"
+  },
+  {
+    "id": "call-cost-swapped",
+    "label": "The cost of one call",
+    "code": "return (c.inputTokens * price.output + c.outputTokens * price.input) / TOKENS_PER_PRICE_UNIT;",
+    "distractor": true
+  },
+  {
+    "id": "price-unit-thousand-million",
+    "label": "What one price in the table is for",
+    "code": "// Prices are per 1M tokens.\nconst TOKENS_PER_PRICE_UNIT = 1_000 * 1_000 * 1_000;",
+    "distractor": true
+  }
+]

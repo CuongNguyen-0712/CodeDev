@@ -108,5 +108,40 @@
         }
       ]
     }
+  ],
+  "legacy": true,
+  "completionRules": {},
+  "domain": "ai",
+  "learningOutcomes": [
+    {
+      "code": "chunking-dedup",
+      "text": "Prepare documents for retrieval: overlapping chunks and near-duplicate removal."
+    },
+    {
+      "code": "retrieval-ranking",
+      "text": "Rank documents with BM25, cosine similarity and reciprocal rank fusion."
+    },
+    {
+      "code": "context-packing",
+      "text": "Pack ranked chunks into a token budget with stable citations."
+    },
+    {
+      "code": "retrieval-evaluation",
+      "text": "Measure retrieval and answers with recall@k, MRR and citation checks."
+    }
+  ],
+  "testedVersions": {
+    "Python": "3.14"
+  },
+  "lastReviewedAt": "2026-11-06",
+  "sourceLinks": [
+    "https://en.wikipedia.org/wiki/Okapi_BM25",
+    "https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf",
+    "https://peps.python.org/pep-0750/",
+    "https://docs.python.org/3/library/collections.html#collections.Counter"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges use small in-memory corpora and plain Python, no embedding model or vector database."
   ]
 }

@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs";
 // The grading assistant sees the reference solutions and every test case of a challenge, so its
 // feedback can leak them. checkFeedback runs after generation, before the feedback is stored, and
 // returns "allowed" or "blocked: <rule> (<detail>)". The rules and the exact output are in the
-// challenge description. Do not change the policy constants or the test runner.
+// challenge description. Fill every [ ] line with a piece (some pieces are wrong). Do not change
+// the policy constants or the test runner.
 
 const K = 5;                  // characters per k-gram
 const W = 4;                  // k-gram hashes per winnowing window
@@ -18,18 +19,23 @@ type References = { solutions: string[]; tests: TestCase[]; distinctive: string[
 
 // Lower case, every whitespace character removed.
 function normalise(text: string): string {
-    // TODO
-    return text;
+    // [ ] Lower-case and drop all whitespace
 }
 
 // The winnowed fingerprint of a piece of code: a set of k-gram hash values.
 function fingerprint(code: string): Set<number> {
-    // TODO: k-gram hashes of normalise(code), then the minimum of every window of W hashes
-    return new Set<number>();
+    // [ ] Hash every k-gram, keep each window's minimum
 }
 
+// [ ] Split feedback into code blocks and prose
+
 function checkFeedback(feedback: unknown, refs: References): string {
-    // TODO: rule 1 hidden-output, rule 2 code-overlap, rule 3 algorithm-steps
+    // [ ] Rule 1: a hidden test's output appears
+
+    // [ ] Rule 2: a code block overlaps a solution
+
+    // [ ] Rule 3: the steps name distinctive identifiers
+
     return "allowed";
 }
 

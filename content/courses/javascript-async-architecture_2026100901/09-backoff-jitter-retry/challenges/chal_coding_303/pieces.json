@@ -1,0 +1,40 @@
+[
+  {
+    "id": "attempt",
+    "label": "Try, and on failure wait before the next attempt",
+    "code": "for (let attempt = 1; ; attempt++) {\n  if (signal?.aborted) throw signal.reason;\n  try {\n    return await fn({ attempt, signal });\n  } catch (error) {\n    if (signal?.aborted) throw signal.reason;\n    if (attempt >= maxAttempts || !shouldRetry(error)) throw error;\n    await sleep(backoffDelay(error, attempt), signal, timers);\n  }\n}"
+  },
+  {
+    "id": "backoff",
+    "label": "How long to wait before the next attempt",
+    "code": "function backoffDelay(error, attempt) {\n  if (typeof error?.retryAfterMs === \"number\") return error.retryAfterMs;\n  return Math.floor(random() * Math.min(maxDelayMs, baseMs * 2 ** (attempt - 1)));\n}"
+  },
+  {
+    "id": "sleep",
+    "label": "A wait that the signal can cancel",
+    "code": "function sleep(ms, signal, timers) {\n  return new Promise((resolve, reject) => {\n    if (signal?.aborted) return reject(signal.reason);\n    const onAbort = () => {\n      timers.clearTimeout(id);\n      reject(signal.reason);\n    };\n    const id = timers.setTimeout(() => {\n      signal?.removeEventListener(\"abort\", onAbort);\n      resolve();\n    }, ms);\n    signal?.addEventListener(\"abort\", onAbort, { once: true });\n  });\n}"
+  },
+  {
+    "id": "classify",
+    "label": "Which errors are worth another attempt",
+    "code": "if (error?.name === \"AbortError\") return false;\nif (typeof error?.status === \"number\") {\n  return error.status >= 500 || error.status === 408 || error.status === 429;\n}\nreturn true;"
+  },
+  {
+    "id": "backoff-no-jitter",
+    "label": "How long to wait before the next attempt",
+    "code": "function backoffDelay(error, attempt) {\n  if (typeof error?.retryAfterMs === \"number\") return error.retryAfterMs;\n  return Math.min(maxDelayMs, baseMs * 2 ** (attempt - 1));\n}",
+    "distractor": true
+  },
+  {
+    "id": "classify-every-status",
+    "label": "Which errors are worth another attempt",
+    "code": "return error?.name !== \"AbortError\";",
+    "distractor": true
+  },
+  {
+    "id": "sleep-ignores-abort",
+    "label": "A wait that the signal can cancel",
+    "code": "function sleep(ms, signal, timers) {\n  return new Promise((resolve) => {\n    timers.setTimeout(resolve, ms);\n  });\n}",
+    "distractor": true
+  }
+]

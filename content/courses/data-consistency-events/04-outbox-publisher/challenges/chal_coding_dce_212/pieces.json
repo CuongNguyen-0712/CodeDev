@@ -1,0 +1,39 @@
+[
+  {
+    "id": "check-config",
+    "label": "Refuse an invalid configuration",
+    "code": "const positive = (n: number): boolean => Number.isInteger(n) && n > 0;\nif (!positive(cfg.batchSize) || !positive(cfg.leaseMs)) throw new Error(\"invalid config\");"
+  },
+  {
+    "id": "lease-rows",
+    "label": "Lease rows in order, per aggregate",
+    "code": "const claimed: number[] = [];\nconst blocked = new Set<string>();\nconst rows = [...t.outbox.values()].filter((r) => r.status !== \"sent\").sort((a, b) => a.id - b.id);\nfor (const row of rows) {\n    if (blocked.has(row.aggregate)) continue;\n    const leasedByOther = row.leaseOwner !== null && row.leaseOwner !== owner && row.leaseUntil > now;\n    if (row.status === \"failed\" || row.nextAttemptAt > now || leasedByOther) {\n        blocked.add(row.aggregate); // an earlier event of this aggregate is not out yet\n        continue;\n    }\n    if (claimed.length >= cfg.batchSize) break;\n    row.leaseOwner = owner;\n    row.leaseUntil = now + cfg.leaseMs;\n    claimed.push(row.id);\n}\nreturn claimed;"
+  },
+  {
+    "id": "on-broker-error",
+    "label": "Back off after a broker error",
+    "code": "if (!(error instanceof BrokerError)) throw error; // a Crash ends the process\ndb.tx((t) => {\n    const r = t.outbox.get(row.id)!;\n    r.attempts += 1;\n    if (r.attempts >= cfg.maxAttempts) r.status = \"failed\";\n    else r.nextAttemptAt = now + cfg.backoffMs * 2 ** (r.attempts - 1);\n    r.leaseOwner = null;\n    r.leaseUntil = 0;\n});\nblocked.add(row.aggregate);\ncontinue;"
+  },
+  {
+    "id": "mark-sent",
+    "label": "Mark the row sent after its publish",
+    "code": "// a crash here (after publish, before this commit) means the row is published again later\ndb.tx((t) => {\n    const r = t.outbox.get(row.id)!;\n    r.status = \"sent\";\n    r.sentAt = now;\n    r.leaseOwner = null;\n    r.leaseUntil = 0;\n});"
+  },
+  {
+    "id": "release-leases",
+    "label": "Give back the leases left unused",
+    "code": "db.tx((t) => {\n    for (const r of t.outbox.values()) {\n        if (r.status === \"pending\" && r.leaseOwner === owner) {\n            r.leaseOwner = null;\n            r.leaseUntil = 0;\n        }\n    }\n});"
+  },
+  {
+    "id": "lease-ignores-backoff",
+    "label": "Lease rows in order, per aggregate",
+    "code": "const claimed: number[] = [];\nconst blocked = new Set<string>();\nconst rows = [...t.outbox.values()].filter((r) => r.status !== \"sent\").sort((a, b) => a.id - b.id);\nfor (const row of rows) {\n    if (blocked.has(row.aggregate)) continue;\n    const leasedByOther = row.leaseOwner !== null && row.leaseOwner !== owner && row.leaseUntil > now;\n    if (row.status === \"failed\" || leasedByOther) {\n        blocked.add(row.aggregate); // an earlier event of this aggregate is not out yet\n        continue;\n    }\n    if (claimed.length >= cfg.batchSize) break;\n    row.leaseOwner = owner;\n    row.leaseUntil = now + cfg.leaseMs;\n    claimed.push(row.id);\n}\nreturn claimed;",
+    "distractor": true
+  },
+  {
+    "id": "lease-ignores-other-workers",
+    "label": "Lease rows in order, per aggregate",
+    "code": "const claimed: number[] = [];\nconst blocked = new Set<string>();\nconst rows = [...t.outbox.values()].filter((r) => r.status !== \"sent\").sort((a, b) => a.id - b.id);\nfor (const row of rows) {\n    if (blocked.has(row.aggregate)) continue;\n    const leasedByOther = false;\n    if (row.status === \"failed\" || row.nextAttemptAt > now || leasedByOther) {\n        blocked.add(row.aggregate); // an earlier event of this aggregate is not out yet\n        continue;\n    }\n    if (claimed.length >= cfg.batchSize) break;\n    row.leaseOwner = owner;\n    row.leaseUntil = now + cfg.leaseMs;\n    claimed.push(row.id);\n}\nreturn claimed;",
+    "distractor": true
+  }
+]

@@ -47,47 +47,54 @@ type RefreshResult =
     | { ok: false; reason: "malformed" | "unknown" | "revoked" | "used" | "expired" };
 
 const TOKEN_FORMAT = /^[A-Za-z0-9_-]{43}$/;
-const sha256Hex = (value: string): string => createHash("sha256").update(value).digest("hex");
-const sameBytes = (a: Buffer, b: Buffer): boolean => a.length === b.length && timingSafeEqual(a, b);
 
-function insertToken(deps: Deps, familyId: string, userId: string, deviceId: string, id: string): Issued {
+function login(deps: Deps, userId: string, deviceId: string): Issued {
     const token = deps.randomBytes(32).toString("base64url");
+    const id = deps.newId("rt");
+    const familyId = deps.newId("fam");
     const createdAt = deps.now();
     const expiresAt = createdAt + deps.ttlMs;
     deps.store.insert({
         id, familyId, userId, deviceId,
-        token: null, tokenHash: sha256Hex(token),
+        // @piece login-row: The token columns of a new row
+        token: null, tokenHash: createHash("sha256").update(token).digest("hex"),
+        // @end
         createdAt, expiresAt, usedAt: null, revokedAt: null, replacedBy: null,
     });
     return { token, id, familyId, expiresAt };
 }
 
-function login(deps: Deps, userId: string, deviceId: string): Issued {
-    const id = deps.newId("rt");
-    const familyId = deps.newId("fam");
-    return insertToken(deps, familyId, userId, deviceId, id);
-}
-
 function refresh(deps: Deps, presented: unknown): RefreshResult {
     if (typeof presented !== "string" || !TOKEN_FORMAT.test(presented)) return { ok: false, reason: "malformed" };
-    const hash = sha256Hex(presented);
+    // @piece find-row: Find the row of the presented token
+    const hash = createHash("sha256").update(presented).digest("hex");
     let row = deps.store.findByHash(hash);
-    if (row && !sameBytes(Buffer.from(row.tokenHash ?? "", "hex"), Buffer.from(hash, "hex"))) row = null;
     if (!row) {
-        // migration: a row written by release 41 - move it to its hash before anything else
+        // a row written by release 41: move it to its hash before anything else
         const legacy = deps.store.findByPlainToken(presented);
-        if (!legacy || legacy.token === null || !sameBytes(Buffer.from(legacy.token), Buffer.from(presented))) {
+        if (!legacy || legacy.token === null || legacy.token.length !== presented.length
+            || !timingSafeEqual(Buffer.from(legacy.token), Buffer.from(presented))) {
             return { ok: false, reason: "unknown" };
         }
         deps.store.update(legacy.id, { token: null, tokenHash: hash });
         row = { ...legacy, token: null, tokenHash: hash };
     }
+    // @end
     if (row.revokedAt !== null) return { ok: false, reason: "revoked" };
     if (row.usedAt !== null) return { ok: false, reason: "used" };
     if (deps.now() >= row.expiresAt) return { ok: false, reason: "expired" };
-    const next = insertToken(deps, row.familyId, row.userId, row.deviceId, deps.newId("rt"));
-    deps.store.update(row.id, { usedAt: deps.now(), replacedBy: next.id });
-    return { ok: true, ...next };
+    // @piece rotate: Answer with the next token of the family
+    const token = deps.randomBytes(32).toString("base64url");
+    const id = deps.newId("rt");
+    const expiresAt = deps.now() + deps.ttlMs;
+    deps.store.insert({
+        id, familyId: row.familyId, userId: row.userId, deviceId: row.deviceId,
+        token: null, tokenHash: createHash("sha256").update(token).digest("hex"),
+        createdAt: deps.now(), expiresAt, usedAt: null, revokedAt: null, replacedBy: null,
+    });
+    deps.store.update(row.id, { usedAt: deps.now(), replacedBy: id });
+    return { ok: true, token, id, familyId: row.familyId, expiresAt };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

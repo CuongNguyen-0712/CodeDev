@@ -35,12 +35,13 @@ import sqlite3
 import sys
 
 ENROLL = [
-    # TODO: right now each statement commits on its own (autocommit). A failure in the second
-    # insert leaves the first one saved: a half-written enrollment.
+    # Both rows are saved, or neither is (the runner rolls back on error).
+    # [ ] Start the unit of work
     """INSERT INTO enrollments (user_id, course_id, enrolled_at, status)
        VALUES (:user_id, :course_id, :at, 'active')""",
     """INSERT INTO enrollment_events (user_id, course_id, event_type, source, created_at)
        VALUES (:user_id, :course_id, 'enrolled', :source, :at)""",
+    # [ ] Finish the unit of work
 ]
 
 

@@ -23,19 +23,24 @@ type Headers = Record<string, string>;
 
 /** Returns a function that runs `fn` in the context that is active when bind() is called. */
 function bind<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
+    // @piece bind-context: Capture the context and run fn inside it
     const captured = store.active();
     return (...args: A): R => store.run(captured, () => fn(...args));
+    // @end
 }
 
 /** Writes the active span context into `headers.traceparent` ("00-<trace id>-<span id>-01"). */
 function inject(headers: Headers): void {
+    // @piece inject-header: Write the active span into traceparent
     const ctx = store.active();
     if (!ctx) return;
     headers.traceparent = `00-${ctx.traceId}-${ctx.spanId}-01`;
+    // @end
 }
 
 /** Reads `headers.traceparent`; returns null when the header is missing or invalid. */
 function extract(headers: Headers): SpanContext | null {
+    // @piece extract-header: Read and validate traceparent
     const value = headers.traceparent;
     if (value === undefined) return null;
     const match = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/.exec(value);
@@ -43,6 +48,7 @@ function extract(headers: Headers): SpanContext | null {
     const [, traceId, spanId] = match;
     if (/^0+$/.test(traceId) || /^0+$/.test(spanId)) return null;
     return { traceId, spanId };
+    // @end
 }
 
 // ---------------------------------------------------- context store and tracer (do not change)

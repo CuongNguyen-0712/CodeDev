@@ -1,0 +1,24 @@
+[
+  {
+    "id": "client",
+    "label": "The studio button that asks for an outline (browser)",
+    "code": "const client = {\n    async suggestOutline(title: string): Promise<SuggestResult> {\n        const res = await browserFetch(\"/api/outline\", {\n            method: \"POST\",\n            headers: { \"content-type\": \"application/json\" },\n            body: JSON.stringify({ title }),\n        });\n        const data = await res.json();\n        if (res.status !== 200) return { ok: false, status: res.status, error: String(data.error) };\n        return { ok: true, outline: data.outline };\n    },\n};"
+  },
+  {
+    "id": "server",
+    "label": "The outline route (server)",
+    "code": "const OUTLINES_PER_MINUTE = 5;\n// shortcut: in-memory fixed window per process, move to Redis or the database with more than one server.\nconst usage = new Map<string, number>();\n\nconst server = {\n    async postOutline(req: ServerRequest): Promise<ServerResponse> {\n        if (!req.user) return { status: 401, body: { error: \"unauthenticated\" } };\n        let title: unknown;\n        try {\n            title = JSON.parse(req.body).title;\n        } catch {\n            return { status: 400, body: { error: \"invalid_title\" } };\n        }\n        if (typeof title !== \"string\" || title.trim() === \"\" || title.trim().length > 120) {\n            return { status: 400, body: { error: \"invalid_title\" } };\n        }\n        const bucket = `${req.user.id}:${Math.floor(clock.now / 60_000)}`;\n        const used = usage.get(bucket) ?? 0;\n        if (used >= OUTLINES_PER_MINUTE) return { status: 429, body: { error: \"rate_limited\" } };\n        usage.set(bucket, used + 1);\n\n        const res = await serverFetch(\"https://api.ai-vendor.test/v1/outline\", {\n            method: \"POST\",\n            headers: { authorization: `Bearer ${serverEnv.AI_API_KEY}`, \"content-type\": \"application/json\" },\n            body: JSON.stringify({ topic: title.trim(), sections: 3 }),\n        });\n        if (res.status !== 200) return { status: 502, body: { error: \"upstream_error\" } };\n        const data = await res.json();\n        return { status: 200, body: { outline: data.sections } };\n    },\n};"
+  },
+  {
+    "id": "client-keeps-key",
+    "label": "The studio button that asks for an outline (browser)",
+    "code": "const client = {\n    vendorKey: publicEnv.NEXT_PUBLIC_AI_API_KEY, // kept for later\n    async suggestOutline(title: string): Promise<SuggestResult> {\n        const res = await browserFetch(\"/api/outline\", {\n            method: \"POST\",\n            headers: { \"content-type\": \"application/json\" },\n            body: JSON.stringify({ title }),\n        });\n        const data = await res.json();\n        if (res.status !== 200) return { ok: false, status: res.status, error: String(data.error) };\n        return { ok: true, outline: data.outline };\n    },\n};",
+    "distractor": true
+  },
+  {
+    "id": "server-global-limit",
+    "label": "The outline route (server)",
+    "code": "const OUTLINES_PER_MINUTE = 5;\n// shortcut: in-memory fixed window per process, move to Redis or the database with more than one server.\nconst usage = new Map<string, number>();\n\nconst server = {\n    async postOutline(req: ServerRequest): Promise<ServerResponse> {\n        if (!req.user) return { status: 401, body: { error: \"unauthenticated\" } };\n        let title: unknown;\n        try {\n            title = JSON.parse(req.body).title;\n        } catch {\n            return { status: 400, body: { error: \"invalid_title\" } };\n        }\n        if (typeof title !== \"string\" || title.trim() === \"\" || title.trim().length > 120) {\n            return { status: 400, body: { error: \"invalid_title\" } };\n        }\n        const bucket = `${Math.floor(clock.now / 60_000)}`;\n        const used = usage.get(bucket) ?? 0;\n        if (used >= OUTLINES_PER_MINUTE) return { status: 429, body: { error: \"rate_limited\" } };\n        usage.set(bucket, used + 1);\n\n        const res = await serverFetch(\"https://api.ai-vendor.test/v1/outline\", {\n            method: \"POST\",\n            headers: { authorization: `Bearer ${serverEnv.AI_API_KEY}`, \"content-type\": \"application/json\" },\n            body: JSON.stringify({ topic: title.trim(), sections: 3 }),\n        });\n        if (res.status !== 200) return { status: 502, body: { error: \"upstream_error\" } };\n        const data = await res.json();\n        return { status: 200, body: { outline: data.sections } };\n    },\n};",
+    "distractor": true
+  }
+]

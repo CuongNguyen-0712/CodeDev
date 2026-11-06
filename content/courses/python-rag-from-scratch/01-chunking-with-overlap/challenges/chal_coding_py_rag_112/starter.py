@@ -19,9 +19,9 @@ import sys
 
 
 def chunk_words(text: str, size: int, overlap: int) -> list[str]:
-    # BUG (on purpose): fixed windows without overlap, and no validation.
+    # [ ] Refuse sizes that cannot make windows
     words = text.split()
-    return [" ".join(words[i:i + size]) for i in range(0, len(words), size)]
+    # [ ] Start a window every size - overlap words
 
 
 # ---------------------------------------------------------------- test runner (do not change)

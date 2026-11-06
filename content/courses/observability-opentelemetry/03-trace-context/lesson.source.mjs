@@ -104,7 +104,7 @@ export function startTrace(): { traceparent: string; spanId: string } {
     const spanId = randomId(8);
     return { traceparent: \`00-\${traceId}-\${spanId}-01\`, spanId };
 }`, "traceparent.middleware.ts"),
-        p("The receiving side is where the rules pile up. In the exercise you write it for the API's call to grading-service: parse and validate the incoming `traceparent` (including unknown higher versions), build the outgoing header for a child span with a new id from an injected, deterministic id source, keep the sampled bit, and pass `tracestate` through unchanged only when it is valid. The description gives the exact rules, taken from the spec and simplified where noted."),
+        p("The receiving side is where the rules pile up. In the exercise you assemble it for the API's call to grading-service: parse and validate the incoming `traceparent` (including unknown higher versions), build the outgoing header for a child span with a new id from an injected, deterministic id source, keep the sampled bit, and pass `tracestate` through unchanged only when it is valid. The description gives the exact rules, taken from the spec and simplified where noted."),
         challenge("chal_coding_otl_132"),
 
         h2("4. How to verify propagation"),

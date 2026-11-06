@@ -1,0 +1,50 @@
+[
+  {
+    "id": "list-query",
+    "label": "Read page, limit and level from the query",
+    "code": "const q = req.query;\nlet page = 1;\nif (q.page !== undefined) {\n    if (!/^[0-9]+$/.test(q.page) || Number(q.page) < 1) return badRequest(\"page must be a positive integer\");\n    page = Number(q.page);\n}\nlet limit = 20;\nif (q.limit !== undefined) {\n    if (!/^[0-9]+$/.test(q.limit) || Number(q.limit) < 1) return badRequest(\"limit must be a positive integer\");\n    limit = Math.min(Number(q.limit), 50);\n}\nlet level: Level | undefined;\nif (q.level !== undefined) {\n    level = LEVELS.find((l) => l === q.level);\n    if (level === undefined) return badRequest(\"level must be one of: beginner, intermediate, advanced\");\n}"
+  },
+  {
+    "id": "list-response",
+    "label": "Ask the service once and answer with the page",
+    "code": "const { items, total } = this.service.listCourses({ page, limit, level });\nreturn {\n    status: 200,\n    headers: { \"X-Total-Count\": String(total) },\n    body: { items: items.map((c) => ({ id: c.id, title: c.title, level: c.level, priceVnd: c.priceVnd })), page, limit, total },\n};"
+  },
+  {
+    "id": "enroll-input",
+    "label": "Read the course id from the body",
+    "code": "const body = req.body;\nif (typeof body !== \"object\" || body === null || Array.isArray(body)) return badRequest(\"courseId is required\");\nconst courseId = (body as Record<string, unknown>).courseId;\nif (typeof courseId !== \"string\") return badRequest(\"courseId is required\");"
+  },
+  {
+    "id": "enroll-response",
+    "label": "Enroll the signed-in learner and answer 201",
+    "code": "const e = this.service.enroll({ userId: req.user.id, courseId });\nreturn {\n    status: 201,\n    headers: { Location: `/enrollments/${e.id}` },\n    body: { id: e.id, courseId: e.courseId, status: e.status, createdAt: e.createdAt },\n};"
+  },
+  {
+    "id": "profile-response",
+    "label": "The public profile, or 404",
+    "code": "const user = this.service.getProfile(req.params.id);\nif (user === null) return { status: 404, headers: {}, body: { error: \"user not found\" } };\nreturn {\n    status: 200,\n    headers: {},\n    body: { id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl, joinedAt: user.createdAt },\n};"
+  },
+  {
+    "id": "bad-request",
+    "label": "The shape of every 400",
+    "code": "const badRequest = (error: string): HttpResponse => ({ status: 400, headers: {}, body: { error } });"
+  },
+  {
+    "id": "list-query-lowercase-level",
+    "label": "Read page, limit and level from the query",
+    "code": "const q = req.query;\nlet page = 1;\nif (q.page !== undefined) {\n    if (!/^[0-9]+$/.test(q.page) || Number(q.page) < 1) return badRequest(\"page must be a positive integer\");\n    page = Number(q.page);\n}\nlet limit = 20;\nif (q.limit !== undefined) {\n    if (!/^[0-9]+$/.test(q.limit) || Number(q.limit) < 1) return badRequest(\"limit must be a positive integer\");\n    limit = Math.min(Number(q.limit), 50);\n}\nlet level: Level | undefined;\nif (q.level !== undefined) {\n    level = LEVELS.find((l) => l === q.level.toLowerCase());\n    if (level === undefined) return badRequest(\"level must be one of: beginner, intermediate, advanced\");\n}",
+    "distractor": true
+  },
+  {
+    "id": "list-query-parse-int",
+    "label": "Read page, limit and level from the query",
+    "code": "const q = req.query;\nlet page = 1;\nif (q.page !== undefined) {\n    page = parseInt(q.page, 10) || 1;\n    if (page < 1) return badRequest(\"page must be a positive integer\");\n}\nlet limit = 20;\nif (q.limit !== undefined) {\n    limit = Math.min(parseInt(q.limit, 10) || 20, 50);\n    if (limit < 1) return badRequest(\"limit must be a positive integer\");\n}\nlet level: Level | undefined;\nif (q.level !== undefined) {\n    level = LEVELS.find((l) => l === q.level);\n    if (level === undefined) return badRequest(\"level must be one of: beginner, intermediate, advanced\");\n}",
+    "distractor": true
+  },
+  {
+    "id": "profile-response-spread",
+    "label": "The public profile, or 404",
+    "code": "const user = this.service.getProfile(req.params.id);\nif (user === null) return { status: 404, headers: {}, body: { error: \"user not found\" } };\nreturn {\n    status: 200,\n    headers: {},\n    body: { ...user, passwordHash: undefined, joinedAt: user.createdAt },\n};",
+    "distractor": true
+  }
+]

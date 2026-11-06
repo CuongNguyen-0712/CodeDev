@@ -57,6 +57,9 @@
             }
           ]
         }
+      ],
+      "outcomes": [
+        "chunking-dedup"
       ]
     },
     {
@@ -64,7 +67,7 @@
       "name": "overlapping-word-chunker",
       "type": "mini_coding",
       "title": "Write chunk_words(text, size, overlap)",
-      "description": "Split a document into word windows of at most `size` words, where consecutive windows share exactly `overlap` words. Words are separated by any whitespace and joined with one space. Stop as soon as a window reaches the last word, so no trailing chunk repeats words already indexed. Raise ValueError unless size >= 1 and 0 <= overlap < size, and return [] for an empty text. The test runner at the bottom of the file prints your result as JSON (or {\"error\": \"ValueError\"}).",
+      "description": "Split a document into word windows of at most `size` words, where consecutive windows share exactly `overlap` words. Words are separated by any whitespace and joined with one space. Stop as soon as a window reaches the last word, so no trailing chunk repeats words already indexed. Raise ValueError unless size >= 1 and 0 <= overlap < size, and return [] for an empty text. The test runner at the bottom of the file prints your result as JSON (or {\"error\": \"ValueError\"}).\n\nPut the right piece on each `[ ]` line; some pieces are wrong on purpose.",
       "difficulty": "medium",
       "points": 30,
       "coding": {
@@ -188,6 +191,14 @@
           "hidden": true,
           "score": 4
         }
+      ],
+      "outcomes": [
+        "chunking-dedup"
+      ],
+      "hints": [
+        "Each window starts size - overlap words after the previous one, and the last window must end at the last word.",
+        "Split with str.split() (no argument handles any whitespace), validate size and overlap first, and stop the loop as soon as a window reaches the end of the word list.",
+        "Example with a sliding window over readings: `start = 0; while start < len(xs): out.append(xs[start:start + 5]); if start + 5 >= len(xs): break; start += 3`"
       ]
     }
   ]

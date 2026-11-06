@@ -1,0 +1,40 @@
+[
+  {
+    "id": "lookup-and-state",
+    "label": "Find the row, reject revoked and expired ones",
+    "code": "const row = store.findByHash(sha256(req.token));\nif (!row) return { status: \"invalid\" };\nif (row.revokedAt !== null) return { status: \"revoked\" };\nif (req.now >= row.expiresAt) return { status: \"expired\" };"
+  },
+  {
+    "id": "first-use",
+    "label": "First use: claim the token and rotate",
+    "code": "if (row.usedAt === null) {\n    if (store.markUsed(row.id, req.now)) {\n        const next = store.issue(row.familyId, row.userId, row.deviceId, req.now);\n        if (!next) return { status: \"revoked\" };\n        store.recordSuccessor(row.id, next.row.id, next.token);\n        return { status: \"rotated\", token: next.token };\n    }\n    const fresh = store.findById(row.id);\n    if (!fresh || fresh.revokedAt !== null) return { status: \"revoked\" };\n    return handleReuse(store, fresh, req);\n}"
+  },
+  {
+    "id": "grace-reply",
+    "label": "A retry that may get the same answer again",
+    "code": "const usedAt = row.usedAt ?? req.now;\nif (req.deviceId === row.deviceId && req.now - usedAt < GRACE_MS && row.replacedBy !== null) {\n    const successor = store.findById(row.replacedBy);\n    const reply = store.getReply(row.id);\n    if (successor && successor.usedAt === null && successor.revokedAt === null && reply !== null) {\n        return { status: \"grace\", token: reply };\n    }\n}"
+  },
+  {
+    "id": "replay",
+    "label": "Anything else is a replay",
+    "code": "store.revokeFamily(row.familyId, req.now);\nstore.recordEvent({ type: \"refresh_token_reuse\", userId: row.userId, familyId: row.familyId, tokenId: row.id, deviceId: req.deviceId, at: req.now });\nreturn { status: \"replay_detected\" };"
+  },
+  {
+    "id": "grace-any-device",
+    "label": "A retry that may get the same answer again",
+    "code": "const usedAt = row.usedAt ?? req.now;\nif (req.now - usedAt < GRACE_MS && row.replacedBy !== null) {\n    const successor = store.findById(row.replacedBy);\n    const reply = store.getReply(row.id);\n    if (successor && successor.usedAt === null && successor.revokedAt === null && reply !== null) {\n        return { status: \"grace\", token: reply };\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "grace-inclusive-window",
+    "label": "A retry that may get the same answer again",
+    "code": "const usedAt = row.usedAt ?? req.now;\nif (req.deviceId === row.deviceId && req.now - usedAt <= GRACE_MS && row.replacedBy !== null) {\n    const successor = store.findById(row.replacedBy);\n    const reply = store.getReply(row.id);\n    if (successor && successor.usedAt === null && successor.revokedAt === null && reply !== null) {\n        return { status: \"grace\", token: reply };\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "replay-keep-family",
+    "label": "Anything else is a replay",
+    "code": "store.recordEvent({ type: \"refresh_token_reuse\", userId: row.userId, familyId: row.familyId, tokenId: row.id, deviceId: req.deviceId, at: req.now });\nreturn { status: \"replay_detected\" };",
+    "distractor": true
+  }
+]

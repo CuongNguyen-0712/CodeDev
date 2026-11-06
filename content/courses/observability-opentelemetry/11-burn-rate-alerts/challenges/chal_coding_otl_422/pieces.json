@@ -1,0 +1,39 @@
+[
+  {
+    "id": "burn-rate",
+    "label": "Burn rate of a window, to 2 decimals",
+    "code": "return Math.round(((bad / total) / (1 - slo)) * 100) / 100;"
+  },
+  {
+    "id": "validate-inputs",
+    "label": "Refuse an SLO, minimum or rule that makes no sense",
+    "code": "if (typeof slo !== \"number\" || !(slo > 0 && slo < 1)) throw new RangeError(\"slo must be between 0 and 1\");\nif (!Number.isInteger(minRequests) || minRequests < 1) throw new RangeError(\"minRequests must be a whole number >= 1\");\nfor (const r of rules) {\n    if (typeof r.factor !== \"number\" || !Number.isFinite(r.factor) || r.factor <= 0) throw new RangeError(`${r.name}: factor`);\n    if (!Number.isInteger(r.shortMinutes) || r.shortMinutes < 1) throw new RangeError(`${r.name}: shortMinutes`);\n    if (!Number.isInteger(r.longMinutes) || r.longMinutes <= r.shortMinutes) throw new RangeError(`${r.name}: longMinutes`);\n}"
+  },
+  {
+    "id": "prefix-sums",
+    "label": "Prefix sums of good and bad requests",
+    "code": "const good = [0];\nconst bad = [0];\nfor (const m of minutes) {\n    if (!Number.isInteger(m.good) || m.good < 0 || !Number.isInteger(m.bad) || m.bad < 0) {\n        throw new RangeError(\"counts must be whole numbers >= 0\");\n    }\n    good.push(good[good.length - 1] + m.good);\n    bad.push(bad[bad.length - 1] + m.bad);\n}\nconst sum = (p: number[], end: number, length: number) => p[end + 1] - p[end + 1 - length];"
+  },
+  {
+    "id": "firing-check",
+    "label": "Is the rule firing at minute t",
+    "code": "let firing = false;\nlet longBurn = 0;\nif (t >= rule.longMinutes - 1) {\n    const longBad = sum(bad, t, rule.longMinutes);\n    const longTotal = longBad + sum(good, t, rule.longMinutes);\n    const shortBad = sum(bad, t, rule.shortMinutes);\n    const shortTotal = shortBad + sum(good, t, rule.shortMinutes);\n    if (longTotal >= minRequests && shortTotal >= minRequests) {\n        longBurn = burnRate(longBad, longTotal, slo);\n        firing = longBurn > rule.factor && burnRate(shortBad, shortTotal, slo) > rule.factor;\n    }\n}"
+  },
+  {
+    "id": "alert-periods",
+    "label": "Open, extend or close the rule's alert",
+    "code": "if (firing) {\n    if (open) open.peak = Math.max(open.peak, longBurn);\n    else {\n        open = { rule: rule.name, severity: rule.severity, start: t, stop: null, peak: longBurn };\n        alerts.push(open);\n    }\n} else if (open) {\n    open.stop = t;\n    open = null;\n}"
+  },
+  {
+    "id": "firing-at-the-factor",
+    "label": "Is the rule firing at minute t",
+    "code": "let firing = false;\nlet longBurn = 0;\nif (t >= rule.longMinutes - 1) {\n    const longBad = sum(bad, t, rule.longMinutes);\n    const longTotal = longBad + sum(good, t, rule.longMinutes);\n    const shortBad = sum(bad, t, rule.shortMinutes);\n    const shortTotal = shortBad + sum(good, t, rule.shortMinutes);\n    if (longTotal >= minRequests && shortTotal >= minRequests) {\n        longBurn = burnRate(longBad, longTotal, slo);\n        firing = longBurn >= rule.factor && burnRate(shortBad, shortTotal, slo) >= rule.factor;\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "periods-stop-last-firing",
+    "label": "Open, extend or close the rule's alert",
+    "code": "if (firing) {\n    if (open) open.peak = Math.max(open.peak, longBurn);\n    else {\n        open = { rule: rule.name, severity: rule.severity, start: t, stop: null, peak: longBurn };\n        alerts.push(open);\n    }\n} else if (open) {\n    open.stop = t - 1;\n    open = null;\n}",
+    "distractor": true
+  }
+]

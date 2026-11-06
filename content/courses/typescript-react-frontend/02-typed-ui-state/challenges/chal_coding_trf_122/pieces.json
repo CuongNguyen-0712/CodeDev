@@ -1,0 +1,40 @@
+[
+  {
+    "id": "retryable",
+    "label": "Which failures are worth a retry",
+    "code": "return status === 0 || status === 408 || status === 429 || (status >= 500 && status <= 599);"
+  },
+  {
+    "id": "pending",
+    "label": "Nothing to show yet",
+    "code": "return { kind: \"loading\" };"
+  },
+  {
+    "id": "error-states",
+    "label": "Failed: retry, sign in again, or explain",
+    "code": "const error = snapshot.error;\nif (!error || isRetryable(error.status)) return { kind: \"error\", message: RETRY_MESSAGE, canRetry: true };\nif (error.status === 401) return { kind: \"error\", message: \"Your session has expired. Sign in again.\", canRetry: false };\nreturn { kind: \"error\", message: error.message, canRetry: false };"
+  },
+  {
+    "id": "success-states",
+    "label": "Loaded: an empty result or the list",
+    "code": "const courses = snapshot.data ?? [];\nif (courses.length === 0) return { kind: \"empty\", query: snapshot.query.trim() };\nreturn { kind: \"success\", courses, refreshing: snapshot.isFetching };"
+  },
+  {
+    "id": "error-states-always-retry",
+    "label": "Failed: retry, sign in again, or explain",
+    "code": "const error = snapshot.error;\nif (error && error.status === 401) return { kind: \"error\", message: \"Your session has expired. Sign in again.\", canRetry: false };\nreturn { kind: \"error\", message: RETRY_MESSAGE, canRetry: true };",
+    "distractor": true
+  },
+  {
+    "id": "error-states-trust-error",
+    "label": "Failed: retry, sign in again, or explain",
+    "code": "const error = snapshot.error as ApiError;\nif (error.status === 401) return { kind: \"error\", message: \"Your session has expired. Sign in again.\", canRetry: false };\nif (isRetryable(error.status)) return { kind: \"error\", message: RETRY_MESSAGE, canRetry: true };\nreturn { kind: \"error\", message: error.message, canRetry: false };",
+    "distractor": true
+  },
+  {
+    "id": "success-states-refetch-spinner",
+    "label": "Loaded: an empty result or the list",
+    "code": "const courses = snapshot.data ?? [];\nif (snapshot.isFetching) return { kind: \"loading\" };\nif (courses.length === 0) return { kind: \"empty\", query: snapshot.query.trim() };\nreturn { kind: \"success\", courses, refreshing: false };",
+    "distractor": true
+  }
+]

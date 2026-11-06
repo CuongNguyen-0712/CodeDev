@@ -35,6 +35,7 @@ type Ctx = {
 const DAY_SECONDS = 86_400;
 
 async function sendCertificateEmail(job: Job, ctx: Ctx): Promise<void> {
+    // @piece send-once: Send the certificate email
     const key = `certificate-email/${job.certId}`; // one key per certificate, not per delivery
     for (;;) {
         const cert = await ctx.db.get(job.certId);
@@ -54,6 +55,7 @@ async function sendCertificateEmail(job: Job, ctx: Ctx): Promise<void> {
         await ctx.db.update(cert.id, "sending", { status: "sent" });
         return;
     }
+    // @end
 }
 
 // ---------------------------------------------------------------- fakes and test runner (do not change)

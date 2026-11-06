@@ -1,0 +1,50 @@
+[
+  {
+    "id": "breaker-state",
+    "label": "Closed, open or half-open at this moment",
+    "code": "if (this.openedAt === null) return \"closed\";\nreturn now >= this.openedAt + this.openMs ? \"half-open\" : \"open\";"
+  },
+  {
+    "id": "breaker-failure",
+    "label": "What a failed call does to the breaker",
+    "code": "if (this.state(now) === \"half-open\") {\n    this.openedAt = now;\n    return;\n}\nthis.failures++;\nif (this.failures >= this.failureThreshold) this.openedAt = now;"
+  },
+  {
+    "id": "guarded-call",
+    "label": "One call through the breaker, with its timeout",
+    "code": "const breaker = this.breakers[name];\nif (!breaker.allow(now)) return { ok: false, ms: 0, out: null };\nconst { timeoutMs } = this.config[name];\nconst out = op();\nif (out.ok && out.latencyMs <= timeoutMs) {\n    breaker.success(now);\n    return { ok: true, ms: out.latencyMs, out };\n}\nbreaker.failure(now);\nreturn { ok: false, ms: out.ok ? timeoutMs : Math.min(out.latencyMs, timeoutMs), out: null };"
+  },
+  {
+    "id": "leaderboard-update",
+    "label": "Update the leaderboard, or queue the learner for later",
+    "code": "const lb = this.call(\"leaderboard\", now, () => this.deps.leaderboard.setScore(userId, saved.total, now));\nlatencyMs += lb.ms;\nconst queued = this.queue.indexOf(userId);\nif (lb.ok) {\n    if (queued >= 0) this.queue.splice(queued, 1);\n} else {\n    skipped.push(\"leaderboard\");\n    if (queued < 0) this.queue.push(userId);\n}"
+  },
+  {
+    "id": "drain-queue",
+    "label": "Write queued learners back to the leaderboard",
+    "code": "while (written < this.config.drainBatch && this.queue.length > 0) {\n    const userId = this.queue[0];\n    const r = this.call(\"leaderboard\", now, () => this.deps.leaderboard.setScore(userId, this.deps.store.total(userId), now));\n    if (!r.ok) break;\n    this.queue.shift();\n    written++;\n}"
+  },
+  {
+    "id": "top-fallback",
+    "label": "Read the leaderboard, falling back to Postgres",
+    "code": "const r = this.call(\"leaderboard\", now, () => this.deps.leaderboard.top(n, now));\nif (r.ok && r.out !== null) {\n    return { source: \"redis\", rows: r.out.rows, degraded: this.queue.length > 0, latencyMs: r.ms };\n}\nconst pg = this.deps.store.top(n);\nreturn { source: \"postgres\", rows: pg.rows, degraded: true, latencyMs: r.ms + pg.latencyMs };"
+  },
+  {
+    "id": "breaker-failure-trial-ignored",
+    "label": "What a failed call does to the breaker",
+    "code": "if (this.state(now) === \"half-open\") return;\nthis.failures++;\nif (this.failures >= this.failureThreshold) this.openedAt = now;",
+    "distractor": true
+  },
+  {
+    "id": "guarded-call-slow-is-success",
+    "label": "One call through the breaker, with its timeout",
+    "code": "const breaker = this.breakers[name];\nif (!breaker.allow(now)) return { ok: false, ms: 0, out: null };\nconst { timeoutMs } = this.config[name];\nconst out = op();\nif (out.ok) {\n    breaker.success(now);\n    return { ok: true, ms: out.latencyMs, out };\n}\nbreaker.failure(now);\nreturn { ok: false, ms: out.ok ? timeoutMs : Math.min(out.latencyMs, timeoutMs), out: null };",
+    "distractor": true
+  },
+  {
+    "id": "top-fallback-degraded-only-on-postgres",
+    "label": "Read the leaderboard, falling back to Postgres",
+    "code": "const r = this.call(\"leaderboard\", now, () => this.deps.leaderboard.top(n, now));\nif (r.ok && r.out !== null) {\n    return { source: \"redis\", rows: r.out.rows, degraded: false, latencyMs: r.ms };\n}\nconst pg = this.deps.store.top(n);\nreturn { source: \"postgres\", rows: pg.rows, degraded: true, latencyMs: r.ms + pg.latencyMs };",
+    "distractor": true
+  }
+]

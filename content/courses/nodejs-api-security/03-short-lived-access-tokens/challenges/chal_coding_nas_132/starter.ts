@@ -35,12 +35,36 @@ type Claims = { sub: string; iat: number; exp: number; iss: string; aud: string 
 type VerifyOptions = { issuer: string; audience: string; leewaySeconds: number; maxLifetimeSeconds: number };
 type VerifyResult = { valid: true; sub: string } | { valid: false; reason: string };
 
+const b64url = (text: string) => Buffer.from(text, "utf8").toString("base64url");
+const hmac = (secret: string, data: string) => createHmac("sha256", secret).update(data).digest("base64url");
+
 function signToken(claims: Claims, secret: string): string {
-    return "";
+    const { sub, iat, exp, iss, aud } = claims;
+    const unsigned = `${b64url('{"alg":"HS256","typ":"JWT"}')}.${b64url(JSON.stringify({ sub, iat, exp, iss, aud }))}`;
+    return `${unsigned}.${hmac(secret, unsigned)}`;
+}
+
+function decodeObject(part: string): Record<string, unknown> | null {
+    try {
+        const value: unknown = JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
+        return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+    } catch {
+        return null;
+    }
 }
 
 function verifyToken(token: string, secret: string, options: VerifyOptions, now: number): VerifyResult {
-    return { valid: false, reason: "not implemented" };
+    const fail = (reason: string): VerifyResult => ({ valid: false, reason });
+
+    // [ ] Split the token, decode header and payload
+
+    // [ ] Accept only the expected algorithm
+
+    // [ ] Check the signature
+
+    // [ ] Check the claim types
+
+    // [ ] Issuer, audience, lifetime and time window
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

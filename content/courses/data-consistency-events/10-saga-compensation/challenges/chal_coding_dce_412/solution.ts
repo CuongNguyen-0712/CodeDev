@@ -57,8 +57,11 @@ type Ctx = {
 const key = (o: Order): string => `${o.userId}:${o.courseId}`;
 
 // ---------------------------------------------------------------- your code
+// Each action runs inside one transaction (t is the transaction copy of the tables) and must be idempotent:
+// running it again after it already committed changes nothing. Throw BusinessError for a business refusal.
 const ACTIONS: Record<ActionName, (t: Tables, order: Order) => void> = {
     pay(t, o) {
+        // @piece pay-action: Take the payment, once per saga
         if (t.payments.has(o.sagaId)) return; // already paid by an earlier attempt
         if (o.method === "points") {
             const balance = t.wallets.get(o.userId) ?? 0;
@@ -66,14 +69,17 @@ const ACTIONS: Record<ActionName, (t: Tables, order: Order) => void> = {
             t.wallets.set(o.userId, balance - o.price);
         }
         t.payments.set(o.sagaId, { userId: o.userId, method: o.method, amount: o.price, status: "captured" });
+        // @end
     },
     enroll(t, o) {
+        // @piece enroll-action: Enroll, unless the seat belongs to another saga
         const current = t.enrollments.get(key(o));
         if (current?.status === "active") {
             if (current.sagaId === o.sagaId) return;
             throw new BusinessError("already enrolled");
         }
         t.enrollments.set(key(o), { sagaId: o.sagaId, status: "active" });
+        // @end
     },
     grant(t, o) {
         t.entitlements.set(key(o), { sagaId: o.sagaId, active: true });
@@ -83,10 +89,12 @@ const ACTIONS: Record<ActionName, (t: Tables, order: Order) => void> = {
         t.receipts.push({ sagaId: o.sagaId, userId: o.userId, amount: o.price });
     },
     refund(t, o) {
+        // @piece refund-action: Refund a captured payment, once
         const p = t.payments.get(o.sagaId);
         if (!p || p.status !== "captured") return;
         p.status = "refunded";
         if (p.method === "points") t.wallets.set(p.userId, (t.wallets.get(p.userId) ?? 0) + p.amount);
+        // @end
     },
     cancelEnrollment(t, o) {
         const e = t.enrollments.get(key(o));
@@ -103,6 +111,7 @@ const UNDO: Record<string, CompName> = { pay: "refund", enroll: "cancelEnrollmen
 
 /** Runs the action up to maxAttempts times. Returns null on success, else the reason it failed. */
 function attempt(ctx: Ctx, action: ActionName, order: Order): string | null {
+    // @piece attempt-body: Try an action, retrying only transient failures
     for (let i = 1; i <= ctx.maxAttempts; i++) {
         try {
             ctx.perform(action, order);
@@ -113,9 +122,11 @@ function attempt(ctx: Ctx, action: ActionName, order: Order): string | null {
         }
     }
     return `gave up after ${ctx.maxAttempts} attempts`;
+    // @end
 }
 
 function compensate(ctx: Ctx, rec: SagaRecord): void {
+    // @piece compensate: Undo the finished steps
     for (const step of [...rec.done].reverse()) {
         const comp = UNDO[step];
         if (!comp || rec.undone.includes(comp)) continue;
@@ -129,6 +140,7 @@ function compensate(ctx: Ctx, rec: SagaRecord): void {
     }
     rec.status = "aborted";
     ctx.save(rec);
+    // @end
 }
 
 function sendReceipt(ctx: Ctx, rec: SagaRecord): void {
@@ -144,6 +156,7 @@ function sendReceipt(ctx: Ctx, rec: SagaRecord): void {
     ctx.save(rec);
 }
 
+/** Starts the saga of this order, or resumes it from the record stored in the database. */
 function runSaga(ctx: Ctx, order: Order): void {
     let rec = ctx.load(order.sagaId);
     if (!rec) {
@@ -152,6 +165,7 @@ function runSaga(ctx: Ctx, order: Order): void {
         ctx.save(rec);
     }
     if (rec.status === "running") {
+        // @piece forward-steps: Run the forward steps, saving progress
         for (const step of FORWARD) {
             if (rec.done.includes(step)) continue;
             const failure = attempt(ctx, step, rec.order);
@@ -165,6 +179,7 @@ function runSaga(ctx: Ctx, order: Order): void {
             ctx.save(rec);
         }
         if (rec.status === "running") sendReceipt(ctx, rec);
+        // @end
     } else if (rec.status === "receipt_pending") {
         sendReceipt(ctx, rec);
     }

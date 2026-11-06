@@ -1,0 +1,45 @@
+[
+  {
+    "id": "send",
+    "label": "Store a new message, visible at once",
+    "code": "this.messages.set(messageId, { id: messageId, body, seq: this.sent++, visibleAt: now, receiveCount: 0, receipt: null });"
+  },
+  {
+    "id": "receive",
+    "label": "Hand out the oldest visible message",
+    "code": "let next: Stored | undefined;\nfor (const m of this.messages.values()) {\n    if (m.visibleAt > now) continue;\n    if (!next || m.visibleAt < next.visibleAt || (m.visibleAt === next.visibleAt && m.seq < next.seq)) next = m;\n}\nif (!next) return null;\nnext.receiveCount++;\nnext.receipt = `${next.id}#${next.receiveCount}`; // every earlier handle stops being current\nnext.visibleAt = now + this.visibilityTimeoutMs;\nreturn { messageId: next.id, body: next.body, receiptHandle: next.receipt, receiveCount: next.receiveCount };"
+  },
+  {
+    "id": "current-handle",
+    "label": "The message, only for its latest handle",
+    "code": "const m = this.messages.get(receiptHandle.slice(0, receiptHandle.lastIndexOf(\"#\")));\nreturn m !== undefined && m.receipt === receiptHandle ? m : undefined;"
+  },
+  {
+    "id": "ack",
+    "label": "Delete the message for a current handle",
+    "code": "const m = this.current(receiptHandle);\nif (!m) return false;\nthis.messages.delete(m.id);\nreturn true;"
+  },
+  {
+    "id": "extend",
+    "label": "Hide an in-flight message for longer",
+    "code": "const m = this.current(receiptHandle);\nif (!m || now >= m.visibleAt) return false; // not in flight any more\nif (!Number.isInteger(timeoutMs) || timeoutMs < 0 || timeoutMs > MAX_VISIBILITY_MS) return false;\nm.visibleAt = now + timeoutMs; // counted from now, not from the old deadline\nreturn true;"
+  },
+  {
+    "id": "ack-any-handle",
+    "label": "Delete the message for a current handle",
+    "code": "const m = this.messages.get(receiptHandle.slice(0, receiptHandle.lastIndexOf(\"#\")));\nif (!m) return false;\nthis.messages.delete(m.id);\nreturn true;",
+    "distractor": true
+  },
+  {
+    "id": "extend-after-expiry",
+    "label": "Hide an in-flight message for longer",
+    "code": "const m = this.current(receiptHandle);\nif (!m) return false;\nif (!Number.isInteger(timeoutMs) || timeoutMs < 0 || timeoutMs > MAX_VISIBILITY_MS) return false;\nm.visibleAt = now + timeoutMs; // counted from now, not from the old deadline\nreturn true;",
+    "distractor": true
+  },
+  {
+    "id": "extend-from-old-deadline",
+    "label": "Hide an in-flight message for longer",
+    "code": "const m = this.current(receiptHandle);\nif (!m || now >= m.visibleAt) return false; // not in flight any more\nif (!Number.isInteger(timeoutMs) || timeoutMs < 0 || timeoutMs > MAX_VISIBILITY_MS) return false;\nm.visibleAt += timeoutMs;\nreturn true;",
+    "distractor": true
+  }
+]

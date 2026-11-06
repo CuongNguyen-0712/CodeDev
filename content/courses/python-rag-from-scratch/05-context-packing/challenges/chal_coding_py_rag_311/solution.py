@@ -1,4 +1,20 @@
-"""Pack retrieved chunks into the prompt's context under a token budget, with citations."""
+"""
+Pack retrieved chunks into the prompt's context under a token budget, with citations.
+
+`chunks` arrive in rank order: [{"id", "source", "text"}, ...]. Each chunk that is used becomes
+one line "[n] <text>", where n is the citation number of its SOURCE document.
+
+Requirements:
+  - Go through the chunks in order. The cost of a chunk is count_tokens() of its whole line,
+    "[n] " included. The total cost must stay <= budget.
+  - A chunk that does not fit is skipped, but keep going: a later, shorter chunk may still fit.
+  - Use at most `max_per_source` chunks from the same source.
+  - Skip a chunk whose text (ignoring leading/trailing whitespace) is already in the context.
+  - Citation numbers start at 1 and are given to sources in the order they are first USED.
+    A skipped chunk never takes a number; every chunk of a source shows the same number.
+  - Return {"context": lines joined with "\\n", "citations": sources in number order,
+            "used": ids of the chunks used, "tokens": total cost}.
+"""
 import json
 import re
 import sys
@@ -19,19 +35,27 @@ def pack_context(chunks: list[dict], budget: int, max_per_source: int) -> dict:
 
     for chunk in chunks:  # already in rank order
         text, source = chunk["text"].strip(), chunk["source"]
+        # @piece skip: Skip repeated text and sources that already have enough
         if text in seen_text or per_source.get(source, 0) >= max_per_source:
             continue
+        # @end
+        # @piece number: The citation number of this chunk
         number = numbers.get(source, len(numbers) + 1)
+        # @end
         line = f"[{number}] {text}"
         cost = count_tokens(line)
+        # @piece over-budget: A chunk that does not fit
         if tokens + cost > budget:
             continue  # too big - a later, shorter chunk may still fit
+        # @end
+        # @piece keep: Record a packed chunk
         numbers.setdefault(source, number)
         per_source[source] = per_source.get(source, 0) + 1
         seen_text.add(text)
         lines.append(line)
         used.append(chunk["id"])
         tokens += cost
+        # @end
 
     return {
         "context": "\n".join(lines),

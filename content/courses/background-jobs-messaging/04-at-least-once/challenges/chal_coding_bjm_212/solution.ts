@@ -43,11 +43,16 @@ interface Db extends Tx {
 const isText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";
 
 function handleIssueCertificate(job: CertificateJob, db: Db): Outcome {
+    // @piece read-job: Read the job data and refuse bad input
     const userId = job.data?.userId;
     const courseId = job.data?.courseId;
     if (!isText(userId) || !isText(courseId)) return "invalid";
+    // @end
     // One certificate per learner and course, whatever job id carried the request.
+    // @piece dedup-key: The key that names one certificate
     const key = `certificate:${userId}:${courseId}`;
+    // @end
+    // @piece issue-once: Issue it at most once
     return db.transaction((tx) => {
         if (tx.hasProcessed(key)) return "duplicate";
         tx.insertCertificate({ userId, courseId, jobId: job.id });
@@ -55,6 +60,7 @@ function handleIssueCertificate(job: CertificateJob, db: Db): Outcome {
         tx.markProcessed(key);
         return "issued";
     });
+    // @end
 }
 
 // ---------------------------------------------------------------- in-memory queue and database (do not change)

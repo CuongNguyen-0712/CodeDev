@@ -33,21 +33,25 @@ type StopReason = "final" | "max_steps" | "repeated_call" | "no_progress" | "no_
 type RunResult = { reason: StopReason; steps: number; answer: string | null; partial: string[] };
 
 function canonical(value: unknown): string {
+    // @piece canonical: One text per argument value, whatever the key order
     if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
     if (value !== null && typeof value === "object") {
         const entries = Object.keys(value as Record<string, unknown>).sort();
         return `{${entries.map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`).join(",")}}`;
     }
     return JSON.stringify(value) ?? "null";
+    // @end
 }
 
 function asToolCall(raw: unknown): ToolCall | null {
+    // @piece parse-call: Read a tool call out of the model's reply
     if (raw === null || typeof raw !== "object" || !("toolCall" in raw)) return null;
     const call = (raw as { toolCall: unknown }).toolCall;
     if (call === null || typeof call !== "object") return null;
     const name = (call as { name?: unknown }).name;
     if (typeof name !== "string" || name === "") return null;
     return { name, args: (call as { args?: unknown }).args ?? {} };
+    // @end
 }
 
 function runAgent(question: string, model: Model, limits: Limits): RunResult {
@@ -61,26 +65,33 @@ function runAgent(question: string, model: Model, limits: Limits): RunResult {
     const stop = (reason: StopReason, answer: string | null = null): RunResult => ({ reason, steps, answer, partial });
 
     for (;;) {
+        // @piece step-limit: Ask the model again unless the step budget is spent
         if (steps >= limits.maxSteps) return stop("max_steps");
         const raw = model.next(transcript);
         steps++;
+        // @end
 
+        // @piece final: A reply that is not a tool call must be a real answer
         const call = asToolCall(raw);
         if (!call) {
             const final = raw !== null && typeof raw === "object" ? (raw as { final?: unknown }).final : undefined;
             if (typeof final === "string" && final.trim() !== "") return stop("final", final);
             return stop("no_final_answer");
         }
+        // @end
 
+        // @piece repeat-check: Stop when the same call keeps repeating
         const key = `${call.name} ${canonical(call.args)}`;
         sameInARow = key === lastKey ? sameInARow + 1 : 1;
         lastKey = key;
         if (sameInARow >= limits.maxSameCall) return stop("repeated_call");
+        // @end
 
         transcript.push({ role: "assistant", content: `call ${key}` });
         const result = callTool(call);
         transcript.push({ role: "tool", content: result });
 
+        // @piece progress: Count tool results that bring nothing new
         if (seen.has(result)) {
             noProgress++;
             if (noProgress >= limits.maxNoProgress) return stop("no_progress");
@@ -89,6 +100,7 @@ function runAgent(question: string, model: Model, limits: Limits): RunResult {
             partial.push(result);
             noProgress = 0;
         }
+        // @end
     }
 }
 

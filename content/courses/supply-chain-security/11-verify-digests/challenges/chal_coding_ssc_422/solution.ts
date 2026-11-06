@@ -4,6 +4,12 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 // CodeDev deploy gate: deploy a release only if every artifact matches a signed manifest.
 // The signature is simulated with HMAC-SHA256 and a test key (real pipelines sign with Sigstore/cosign
 // or a KMS key and verify with a public key; the checks around the signature are the same).
+//
+// Order of the checks (the challenge text has the exact rules and reason codes):
+// 1. Build the canonical manifest string. Cannot be built -> reject with "invalid-manifest" only.
+// 2. Verify the HMAC signature over it with a constant-time comparison -> "bad-signature" only.
+// 3. Only now trust the digests: check the release, every artifact in the bundle and every ref.
+// Do not change the types or the test runner.
 
 type Artifact = { name: string; content: string };
 type Manifest = { release: string; digests: Record<string, string>; signature: string };
@@ -31,6 +37,7 @@ const byString = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
 /** The exact bytes the release job signed. Returns null when the manifest cannot be written canonically. */
 function canonicalManifest(m: Manifest): string | null {
+    // @piece canonical-body: Write the manifest canonically
     if (typeof m !== "object" || m === null) return null;
     if (typeof m.release !== "string" || m.release === "" || /[\r\n]/.test(m.release)) return null;
     if (typeof m.digests !== "object" || m.digests === null || Array.isArray(m.digests)) return null;
@@ -43,13 +50,16 @@ function canonicalManifest(m: Manifest): string | null {
         out += `${name} sha256:${digest.toLowerCase()}\n`;
     }
     return out;
+    // @end
 }
 
 /** Constant-time check of a hex HMAC-SHA256 signature. */
 function signatureValid(key: string, canonical: string, signature: unknown): boolean {
+    // @piece signature-check: Check the signature in constant time
     if (typeof signature !== "string" || !HEX64.test(signature)) return false;
     const expected = createHmac("sha256", key).update(canonical, "utf8").digest();
     return timingSafeEqual(expected, Buffer.from(signature, "hex"));
+    // @end
 }
 
 const sha256Hex = (base64: string): string => createHash("sha256").update(Buffer.from(base64, "base64")).digest("hex");
@@ -72,10 +82,13 @@ function verifyRelease(input: Input): Decision {
     if (!signatureValid(input.key, canonical, input.manifest.signature)) return reject([{ artifact: "", code: "bad-signature" }]);
 
     // From here on the manifest is trusted.
+    // @piece trust-manifest: Trust the signed digests, check the release
     const signed = new Map(Object.entries(input.manifest.digests).map(([n, d]) => [n, d.toLowerCase()]));
     const reasons: Reason[] = [];
     if (input.request.release !== input.manifest.release) reasons.push({ artifact: "", code: "release-mismatch" });
+    // @end
 
+    // @piece check-artifacts: Check every artifact in the bundle
     const count = new Map<string, number>();
     for (const a of input.artifacts) count.set(a.name, (count.get(a.name) ?? 0) + 1);
     for (const a of input.artifacts) {
@@ -83,7 +96,9 @@ function verifyRelease(input: Input): Decision {
         else if (!signed.has(a.name)) reasons.push({ artifact: a.name, code: "unsigned-artifact" });
         else if (sha256Hex(a.content) !== signed.get(a.name)) reasons.push({ artifact: a.name, code: "digest-mismatch" });
     }
+    // @end
 
+    // @piece check-refs: Check every requested reference
     if (input.request.refs.length === 0) reasons.push({ artifact: "", code: "empty-request" });
     const deployed = new Set<string>();
     for (const ref of input.request.refs) {
@@ -104,9 +119,12 @@ function verifyRelease(input: Input): Decision {
         if (!count.has(name)) reasons.push({ artifact: name, code: "missing-artifact" });
         deployed.add(`${name}@sha256:${want}`);
     }
+    // @end
 
+    // @piece decide: Reject with the reasons, or deploy
     if (reasons.length) return reject(reasons);
     return { decision: "deploy", reasons: [], deployed: [...deployed].sort(byString) };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

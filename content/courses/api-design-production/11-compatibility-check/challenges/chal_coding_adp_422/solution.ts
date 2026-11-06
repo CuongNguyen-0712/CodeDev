@@ -2,7 +2,20 @@ import { readFileSync } from "node:fs";
 
 // Compatibility check for CodeDev API responses. Compare the JSON Schema of a response before
 // (old) and after (new) a change, and report what breaks clients that READ the response.
-// Rules, the schema subset and the output format are in the challenge description.
+// Walk both schemas from the root (path "") and compare the old and the new node at each path:
+//   "null" added to type -> breaking became-nullable; removed -> safe no-longer-nullable
+//   other types differ   -> breaking type-changed, detail "<old> -> <new>" (sorted, joined by ","),
+//                           and nothing below that node is compared
+//   enum value added     -> breaking enum-value-added; removed -> safe enum-value-removed
+//                           (detail = JSON text of the value)
+//   object properties    -> removed: breaking property-removed; added: safe property-added;
+//                           required -> optional: breaking became-optional;
+//                           optional -> required: safe became-required; then compare the property
+//   array                -> compare items at <path>/items
+// Paths are JSON Pointers into the schema ("~" -> "~0", "/" -> "~1" in names). Each list is sorted
+// by path, then change, then detail, in plain string order. Throw on a node with a missing, empty or
+// unknown type. Full rules: the challenge description.
+// Fill every [ ] line with the right piece. Do not change the types or the test runner.
 
 type Schema = {
     type?: string | string[];
@@ -14,39 +27,27 @@ type Schema = {
 type Change = { path: string; change: string; detail?: string };
 type Report = { breaking: Change[]; safe: Change[] };
 
-const TYPES = new Set(["string", "number", "integer", "boolean", "object", "array", "null"]);
-
-function typesOf(schema: Schema, path: string): string[] {
-    const t = schema.type;
-    const list = typeof t === "string" ? [t] : Array.isArray(t) ? t : [];
-    if (list.length === 0 || list.some((x) => typeof x !== "string" || !TYPES.has(x))) {
-        throw new Error(`invalid schema at "${path}"`);
-    }
-    return list;
-}
-
-const escapeToken = (name: string) => name.replace(/~/g, "~0").replace(/\//g, "~1");
-
-const cmp = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
-const byPathChangeDetail = (x: Change, y: Change) =>
-    cmp(x.path, y.path) || cmp(x.change, y.change) || cmp(x.detail ?? "", y.detail ?? "");
-
 function compareSchemas(oldSchema: Schema, newSchema: Schema): Report {
     const breaking: Change[] = [];
     const safe: Change[] = [];
     const walk = (a: Schema, b: Schema, path: string) => {
+        // @piece nullability: Compare whether null is allowed
         const ta = typesOf(a, path);
         const tb = typesOf(b, path);
         const nullA = ta.includes("null");
         const nullB = tb.includes("null");
         if (!nullA && nullB) breaking.push({ path, change: "became-nullable" });
         if (nullA && !nullB) safe.push({ path, change: "no-longer-nullable" });
+        // @end
+        // @piece type-change: Compare the other types, stop when they differ
         const restA = ta.filter((t) => t !== "null").sort();
         const restB = tb.filter((t) => t !== "null").sort();
         if (restA.join(",") !== restB.join(",")) {
             breaking.push({ path, change: "type-changed", detail: `${restA.join(",")} -> ${restB.join(",")}` });
             return;
         }
+        // @end
+        // @piece enum-values: Compare the allowed values
         if (a.enum && b.enum) {
             const key = (v: unknown) => JSON.stringify(v);
             const oldValues = new Set(a.enum.map(key));
@@ -54,6 +55,8 @@ function compareSchemas(oldSchema: Schema, newSchema: Schema): Report {
             for (const v of newValues) if (!oldValues.has(v)) breaking.push({ path, change: "enum-value-added", detail: v });
             for (const v of oldValues) if (!newValues.has(v)) safe.push({ path, change: "enum-value-removed", detail: v });
         }
+        // @end
+        // @piece object-properties: Compare properties and required, then go deeper
         if (restA.includes("object")) {
             const pa = a.properties ?? {};
             const pb = b.properties ?? {};
@@ -75,11 +78,35 @@ function compareSchemas(oldSchema: Schema, newSchema: Schema): Report {
                 if (!namesA.has(name)) safe.push({ path: `${path}/properties/${escapeToken(name)}`, change: "property-added" });
             }
         }
+        // @end
+        // @piece array-items: Go into array items
         if (restA.includes("array") && a.items && b.items) walk(a.items, b.items, `${path}/items`);
+        // @end
     };
     walk(oldSchema, newSchema, "");
     return { breaking: breaking.sort(byPathChangeDetail), safe: safe.sort(byPathChangeDetail) };
 }
+
+// @piece types-of: Read and check a node's types
+const TYPES = new Set(["string", "number", "integer", "boolean", "object", "array", "null"]);
+
+function typesOf(schema: Schema, path: string): string[] {
+    const t = schema.type;
+    const list = typeof t === "string" ? [t] : Array.isArray(t) ? t : [];
+    if (list.length === 0 || list.some((x) => typeof x !== "string" || !TYPES.has(x))) {
+        throw new Error(`invalid schema at "${path}"`);
+    }
+    return list;
+}
+// @end
+
+// @piece pointer-and-order: Escape names in paths and order the changes
+const escapeToken = (name: string) => name.replace(/~/g, "~0").replace(/\//g, "~1");
+
+const cmp = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
+const byPathChangeDetail = (x: Change, y: Change) =>
+    cmp(x.path, y.path) || cmp(x.change, y.change) || cmp(x.detail ?? "", y.detail ?? "");
+// @end
 
 // ---------------------------------------------------------------- test runner (do not change)
 const input: { old: Schema; new: Schema } = JSON.parse(readFileSync(0, "utf8"));

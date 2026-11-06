@@ -1,0 +1,45 @@
+[
+  {
+    "id": "split-and-decode",
+    "label": "Split the token, decode header and payload",
+    "code": "const parts = token.split(\".\");\nif (parts.length !== 3 || parts.some((p) => !/^[A-Za-z0-9_-]*$/.test(p) || p.length % 4 === 1)) return fail(\"malformed\");\nconst header = decodeObject(parts[0]);\nconst payload = decodeObject(parts[1]);\nif (!header || !payload) return fail(\"malformed\");"
+  },
+  {
+    "id": "alg-check",
+    "label": "Accept only the expected algorithm",
+    "code": "if (header.alg !== \"HS256\") return fail(\"unsupported alg\");"
+  },
+  {
+    "id": "signature-check",
+    "label": "Check the signature",
+    "code": "const expected = Buffer.from(hmac(secret, `${parts[0]}.${parts[1]}`));\nconst received = Buffer.from(parts[2]);\nif (expected.length !== received.length || !timingSafeEqual(expected, received)) return fail(\"bad signature\");"
+  },
+  {
+    "id": "claim-types",
+    "label": "Check the claim types",
+    "code": "const { sub, iat, exp, iss, aud } = payload;\nconst audOk = typeof aud === \"string\" || (Array.isArray(aud) && aud.every((a) => typeof a === \"string\"));\nif (typeof sub !== \"string\" || sub === \"\" || !Number.isInteger(iat) || !Number.isInteger(exp) || typeof iss !== \"string\" || !audOk) {\n    return fail(\"invalid claims\");\n}\nconst issuedAt = iat as number;\nconst expiresAt = exp as number;\nif (expiresAt <= issuedAt) return fail(\"invalid claims\");"
+  },
+  {
+    "id": "policy-checks",
+    "label": "Issuer, audience, lifetime and time window",
+    "code": "if (iss !== options.issuer) return fail(\"wrong issuer\");\nif (typeof aud === \"string\" ? aud !== options.audience : !(aud as string[]).includes(options.audience)) return fail(\"wrong audience\");\nif (expiresAt - issuedAt > options.maxLifetimeSeconds) return fail(\"lifetime too long\");\nif (now >= expiresAt + options.leewaySeconds) return fail(\"expired\");\nif (issuedAt > now + options.leewaySeconds) return fail(\"not yet valid\");\nreturn { valid: true, sub };"
+  },
+  {
+    "id": "policy-no-leeway",
+    "label": "Issuer, audience, lifetime and time window",
+    "code": "if (iss !== options.issuer) return fail(\"wrong issuer\");\nif (typeof aud === \"string\" ? aud !== options.audience : !(aud as string[]).includes(options.audience)) return fail(\"wrong audience\");\nif (expiresAt - issuedAt > options.maxLifetimeSeconds) return fail(\"lifetime too long\");\nif (now >= expiresAt) return fail(\"expired\");\nif (issuedAt > now + options.leewaySeconds) return fail(\"not yet valid\");\nreturn { valid: true, sub };",
+    "distractor": true
+  },
+  {
+    "id": "policy-no-lifetime",
+    "label": "Issuer, audience, lifetime and time window",
+    "code": "if (iss !== options.issuer) return fail(\"wrong issuer\");\nif (typeof aud === \"string\" ? aud !== options.audience : !(aud as string[]).includes(options.audience)) return fail(\"wrong audience\");\nif (now >= expiresAt + options.leewaySeconds) return fail(\"expired\");\nif (issuedAt > now + options.leewaySeconds) return fail(\"not yet valid\");\nreturn { valid: true, sub };",
+    "distractor": true
+  },
+  {
+    "id": "signature-decoded-bytes",
+    "label": "Check the signature",
+    "code": "const expected = createHmac(\"sha256\", secret).update(`${parts[0]}.${parts[1]}`).digest();\nconst received = Buffer.from(parts[2], \"base64url\");\nif (expected.length !== received.length || !timingSafeEqual(expected, received)) return fail(\"bad signature\");",
+    "distractor": true
+  }
+]

@@ -109,24 +109,31 @@ type LeaderboardResult = { source: "redis" | "postgres"; rows: Row[]; degraded: 
 
 // ---------------------------------------------------------------- your code
 class CircuitBreaker {
+    private failures = 0;
+    private openedAt: number | null = null;
+    private readonly failureThreshold: number;
+    private readonly openMs: number;
+
     constructor(config: { failureThreshold: number; openMs: number }) {
-        // TODO
+        this.failureThreshold = config.failureThreshold;
+        this.openMs = config.openMs;
     }
 
     state(now: number): BreakerState {
-        return "closed"; // TODO
+        // [ ] Closed, open or half-open at this moment
     }
 
     allow(now: number): boolean {
-        return true; // TODO
+        return this.state(now) !== "open";
     }
 
     success(now: number): void {
-        // TODO
+        this.failures = 0;
+        this.openedAt = null;
     }
 
     failure(now: number): void {
-        // TODO
+        // [ ] What a failed call does to the breaker
     }
 }
 
@@ -135,30 +142,54 @@ type Name = "cache" | "leaderboard";
 class ProgressService {
     private readonly deps: Deps;
     private readonly config: Config;
+    private readonly breakers: Record<Name, CircuitBreaker>;
+    private readonly queue: string[] = [];
 
     constructor(deps: Deps, config: Config) {
         this.deps = deps;
         this.config = config;
+        this.breakers = { cache: new CircuitBreaker(config.cache), leaderboard: new CircuitBreaker(config.leaderboard) };
+    }
+
+    // returns the time the call took, and whether it succeeded; skipped calls take 0 ms
+    private call<T extends Outcome>(name: Name, now: number, op: () => T): { ok: boolean; ms: number; out: T | null } {
+        // [ ] One call through the breaker, with its timeout
     }
 
     updateProgress(req: ProgressRequest, now: number): ProgressResult {
-        return { status: 200, total: null, degraded: false, skipped: [], latencyMs: 0 }; // TODO
+        const { userId, lessonId, points } = req;
+        if (typeof userId !== "string" || userId === "" || typeof lessonId !== "string" || lessonId === ""
+            || typeof points !== "number" || !Number.isInteger(points) || points < 0 || points > 1000) {
+            return { status: 400, total: null, degraded: false, skipped: [], latencyMs: 0 };
+        }
+        const saved = this.deps.store.complete(userId, lessonId, points);
+        let latencyMs = saved.latencyMs;
+        const skipped: string[] = [];
+
+        const cache = this.call("cache", now, () => this.deps.cache.invalidate(`progress:${userId}`, now));
+        latencyMs += cache.ms;
+        if (!cache.ok) skipped.push("cache");
+
+        // [ ] Update the leaderboard, or queue the learner for later
+        return { status: 200, total: saved.total, degraded: skipped.length > 0, skipped, latencyMs };
     }
 
     drain(now: number): number {
-        return 0; // TODO
+        let written = 0;
+        // [ ] Write queued learners back to the leaderboard
+        return written;
     }
 
     getLeaderboard(n: number, now: number): LeaderboardResult {
-        return { source: "redis", rows: [], degraded: false, latencyMs: 0 }; // TODO
+        // [ ] Read the leaderboard, falling back to Postgres
     }
 
     pending(): string[] {
-        return []; // TODO
+        return [...this.queue];
     }
 
     breakerState(name: Name, now: number): BreakerState {
-        return "closed"; // TODO
+        return this.breakers[name].state(now);
     }
 }
 

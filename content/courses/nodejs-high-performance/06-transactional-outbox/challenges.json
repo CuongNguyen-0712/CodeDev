@@ -33,6 +33,9 @@
             }
           ]
         }
+      ],
+      "outcomes": [
+        "exactly-once-effects"
       ]
     },
     {
@@ -40,7 +43,7 @@
       "name": "fix-idempotent-wallet-consumer",
       "type": "fix_bug",
       "title": "Fix the consumer that credits wallets twice",
-      "description": "handleWalletCredited() deduplicates redelivered events with a processed_messages table, yet some wallets are credited twice and some top-ups are marked processed without ever being credited. Make each message change the balance exactly once, even when it is redelivered concurrently or the credit fails halfway.",
+      "description": "handleWalletCredited() deduplicates redelivered events with a processed_messages table, yet some wallets are credited twice and some top-ups are marked processed without ever being credited. Make each message change the balance exactly once, even when it is redelivered concurrently or the credit fails halfway.\n\nSelect the faulty lines and replace them with the right fix; some fixes are wrong on purpose.",
       "difficulty": "hard",
       "points": 20,
       "coding": {
@@ -283,6 +286,14 @@
           "hidden": true,
           "score": 4
         }
+      ],
+      "outcomes": [
+        "exactly-once-effects"
+      ],
+      "hints": [
+        "Two symptoms: duplicates that slip through, and messages marked processed without a credit. Both point at what is committed together.",
+        "Record the message id and apply the credit in the same transaction, and let the unique insert decide which delivery is first, so a failed credit rolls the marker back.",
+        "Example for an email consumer: `await db.transaction(async (tx) => { if (!(await tx.insertSent(msg.id))) return; await tx.queueEmail(msg.to); });`"
       ]
     },
     {
@@ -319,6 +330,9 @@
             }
           ]
         }
+      ],
+      "outcomes": [
+        "exactly-once-effects"
       ]
     }
   ]

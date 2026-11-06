@@ -44,8 +44,23 @@ type CatalogUiState =
     | { kind: "empty"; query: string }
     | { kind: "success"; courses: Course[]; refreshing: boolean };
 
+const RETRY_MESSAGE = "Could not load courses. Try again.";
+
+function isRetryable(status: number): boolean {
+    // [ ] Which failures are worth a retry
+}
+
 function deriveUiState(snapshot: RequestSnapshot): CatalogUiState {
-    return { kind: "loading" };
+    switch (snapshot.status) {
+        case "pending":
+            // [ ] Nothing to show yet
+        case "error": {
+            // [ ] Failed: retry, sign in again, or explain
+        }
+        case "success": {
+            // [ ] Loaded: an empty result or the list
+        }
+    }
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

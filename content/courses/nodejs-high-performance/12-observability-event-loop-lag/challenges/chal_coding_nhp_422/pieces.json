@@ -1,0 +1,35 @@
+[
+  {
+    "id": "no-samples",
+    "label": "A list with no samples",
+    "code": "if (values.length === 0) return null;"
+  },
+  {
+    "id": "sort-copy",
+    "label": "Sort the samples",
+    "code": "const sorted = [...values].sort((a, b) => a - b);"
+  },
+  {
+    "id": "nearest-rank",
+    "label": "Pick the sample at the nearest rank",
+    "code": "const rank = Math.max(1, Math.ceil((p / 100) * sorted.length));\nreturn sorted[rank - 1];"
+  },
+  {
+    "id": "nearest-rank-floor-index",
+    "label": "Pick the sample at the nearest rank",
+    "code": "return sorted[Math.floor((p / 100) * sorted.length)];",
+    "distractor": true
+  },
+  {
+    "id": "sort-copy-in-place",
+    "label": "Sort the samples",
+    "code": "const sorted = values.sort((a, b) => a - b);",
+    "distractor": true
+  },
+  {
+    "id": "sort-copy-text-order",
+    "label": "Sort the samples",
+    "code": "const sorted = [...values].sort();",
+    "distractor": true
+  }
+]

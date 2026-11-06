@@ -1,0 +1,50 @@
+[
+  {
+    "id": "allowed-table",
+    "label": "Which events each state allows",
+    "code": "const ALLOWED: Record<JobEvent[\"type\"], JobState[]> = {\n    enqueue: [],\n    start: [\"queued\", \"retrying\"],\n    heartbeat: [\"running\"],\n    succeed: [\"running\"],\n    fail: [\"running\"],\n    timeout: [\"running\"],\n    cancel: [\"queued\", \"running\", \"retrying\"],\n    \"retry-scheduled\": [\"failed\"],\n};"
+  },
+  {
+    "id": "validate-event",
+    "label": "Reject unknown events and failure kinds",
+    "code": "if (!Object.prototype.hasOwnProperty.call(ALLOWED, event.type)) return \"unknown event type\";\nif (event.type === \"fail\" && event.failure !== \"retryable\" && event.failure !== \"permanent\") return \"invalid failure kind\";"
+  },
+  {
+    "id": "enqueue",
+    "label": "Create a new job, once",
+    "code": "if (event.type === \"enqueue\") {\n    if (jobs.has(event.jobId)) return \"job already exists\";\n    jobs.set(event.jobId, { id: event.jobId, state: \"queued\", attempts: 0, workerId: null, lastFailure: null });\n    return null;\n}"
+  },
+  {
+    "id": "state-check",
+    "label": "Find the job, check its state and worker",
+    "code": "const job = jobs.get(event.jobId);\nif (!job) return \"unknown job\";\nif (!ALLOWED[event.type].includes(job.state)) return `${event.type} not allowed when ${job.state}`;\n\nif ((event.type === \"heartbeat\" || event.type === \"succeed\" || event.type === \"fail\") && event.workerId !== job.workerId) {\n    return `stale worker ${event.workerId} (owner ${job.workerId})`;\n}"
+  },
+  {
+    "id": "job-effects",
+    "label": "Apply the effect of a finished or started attempt",
+    "code": "case \"start\":\n    job.state = \"running\";\n    job.attempts += 1;\n    job.workerId = event.workerId;\n    job.lastFailure = null;\n    return null;\ncase \"heartbeat\":\n    return null;\ncase \"succeed\":\n    job.state = \"succeeded\";\n    job.workerId = null;\n    return null;\ncase \"fail\":\n    job.state = \"failed\";\n    job.lastFailure = event.failure;\n    job.workerId = null;\n    return null;\ncase \"timeout\":\n    job.state = \"failed\";\n    job.lastFailure = \"retryable\";\n    job.workerId = null;\n    return null;\ncase \"cancel\":\n    job.state = \"cancelled\";\n    job.workerId = null;\n    return null;"
+  },
+  {
+    "id": "retry-effects",
+    "label": "Schedule a retry, if one is left",
+    "code": "case \"retry-scheduled\":\n    if (job.lastFailure === \"permanent\") return \"permanent failure\";\n    if (job.attempts >= maxAttempts) return \"max attempts reached\";\n    job.state = \"retrying\";\n    return null;"
+  },
+  {
+    "id": "allowed-cancel-any-state",
+    "label": "Which events each state allows",
+    "code": "const ALLOWED: Record<JobEvent[\"type\"], JobState[]> = {\n    enqueue: [],\n    start: [\"queued\", \"retrying\"],\n    heartbeat: [\"running\"],\n    succeed: [\"running\"],\n    fail: [\"running\"],\n    timeout: [\"running\"],\n    cancel: [\"queued\", \"running\", \"retrying\", \"succeeded\", \"failed\"],\n    \"retry-scheduled\": [\"failed\"],\n};",
+    "distractor": true
+  },
+  {
+    "id": "retry-attempts-past-max",
+    "label": "Schedule a retry, if one is left",
+    "code": "case \"retry-scheduled\":\n    if (job.lastFailure === \"permanent\") return \"permanent failure\";\n    if (job.attempts > maxAttempts) return \"max attempts reached\";\n    job.state = \"retrying\";\n    return null;",
+    "distractor": true
+  },
+  {
+    "id": "state-check-no-owner",
+    "label": "Find the job, check its state and worker",
+    "code": "const job = jobs.get(event.jobId);\nif (!job) return \"unknown job\";\nif (!ALLOWED[event.type].includes(job.state)) return `${event.type} not allowed when ${job.state}`;",
+    "distractor": true
+  }
+]

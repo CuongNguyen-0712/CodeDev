@@ -49,14 +49,14 @@ type Plan = {
     blocked: { package: string; script: string; reason: Reason }[];
 };
 
+// @piece script-rules: Which scripts exist and when one is blocked
 const LIFECYCLE = ["preinstall", "install", "postinstall", "prepare"];
 
-function isGitDependency(pkg: LockedPackage): boolean {
-    return ["git+", "git://", "github:"].some((prefix) => pkg.resolved.startsWith(prefix));
-}
+const isGitDependency = (pkg: LockedPackage): boolean =>
+    ["git+", "git://", "github:"].some((prefix) => pkg.resolved.startsWith(prefix));
 
 // Blocked by default: a script runs only for an exact name + version + integrity match.
-function blockReason(pkg: LockedPackage, allowlist: AllowEntry[]): Reason | null {
+const blockReason = (pkg: LockedPackage, allowlist: AllowEntry[]): Reason | null => {
     if (isGitDependency(pkg)) return "git_dependency";
     const sameName = allowlist.filter((entry) => entry.name === pkg.name);
     if (sameName.length === 0) return "not_allowlisted";
@@ -64,9 +64,11 @@ function blockReason(pkg: LockedPackage, allowlist: AllowEntry[]): Reason | null
     if (sameVersion.length === 0) return "version_mismatch";
     if (pkg.integrity === "" || !sameVersion.some((entry) => entry.integrity === pkg.integrity)) return "integrity_mismatch";
     return null;
-}
+};
+// @end
 
 function planInstallScripts(lock: LockedPackage[], allowlist: AllowEntry[]): Plan {
+    // @piece plan-scripts: Plan every script of every package
     const plan: Plan = { run: [], blocked: [] };
     for (const pkg of lock) {
         const git = isGitDependency(pkg);
@@ -79,6 +81,7 @@ function planInstallScripts(lock: LockedPackage[], allowlist: AllowEntry[]): Pla
             else plan.blocked.push({ package: id, script, reason });
         }
     }
+    // @end
     return plan;
 }
 

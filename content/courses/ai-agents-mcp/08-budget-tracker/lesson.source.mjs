@@ -118,7 +118,7 @@ if (session.costMicros + estimatedCost > limits.maxCostMicros) {
 }`, "one session report"),
 
         h2("7. The exercise: a budget tracker for the support agent"),
-        p("In the challenge, the agent loop is in the test runner and asks a `BudgetTracker` before every model call and every tool call, then tells it what the call used. You write the tracker: the estimate, the five checks in a fixed order, the tool limits, the daily spend per user and day that survives across sessions, and the report. The fake model gives the token counts of each turn and stops writing at the output cap; all time is on a fake clock, so the tests can check elapsed time to the millisecond."),
+        p("In the challenge, the agent loop is in the test runner and asks a `BudgetTracker` before every model call and every tool call, then tells it what the call used. You assemble the tracker: the estimate, the five checks in a fixed order, the tool limits, the daily spend per user and day that survives across sessions, and the report. The fake model gives the token counts of each turn and stops writing at the output cap; all time is on a fake clock, so the tests can check elapsed time to the millisecond."),
         challenge("chal_coding_aam_322"),
 
         h2("8. How to verify a budget"),

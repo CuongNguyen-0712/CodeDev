@@ -5,7 +5,7 @@
       "name": "token-budget-context-packer",
       "type": "mini_coding",
       "title": "Write pack_context(chunks, budget, max_per_source)",
-      "description": "Build the context block of the prompt from ranked chunks. Each used chunk becomes a line \"[n] text\", where n is the citation number of its source (numbered from 1 in order of first use). Keep the total count_tokens() cost of the lines within budget: skip a chunk that does not fit and keep going, use at most max_per_source chunks per source, and skip text already in the context. A skipped chunk never takes a citation number. Return the context, the cited sources in number order, the ids used and the token total.",
+      "description": "Build the context block of the prompt from ranked chunks. Each used chunk becomes a line \"[n] text\", where n is the citation number of its source (numbered from 1 in order of first use). Keep the total count_tokens() cost of the lines within budget: skip a chunk that does not fit and keep going, use at most max_per_source chunks per source, and skip text already in the context. A skipped chunk never takes a citation number. Return the context, the cited sources in number order, the ids used and the token total.\n\nPut the right piece on each `[ ]` line; some pieces are wrong on purpose.",
       "difficulty": "hard",
       "points": 30,
       "coding": {
@@ -315,6 +315,14 @@
           "hidden": true,
           "score": 4
         }
+      ],
+      "outcomes": [
+        "context-packing"
+      ],
+      "hints": [
+        "The context is limited by tokens; a chunk that does not fit is skipped, and later, shorter chunks may still fit.",
+        "Give a source its citation number only when one of its chunks is actually used, count each source's chunks against max_per_source, and skip text already in the context.",
+        "Example of numbering on first use: `if src not in numbers: numbers[src] = len(numbers) + 1`, run only after you decided to keep the item."
       ]
     },
     {
@@ -374,6 +382,9 @@
             }
           ]
         }
+      ],
+      "outcomes": [
+        "context-packing"
       ]
     }
   ]

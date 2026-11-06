@@ -37,9 +37,25 @@ import sys
 FIELDS = ("requests", "ok", "errors", "timeouts", "throttled", "client_errors")
 
 
+# [ ] The class of one response status
+
+
+# [ ] Counts plus throughput and error rate
+
+
 def summarize(run):
-    # TODO: keep the requests sent inside the window, classify them, count per endpoint and in total
-    return {"error": "not implemented"}
+    # [ ] Check the window and its length in seconds
+
+    total = dict.fromkeys(FIELDS, 0)
+    per_endpoint = {}
+    for sent_ms, endpoint, status, _duration_ms in run["requests"]:
+        # [ ] Keep only requests sent inside the window
+        # [ ] Count the request for its endpoint and the total
+    return {
+        "window_s": seconds,
+        "endpoints": {name: finish(c, seconds) for name, c in sorted(per_endpoint.items())},
+        "total": finish(total, seconds),
+    }
 
 
 # ---------------------------------------------------------------- test runner (do not change)

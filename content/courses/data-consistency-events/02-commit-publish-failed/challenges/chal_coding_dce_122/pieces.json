@@ -1,0 +1,30 @@
+[
+  {
+    "id": "enroll-body",
+    "label": "Save the enrollment and its event",
+    "code": "// One transaction: the enrollment and its event commit together or not at all.\nreturn db.tx((t) => {\n    if (!t.courses.has(cmd.courseId)) throw new Rejected(\"unknown course\");\n    for (const e of t.enrollments.values()) {\n        if (e.userId === cmd.userId && e.courseId === cmd.courseId) throw new Rejected(\"already enrolled\");\n    }\n    const row: Enrollment = {\n        id: ids.next(\"enr\"),\n        userId: cmd.userId,\n        courseId: cmd.courseId,\n        status: \"active\",\n        createdAt: clock.now(),\n    };\n    t.enrollments.set(row.id, row);\n    const event: OutboxRow = {\n        id: ids.next(\"evt\"),\n        aggregateType: \"enrollment\",\n        aggregateId: row.id,\n        eventType: \"enrollment.created\",\n        payload: { enrollmentId: row.id, userId: row.userId, courseId: row.courseId },\n        createdAt: clock.now(),\n        status: \"pending\",\n        sentAt: null,\n    };\n    t.outbox.set(event.id, event);\n    return row.id;\n});"
+  },
+  {
+    "id": "relay",
+    "label": "Relay what is waiting to the broker",
+    "code": "const pending = db.tx((t) => [...t.outbox.values()].filter((r) => r.status === \"pending\"));\nfor (const row of pending) {\n    // The message id is the outbox id: a re-publish after a crash is a duplicate the consumer drops.\n    broker.publish(TOPIC, { id: row.id, key: row.aggregateId, type: row.eventType, payload: row.payload });\n    db.tx((t) => {\n        const r = t.outbox.get(row.id);\n        if (r) {\n            r.status = \"sent\";\n            r.sentAt = clock.now();\n        }\n    });\n}\nif (pending.length) log(`relayed ${pending.length} event(s)`);"
+  },
+  {
+    "id": "enroll-publish-inside-tx",
+    "label": "Save the enrollment and its event",
+    "code": "const enrollment = db.tx((t) => {\n    if (!t.courses.has(cmd.courseId)) throw new Rejected(\"unknown course\");\n    for (const e of t.enrollments.values()) {\n        if (e.userId === cmd.userId && e.courseId === cmd.courseId) throw new Rejected(\"already enrolled\");\n    }\n    const row: Enrollment = {\n        id: ids.next(\"enr\"),\n        userId: cmd.userId,\n        courseId: cmd.courseId,\n        status: \"active\",\n        createdAt: clock.now(),\n    };\n    t.enrollments.set(row.id, row);\n    broker.publish(TOPIC, {\n        id: ids.next(\"evt\"),\n        key: row.id,\n        type: \"enrollment.created\",\n        payload: { enrollmentId: row.id, userId: row.userId, courseId: row.courseId },\n    });\n    return row;\n});\n\n\nreturn enrollment.id;",
+    "distractor": true
+  },
+  {
+    "id": "relay-mark-before-publish",
+    "label": "Relay what is waiting to the broker",
+    "code": "const pending = db.tx((t) => {\n    const rows = [...t.outbox.values()].filter((r) => r.status === \"pending\");\n    for (const r of rows) {\n        r.status = \"sent\";\n        r.sentAt = clock.now();\n    }\n    return rows;\n});\nfor (const row of pending) {\n    // The message id is the outbox id: a re-publish after a crash is a duplicate the consumer drops.\n    broker.publish(TOPIC, { id: row.id, key: row.aggregateId, type: row.eventType, payload: row.payload });\n}\nif (pending.length) log(`relayed ${pending.length} event(s)`);",
+    "distractor": true
+  },
+  {
+    "id": "relay-new-message-id",
+    "label": "Relay what is waiting to the broker",
+    "code": "const pending = db.tx((t) => [...t.outbox.values()].filter((r) => r.status === \"pending\"));\nfor (const row of pending) {\n    // The message id is the outbox id: a re-publish after a crash is a duplicate the consumer drops.\n    broker.publish(TOPIC, { id: ids.next(\"msg\"), key: row.aggregateId, type: row.eventType, payload: row.payload });\n    db.tx((t) => {\n        const r = t.outbox.get(row.id);\n        if (r) {\n            r.status = \"sent\";\n            r.sentAt = clock.now();\n        }\n    });\n}\nif (pending.length) log(`relayed ${pending.length} event(s)`);",
+    "distractor": true
+  }
+]

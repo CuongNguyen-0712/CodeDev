@@ -23,9 +23,31 @@ type Command =
 type Report = { fixes: Command[]; skippedByCap: Command[]; deferred: Command[] } | { error: string };
 
 // ---------------------------------------------------------------- your code
+const RANK = { "certificate.issue": 0, "certificate.revoke": 1, missing: 2, wrong: 3, "leaderboard.delete": 4 };
+
+function rank(c: Command): number {
+    if (c.op === "leaderboard.upsert") return c.was === null ? RANK.missing : RANK.wrong;
+    return RANK[c.op];
+}
+
+function compareCommands(a: Command, b: Command): number {
+    // [ ] Order the commands for the fix list
+}
+
 /** Compares the read models with the source and returns the commands; applies the fixes unless opts.dryRun. */
 function reconcile(source: Source, model: ReadModel, opts: Options): Report {
-    return { fixes: [], skippedByCap: [], deferred: [] };
+    // [ ] Refuse invalid options
+
+    // Expected state from the source of truth.
+    // [ ] Work out the expected state from the source
+
+    // Last source change per learner and per enrollment key, for the grace period.
+    // [ ] When each learner and enrollment last changed
+
+    // [ ] Collect what differs from the source
+
+    // [ ] Split, cap and apply the fixes
+    return { fixes, skippedByCap, deferred };
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

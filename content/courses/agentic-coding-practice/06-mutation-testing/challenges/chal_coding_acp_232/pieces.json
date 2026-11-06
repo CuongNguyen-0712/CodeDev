@@ -1,0 +1,55 @@
+[
+  {
+    "id": "unknown-status",
+    "label": "Stop on an unknown status",
+    "code": "const unknown = run.mutants.find((m) => !STATUSES.includes(m.status as Status));\nif (unknown) return { error: `unknown status \"${unknown.status}\" for mutant ${unknown.id}` };"
+  },
+  {
+    "id": "per-file",
+    "label": "A score for each file, sorted by file",
+    "code": "const byFile = new Map<string, Mutant[]>();\nfor (const m of run.mutants) {\n    if (!byFile.has(m.file)) byFile.set(m.file, []);\n    byFile.get(m.file)!.push(m);\n}\nconst files = [...byFile.keys()].sort().map((file) => ({ file, ...score(byFile.get(file)!) }));"
+  },
+  {
+    "id": "overall-undetected",
+    "label": "The overall score and the undetected mutants",
+    "code": "const overall = score(run.mutants);\nconst undetected = run.mutants\n    .filter((m) => UNDETECTED.has(m.status))\n    .sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line || a.id - b.id))\n    .map((m) => `${m.file}:${m.line} ${m.mutator} ${m.status} #${m.id}`);"
+  },
+  {
+    "id": "gate",
+    "label": "The quality gate",
+    "code": "// Compare the exact score, not the rounded one: detected / valid >= threshold / 100.\nconst gate = overall.valid > 0 && overall.detected * 100 >= run.threshold * overall.valid ? \"pass\" : \"fail\";"
+  },
+  {
+    "id": "status-type",
+    "label": "Every status a run can report",
+    "code": "type Status = \"killed\" | \"survived\" | \"timeout\" | \"no-coverage\" | \"compile-error\" | \"ignored\";"
+  },
+  {
+    "id": "status-sets",
+    "label": "Statuses that count as detected and undetected",
+    "code": "const STATUSES: Status[] = [\"killed\", \"survived\", \"timeout\", \"no-coverage\", \"compile-error\", \"ignored\"];\nconst DETECTED = new Set([\"killed\", \"timeout\"]);\nconst UNDETECTED = new Set([\"survived\", \"no-coverage\"]);"
+  },
+  {
+    "id": "score-fn",
+    "label": "Helper: the score of a list of mutants",
+    "code": "function score(mutants: Mutant[]): Score {\n    const detected = mutants.filter((m) => DETECTED.has(m.status)).length;\n    const valid = detected + mutants.filter((m) => UNDETECTED.has(m.status)).length;\n    return { detected, valid, score: valid === 0 ? null : Math.round((detected * 1000) / valid) / 10 };\n}"
+  },
+  {
+    "id": "gate-rounded-score",
+    "label": "The quality gate",
+    "code": "// Compare the exact score, not the rounded one: detected / valid >= threshold / 100.\nconst gate = overall.score !== null && overall.score >= run.threshold ? \"pass\" : \"fail\";",
+    "distractor": true
+  },
+  {
+    "id": "score-fn-counts-compile-errors",
+    "label": "Helper: the score of a list of mutants",
+    "code": "function score(mutants: Mutant[]): Score {\n    const detected = mutants.filter((m) => DETECTED.has(m.status)).length;\n    const valid = mutants.filter((m) => m.status !== \"ignored\").length;\n    return { detected, valid, score: valid === 0 ? null : Math.round((detected * 1000) / valid) / 10 };\n}",
+    "distractor": true
+  },
+  {
+    "id": "status-sets-timeout-undetected",
+    "label": "Statuses that count as detected and undetected",
+    "code": "const STATUSES: Status[] = [\"killed\", \"survived\", \"timeout\", \"no-coverage\", \"compile-error\", \"ignored\"];\nconst DETECTED = new Set([\"killed\"]);\nconst UNDETECTED = new Set([\"survived\", \"no-coverage\", \"timeout\"]);",
+    "distractor": true
+  }
+]

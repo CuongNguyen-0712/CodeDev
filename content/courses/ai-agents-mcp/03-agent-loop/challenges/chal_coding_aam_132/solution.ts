@@ -52,24 +52,31 @@ type Stats = {
 type AgentRun = { answer: string; transcript: Message[]; stats: Stats };
 
 function errorMessage(thrown: unknown): string {
+    // @piece error-text: Turn any thrown value into a message
     if (thrown instanceof Error) return thrown.message;
     if (typeof thrown === "string") return thrown;
     return JSON.stringify(thrown);
+    // @end
 }
 
 function handle(call: ProposedCall, tools: Map<string, Tool>, stats: Stats): Message {
     const { id: callId, name } = call;
     const fail = (code: ToolError["code"], message: string): Message => ({ role: "tool", callId, name, ok: false, error: { code, message } });
+    // @piece unknown-tool: Answer a call to a tool that does not exist
     const tool = tools.get(name);
     if (tool === undefined) {
         stats.unknownTools++;
         return fail("unknown_tool", `unknown tool "${name}"; available tools: ${[...tools.keys()].join(", ")}`);
     }
+    // @end
+    // @piece validate-args: Refuse a call with invalid arguments
     const violations = tool.validate(call.args);
     if (violations.length > 0) {
         stats.invalidArguments++;
         return fail("invalid_arguments", violations.join("; "));
     }
+    // @end
+    // @piece run-tool: Run the tool; a throw becomes a failed result
     stats.executed++;
     try {
         return { role: "tool", callId, name, ok: true, result: tool.run(call.args) };
@@ -77,6 +84,7 @@ function handle(call: ProposedCall, tools: Map<string, Tool>, stats: Stats): Mes
         stats.toolFailures++;
         return fail("tool_failed", errorMessage(thrown));
     }
+    // @end
 }
 
 function runAgent(model: Model, tools: Map<string, Tool>, task: string): AgentRun {
@@ -84,12 +92,15 @@ function runAgent(model: Model, tools: Map<string, Tool>, task: string): AgentRu
     const stats: Stats = { modelTurns: 0, toolCalls: 0, executed: 0, invalidArguments: 0, unknownTools: 0, toolFailures: 0 };
     let nextId = 1;
     for (;;) {
+        // @piece final-answer: Ask the model; stop at its final answer
         const turn = model.next(transcript);
         stats.modelTurns++;
         if ("final" in turn) {
             transcript.push({ role: "assistant", final: turn.final });
             return { answer: turn.final, transcript, stats };
         }
+        // @end
+        // @piece run-calls: Give each proposed call an id, then run them all
         const proposed = "toolCalls" in turn ? turn.toolCalls : [turn.toolCall];
         const calls = proposed.map((c) => ({ id: `call_${nextId++}`, name: c.name, args: c.args }));
         transcript.push({ role: "assistant", toolCalls: calls });
@@ -97,6 +108,7 @@ function runAgent(model: Model, tools: Map<string, Tool>, task: string): AgentRu
             stats.toolCalls++;
             transcript.push(handle(call, tools, stats));
         }
+        // @end
     }
 }
 

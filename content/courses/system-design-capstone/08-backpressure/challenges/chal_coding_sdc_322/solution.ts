@@ -53,6 +53,7 @@ class SubmissionQueue {
         if (typeof job.id !== "string" || job.id === "" || (job.priority !== "exam" && job.priority !== "practice")) {
             return { status: 400 };
         }
+        // @piece admit-job: Accept the job while the queue is under its bound
         const depth = this.depth();
         const threshold = job.priority === "exam" ? this.config.limit : this.config.practiceLimit;
         if (depth < threshold) {
@@ -60,16 +61,22 @@ class SubmissionQueue {
             this.totals[job.priority].accepted++;
             return { status: 202, depth: depth + 1 };
         }
+        // @end
+        // @piece retry-after: Reject with an estimate of when to retry
         this.totals[job.priority].rejected++;
         const sumMs = this.recent.length > 0 ? this.recent.reduce((a, b) => a + b, 0) : this.config.defaultGradeMs;
         const count = Math.max(1, this.recent.length);
         const excess = depth - threshold + 1;
         return { status: 429, retryAfterSec: Math.ceil((excess * sumMs) / (count * this.config.workers * 1000)) };
+        // @end
     }
 
     take(now: number): Job | null {
+        // @piece next-job: The next job to grade
         const next = this.waiting.exam.shift() ?? this.waiting.practice.shift();
         if (next === undefined) return null;
+        // @end
+        // @piece record-start: Record the wait and mark the job running
         const t = this.totals[next.job.priority];
         const wait = now - next.acceptedAt;
         t.started++;
@@ -77,14 +84,17 @@ class SubmissionQueue {
         t.maxWaitMs = Math.max(t.maxWaitMs, wait);
         this.running.set(next.job.id, now);
         return next.job;
+        // @end
     }
 
     complete(jobId: string, now: number): void {
+        // @piece record-grade-time: Remember how long the job took to grade
         const startedAt = this.running.get(jobId);
         if (startedAt === undefined) return;
         this.running.delete(jobId);
         this.recent.push(now - startedAt);
         if (this.recent.length > this.config.window) this.recent.shift();
+        // @end
     }
 
     depth(): number {

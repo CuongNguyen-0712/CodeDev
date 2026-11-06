@@ -1,0 +1,50 @@
+[
+  {
+    "id": "error-text",
+    "label": "Turn any thrown value into a message",
+    "code": "if (thrown instanceof Error) return thrown.message;\nif (typeof thrown === \"string\") return thrown;\nreturn JSON.stringify(thrown);"
+  },
+  {
+    "id": "unknown-tool",
+    "label": "Answer a call to a tool that does not exist",
+    "code": "const tool = tools.get(name);\nif (tool === undefined) {\n    stats.unknownTools++;\n    return fail(\"unknown_tool\", `unknown tool \"${name}\"; available tools: ${[...tools.keys()].join(\", \")}`);\n}"
+  },
+  {
+    "id": "validate-args",
+    "label": "Refuse a call with invalid arguments",
+    "code": "const violations = tool.validate(call.args);\nif (violations.length > 0) {\n    stats.invalidArguments++;\n    return fail(\"invalid_arguments\", violations.join(\"; \"));\n}"
+  },
+  {
+    "id": "run-tool",
+    "label": "Run the tool; a throw becomes a failed result",
+    "code": "stats.executed++;\ntry {\n    return { role: \"tool\", callId, name, ok: true, result: tool.run(call.args) };\n} catch (thrown) {\n    stats.toolFailures++;\n    return fail(\"tool_failed\", errorMessage(thrown));\n}"
+  },
+  {
+    "id": "final-answer",
+    "label": "Ask the model; stop at its final answer",
+    "code": "const turn = model.next(transcript);\nstats.modelTurns++;\nif (\"final\" in turn) {\n    transcript.push({ role: \"assistant\", final: turn.final });\n    return { answer: turn.final, transcript, stats };\n}"
+  },
+  {
+    "id": "run-calls",
+    "label": "Give each proposed call an id, then run them all",
+    "code": "const proposed = \"toolCalls\" in turn ? turn.toolCalls : [turn.toolCall];\nconst calls = proposed.map((c) => ({ id: `call_${nextId++}`, name: c.name, args: c.args }));\ntranscript.push({ role: \"assistant\", toolCalls: calls });\nfor (const call of calls) {\n    stats.toolCalls++;\n    transcript.push(handle(call, tools, stats));\n}"
+  },
+  {
+    "id": "error-text-string",
+    "label": "Turn any thrown value into a message",
+    "code": "if (thrown instanceof Error) return thrown.message;\nreturn String(thrown);",
+    "distractor": true
+  },
+  {
+    "id": "run-calls-stop-on-failure",
+    "label": "Give each proposed call an id, then run them all",
+    "code": "const proposed = \"toolCalls\" in turn ? turn.toolCalls : [turn.toolCall];\nconst calls = proposed.map((c) => ({ id: `call_${nextId++}`, name: c.name, args: c.args }));\ntranscript.push({ role: \"assistant\", toolCalls: calls });\nfor (const call of calls) {\n    stats.toolCalls++;\n    const result = handle(call, tools, stats);\n    transcript.push(result);\n    if (result.role === \"tool\" && !result.ok) break;\n}",
+    "distractor": true
+  },
+  {
+    "id": "run-tool-unguarded",
+    "label": "Run the tool; a throw becomes a failed result",
+    "code": "stats.executed++;\nreturn { role: \"tool\", callId, name, ok: true, result: tool.run(call.args) };",
+    "distractor": true
+  }
+]

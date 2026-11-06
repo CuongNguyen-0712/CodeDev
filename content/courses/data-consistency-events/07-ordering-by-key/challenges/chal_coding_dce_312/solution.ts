@@ -54,16 +54,19 @@ class KeyedDispatcher {
     }
 
     receive(msg: Message): "held" | "dropped" | "rejected" {
+        // @piece receive: Hold an event, dropping old or repeated ones
         if (typeof msg.key !== "string" || msg.key.length === 0 || !Number.isInteger(msg.seq) || msg.seq < 1) return "rejected";
         const queue = this.held.get(msg.key) ?? new Map<number, { msg: Message; n: number }>();
         if (msg.seq < this.expected(msg.key) || queue.has(msg.seq)) return "dropped";
         queue.set(msg.seq, { msg, n: this.received++ });
         this.held.set(msg.key, queue);
         this.refreshGap(msg.key);
+        // @end
         return "held";
     }
 
     take(): Message | null {
+        // @piece pick-next: Choose the next event to hand out
         let best: { msg: Message; n: number } | null = null;
         for (const [key, queue] of this.held) {
             if (this.busy.has(key)) continue;
@@ -71,12 +74,15 @@ class KeyedDispatcher {
             if (head && (!best || head.n < best.n)) best = head;
         }
         if (!best) return null;
+        // @end
+        // @piece hand-out: Hand it out and keep its key busy
         const { key, seq } = best.msg;
         this.held.get(key)!.delete(seq);
         this.busy.add(key);
         this.next.set(key, seq + 1);
         this.refreshGap(key);
         return best.msg;
+        // @end
     }
 
     complete(msg: Message): void {
@@ -84,6 +90,7 @@ class KeyedDispatcher {
     }
 
     expireGaps(): Gap[] {
+        // @piece expire-gaps: Skip gaps that waited too long
         const gaps: Gap[] = [];
         for (const [key, since] of [...this.gapSince]) {
             if (this.clock.now() - since < this.gapTimeoutMs) continue;
@@ -93,15 +100,18 @@ class KeyedDispatcher {
             this.refreshGap(key);
         }
         return gaps;
+        // @end
     }
 
     nextGapDeadline(): number | null {
+        // @piece gap-deadline: When the next gap times out
         let earliest: number | null = null;
         for (const since of this.gapSince.values()) {
             const deadline = since + this.gapTimeoutMs;
             if (earliest === null || deadline < earliest) earliest = deadline;
         }
         return earliest;
+        // @end
     }
 
     private expected(key: string): number {
@@ -110,10 +120,12 @@ class KeyedDispatcher {
 
     // A gap: the key holds events, but not the one it needs next.
     private refreshGap(key: string): void {
+        // @piece refresh-gap: Note when a key starts waiting on a gap
         const queue = this.held.get(key);
         const gap = !!queue && queue.size > 0 && Math.min(...queue.keys()) > this.expected(key);
         if (!gap) this.gapSince.delete(key);
         else if (!this.gapSince.has(key)) this.gapSince.set(key, this.clock.now());
+        // @end
     }
 }
 

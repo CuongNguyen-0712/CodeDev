@@ -1,0 +1,29 @@
+[
+  {
+    "id": "mask-value",
+    "label": "What a masked secret looks like",
+    "code": "return value.length >= 20 ? \"***\" + value.slice(-4) : \"***\";"
+  },
+  {
+    "id": "check-config",
+    "label": "Check every variable and report the problems",
+    "code": "const missing: string[] = [];\nconst invalid: string[] = [];\nfor (const spec of SCHEMA) {\n    const value = config[spec.name];\n    if (value === undefined) {\n        if (spec.required) missing.push(spec.name);\n        continue;\n    }\n    if (!spec.valid(value)) invalid.push(spec.name);\n}\nif (missing.length > 0 || invalid.length > 0) {\n    const parts: string[] = [];\n    if (missing.length > 0) parts.push(`missing ${missing.join(\", \")}`);\n    if (invalid.length > 0) parts.push(`invalid ${invalid.join(\", \")}`);\n    throw new Error(`Invalid configuration: ${parts.join(\"; \")}`);\n}"
+  },
+  {
+    "id": "summary",
+    "label": "The one-line summary of the loaded config",
+    "code": "const summary = SCHEMA.map(({ name, secret }) => {\n    const value = config[name];\n    if (value === undefined) return `${name}=(unset)`;\n    return `${name}=${secret ? mask(value) : value}`;\n});"
+  },
+  {
+    "id": "check-first-problem",
+    "label": "Check every variable and report the problems",
+    "code": "const missing: string[] = [];\nconst invalid: string[] = [];\nfor (const spec of SCHEMA) {\n    const value = config[spec.name];\n    if (value === undefined) {\n        if (spec.required) throw new Error(`Invalid configuration: missing ${spec.name}`);\n        continue;\n    }\n    if (!spec.valid(value)) throw new Error(`Invalid configuration: invalid ${spec.name}`);\n}\nif (missing.length > 0 || invalid.length > 0) {\n    const parts: string[] = [];\n    if (missing.length > 0) parts.push(`missing ${missing.join(\", \")}`);\n    if (invalid.length > 0) parts.push(`invalid ${invalid.join(\", \")}`);\n    throw new Error(`Invalid configuration: ${parts.join(\"; \")}`);\n}",
+    "distractor": true
+  },
+  {
+    "id": "summary-by-name",
+    "label": "The one-line summary of the loaded config",
+    "code": "const summary = SCHEMA.map(({ name, secret }) => {\n    const value = config[name];\n    if (value === undefined) return `${name}=(unset)`;\n    return `${name}=${/SECRET|PASSWORD/.test(name) ? mask(value) : value}`;\n});",
+    "distractor": true
+  }
+]

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "validate",
+    "label": "Refuse a message that cannot be applied",
+    "code": "if (typeof msg.id !== \"string\" || msg.id === \"\") return \"invalid\";\nif (typeof userId !== \"string\" || userId === \"\" || !Number.isInteger(amount) || amount <= 0) {\n    return \"invalid\";\n}"
+  },
+  {
+    "id": "apply-once",
+    "label": "Apply the points to the wallet",
+    "code": "// the dedup check, the inbox row and the balance change commit together or not at all\nreturn this.db.tx((t): Outcome => {\n    if (t.processed_events.has(msg.id)) return \"duplicate\";\n    t.processed_events.set(msg.id, clock.now);\n    const balance = t.wallets.get(userId) ?? 0;\n    t.wallets.set(userId, balance + amount);\n    return \"applied\";\n});"
+  },
+  {
+    "id": "dedup-by-user-and-amount",
+    "label": "Apply the points to the wallet",
+    "code": "// the dedup check, the inbox row and the balance change commit together or not at all\nconst key = `${userId}:${amount}`;\nreturn this.db.tx((t): Outcome => {\n    if (t.processed_events.has(key)) return \"duplicate\";\n    t.processed_events.set(key, clock.now);\n    t.wallets.set(userId, (t.wallets.get(userId) ?? 0) + amount);\n    return \"applied\";\n});",
+    "distractor": true
+  },
+  {
+    "id": "mark-in-separate-transaction",
+    "label": "Apply the points to the wallet",
+    "code": "// the dedup check, the inbox row and the balance change commit together or not at all\nconst seen = this.db.tx((t) => {\n    if (t.processed_events.has(msg.id)) return true;\n    t.processed_events.set(msg.id, clock.now);\n    return false;\n});\nif (seen) return \"duplicate\";\nthis.db.tx((t) => {\n    t.wallets.set(userId, (t.wallets.get(userId) ?? 0) + amount);\n});\nreturn \"applied\";",
+    "distractor": true
+  }
+]

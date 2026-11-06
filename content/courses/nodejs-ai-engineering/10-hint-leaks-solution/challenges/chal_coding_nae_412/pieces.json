@@ -1,0 +1,24 @@
+[
+  {
+    "id": "compare-code",
+    "label": "Turn code into comparable n-grams",
+    "code": "const tokens = (source: string): string[] => {\n    const code = source.replace(/\\/\\*[\\s\\S]*?(\\*\\/|$)/g, \" \").replace(/\\/\\/[^\\n]*/g, \" \");\n    return (code.match(/[A-Za-z0-9_$]+|\\S/g) ?? []).map((t) => (/^[A-Za-z_$]/.test(t) && !KEYWORDS.has(t) ? \"ID\" : t));\n};\n\nconst ngrams = (list: string[]): Set<string> => {\n    const out = new Set<string>();\n    for (let i = 0; i + NGRAM <= list.length; i++) out.add(list.slice(i, i + NGRAM).join(\" \"));\n    return out;\n};"
+  },
+  {
+    "id": "block-leaks",
+    "label": "Block a hint that shares too much code",
+    "code": "if (hint.trim() === \"\") return FALLBACK_HINT;\nconst fromReference = ngrams(tokens(reference));\nif (fromReference.size === 0) return hint;\nconst fromHint = ngrams(tokens(hint));\nlet shared = 0;\nfor (const gram of fromReference) if (fromHint.has(gram)) shared++;\nreturn shared / fromReference.size >= MAX_SHARED ? FALLBACK_HINT : hint;"
+  },
+  {
+    "id": "block-leaks-any-shared",
+    "label": "Block a hint that shares too much code",
+    "code": "if (hint.trim() === \"\") return FALLBACK_HINT;\nconst fromReference = ngrams(tokens(reference));\nif (fromReference.size === 0) return hint;\nconst fromHint = ngrams(tokens(hint));\nlet shared = 0;\nfor (const gram of fromReference) if (fromHint.has(gram)) shared++;\nreturn shared > 0 ? FALLBACK_HINT : hint;",
+    "distractor": true
+  },
+  {
+    "id": "compare-code-keep-names",
+    "label": "Turn code into comparable n-grams",
+    "code": "const tokens = (source: string): string[] => {\n    const code = source.replace(/\\/\\*[\\s\\S]*?(\\*\\/|$)/g, \" \").replace(/\\/\\/[^\\n]*/g, \" \");\n    return (code.match(/[A-Za-z0-9_$]+|\\S/g) ?? []);\n};\n\nconst ngrams = (list: string[]): Set<string> => {\n    const out = new Set<string>();\n    for (let i = 0; i + NGRAM <= list.length; i++) out.add(list.slice(i, i + NGRAM).join(\" \"));\n    return out;\n};",
+    "distractor": true
+  }
+]

@@ -29,19 +29,25 @@ const BOARD = "lb:all";
 const VERSIONS = "lb:ver";
 
 function applyUpdate(redis: FakeRedis, update: ScoreUpdate): Outcome {
+    // @piece check-update: Refuse an update with a bad learner, score or version
     const { learnerId, totalScore, version } = update;
     if (typeof learnerId !== "string" || learnerId === "") return "invalid";
     if (!Number.isSafeInteger(version) || version < 1) return "invalid";
     if (totalScore !== null && (!Number.isSafeInteger(totalScore) || totalScore < 0)) return "invalid";
+    // @end
 
     // In production these lines run as one Lua script (EVALSHA), so no other worker runs between them.
+    // @piece compare-version: Compare with the stored version
     const stored = Number(redis.hget(VERSIONS, learnerId) ?? "0");
     if (version === stored) return "duplicate";
     if (version < stored) return "stale";
+    // @end
+    // @piece apply-update: Write the new score and remember its version
     if (totalScore === null) redis.zrem(BOARD, learnerId);
     else redis.zadd(BOARD, totalScore, learnerId);
     redis.hset(VERSIONS, learnerId, String(version));
     return "applied";
+    // @end
 }
 
 // ---------------------------------------------------------------- in-memory Redis model (do not change)

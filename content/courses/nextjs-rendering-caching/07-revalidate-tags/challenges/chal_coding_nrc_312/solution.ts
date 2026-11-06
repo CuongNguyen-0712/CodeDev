@@ -46,23 +46,32 @@ function revalidationTargets(catalog: Course[], event: DomainEvent): Targets {
         tags.add(`courses:category:${category}`);
     };
 
+    // @piece instructor: An instructor rename (no course id)
     if (event.type === "instructor_renamed") {
         tags.add(`instructor:${event.instructorId}`);
         for (const c of catalog) if (c.published && c.instructorId === event.instructorId) listings(c.category);
         return result();
     }
+    // @end
 
+    // @piece find-course: Find the course the event is about
     const course = catalog.find((c) => c.id === event.courseId);
     if (!course) return result();
+    // @end
 
     switch (event.type) {
         case "course_updated":
         case "price_changed": {
+            // @piece changed-fields: Keep only the fields whose value changes
             const changes: CourseChanges = event.type === "price_changed" ? { price: event.price } : event.changes ?? {};
             const changed = COURSE_FIELDS.filter((f) => changes[f] !== undefined && changes[f] !== course[f]);
+            // @end
+            // @piece course-tag: Tag the course when something changed
             if (changed.length === 0) break;
             tags.add(`course:${course.id}`);
             if (!course.published) break;
+            // @end
+            // @piece edit-listings: Listings and pages an edit affects
             if (changed.some((f) => CARD_FIELDS.includes(f))) listings(course.category);
             if (changed.includes("category")) {
                 listings(changes.category as string);
@@ -72,19 +81,24 @@ function revalidationTargets(catalog: Course[], event: DomainEvent): Targets {
                 paths.add(`/course/${course.slug}`);
                 paths.add(`/course/${changes.slug}`);
             }
+            // @end
             break;
         }
         case "lesson_added":
+            // @piece lesson-added: A new lesson
             tags.add(`course:${course.id}`);
             break;
+            // @end
         case "course_published":
         case "course_unpublished":
+            // @piece publish-toggle: Publishing or unpublishing
             if (course.published === (event.type === "course_published")) break;
             tags.add(`course:${course.id}`);
             listings(course.category);
             paths.add("/courses");
             paths.add(`/course/${course.slug}`);
             break;
+            // @end
     }
     return result();
 }

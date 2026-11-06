@@ -35,7 +35,7 @@ class SubmissionMetrics {
         this.meter = meter;
         this.analytics = analytics;
         this.submissions = meter.createCounter("codedev_submissions_total", {
-            description: "Submissions received, by learner",
+            description: "Submissions received",
             unit: "{submission}",
         });
     }

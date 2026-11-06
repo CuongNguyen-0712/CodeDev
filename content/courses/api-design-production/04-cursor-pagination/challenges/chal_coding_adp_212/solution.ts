@@ -30,13 +30,16 @@ type Query = { limit?: string; order?: string; cursor?: string };
 type Page = { status: 200; data: Course[]; next_cursor: string | null };
 type ApiError = { status: 400; code: "invalid_limit" | "invalid_order" | "invalid_cursor" };
 
-const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
-
+// Complete the three functions below: fill every [ ] line with the right piece. Do not change the
+// types or the test runner.
 function encodeCursor(payload: CursorPayload): string {
+    // @piece encode-payload: Turn the payload into the opaque cursor text
     return Buffer.from(JSON.stringify({ v: payload.v, o: payload.o, k: payload.k })).toString("base64url");
+    // @end
 }
 
 function decodeCursor(cursor: string): CursorPayload | null {
+    // @piece decode-parse: Read the cursor text back into an object
     if (!/^[A-Za-z0-9_-]+$/.test(cursor)) return null;
     let raw: unknown;
     try {
@@ -45,22 +48,20 @@ function decodeCursor(cursor: string): CursorPayload | null {
         return null;
     }
     if (typeof raw !== "object" || raw === null) return null;
+    // @end
+    // @piece decode-validate: Accept only a cursor this API could have made
     const { v, o, k } = raw as { v?: unknown; o?: unknown; k?: unknown };
     if (v !== 1 || (o !== "asc" && o !== "desc")) return null;
     if (!Array.isArray(k) || k.length !== 2) return null;
     const [ts, id] = k;
-    if (typeof ts !== "string" || !TIMESTAMP.test(ts)) return null;
+    if (typeof ts !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(ts)) return null;
     if (typeof id !== "number" || !Number.isInteger(id) || id < 1) return null;
     return { v: 1, o, k: [ts, id] };
-}
-
-// -1 when a comes first in ascending (published_at, id) order
-function compareKey(a: [string, number], b: [string, number]): number {
-    if (a[0] !== b[0]) return a[0] < b[0] ? -1 : 1;
-    return a[1] - b[1];
+    // @end
 }
 
 function listCourses(table: Course[], query: Query): Page | ApiError {
+    // @piece read-query: Check limit, then order, then cursor
     let limit = 20;
     if (query.limit !== undefined) {
         if (!/^\d+$/.test(query.limit) || Number(query.limit) < 1) return { status: 400, code: "invalid_limit" };
@@ -74,6 +75,8 @@ function listCourses(table: Course[], query: Query): Page | ApiError {
         if (decoded === null || decoded.o !== order) return { status: 400, code: "invalid_cursor" };
         after = decoded.k;
     }
+    // @end
+    // @piece page-rows: The page after the cursor and the next cursor
     const sign = order === "asc" ? 1 : -1;
     const key = (c: Course): [string, number] => [c.published_at, c.id];
     // WHERE (published_at, id) < ($1, $2) ORDER BY published_at DESC, id DESC LIMIT limit + 1
@@ -85,7 +88,16 @@ function listCourses(table: Course[], query: Query): Page | ApiError {
     const last = data[data.length - 1];
     const next_cursor = rows.length > limit ? encodeCursor({ v: 1, o: order, k: key(last) }) : null;
     return { status: 200, data, next_cursor };
+    // @end
 }
+
+// @piece compare-key: Order two (published_at, id) keys
+// -1 when a comes first in ascending (published_at, id) order
+function compareKey(a: [string, number], b: [string, number]): number {
+    if (a[0] !== b[0]) return a[0] < b[0] ? -1 : 1;
+    return a[1] - b[1];
+}
+// @end
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { "rows": [courses in the table], "steps": [...] }. A step is { "insert": [courses] }

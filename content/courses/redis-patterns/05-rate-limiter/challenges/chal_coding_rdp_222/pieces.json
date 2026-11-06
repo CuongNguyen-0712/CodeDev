@@ -1,0 +1,39 @@
+[
+  {
+    "id": "check-config",
+    "label": "Refuse a limit or window that is not a whole number >= 1",
+    "code": "if (!Number.isInteger(limit) || limit < 1 || !Number.isInteger(windowSeconds) || windowSeconds < 1) {\n    throw new RangeError(\"limit and windowSeconds must be whole numbers >= 1\");\n}"
+  },
+  {
+    "id": "fixed-count",
+    "label": "Count the request in the fixed window and decide",
+    "code": "const k = `rl:fixed:${key}`;\nconst count = redis.incr(k);\nif (redis.ttl(k) === -1) redis.expire(k, windowSeconds);\nif (count <= limit) return { allowed: true, remaining: limit - count, retryAfter: 0 };\nreturn { allowed: false, remaining: 0, retryAfter: redis.ttl(k) };"
+  },
+  {
+    "id": "sliding-estimate",
+    "label": "Estimate the requests of the sliding window",
+    "code": "const W = windowSeconds * 1000;\nconst index = Math.floor(clock.now / W);\nconst elapsed = clock.now - index * W;\nconst currentKey = `rl:sliding:${key}:${index}`;\nconst curr = Number(redis.get(currentKey) ?? 0);\nconst prev = Number(redis.get(`rl:sliding:${key}:${index - 1}`) ?? 0);\nconst weighted = prev * (W - elapsed) + curr * W;"
+  },
+  {
+    "id": "sliding-allow",
+    "label": "Allow the request and count it",
+    "code": "if (weighted + W <= limit * W) {\n    if (redis.incr(currentKey) === 1) redis.expire(currentKey, 2 * windowSeconds);\n    return { allowed: true, remaining: Math.floor((limit * W - weighted - W) / W), retryAfter: 0 };\n}"
+  },
+  {
+    "id": "sliding-deny",
+    "label": "Deny the request with the time until it would pass",
+    "code": "const waitMs =\n    curr + 1 <= limit\n        ? W - Math.floor(((limit - curr - 1) * W) / prev) - elapsed\n        : W - elapsed + (W - Math.floor(((limit - 1) * W) / curr));\nreturn { allowed: false, remaining: 0, retryAfter: Math.ceil(waitMs / 1000) };"
+  },
+  {
+    "id": "fixed-expire-every-hit",
+    "label": "Count the request in the fixed window and decide",
+    "code": "const k = `rl:fixed:${key}`;\nconst count = redis.incr(k);\nredis.expire(k, windowSeconds);\nif (count <= limit) return { allowed: true, remaining: limit - count, retryAfter: 0 };\nreturn { allowed: false, remaining: 0, retryAfter: redis.ttl(k) };",
+    "distractor": true
+  },
+  {
+    "id": "sliding-ignores-previous",
+    "label": "Estimate the requests of the sliding window",
+    "code": "const W = windowSeconds * 1000;\nconst index = Math.floor(clock.now / W);\nconst elapsed = clock.now - index * W;\nconst currentKey = `rl:sliding:${key}:${index}`;\nconst curr = Number(redis.get(currentKey) ?? 0);\nconst prev = Number(redis.get(`rl:sliding:${key}:${index - 1}`) ?? 0);\nconst weighted = curr * W;",
+    "distractor": true
+  }
+]

@@ -49,12 +49,14 @@ async function refresh(db: Db, req: RefreshRequest): Promise<RefreshResult> {
     if (req.now >= row.expiresAt) return { status: "expired" };
     if (row.usedAt !== null) return handleReuse(db, row, req);
 
+    // @piece claim-token: Take the token before rotating it
     // Compare-and-swap: only one request can move used_at from NULL to a time.
     if (!(await db.markUsed(row.id, req.now))) {
         const fresh = await db.findById(row.id);
         if (!fresh || fresh.revokedAt !== null) return { status: "revoked" };
         return handleReuse(db, fresh, req);
     }
+    // @end
     const next = await db.issue(row.familyId, row.userId, row.deviceId, req.now);
     if (!next) return { status: "revoked" };
     await db.recordSuccessor(row.id, next.row.id, next.token);
@@ -63,6 +65,7 @@ async function refresh(db: Db, req: RefreshRequest): Promise<RefreshResult> {
 
 async function handleReuse(db: Db, row: Row, req: RefreshRequest): Promise<RefreshResult> {
     const usedAt = row.usedAt ?? req.now;
+    // @piece grace-window: A retry from the same device in the grace window
     if (req.deviceId === row.deviceId && req.now - usedAt < GRACE_MS) {
         if (row.replacedBy === null) return { status: "retry" }; // the winner has not recorded its successor yet
         const successor = await db.findById(row.replacedBy);
@@ -71,6 +74,7 @@ async function handleReuse(db: Db, row: Row, req: RefreshRequest): Promise<Refre
             return { status: "grace", token: reply };
         }
     }
+    // @end
     await db.revokeFamily(row.familyId, req.now);
     await db.recordEvent({ type: "refresh_token_reuse", userId: row.userId, familyId: row.familyId, tokenId: row.id, deviceId: req.deviceId, at: req.now });
     return { status: "replay_detected" };

@@ -43,18 +43,23 @@ function weekStart(ts: number): number {
 }
 
 function weekKey(ts: number): string {
+    // @piece week-key: The ISO week key of a timestamp
     const thursday = new Date(weekStart(ts) + 3 * DAY_MS);
     const isoYear = thursday.getUTCFullYear();
     const week = 1 + Math.floor((thursday.getTime() - Date.UTC(isoYear, 0, 1)) / (7 * DAY_MS));
     return `lb:week:${isoYear}-W${String(week).padStart(2, "0")}`;
+    // @end
 }
 
 function recordScore(redis: FakeRedis, event: ScoreEvent, now: number): boolean {
+    // @piece check-event: Refuse an event with a bad learner, points or time
     const { learnerId, points, ts } = event;
     if (typeof learnerId !== "string" || learnerId === "") return false;
     if (!Number.isInteger(points) || points < 1 || points > 10000) return false;
     if (!Number.isInteger(ts) || ts < 0) return false;
+    // @end
 
+    // @piece record-scores: Add the points to all-time and to the event's week
     redis.zincrby(ALL_TIME, points, learnerId);
     const retentionEnd = weekStart(ts) + 14 * DAY_MS;
     if (retentionEnd <= now) return true;
@@ -62,19 +67,24 @@ function recordScore(redis: FakeRedis, event: ScoreEvent, now: number): boolean 
     redis.zincrby(key, points, learnerId);
     redis.expire(key, Math.ceil((retentionEnd - now) / 1000));
     return true;
+    // @end
 }
 
 function topN(redis: FakeRedis, key: string, n: number): Entry[] {
+    // @piece top-n: The first n entries, highest score first
     if (n < 1) return [];
     return redis.zrevrange(key, 0, n - 1).map((e, i) => ({ rank: i + 1, learnerId: e.member, score: e.score }));
+    // @end
 }
 
 function rankOf(redis: FakeRedis, key: string, learnerId: string): RankResult {
+    // @piece rank-around: A learner's rank with two neighbours on each side
     const index = redis.zrevrank(key, learnerId);
     if (index === null) return null;
     const start = Math.max(0, index - 2);
     const around = redis.zrevrange(key, start, index + 2).map((e, i) => ({ rank: start + i + 1, learnerId: e.member, score: e.score }));
     return { rank: index + 1, score: around[index - start].score, around };
+    // @end
 }
 
 // ---------------------------------------------------------------- in-memory Redis model (do not change)

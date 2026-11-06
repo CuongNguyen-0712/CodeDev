@@ -50,11 +50,22 @@ type DataRequest = {
 };
 type CachePolicy = { key: string | null; cacheControl: string };
 
+function normalizeLocale(locale: string | undefined): string {
+    // [ ] Reduce the locale to a supported language
+}
+
 function cachePolicy(req: DataRequest): CachePolicy {
-    // 1. look up the resource, then check its route params and the user
-    // 2. build the key from every input that changes the result, and nothing else
-    // 3. choose the Cache-Control header from the classification
-    return { key: req.resource, cacheControl: "public, max-age=0, s-maxage=60" };
+    // [ ] Look up the resource
+
+    // [ ] Check the route params
+
+    // [ ] Check the user; skip caching what must not be stored
+
+    // [ ] Start the key from the resource and its params
+
+    // [ ] Add the query values that change the result
+
+    // [ ] Add locale and user, then pick Cache-Control
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

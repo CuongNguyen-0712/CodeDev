@@ -1,0 +1,34 @@
+[
+  {
+    "id": "route-template",
+    "label": "Turn a raw path into its route template",
+    "code": "const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst segments = path\n    .split(/[?#]/)[0]\n    .split(\"/\")\n    .filter((s) => s !== \"\")\n    .map((s) => (/^\\d+$/.test(s) ? \":id\" : uuid.test(s) ? \":uuid\" : s));\nreturn \"/\" + segments.join(\"/\");"
+  },
+  {
+    "id": "normalize-labels",
+    "label": "Keep and rewrite the labels of one point",
+    "code": "const raw = p.labels ?? {};\nconst labels = new Map<string, string>();\nfor (const [name, value] of Object.entries(raw)) {\n    if (FORBIDDEN.has(name) || value === \"\") continue;\n    if (name === \"path\") {\n        if (!raw.route) labels.set(\"route\", routeTemplate(value));\n    } else if (name === \"status\") {\n        labels.set(\"status\", statusClass(value));\n    } else {\n        labels.set(name, value);\n    }\n}"
+  },
+  {
+    "id": "cap-values",
+    "label": "Cap the distinct values of each label",
+    "code": "if (!capped.has(p.metric)) capped.set(p.metric, new Set());\nfor (const [name, value] of labels) {\n    const key = `${p.metric}\\u0000${name}`;\n    const values = kept.get(key) ?? new Set<string>();\n    kept.set(key, values);\n    if (values.has(value)) continue;\n    if (values.size < maxValuesPerLabel) values.add(value);\n    else {\n        labels.set(name, \"other\");\n        capped.get(p.metric)!.add(name);\n    }\n}"
+  },
+  {
+    "id": "summary-lines",
+    "label": "Print the series and the per-metric summary",
+    "code": "const lines = [...series.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).map((text) => `${text} ${series.get(text)}`);\nfor (const metric of [...capped.keys()].sort()) {\n    const n = [...series.keys()].filter((text) => text === metric || text.startsWith(`${metric}{`)).length;\n    const names = [...capped.get(metric)!].sort();\n    lines.push(`# ${metric}: ${n} series, capped: ${names.length ? names.join(\", \") : \"none\"}`);\n}\nlines.push(`# total: ${series.size} series, ${rejected} rejected`);\nreturn lines;"
+  },
+  {
+    "id": "cap-shared-across-metrics",
+    "label": "Cap the distinct values of each label",
+    "code": "if (!capped.has(p.metric)) capped.set(p.metric, new Set());\nfor (const [name, value] of labels) {\n    const key = name;\n    const values = kept.get(key) ?? new Set<string>();\n    kept.set(key, values);\n    if (values.has(value)) continue;\n    if (values.size < maxValuesPerLabel) values.add(value);\n    else {\n        labels.set(name, \"other\");\n        capped.get(p.metric)!.add(name);\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "labels-keep-raw-path",
+    "label": "Keep and rewrite the labels of one point",
+    "code": "const raw = p.labels ?? {};\nconst labels = new Map<string, string>();\nfor (const [name, value] of Object.entries(raw)) {\n    if (FORBIDDEN.has(name) || value === \"\") continue;\n    if (name === \"path\") {\n        labels.set(\"path\", value);\n    } else if (name === \"status\") {\n        labels.set(\"status\", statusClass(value));\n    } else {\n        labels.set(name, value);\n    }\n}",
+    "distractor": true
+  }
+]

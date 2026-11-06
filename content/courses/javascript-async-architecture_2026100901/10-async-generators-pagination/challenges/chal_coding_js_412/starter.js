@@ -14,7 +14,7 @@
  * @returns {AsyncGenerator<T, void, undefined>}
  */
 async function* paginate(fetchPage) {
-  // TODO: request pages one by one (starting with cursor null) and yield their items
+  // [ ] Request pages one by one and yield their items
 }
 
 /**
@@ -31,5 +31,5 @@ async function* paginate(fetchPage) {
  * @returns {AsyncGenerator<T, void, undefined>}
  */
 async function* take(source, n) {
-  // TODO: yield the first n values of source
+  // [ ] Yield n values, then stop pulling
 }

@@ -42,10 +42,10 @@ def one_decimal(value):
 
 
 def latencies_ms(run):
-    # Measure from the INTENDED send time: a request the generator could only send late (stuck
-    # behind slow responses) kept its user waiting from the time it was scheduled.
+    # @piece latency: Latency of each request
     start, interval = run["start_ms"], run["interval_ms"]
     return [done_ms - (start + seq * interval) for seq, _sent_ms, done_ms in run["requests"]]
+    # @end
 
 
 def analyze(run):

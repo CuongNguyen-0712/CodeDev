@@ -25,12 +25,22 @@ type Deps = {
     loadCoupon(userId: string): Coupon | null;
 };
 
+type CachedCourse = { course: PublicCourse; storedAt: number };
+
+function getPublicCourse(courseId: string, at: number, ttl: number, deps: Deps): PublicCourse | null {
+    // [ ] Public course data through the shared cache
+}
+
+function couponApplies(coupon: Coupon | null, courseId: string, at: number): coupon is Coupon {
+    // [ ] Does the coupon apply to this course now?
+}
+
 function renderCoursePage(req: PageRequest, ttl: number, deps: Deps): string {
-    // 1. public data: from deps.sharedCache when it is younger than ttl seconds, else load and store it
-    // 2. anonymous visitors: no personal data at all
-    // 3. signed-in learners: their enrollment on every request, then their coupon if not enrolled
-    // personal data never goes into deps.sharedCache
-    return "";
+    // [ ] The course, and the page anonymous visitors get
+
+    // [ ] Enrolled learners see their progress
+
+    // [ ] Everyone else sees their coupon price
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

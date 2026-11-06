@@ -34,12 +34,37 @@ type DomainEvent =
 
 type Targets = { tags: string[]; paths: string[] };
 
+const COURSE_FIELDS = ["title", "description", "price", "category", "slug"] as const;
+const CARD_FIELDS: readonly string[] = ["title", "price", "category", "slug"];
+
 function revalidationTargets(catalog: Course[], event: DomainEvent): Targets {
-    // 1. instructor_renamed has no courseId: handle it first
-    // 2. find the course; an unknown course gives nothing to revalidate
-    // 3. for an edit, keep only the fields whose value really changes
-    // 4. collect tags and paths in Sets, then return them sorted
-    return { tags: [], paths: [] };
+    const tags = new Set<string>();
+    const paths = new Set<string>();
+    const result = (): Targets => ({ tags: [...tags].sort(), paths: [...paths].sort() });
+    const listings = (category: string): void => {
+        tags.add("courses:list");
+        tags.add(`courses:category:${category}`);
+    };
+
+    // [ ] An instructor rename (no course id)
+
+    // [ ] Find the course the event is about
+
+    switch (event.type) {
+        case "course_updated":
+        case "price_changed": {
+            // [ ] Keep only the fields whose value changes
+            // [ ] Tag the course when something changed
+            // [ ] Listings and pages an edit affects
+            break;
+        }
+        case "lesson_added":
+            // [ ] A new lesson
+        case "course_published":
+        case "course_unpublished":
+            // [ ] Publishing or unpublishing
+    }
+    return result();
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

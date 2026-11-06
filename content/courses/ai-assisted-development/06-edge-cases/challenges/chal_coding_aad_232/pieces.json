@@ -1,0 +1,40 @@
+[
+  {
+    "id": "local-day",
+    "label": "The learner's calendar day of an instant",
+    "code": "return Math.floor((ms + offsetMinutes * 60_000) / DAY_MS);"
+  },
+  {
+    "id": "active-days",
+    "label": "The learner's active days, once each, in order",
+    "code": "const days = new Set<number>(); // several completions on one day count once\nfor (const ts of completedAt) {\n    const ms = Date.parse(ts);\n    if (!Number.isNaN(ms)) days.add(localDay(ms, offsetMinutes));\n}\nconst sorted = [...days].sort((a, b) => a - b);"
+  },
+  {
+    "id": "longest",
+    "label": "The longest run of consecutive days",
+    "code": "let longest = 0;\nlet run = 0;\nlet previous = Number.NaN;\nfor (const day of sorted) {\n    run = day === previous + 1 ? run + 1 : 1;\n    if (run > longest) longest = run;\n    previous = day;\n}"
+  },
+  {
+    "id": "current",
+    "label": "The current streak",
+    "code": "const today = localDay(Date.parse(now), offsetMinutes);\nconst current = sorted.length > 0 && previous >= today - 1 ? run : 0;\nreturn { current, longest };"
+  },
+  {
+    "id": "active-days-as-given",
+    "label": "The learner's active days, once each, in order",
+    "code": "const days = new Set<number>(); // several completions on one day count once\nfor (const ts of completedAt) {\n    const ms = Date.parse(ts);\n    if (!Number.isNaN(ms)) days.add(localDay(ms, offsetMinutes));\n}\nconst sorted = [...days];",
+    "distractor": true
+  },
+  {
+    "id": "current-only-today",
+    "label": "The current streak",
+    "code": "const today = localDay(Date.parse(now), offsetMinutes);\nconst current = sorted.length > 0 && previous === today ? run : 0;\nreturn { current, longest };",
+    "distractor": true
+  },
+  {
+    "id": "local-day-utc",
+    "label": "The learner's calendar day of an instant",
+    "code": "return Math.floor(ms / DAY_MS);",
+    "distractor": true
+  }
+]

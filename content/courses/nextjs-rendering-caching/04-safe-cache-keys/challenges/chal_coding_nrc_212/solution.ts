@@ -51,27 +51,38 @@ type DataRequest = {
 type CachePolicy = { key: string | null; cacheControl: string };
 
 function normalizeLocale(locale: string | undefined): string {
+    // @piece locale: Reduce the locale to a supported language
     const language = (locale ?? "").trim().toLowerCase().split("-")[0];
     return LOCALES.includes(language) ? language : DEFAULT_LOCALE;
+    // @end
 }
 
 function cachePolicy(req: DataRequest): CachePolicy {
+    // @piece resource: Look up the resource
     const spec = Object.prototype.hasOwnProperty.call(RESOURCES, req.resource) ? RESOURCES[req.resource] : undefined;
     if (!spec) throw new Error(`unknown resource: ${req.resource}`);
+    // @end
 
+    // @piece params: Check the route params
     const params = req.params ?? {};
     const paramValues = spec.params.map((name) => {
         const value = (params[name] ?? "").trim();
         if (value === "") throw new Error(`missing param: ${name}`);
         return value;
     });
+    // @end
 
+    // @piece user: Check the user; skip caching what must not be stored
     const userId = (req.userId ?? "").trim();
     if (spec.classification !== "public" && userId === "") throw new Error("personal data needs a signed-in user");
     if (spec.classification === "private-no-store") return { key: null, cacheControl: "private, no-store" };
+    // @end
 
+    // @piece base-key: Start the key from the resource and its params
     let key = [req.resource, ...paramValues.map(encodeURIComponent)].join("/");
+    // @end
 
+    // @piece query-part: Add the query values that change the result
     const names = Object.keys(spec.query).sort();
     if (names.length > 0) {
         const query = req.query ?? {};
@@ -83,13 +94,16 @@ function cachePolicy(req: DataRequest): CachePolicy {
         });
         key += `?${pairs.join("&")}`;
     }
+    // @end
 
+    // @piece locale-user-header: Add locale and user, then pick Cache-Control
     if (spec.localized) key += `|locale=${normalizeLocale(req.locale)}`;
     if (spec.classification === "per-user") {
         key += `|user=${encodeURIComponent(userId)}`;
         return { key, cacheControl: "private, no-cache" };
     }
     return { key, cacheControl: `public, max-age=0, s-maxage=${spec.sMaxAge}` };
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

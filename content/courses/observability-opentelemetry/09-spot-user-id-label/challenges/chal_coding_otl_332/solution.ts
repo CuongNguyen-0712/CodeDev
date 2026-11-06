@@ -27,19 +27,22 @@ type SubmitRequest = {
 };
 
 class SubmissionMetrics {
+    private meter: FakeMeter;
     private analytics: AnalyticsSink;
     private submissions: Counter;
 
     constructor(meter: FakeMeter, analytics: AnalyticsSink) {
+        this.meter = meter;
         this.analytics = analytics;
         this.submissions = meter.createCounter("codedev_submissions_total", {
-            description: "Submissions received, by route, method and status class",
+            description: "Submissions received",
             unit: "{submission}",
         });
     }
 
     // Called by the submit handler once the response status is known.
     onSubmission(req: SubmitRequest, status: number): void {
+        // @piece record-submission: Count the submission and record who sent it
         // Bounded labels only: a handful of routes x methods x 5 status classes, whatever the traffic.
         this.submissions.add(1, {
             route: req.route,
@@ -54,12 +57,15 @@ class SubmissionMetrics {
                 properties: { challengeId: req.challengeId, status },
             });
         }
+        // @end
     }
 
+    // @piece top-learners: Answer which learners submit the most
     // "Which learners submit the most": answered by the analytics pipeline.
     topLearners(n: number): Array<{ userId: string; count: number }> {
         return this.analytics.topUsers("submission_created", n);
     }
+    // @end
 }
 
 // ---------------------------------------------------------------- fake meter and analytics sink (do not change)

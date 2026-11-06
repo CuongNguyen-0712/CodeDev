@@ -41,8 +41,17 @@ def is_int(value):
 
 
 def build_schedule(profile):
-    # TODO: validate the profile, then build the per-second schedule and its totals
-    return {"error": "not implemented"}
+    # [ ] Stages present and a valid start rate
+    # [ ] Each stage valid, and the whole test short enough
+
+    schedule = []
+    steady = None
+    for stage in stages:
+        a, b, d = rate, stage["target"], stage["duration_s"]
+        # [ ] Remember the longest stage that holds a rate
+        # [ ] One target rate per second of the stage
+        rate = b
+    # [ ] The schedule and its totals
 
 
 # ---------------------------------------------------------------- test runner (do not change)

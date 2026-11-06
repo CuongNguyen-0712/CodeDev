@@ -120,8 +120,10 @@ class CircuitBreaker {
     }
 
     state(now: number): BreakerState {
+        // @piece breaker-state: Closed, open or half-open at this moment
         if (this.openedAt === null) return "closed";
         return now >= this.openedAt + this.openMs ? "half-open" : "open";
+        // @end
     }
 
     allow(now: number): boolean {
@@ -134,12 +136,14 @@ class CircuitBreaker {
     }
 
     failure(now: number): void {
+        // @piece breaker-failure: What a failed call does to the breaker
         if (this.state(now) === "half-open") {
             this.openedAt = now;
             return;
         }
         this.failures++;
         if (this.failures >= this.failureThreshold) this.openedAt = now;
+        // @end
     }
 }
 
@@ -159,6 +163,7 @@ class ProgressService {
 
     // returns the time the call took, and whether it succeeded; skipped calls take 0 ms
     private call<T extends Outcome>(name: Name, now: number, op: () => T): { ok: boolean; ms: number; out: T | null } {
+        // @piece guarded-call: One call through the breaker, with its timeout
         const breaker = this.breakers[name];
         if (!breaker.allow(now)) return { ok: false, ms: 0, out: null };
         const { timeoutMs } = this.config[name];
@@ -169,6 +174,7 @@ class ProgressService {
         }
         breaker.failure(now);
         return { ok: false, ms: out.ok ? timeoutMs : Math.min(out.latencyMs, timeoutMs), out: null };
+        // @end
     }
 
     updateProgress(req: ProgressRequest, now: number): ProgressResult {
@@ -185,6 +191,7 @@ class ProgressService {
         latencyMs += cache.ms;
         if (!cache.ok) skipped.push("cache");
 
+        // @piece leaderboard-update: Update the leaderboard, or queue the learner for later
         const lb = this.call("leaderboard", now, () => this.deps.leaderboard.setScore(userId, saved.total, now));
         latencyMs += lb.ms;
         const queued = this.queue.indexOf(userId);
@@ -194,11 +201,13 @@ class ProgressService {
             skipped.push("leaderboard");
             if (queued < 0) this.queue.push(userId);
         }
+        // @end
         return { status: 200, total: saved.total, degraded: skipped.length > 0, skipped, latencyMs };
     }
 
     drain(now: number): number {
         let written = 0;
+        // @piece drain-queue: Write queued learners back to the leaderboard
         while (written < this.config.drainBatch && this.queue.length > 0) {
             const userId = this.queue[0];
             const r = this.call("leaderboard", now, () => this.deps.leaderboard.setScore(userId, this.deps.store.total(userId), now));
@@ -206,16 +215,19 @@ class ProgressService {
             this.queue.shift();
             written++;
         }
+        // @end
         return written;
     }
 
     getLeaderboard(n: number, now: number): LeaderboardResult {
+        // @piece top-fallback: Read the leaderboard, falling back to Postgres
         const r = this.call("leaderboard", now, () => this.deps.leaderboard.top(n, now));
         if (r.ok && r.out !== null) {
             return { source: "redis", rows: r.out.rows, degraded: this.queue.length > 0, latencyMs: r.ms };
         }
         const pg = this.deps.store.top(n);
         return { source: "postgres", rows: pg.rows, degraded: true, latencyMs: r.ms + pg.latencyMs };
+        // @end
     }
 
     pending(): string[] {

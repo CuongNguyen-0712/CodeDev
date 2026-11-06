@@ -33,17 +33,17 @@ Q1 = """
 SELECT c.course_id, c.title, e.status
 FROM enrollments e
 JOIN courses c ON c.course_id = e.course_id
--- TODO: only this learner (:user_id), no cancelled enrollments, ordered by title then course_id
+# [ ] Only this learner's live enrollments, in title order
 """
 
 Q2 = """
--- TODO: insert one enrollment from :user_id, :course_id and :enrolled_at with status 'active'
+# [ ] Insert one active enrollment
 """
 
 Q3 = """
 UPDATE enrollments
 SET status = 'cancelled'
-WHERE user_id = :user_id  -- BUG (on purpose): this is the query from the incident
+# [ ] Exactly the enrollment to cancel
 """
 
 

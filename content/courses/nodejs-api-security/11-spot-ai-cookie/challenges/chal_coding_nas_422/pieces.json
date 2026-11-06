@@ -1,0 +1,30 @@
+[
+  {
+    "id": "login-cookies",
+    "label": "The cookies sent back after login",
+    "code": "// Tokens only in HttpOnly cookies scoped to the API host; only the display name is readable by the SPA.\nreturn {\n    status: 200,\n    setCookie: [\n        `__Host-cd_at=${tokens.accessToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${ACCESS_TTL_S}`,\n        `__Secure-cd_rt=${tokens.refreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/auth/refresh; Max-Age=${REFRESH_TTL_S}`,\n        `display_name=${encodeURIComponent(user.displayName)}; Domain=codedev.test; Path=/; Secure; SameSite=Lax; Max-Age=${REFRESH_TTL_S}`,\n    ],"
+  },
+  {
+    "id": "login-body",
+    "label": "The JSON body the SPA reads",
+    "code": "body: { user: { id: user.id, displayName: user.displayName } },"
+  },
+  {
+    "id": "body-with-token",
+    "label": "The JSON body the SPA reads",
+    "code": "body: { user: { id: user.id, displayName: user.displayName }, accessToken: tokens.accessToken },",
+    "distractor": true
+  },
+  {
+    "id": "cookies-host-refresh",
+    "label": "The cookies sent back after login",
+    "code": "return {\n    status: 200,\n    setCookie: [\n        `__Host-cd_at=${tokens.accessToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${ACCESS_TTL_S}`,\n        `__Host-refresh_token=${tokens.refreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/auth/refresh; Max-Age=${REFRESH_TTL_S}`,\n        `display_name=${encodeURIComponent(user.displayName)}; Domain=codedev.test; Path=/; Secure; SameSite=Lax; Max-Age=${REFRESH_TTL_S}`,\n    ],",
+    "distractor": true
+  },
+  {
+    "id": "cookies-refresh-everywhere",
+    "label": "The cookies sent back after login",
+    "code": "return {\n    status: 200,\n    setCookie: [\n        `__Host-cd_at=${tokens.accessToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${ACCESS_TTL_S}`,\n        `__Secure-cd_rt=${tokens.refreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${REFRESH_TTL_S}`,\n        `display_name=${encodeURIComponent(user.displayName)}; Domain=codedev.test; Path=/; Secure; SameSite=Lax; Max-Age=${REFRESH_TTL_S}`,\n    ],",
+    "distractor": true
+  }
+]

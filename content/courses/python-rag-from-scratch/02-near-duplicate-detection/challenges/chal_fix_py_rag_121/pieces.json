@@ -1,0 +1,29 @@
+[
+  {
+    "id": "tokens",
+    "label": "Split a text into tokens",
+    "code": "return re.findall(r\"[a-z0-9]+\", text.lower())"
+  },
+  {
+    "id": "shingles",
+    "label": "Every run of k consecutive tokens",
+    "code": "if len(words) < k:\n    return {tuple(words)} if words else set()\nreturn {tuple(words[i:i + k]) for i in range(len(words) - k + 1)}"
+  },
+  {
+    "id": "jaccard",
+    "label": "Similarity of two shingle sets",
+    "code": "if not a and not b:\n    return 1.0\nreturn len(a & b) / len(a | b)"
+  },
+  {
+    "id": "jaccard-no-empty-case",
+    "label": "Similarity of two shingle sets",
+    "code": "return len(a & b) / len(a | b)",
+    "distractor": true
+  },
+  {
+    "id": "shingles-no-short-text",
+    "label": "Every run of k consecutive tokens",
+    "code": "return {tuple(words[i:i + k]) for i in range(len(words) - k + 1)}",
+    "distractor": true
+  }
+]

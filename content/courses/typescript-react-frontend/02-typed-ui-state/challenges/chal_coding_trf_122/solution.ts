@@ -47,23 +47,31 @@ type CatalogUiState =
 const RETRY_MESSAGE = "Could not load courses. Try again.";
 
 function isRetryable(status: number): boolean {
+    // @piece retryable: Which failures are worth a retry
     return status === 0 || status === 408 || status === 429 || (status >= 500 && status <= 599);
+    // @end
 }
 
 function deriveUiState(snapshot: RequestSnapshot): CatalogUiState {
     switch (snapshot.status) {
         case "pending":
+            // @piece pending: Nothing to show yet
             return { kind: "loading" };
+            // @end
         case "error": {
+            // @piece error-states: Failed: retry, sign in again, or explain
             const error = snapshot.error;
             if (!error || isRetryable(error.status)) return { kind: "error", message: RETRY_MESSAGE, canRetry: true };
             if (error.status === 401) return { kind: "error", message: "Your session has expired. Sign in again.", canRetry: false };
             return { kind: "error", message: error.message, canRetry: false };
+            // @end
         }
         case "success": {
+            // @piece success-states: Loaded: an empty result or the list
             const courses = snapshot.data ?? [];
             if (courses.length === 0) return { kind: "empty", query: snapshot.query.trim() };
             return { kind: "success", courses, refreshing: snapshot.isFetching };
+            // @end
         }
     }
 }

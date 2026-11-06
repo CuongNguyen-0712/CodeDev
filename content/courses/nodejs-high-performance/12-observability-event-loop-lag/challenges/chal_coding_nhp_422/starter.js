@@ -17,8 +17,7 @@
  * @returns {number|null}
  */
 function percentile(values, p) {
-  // TODO: implement the nearest-rank percentile.
-  // The dashboard currently shows the average, which hides the slow tail.
-  if (values.length === 0) return null;
-  return values.reduce((sum, v) => sum + v, 0) / values.length;
+  // [ ] A list with no samples
+  // [ ] Sort the samples
+  // [ ] Pick the sample at the nearest rank
 }

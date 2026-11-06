@@ -25,6 +25,7 @@ const NOT_FOUND_TTL_SECONDS = 30;
 type Deps = { redis: FakeRedis; db: FakeDb; random: () => number };
 
 function getCourse(id: string, deps: Deps): Course | null {
+    // @piece read-cache: Answer from Redis when the copy is readable
     const key = `course:${id}`;
     const cached = deps.redis.get(key);
     if (cached !== null) {
@@ -34,6 +35,8 @@ function getCourse(id: string, deps: Deps): Course | null {
             // unreadable value from an older deploy: fall through and reload it
         }
     }
+    // @end
+    // @piece load-and-store: Load from PostgreSQL and keep a copy
     const course = deps.db.findCourseById(id); // throws when the database is down: nothing is cached
     if (course === null) {
         deps.redis.set(key, "null", { ex: NOT_FOUND_TTL_SECONDS });
@@ -42,6 +45,7 @@ function getCourse(id: string, deps: Deps): Course | null {
         deps.redis.set(key, JSON.stringify(course), { ex: ttl });
     }
     return course;
+    // @end
 }
 
 // ---------------------------------------------------------------- in-memory Redis and database (do not change)

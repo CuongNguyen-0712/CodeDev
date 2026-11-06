@@ -37,35 +37,46 @@ import sqlite3
 import sys
 
 SCHEMA = """
+-- The NOT NULL, UNIQUE, CHECK, DEFAULT, PRIMARY KEY and FOREIGN KEY rules from the docstring.
 CREATE TABLE users (
     user_id  INTEGER PRIMARY KEY,
+    # @piece user-columns: Rules for a user's email and name
     email    TEXT NOT NULL COLLATE NOCASE
              CONSTRAINT users_email_unique UNIQUE
              CONSTRAINT users_email_has_at CHECK (instr(email, '@') > 0),
     name     TEXT NOT NULL
+    # @end
 );
 
 CREATE TABLE courses (
     course_id  INTEGER PRIMARY KEY,
+    # @piece course-columns: Rules for a course's title and level
     title      TEXT NOT NULL,
     level      TEXT NOT NULL
                CONSTRAINT courses_level_check
                CHECK (level IN ('beginner', 'intermediate', 'advanced'))
+    # @end
 );
 
 CREATE TABLE enrollments (
+    # @piece enrollment-links: Who and what an enrollment points to
     user_id      INTEGER NOT NULL
                  REFERENCES users (user_id) ON DELETE CASCADE,
     course_id    INTEGER NOT NULL
                  REFERENCES courses (course_id) ON DELETE RESTRICT,
+    # @end
+    # @piece enrollment-state: Date, status and the key of an enrollment
     enrolled_at  TEXT NOT NULL,
     status       TEXT NOT NULL DEFAULT 'active'
                  CONSTRAINT enrollments_status_check
                  CHECK (status IN ('active', 'completed', 'cancelled')),
     CONSTRAINT enrollments_pkey PRIMARY KEY (user_id, course_id)
+    # @end
 );
 
+# @piece course-lookup: Find a course's enrollments fast
 CREATE INDEX enrollments_course_id_idx ON enrollments (course_id);
+# @end
 """
 
 

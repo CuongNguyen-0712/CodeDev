@@ -2,67 +2,213 @@
   "publicId": "javascript-async-architecture_2026100901",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792425603/codedev/courses/javascript-async-architecture_2026100901/cover",
   "existing": true,
-  "update": { "durationMinutes": 452, "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792425603/codedev/courses/javascript-async-architecture_2026100901/cover" },
+  "update": {
+    "durationMinutes": 452,
+    "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792425603/codedev/courses/javascript-async-architecture_2026100901/cover"
+  },
   "title": "JavaScript: Asynchronous Architecture & Production Patterns",
   "language": "JavaScript",
   "category": "Web Development",
-  "careerRoles": ["frontend_developer", "backend_developer", "fullstack_developer", "mobile_developer"],
-  "skills": {"javascript": 5, "async_programming": 5, "performance": 3, "testing": 2},
-  "goals": ["grow_in_role", "interview_prep"],
+  "careerRoles": [
+    "frontend_developer",
+    "backend_developer",
+    "fullstack_developer",
+    "mobile_developer"
+  ],
+  "skills": {
+    "javascript": 5,
+    "async_programming": 5,
+    "performance": 3,
+    "testing": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "interview_prep"
+  ],
   "modules": [
     {
       "orderIndex": 1,
       "title": "Event Loop, Microtasks & Macrotasks",
       "lessons": [
-        { "orderIndex": 1, "folder": "01-event-loop-execution-order", "title": "Call stack, task queues & execution order", "sanityId": "lesson-js-1-1" },
-        { "orderIndex": 2, "folder": "02-event-loop-blocking-ui-freeze", "title": "Event loop blocking: finding and breaking up long tasks", "sanityId": "lesson-js-1-2" },
-        { "orderIndex": 3, "folder": "03-cancellable-sleep", "title": "Cancellable sleep: timers that stop with AbortSignal", "sanityId": "lesson-js-1-3" }
+        {
+          "orderIndex": 1,
+          "folder": "01-event-loop-execution-order",
+          "title": "Call stack, task queues & execution order",
+          "sanityId": "lesson-js-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-event-loop-blocking-ui-freeze",
+          "title": "Event loop blocking: finding and breaking up long tasks",
+          "sanityId": "lesson-js-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-cancellable-sleep",
+          "title": "Cancellable sleep: timers that stop with AbortSignal",
+          "sanityId": "lesson-js-1-3"
+        }
       ]
     },
     {
       "orderIndex": 2,
       "title": "Promises in Depth & Concurrency Control",
       "lessons": [
-        { "orderIndex": 1, "folder": "04-promise-combinators", "title": "Promise combinators in practice", "sanityId": "lesson-js-2-1" },
-        { "orderIndex": 2, "folder": "05-unhandled-rejections", "title": "Eliminating unhandled rejections & leaks", "sanityId": "lesson-js-2-2" },
-        { "orderIndex": 3, "folder": "06-concurrency-limiter", "title": "Building a concurrency limiter (worker pool)", "sanityId": "lesson-js-2-3" }
+        {
+          "orderIndex": 1,
+          "folder": "04-promise-combinators",
+          "title": "Promise combinators in practice",
+          "sanityId": "lesson-js-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-unhandled-rejections",
+          "title": "Eliminating unhandled rejections & leaks",
+          "sanityId": "lesson-js-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-concurrency-limiter",
+          "title": "Building a concurrency limiter (worker pool)",
+          "sanityId": "lesson-js-2-3"
+        }
       ]
     },
     {
       "orderIndex": 3,
       "title": "Async/Await, Error Recovery & Retry Strategy",
       "lessons": [
-        { "orderIndex": 1, "folder": "07-async-await-pitfalls", "title": "Async/await pitfalls & return patterns", "sanityId": "lesson-js-3-1" },
-        { "orderIndex": 2, "folder": "08-search-race-abortcontroller", "title": "Search race conditions & AbortController", "sanityId": "lesson-js-3-2" },
-        { "orderIndex": 3, "folder": "09-backoff-jitter-retry", "title": "Exponential backoff, jitter & a retry engine", "sanityId": "lesson-js-3-3" }
+        {
+          "orderIndex": 1,
+          "folder": "07-async-await-pitfalls",
+          "title": "Async/await pitfalls & return patterns",
+          "sanityId": "lesson-js-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-search-race-abortcontroller",
+          "title": "Search race conditions & AbortController",
+          "sanityId": "lesson-js-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-backoff-jitter-retry",
+          "title": "Exponential backoff, jitter & a retry engine",
+          "sanityId": "lesson-js-3-3"
+        }
       ]
     },
     {
       "orderIndex": 4,
       "title": "Async Iteration & Streaming Data",
       "lessons": [
-        { "orderIndex": 1, "folder": "10-async-generators-pagination", "title": "Async generators & lazy pagination", "sanityId": "lesson-js-4-1" },
-        { "orderIndex": 2, "folder": "11-web-streams-ndjson", "title": "Web Streams: parsing data as it arrives", "sanityId": "lesson-js-4-2" },
-        { "orderIndex": 3, "folder": "12-async-queue-producer-consumer", "title": "Producer/consumer with a bounded async queue", "sanityId": "lesson-js-4-3" }
+        {
+          "orderIndex": 1,
+          "folder": "10-async-generators-pagination",
+          "title": "Async generators & lazy pagination",
+          "sanityId": "lesson-js-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-web-streams-ndjson",
+          "title": "Web Streams: parsing data as it arrives",
+          "sanityId": "lesson-js-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-async-queue-producer-consumer",
+          "title": "Producer/consumer with a bounded async queue",
+          "sanityId": "lesson-js-4-3"
+        }
       ]
     },
     {
       "orderIndex": 5,
       "title": "Events, Scheduling & UI Responsiveness",
       "lessons": [
-        { "orderIndex": 1, "folder": "13-debounce-throttle", "title": "Debounce, throttle & rate-shaping user input", "sanityId": "lesson-js-5-1" },
-        { "orderIndex": 2, "folder": "14-scheduling-time-slicing", "title": "Scheduling work: priorities & time slicing", "sanityId": "lesson-js-5-2" },
-        { "orderIndex": 3, "folder": "15-event-listener-leaks", "title": "Event listeners, subscriptions & memory leaks", "sanityId": "lesson-js-5-3" }
+        {
+          "orderIndex": 1,
+          "folder": "13-debounce-throttle",
+          "title": "Debounce, throttle & rate-shaping user input",
+          "sanityId": "lesson-js-5-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "14-scheduling-time-slicing",
+          "title": "Scheduling work: priorities & time slicing",
+          "sanityId": "lesson-js-5-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "15-event-listener-leaks",
+          "title": "Event listeners, subscriptions & memory leaks",
+          "sanityId": "lesson-js-5-3"
+        }
       ]
     },
     {
       "orderIndex": 6,
       "title": "Testing & Architecting Async Systems",
       "lessons": [
-        { "orderIndex": 1, "folder": "16-testing-async-fake-timers", "title": "Testing async code deterministically", "sanityId": "lesson-js-6-1" },
-        { "orderIndex": 2, "folder": "17-async-state-machines", "title": "Modeling async flows as state machines", "sanityId": "lesson-js-6-2" },
-        { "orderIndex": 3, "folder": "18-capstone-sync-client", "title": "Capstone: a resilient offline-first sync client", "sanityId": "lesson-js-6-3" }
+        {
+          "orderIndex": 1,
+          "folder": "16-testing-async-fake-timers",
+          "title": "Testing async code deterministically",
+          "sanityId": "lesson-js-6-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "17-async-state-machines",
+          "title": "Modeling async flows as state machines",
+          "sanityId": "lesson-js-6-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "18-capstone-sync-client",
+          "title": "Capstone: a resilient offline-first sync client",
+          "sanityId": "lesson-js-6-3"
+        }
       ]
     }
-  ]
+  ],
+  "completionRules": {},
+  "domain": "frontend",
+  "learningOutcomes": [
+    {
+      "code": "event-loop",
+      "text": "Predict execution order on the event loop and break long work into slices that keep the page responsive."
+    },
+    {
+      "code": "cancellation",
+      "text": "Cancel timers, requests and searches with AbortController and AbortSignal without leaking listeners."
+    },
+    {
+      "code": "promise-composition",
+      "text": "Combine and await promises correctly: combinators, timeouts, return patterns and no unhandled rejections."
+    },
+    {
+      "code": "flow-control",
+      "text": "Control asynchronous flow: worker pools, retries with backoff, async iteration, streams, queues, debounce and throttle."
+    },
+    {
+      "code": "reliable-async-code",
+      "text": "Keep async code leak-free and testable with listener cleanup, fake timers, state machines and an outbox sync client."
+    }
+  ],
+  "testedVersions": {
+    "Node.js": "24",
+    "Chrome": "current stable (to verify)",
+    "ECMAScript": "ES2024"
+  },
+  "lastReviewedAt": "2026-11-06",
+  "sourceLinks": [
+    "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Event_loop",
+    "https://html.spec.whatwg.org/multipage/webappapis.html#event-loops",
+    "https://developer.mozilla.org/en-US/docs/Web/API/AbortController",
+    "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise",
+    "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of",
+    "https://developer.mozilla.org/en-US/docs/Web/API/Streams_API"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": []
 }

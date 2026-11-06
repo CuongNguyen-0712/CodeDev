@@ -1,0 +1,19 @@
+[
+  {
+    "id": "read-and-retry",
+    "label": "Read the record and retry the write on a conflict",
+    "code": "for (let attempt = 1; attempt <= maxAttempts; attempt++) {\n  const current = await store.get(id);\n  if (!current) throw new Error(\"NOT_FOUND\");\n\n  const next = mutate(current.data);\n  const saved = await store.compareAndSet(id, current.version, next);\n  if (saved) {\n    return { id, version: current.version + 1, data: next };\n  }\n}"
+  },
+  {
+    "id": "read-and-retry-fresh-version-only",
+    "label": "Read the record and retry the write on a conflict",
+    "code": "const first = await store.get(id);\nif (!first) throw new Error(\"NOT_FOUND\");\nconst next = mutate(first.data);\n\nlet version = first.version;\nfor (let attempt = 1; attempt <= maxAttempts; attempt++) {\n  if (await store.compareAndSet(id, version, next)) {\n    return { id, version: version + 1, data: next };\n  }\n  version = (await store.get(id)).version;\n}",
+    "distractor": true
+  },
+  {
+    "id": "read-and-retry-swallow-errors",
+    "label": "Read the record and retry the write on a conflict",
+    "code": "for (let attempt = 1; attempt <= maxAttempts; attempt++) {\n  try {\n    const current = await store.get(id);\n    const next = mutate(current.data);\n    if (await store.compareAndSet(id, current.version, next)) {\n      return { id, version: current.version + 1, data: next };\n    }\n  } catch (error) {\n    // swallow and try again\n  }\n}",
+    "distractor": true
+  }
+]

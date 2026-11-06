@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 
-// Thin controller handlers for the CodeDev API (reference solution).
+// Thin controllers for the CodeDev API. In the NestJS app these are @Get/@Post handlers with @Query, @Body,
+// @Param and @Req; the code runner has no NestJS, so a request is a plain object and so is the response.
+// The service below is already written and tested: do not change it, the types or the test runner.
 
 const LEVELS = ["beginner", "intermediate", "advanced"] as const;
 type Level = (typeof LEVELS)[number];
@@ -56,11 +58,37 @@ class CatalogService {
 }
 
 // ---------------------------------------------------------------- your controller
+// Each handler maps the request, calls the service once, and maps the result. No business rules here:
+// filtering, paging and enrolling are the service's job.
+//
+// GET /courses -> listCourses(req)
+//   req.query values are strings. A key that is absent uses its default; any other value is checked:
+//   page   default 1;  must be digits only (/^[0-9]+$/) and at least 1, else 400 "page must be a positive integer"
+//   limit  default 20; must be digits only and at least 1, else 400 "limit must be a positive integer";
+//          a limit above 50 becomes 50
+//   level  optional;   must be exactly "beginner", "intermediate" or "advanced",
+//          else 400 "level must be one of: beginner, intermediate, advanced"
+//   Check page, then limit, then level; the first failure is the response. A 400 never calls the service.
+//   200, headers { "X-Total-Count": String(total) },
+//   body { items: [{ id, title, level, priceVnd }], page, limit, total } (page and limit as used)
+//
+// POST /enrollments -> enroll(req)
+//   req.body must be an object (not null, not an array) whose courseId is a string,
+//   else 400 "courseId is required". The learner is req.user.id - never a userId from the body.
+//   201, headers { Location: "/enrollments/<id>" }, body { id, courseId, status, createdAt }
+//
+// GET /users/:id/profile -> getProfile(req)
+//   req.params.id; when the service returns null: 404, headers {}, body { error: "user not found" }
+//   200, headers {}, body { id, displayName, avatarUrl, joinedAt } (joinedAt = the user's createdAt)
+//
+// Every 400 is: headers {}, body { error: "<message>" }. Response bodies contain exactly the listed
+// fields: never passwordHash, email, role, internalNotes, paymentRef, published or authorPayoutPercent.
+// Fill every [ ] line with the right piece.
 class CodeDevController {
     constructor(private readonly service: CatalogService) {}
 
-    // GET /courses?page=&limit=&level=
     listCourses(req: HttpRequest): HttpResponse {
+        // @piece list-query: Read page, limit and level from the query
         const q = req.query;
         let page = 1;
         if (q.page !== undefined) {
@@ -77,30 +105,36 @@ class CodeDevController {
             level = LEVELS.find((l) => l === q.level);
             if (level === undefined) return badRequest("level must be one of: beginner, intermediate, advanced");
         }
+        // @end
+        // @piece list-response: Ask the service once and answer with the page
         const { items, total } = this.service.listCourses({ page, limit, level });
         return {
             status: 200,
             headers: { "X-Total-Count": String(total) },
             body: { items: items.map((c) => ({ id: c.id, title: c.title, level: c.level, priceVnd: c.priceVnd })), page, limit, total },
         };
+        // @end
     }
 
-    // POST /enrollments
     enroll(req: HttpRequest): HttpResponse {
+        // @piece enroll-input: Read the course id from the body
         const body = req.body;
         if (typeof body !== "object" || body === null || Array.isArray(body)) return badRequest("courseId is required");
         const courseId = (body as Record<string, unknown>).courseId;
         if (typeof courseId !== "string") return badRequest("courseId is required");
+        // @end
+        // @piece enroll-response: Enroll the signed-in learner and answer 201
         const e = this.service.enroll({ userId: req.user.id, courseId });
         return {
             status: 201,
             headers: { Location: `/enrollments/${e.id}` },
             body: { id: e.id, courseId: e.courseId, status: e.status, createdAt: e.createdAt },
         };
+        // @end
     }
 
-    // GET /users/:id/profile
     getProfile(req: HttpRequest): HttpResponse {
+        // @piece profile-response: The public profile, or 404
         const user = this.service.getProfile(req.params.id);
         if (user === null) return { status: 404, headers: {}, body: { error: "user not found" } };
         return {
@@ -108,12 +142,13 @@ class CodeDevController {
             headers: {},
             body: { id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl, joinedAt: user.createdAt },
         };
+        // @end
     }
 }
 
-function badRequest(error: string): HttpResponse {
-    return { status: 400, headers: {}, body: { error } };
-}
+// @piece bad-request: The shape of every 400
+const badRequest = (error: string): HttpResponse => ({ status: 400, headers: {}, body: { error } });
+// @end
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { "courses"?: CourseRecord[], "generateCourses"?: n, "users"?: UserRecord[], "requests": [...] }.

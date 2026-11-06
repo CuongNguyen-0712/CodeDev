@@ -40,8 +40,15 @@ type ContextPlan =
     | { error: "invalid_input" | "does_not_fit" };
 
 function fitContext(req: ContextRequest): ContextPlan {
-    return { sent: [], dropped: [], inputTokens: 0 };
+    // [ ] Reject a request that breaks the input rules
+
+    // [ ] The input budget; the newest message must fit
+
+    // [ ] Keep older messages while they still fit
+    // [ ] The plan: what is sent, dropped and counted
 }
+
+// [ ] Helper: is a number a valid token count
 
 // ---------------------------------------------------------------- test runner (do not change)
 // Input: { requests: ContextRequest[] }. Output: the ContextPlan of each request, as JSON.

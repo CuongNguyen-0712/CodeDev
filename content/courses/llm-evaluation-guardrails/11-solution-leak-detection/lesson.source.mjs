@@ -115,7 +115,7 @@ export async function feedbackFor(attempt: Attempt, refs: References): Promise<F
             "**Sample what was allowed.** Every week, a person reads a random sample of allowed feedback for the most-attempted challenges. That is the only way to find false negatives like the renamed copy, and each one found becomes a new eval case.",
             "**Watch the outcome metric.** Pass rate and time to first pass per challenge, with an alert on a sudden jump, found this incident before any check did.",
         ]),
-        p("In the challenge you write `checkFeedback` with the exact rules, constants and output format of this lesson. The test cases come from two challenges with two reference solutions each, and they include honest feedback that must pass."),
+        p("In the challenge you assemble `checkFeedback` with the exact rules, constants and output format of this lesson. The test cases come from two challenges with two reference solutions each, and they include honest feedback that must pass."),
         challenge("chal_coding_lle_422"),
 
         h2("7. Common mistakes"),

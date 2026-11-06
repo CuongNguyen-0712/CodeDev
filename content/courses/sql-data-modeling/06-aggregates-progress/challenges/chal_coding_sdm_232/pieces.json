@@ -1,0 +1,35 @@
+[
+  {
+    "id": "counts",
+    "label": "Lessons, finished lessons and the percent",
+    "code": "COUNT(DISTINCT l.lesson_id)  AS total_lessons,\nCOUNT(DISTINCT lp.lesson_id) AS completed_lessons,\nCOALESCE(COUNT(DISTINCT lp.lesson_id) * 100 / COUNT(DISTINCT l.lesson_id), 0) AS percent"
+  },
+  {
+    "id": "sources",
+    "label": "The rows each course card is counted from",
+    "code": "FROM enrollments AS e\nJOIN courses AS c\n  ON c.course_id = e.course_id\nLEFT JOIN lessons AS l\n  ON l.course_id = c.course_id\nLEFT JOIN lesson_progress AS lp\n  ON lp.lesson_id = l.lesson_id\n AND lp.user_id = e.user_id\n AND lp.completed_at IS NOT NULL"
+  },
+  {
+    "id": "group",
+    "label": "One row per course of this learner",
+    "code": "WHERE e.user_id = :user_id\nGROUP BY c.course_id, c.title"
+  },
+  {
+    "id": "counts-rounded-percent",
+    "label": "Lessons, finished lessons and the percent",
+    "code": "COUNT(DISTINCT l.lesson_id)  AS total_lessons,\nCOUNT(DISTINCT lp.lesson_id) AS completed_lessons,\nCOALESCE(CAST(ROUND(COUNT(DISTINCT lp.lesson_id) * 100.0 / COUNT(DISTINCT l.lesson_id)) AS INTEGER), 0) AS percent",
+    "distractor": true
+  },
+  {
+    "id": "counts-without-distinct",
+    "label": "Lessons, finished lessons and the percent",
+    "code": "COUNT(l.lesson_id)  AS total_lessons,\nCOUNT(lp.lesson_id) AS completed_lessons,\nCOALESCE(COUNT(lp.lesson_id) * 100 / COUNT(l.lesson_id), 0) AS percent",
+    "distractor": true
+  },
+  {
+    "id": "sources-started-lessons",
+    "label": "The rows each course card is counted from",
+    "code": "FROM enrollments AS e\nJOIN courses AS c\n  ON c.course_id = e.course_id\nLEFT JOIN lessons AS l\n  ON l.course_id = c.course_id\nLEFT JOIN lesson_progress AS lp\n  ON lp.lesson_id = l.lesson_id\n AND lp.user_id = e.user_id",
+    "distractor": true
+  }
+]

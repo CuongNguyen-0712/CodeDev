@@ -443,6 +443,13 @@ export default function CodeEditor({
             // No caret yet: above the first body line, never in place of a placeholder the learner did not pick.
             return insertAt(code, fallbackIndex, fallbackIndex, { fillPlaceholder: false });
         },
+        // Fix-bug pieces: the piece replaces the selected lines; null when nothing is selected
+        // (finding the faulty lines is the exercise, so there is no fallback place).
+        replaceSelection(code) {
+            const { start, end } = selectionRef.current;
+            if (readOnly || !touchedRef.current || end <= start) return null;
+            return insertAt(code, start, end);
+        },
     }));
 
     // Drag and drop of a piece from the piece list (snippetPanel.jsx). Other drags keep the
@@ -454,19 +461,31 @@ export default function CodeEditor({
         charWidthRef.current ||= measureCharWidth(el);
         return caretFromPoint(el, event.clientX, event.clientY, charWidthRef.current);
     };
+    // A selection made before the drag stays put: dropping onto its lines replaces them.
+    const dragSelectionRef = useRef(null);
     const handleDragOver = (event) => {
         if (readOnly || !isPieceDrag(event)) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "copy";
+        if (dragSelectionRef.current === null) {
+            const { start, end } = selectionRef.current;
+            dragSelectionRef.current = touchedRef.current && end > start ? { start, end } : false;
+        }
+        if (dragSelectionRef.current) return;
         const index = pointIndex(event);
         event.currentTarget.setSelectionRange(index, index); // the active line follows the pointer
         updateCursorPos();
     };
+    const handleDragLeave = () => { dragSelectionRef.current = null; };
     const handleDrop = (event) => {
         if (readOnly || !isPieceDrag(event)) return;
         event.preventDefault(); // otherwise the textarea pastes the text/plain copy itself
         const index = pointIndex(event);
-        const { line } = insertAt(event.dataTransfer.getData("text/plain"), index);
+        const sel = dragSelectionRef.current;
+        dragSelectionRef.current = null;
+        const code = event.dataTransfer.getData("text/plain");
+        const onSelection = sel && index >= value.lastIndexOf("\n", sel.start - 1) + 1 && index <= sel.end;
+        const { line } = onSelection ? insertAt(code, sel.start, sel.end) : insertAt(code, index);
         onDropSnippet?.(event.dataTransfer.getData(PIECE_MIME), { line });
     };
 
@@ -851,6 +870,7 @@ export default function CodeEditor({
                         onScroll={handleScroll}
                         onFocus={() => { touchedRef.current = true; }}
                         onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         spellCheck={false}
                         autoCapitalize="off"

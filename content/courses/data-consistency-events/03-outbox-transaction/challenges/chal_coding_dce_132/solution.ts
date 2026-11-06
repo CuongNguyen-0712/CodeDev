@@ -59,6 +59,7 @@ function addEvent(t: Tables, ids: Ids, clock: Clock, aggregateType: string, aggr
 
 function placeEnrollment({ db, ids, clock }: Deps, cmd: PlaceEnrollment): void {
     db.tx((t) => {
+        // @piece enroll-checks: Refuse an enrollment that breaks a rule
         if (!t.wallets.has(cmd.userId)) throw new Rejected("unknown user");
         const course = t.courses.get(cmd.courseId);
         if (!course) throw new Rejected("unknown course");
@@ -66,7 +67,9 @@ function placeEnrollment({ db, ids, clock }: Deps, cmd: PlaceEnrollment): void {
             if (e.userId === cmd.userId && e.courseId === cmd.courseId) throw new Rejected("already enrolled");
         }
         if (course.enrolled >= course.seats) throw new Rejected("course full");
+        // @end
 
+        // @piece enroll-write: Write the enrollment, the seat and its events
         const enrollment: Enrollment = { id: ids.next("enr"), userId: cmd.userId, courseId: cmd.courseId, createdAt: clock.now() };
         t.enrollments.set(enrollment.id, enrollment);
         course.enrolled += 1;
@@ -78,16 +81,20 @@ function placeEnrollment({ db, ids, clock }: Deps, cmd: PlaceEnrollment): void {
         if (course.enrolled === course.seats) {
             addEvent(t, ids, clock, "course", course.id, "course.full", { courseId: course.id, seats: course.seats });
         }
+        // @end
     });
 }
 
 function awardPoints({ db, ids, clock }: Deps, cmd: AwardPoints): void {
     db.tx((t) => {
+        // @piece award-checks: Refuse an award that breaks a rule
         const wallet = t.wallets.get(cmd.userId);
         if (!wallet) throw new Rejected("unknown user");
         if (!Number.isInteger(cmd.amount) || cmd.amount < 1 || cmd.amount > 10000) throw new Rejected("invalid amount");
         if (typeof cmd.reason !== "string" || cmd.reason === "") throw new Rejected("missing reason");
+        // @end
 
+        // @piece award-write: Add the points and their events
         const before = Math.floor(wallet.points / 1000);
         wallet.points += cmd.amount;
         addEvent(t, ids, clock, "wallet", wallet.userId, "points.awarded", {
@@ -99,6 +106,7 @@ function awardPoints({ db, ids, clock }: Deps, cmd: AwardPoints): void {
         for (let level = before + 1; level <= Math.floor(wallet.points / 1000); level++) {
             addEvent(t, ids, clock, "wallet", wallet.userId, "level.reached", { userId: wallet.userId, level });
         }
+        // @end
     });
 }
 

@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 
 // The CodeDev AI tutor lets the model propose tool calls. The model only proposes: this gate decides
 // what runs. Incident: getSubmission took a userId argument from the model and showed another
-// learner's code. Write checkToolCalls(input). The full rules are in the challenge description.
+// learner's code. Fill checkToolCalls(input) and its helper with pieces (some are wrong). The full
+// rules are in the challenge description.
 // Do not change the types or the test runner.
 
 type ParamSpec = {
@@ -43,6 +44,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** The checked arguments, or the reason the call is rejected. */
 function checkArguments(tool: ToolDef, raw: string): Record<string, ArgValue> | string {
+    // @piece parse-object: Parse the raw arguments as a JSON object
     let parsed: unknown;
     try {
         parsed = JSON.parse(raw);
@@ -50,16 +52,22 @@ function checkArguments(tool: ToolDef, raw: string): Record<string, ArgValue> | 
         return "arguments are not valid JSON";
     }
     if (!isRecord(parsed)) return "arguments must be a JSON object";
+    // @end
+    // @piece reject-keys: Reject a userId and any unknown argument
     if (Object.hasOwn(parsed, "userId")) return "userId comes from the session";
     for (const key of Object.keys(parsed)) {
         if (!Object.hasOwn(tool.parameters, key)) return `unexpected argument "${key}"`;
     }
+    // @end
     const args: Record<string, ArgValue> = {};
     for (const [name, spec] of Object.entries(tool.parameters)) {
+        // @piece missing-argument: Handle an argument the model left out
         if (!Object.hasOwn(parsed, name)) {
             if (spec.required) return `missing argument "${name}"`;
             continue;
         }
+        // @end
+        // @piece value-checks: Check the value against its parameter spec
         const value = parsed[name];
         if (spec.type === "integer") {
             if (typeof value !== "number" || !Number.isInteger(value)) return `argument "${name}" must be integer`;
@@ -76,11 +84,18 @@ function checkArguments(tool: ToolDef, raw: string): Record<string, ArgValue> | 
             if (typeof value !== "boolean") return `argument "${name}" must be boolean`;
             args[name] = value;
         }
+        // @end
     }
     return args;
 }
 
 function checkToolCalls(input: GateInput): Decision[] {
+    // For each proposed call, in order:
+    // 1. find the tool by name
+    // 2. parse the raw arguments as unknown and check them against the tool's parameters
+    // 3. a needs-confirmation tool runs only when the learner confirmed that call id
+    // 4. build new args from the checked values; userId comes from the session, never from the model
+    // @piece decide-calls: Decide run or rejected for each call
     const tools = new Map(input.tools.map((t) => [t.name, t]));
     const confirmed = new Set(input.confirmedCallIds);
     return input.calls.map((call): Decision => {
@@ -93,6 +108,7 @@ function checkToolCalls(input: GateInput): Decision[] {
         if (tool.scope === "user") args.userId = input.sessionUserId;
         return { id: call.id, tool: call.name, status: "run", args };
     });
+    // @end
 }
 
 // ---------------------------------------------------------------- test runner (do not change)

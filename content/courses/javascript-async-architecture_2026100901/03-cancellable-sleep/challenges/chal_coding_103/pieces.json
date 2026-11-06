@@ -1,0 +1,40 @@
+[
+  {
+    "id": "already-aborted",
+    "label": "Give up at once if the signal is already aborted",
+    "code": "if (signal?.aborted) {\n  reject(signal.reason);\n  return;\n}"
+  },
+  {
+    "id": "on-abort",
+    "label": "What happens when the signal aborts mid-sleep",
+    "code": "const onAbort = () => {\n  timers.clearTimeout(id);\n  reject(signal.reason);\n};"
+  },
+  {
+    "id": "start-timer",
+    "label": "Start the timer and clean up when it fires",
+    "code": "const id = timers.setTimeout(() => {\n  signal?.removeEventListener(\"abort\", onAbort);\n  resolve();\n}, ms);"
+  },
+  {
+    "id": "listen",
+    "label": "Listen for the abort",
+    "code": "signal?.addEventListener(\"abort\", onAbort, { once: true });"
+  },
+  {
+    "id": "on-abort-own-error",
+    "label": "What happens when the signal aborts mid-sleep",
+    "code": "const onAbort = () => {\n  timers.clearTimeout(id);\n  reject(new Error(\"Sleep aborted\"));\n};",
+    "distractor": true
+  },
+  {
+    "id": "on-abort-timer-runs",
+    "label": "What happens when the signal aborts mid-sleep",
+    "code": "const onAbort = () => {\n  reject(signal.reason);\n};",
+    "distractor": true
+  },
+  {
+    "id": "start-timer-keeps-listener",
+    "label": "Start the timer and clean up when it fires",
+    "code": "const id = timers.setTimeout(resolve, ms);",
+    "distractor": true
+  }
+]

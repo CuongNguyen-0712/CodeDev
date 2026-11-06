@@ -39,19 +39,39 @@ type Config = {
 type SubmitRequest = { userId?: unknown; ip?: unknown };
 type Decision = { status: 200 | 400 | 429; retryAfterSec: number | null; remaining: number };
 
+const TOKEN = 1_000_000;
+type Bucket = { tokens: number; last: number; limit: Limit };
+
 class SubmissionRateLimiter {
+    private readonly buckets = new Map<string, Bucket>();
     private readonly config: Config;
 
     constructor(config: Config) {
         this.config = config;
     }
 
+    private inForce(limit: Limit, now: number): { capacity: number; rate: number } {
+        // [ ] The capacity and refill rate in force right now
+    }
+
+    private refilled(bucket: Bucket, now: number): number {
+        // [ ] Tokens in a bucket after refilling until now
+    }
+
     check(req: SubmitRequest, now: number): Decision {
-        return { status: 200, retryAfterSec: null, remaining: 0 }; // TODO
+        // [ ] Forget idle buckets that are already full
+
+        let key: string;
+        let limit: Limit;
+        // [ ] Whose bucket this request uses, and its limit
+
+        // [ ] Create or refill the bucket
+
+        // [ ] Take a token, or answer 429 with Retry-After
     }
 
     size(): number {
-        return 0; // TODO
+        return this.buckets.size;
     }
 }
 

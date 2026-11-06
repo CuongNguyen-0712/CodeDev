@@ -60,34 +60,44 @@ class LeaderboardService {
     }
 
     startRebuild(): void {
+        // @piece start-rebuild: Start over with new keys from the beginning of the log
         this.status = "rebuilding";
         this.building++;
         this.cursor = 0;
+        // @end
     }
 
     step(): void {
+        // @piece rebuild-batch: Copy one batch of the log into the new keys
         if (this.status !== "rebuilding") return;
         const batch = this.log.read(this.cursor, this.batchSize);
         for (const event of batch) this.apply(this.building, event);
         if (batch.length > 0) this.cursor = batch[batch.length - 1].seq;
+        // @end
+        // @piece switch-live: Switch readers to the new keys once caught up
         if (this.cursor >= this.log.headSeq()) {
             this.live = this.building; // the switch: one assignment, readers never see a half-built board
             this.appliedSeq = this.cursor;
             this.status = "ready";
         }
+        // @end
     }
 
     onEvent(event: ProgressEvent): void {
+        // @piece live-apply: Apply a new event once to the live board
         if (this.status !== "ready" || event.seq <= this.appliedSeq) return;
         this.apply(this.live, event);
         this.appliedSeq = event.seq;
+        // @end
     }
 
     read(board: string, n: number): BoardRead {
+        // @piece read-board: Validate, then read the live board or the snapshot
         if (typeof board !== "string" || !BOARD_NAME.test(board)) return { status: "error", error: "unknown_board" };
         if (!Number.isInteger(n) || n < 1 || n > 100) return { status: "error", error: "invalid_limit" };
         if (this.status === "ready") return { status: "ready", top: this.cache.ztop(this.key(this.live, board), n) };
         return { status: "rebuilding", asOfSeq: this.snapshot.asOfSeq, top: (this.snapshot.boards[board] ?? []).slice(0, n) };
+        // @end
     }
 
     private key(version: number, board: string): string {

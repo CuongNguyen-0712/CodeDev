@@ -1,0 +1,50 @@
+[
+  {
+    "id": "private-key",
+    "label": "Private key blocks",
+    "code": "let out = text.replace(\n    /-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY-----[\\s\\S]*?(-----END ([A-Z0-9]+ )*PRIVATE KEY-----|$)/g,\n    () => mark(\"private_key\"),\n);"
+  },
+  {
+    "id": "url-password",
+    "label": "Passwords inside connection URLs",
+    "code": "out = out.replace(\n    /\\b([A-Za-z][A-Za-z0-9+.-]*:\\/\\/[^\\s:@\\/]*):[^\\s@\\/]+@/g,\n    (_, prefix: string) => `${prefix}:${mark(\"password\")}@`,\n);"
+  },
+  {
+    "id": "tokens-and-keys",
+    "label": "JWTs and provider API keys",
+    "code": "out = out.replace(/\\beyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+/g, () => mark(\"jwt\"));\nout = out.replace(\n    /(?<![A-Za-z0-9_-])sk-[A-Za-z0-9_-]{20,}|(?<![A-Za-z0-9_])ghp_[A-Za-z0-9]{20,}|(?<![A-Za-z0-9])AKIA[A-Z0-9]{16}(?![A-Za-z0-9])/g,\n    () => mark(\"api_key\"),\n);"
+  },
+  {
+    "id": "bearer",
+    "label": "Bearer tokens",
+    "code": "out = out.replace(/\\b(bearer\\s+)[A-Za-z0-9._~+\\/-]{16,}=*/gi, (_, prefix: string) => `${prefix}${mark(\"bearer\")}`);"
+  },
+  {
+    "id": "env-lines",
+    "label": "Sensitive variables in .env lines",
+    "code": "out = out.replace(/^([ \\t]*(?:export[ \\t]+)?)([A-Z][A-Z0-9_]*)([ \\t]*=[ \\t]*)(.*)$/gm, (line: string, lead: string, key: string, eq: string, value: string) => {\n    if (value === \"\" || value.includes(\"[REDACTED:\")) return line;\n    if (!key.split(\"_\").some((word) => SENSITIVE_WORDS.has(word))) return line;\n    return `${lead}${key}${eq}${mark(\"env\")}`;\n});"
+  },
+  {
+    "id": "emails",
+    "label": "Email addresses, when asked to",
+    "code": "if (options.redactEmails) {\n    out = out.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g, () => mark(\"email\"));\n}"
+  },
+  {
+    "id": "private-key-to-last-end",
+    "label": "Private key blocks",
+    "code": "let out = text.replace(\n    /-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY-----[\\s\\S]*(-----END ([A-Z0-9]+ )*PRIVATE KEY-----|$)/g,\n    () => mark(\"private_key\"),\n);",
+    "distractor": true
+  },
+  {
+    "id": "tokens-and-keys-loose-sk",
+    "label": "JWTs and provider API keys",
+    "code": "out = out.replace(/\\beyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+/g, () => mark(\"jwt\"));\nout = out.replace(\n    /sk-[A-Za-z0-9_-]{20,}|(?<![A-Za-z0-9_])ghp_[A-Za-z0-9]{20,}|(?<![A-Za-z0-9])AKIA[A-Z0-9]{16}(?![A-Za-z0-9])/g,\n    () => mark(\"api_key\"),\n);",
+    "distractor": true
+  },
+  {
+    "id": "url-password-whole-prefix",
+    "label": "Passwords inside connection URLs",
+    "code": "out = out.replace(\n    /\\b([A-Za-z][A-Za-z0-9+.-]*:\\/\\/[^\\s:@\\/]*):[^\\s@\\/]+@/g,\n    () => `${mark(\"password\")}@`,\n);",
+    "distractor": true
+  }
+]

@@ -135,7 +135,7 @@ async function processBatch(messages: KafkaMessage[], handle: (m: KafkaMessage) 
             "**Park the key** and page someone, when skipping would create a wrong state (a balance, a state machine). Reconciliation (lesson 4.2) repairs it from the source of truth.",
         ]),
         p("Duplicates fall out of the same bookkeeping: an event whose seq is at or below the key's next expected seq has already been handled (or given up) and is dropped. The timer must run on an injected clock, both so that tests can control it and so that a gap is measured from the moment it appears - not from when the consumer started."),
-        p("In the exercise you write the dispatcher of such a pool: per-key queues, one event in flight per key, gap detection with a timeout on a fake clock, and no key blocking another. The runner delivers interleaved, out-of-order and duplicate events with scripted processing times and prints the processing order per key and the completion times."),
+        p("In the exercise you assemble the dispatcher of such a pool: per-key queues, one event in flight per key, gap detection with a timeout on a fake clock, and no key blocking another. The runner delivers interleaved, out-of-order and duplicate events with scripted processing times and prints the processing order per key and the completion times."),
 
         challenge("chal_coding_dce_312"),
 

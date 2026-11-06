@@ -1,0 +1,51 @@
+[
+  {
+    "id": "fold-name",
+    "label": "Compare names without case or accents",
+    "code": "const fold = (s: string): string =>\n    s.normalize(\"NFD\").replace(/[̀-ͯ]/g, \"\").replace(/đ/g, \"d\").replace(/Đ/g, \"D\").toLowerCase();"
+  },
+  {
+    "id": "numbering",
+    "label": "Number each distinct value per type",
+    "code": "const label = (type: PiiType, key: string): string => {\n    const id = `${type}:${key}`;\n    if (!numbers.has(id)) numbers.set(id, [...numbers.keys()].filter((k) => k.startsWith(type + \":\")).length + 1);\n    counts[type]++;\n    return `[${type}_${numbers.get(id)}]`;\n};"
+  },
+  {
+    "id": "email-and-id",
+    "label": "Redact emails, then national IDs",
+    "code": "let out = text.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+/g, (m) => label(\"EMAIL\", m.toLowerCase()));\nout = out.replace(/(?<![A-Za-z0-9_-])\\d{12}(?![A-Za-z0-9_-])/g, (m) => label(\"NATIONAL_ID\", m));"
+  },
+  {
+    "id": "phone",
+    "label": "Redact phone numbers in any format",
+    "code": "out = out.replace(/(?<![A-Za-z0-9_-])(?:\\+84|0)(?:[ .]?\\d){9}(?![A-Za-z0-9_-])/g, (m) =>\n    label(\"PHONE\", \"0\" + m.replace(/\\D/g, \"\").slice(-9)),\n);"
+  },
+  {
+    "id": "names",
+    "label": "Redact roster names as whole words",
+    "code": "const names = [...new Set(roster.map((r) => fold(r.trim())).filter((r) => r.length > 0))].sort((a, b) => b.length - a.length);\nconst folded = fold(out);\nconst isWordChar = (c: string | undefined) => c !== undefined && /[a-z0-9]/.test(c);\nlet result = \"\";\nlet i = 0;\nwhile (i < out.length) {\n    const name = isWordChar(folded[i - 1]) ? undefined : names.find((n) => folded.startsWith(n, i) && !isWordChar(folded[i + n.length]));\n    if (name) {\n        result += label(\"NAME\", name);\n        i += name.length;\n    } else {\n        result += out[i];\n        i++;\n    }\n}"
+  },
+  {
+    "id": "email-and-id-word-boundary",
+    "label": "Redact emails, then national IDs",
+    "code": "let out = text.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+/g, (m) => label(\"EMAIL\", m.toLowerCase()));\nout = out.replace(/\\b\\d{12}\\b/g, (m) => label(\"NATIONAL_ID\", m));",
+    "distractor": true
+  },
+  {
+    "id": "fold-name-exact",
+    "label": "Compare names without case or accents",
+    "code": "const fold = (s: string): string =>\n    s;",
+    "distractor": true
+  },
+  {
+    "id": "names-substring",
+    "label": "Redact roster names as whole words",
+    "code": "const names = [...new Set(roster.map((r) => fold(r.trim())).filter((r) => r.length > 0))].sort((a, b) => b.length - a.length);\nconst folded = fold(out);\nconst isWordChar = (_c: string | undefined) => false;\nlet result = \"\";\nlet i = 0;\nwhile (i < out.length) {\n    const name = isWordChar(folded[i - 1]) ? undefined : names.find((n) => folded.startsWith(n, i) && !isWordChar(folded[i + n.length]));\n    if (name) {\n        result += label(\"NAME\", name);\n        i += name.length;\n    } else {\n        result += out[i];\n        i++;\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "phone-raw-key",
+    "label": "Redact phone numbers in any format",
+    "code": "out = out.replace(/(?<![A-Za-z0-9_-])(?:\\+84|0)(?:[ .]?\\d){9}(?![A-Za-z0-9_-])/g, (m) =>\n    label(\"PHONE\", m),\n);",
+    "distractor": true
+  }
+]

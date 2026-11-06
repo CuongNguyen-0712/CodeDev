@@ -227,6 +227,13 @@ từng học viên; học viên đặt con trỏ vào dòng rồi bấm mảnh (
 thân hàm), hoặc kéo thả vào dòng trên desktop, và
 đánh dấu mảnh đã dùng.
 
+**Fix bug ghép mảnh** (`fix_bug` + thư mục `bugs/`): các khối đánh dấu trong `solution.<ext>` là bản sửa,
+`bugs/<id mảnh>.<ext>` (dòng đầu giống mảnh nhiễu) là đoạn code lỗi của khối đó. Starter khi đó chính là
+chương trình lỗi, không có dòng `[ ]`: học viên tự tìm dòng sai, bôi chọn rồi bấm (hoặc thả) bản sửa, mảnh thay
+trọn các dòng được chọn. Khối nào cũng phải có bug; mảnh nhiễu là cách sửa sai nghe hợp lý. Chữ ngoài các mảnh
+là thứ học viên đọc, nên chỉ mô tả triệu chứng, không lộ cách sửa. verify-challenges kiểm thêm: để lại từng bug
+một (các khối khác đã sửa) thì phải fail.
+
 ### O5 — Scenario pack
 Tình huống + evidence đầy đủ (log, trace, query plan, metric, diff) → 5–8 câu Đ/S theo O3 (đọc evidence →
 giả thuyết → loại trừ → cách sửa → cách kiểm chứng) → 1 fix bug tái hiện sự cố theo O4 → not graded:

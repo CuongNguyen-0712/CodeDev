@@ -1,0 +1,19 @@
+[
+  {
+    "id": "critical-section",
+    "label": "Read, check and write the balance under the lock",
+    "code": "return locks.withLock(wallet.id, async () => {\n  const balance = await wallet.getBalance();\n\n  if (balance < amount) {\n    return { ok: false, balance };\n  }\n\n  await wallet.setBalance(balance - amount);\n  return { ok: true, balance: balance - amount };\n});"
+  },
+  {
+    "id": "critical-section-no-lock",
+    "label": "Read, check and write the balance under the lock",
+    "code": "const balance = await wallet.getBalance();\nif (balance < amount) return { ok: false, balance };\nawait wallet.setBalance(balance - amount);\nreturn { ok: true, balance: balance - amount };",
+    "distractor": true
+  },
+  {
+    "id": "critical-section-read-outside",
+    "label": "Read, check and write the balance under the lock",
+    "code": "const balance = await wallet.getBalance();\nreturn locks.withLock(wallet.id, async () => {\n  if (balance < amount) {\n    return { ok: false, balance };\n  }\n  await wallet.setBalance(balance - amount);\n  return { ok: true, balance: balance - amount };\n});",
+    "distractor": true
+  }
+]

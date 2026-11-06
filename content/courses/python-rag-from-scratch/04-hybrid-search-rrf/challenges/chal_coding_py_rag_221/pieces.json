@@ -1,0 +1,35 @@
+[
+  {
+    "id": "weights",
+    "label": "One weight per ranking",
+    "code": "if weights is None:\n    weights = [1.0] * len(rankings)\nif len(weights) != len(rankings):\n    raise ValueError(\"one weight per ranking\")"
+  },
+  {
+    "id": "add-ranking",
+    "label": "Add the votes of one ranking",
+    "code": "seen = set()\nfor rank, doc_id in enumerate(ranking, start=1):\n    if doc_id in seen:\n        continue  # a repeated id counts once, at its best rank\n    seen.add(doc_id)\n    scores[doc_id] = scores.get(doc_id, 0.0) + weight / (k + rank)"
+  },
+  {
+    "id": "order",
+    "label": "Best fused score first",
+    "code": "ordered = sorted(scores.items(), key=lambda item: (-item[1], item[0]))"
+  },
+  {
+    "id": "add-ranking-counts-repeats",
+    "label": "Add the votes of one ranking",
+    "code": "for rank, doc_id in enumerate(ranking, start=1):\n    scores[doc_id] = scores.get(doc_id, 0.0) + weight / (k + rank)",
+    "distractor": true
+  },
+  {
+    "id": "add-ranking-zero-based",
+    "label": "Add the votes of one ranking",
+    "code": "seen = set()\nfor rank, doc_id in enumerate(ranking):\n    if doc_id in seen:\n        continue\n    seen.add(doc_id)\n    scores[doc_id] = scores.get(doc_id, 0.0) + weight / (k + rank)",
+    "distractor": true
+  },
+  {
+    "id": "order-ties-input-order",
+    "label": "Best fused score first",
+    "code": "ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)",
+    "distractor": true
+  }
+]

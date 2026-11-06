@@ -1,0 +1,51 @@
+[
+  {
+    "id": "redrive-batch",
+    "label": "Move a limited batch of redrives back",
+    "code": "const batch = state.redrivePending.splice(0, state.config.redrivePerTick);\nfor (const id of batch) {\n    const index = state.dlq.findIndex((d) => d.id === id);\n    if (index < 0) continue;\n    if (state.main.some((m) => m.id === id)) {\n        events.push(`${id}: already in the main queue, left in the DLQ`);\n        continue;\n    }\n    const [dead] = state.dlq.splice(index, 1);\n    state.main.push({ id: dead.id, schema: dead.schema, body: dead.body, attempts: 0, firstFailedAt: null, lastFailedAt: null, lastError: null });\n    events.push(`redriven ${id}`);\n}"
+  },
+  {
+    "id": "deliver",
+    "label": "Deliver one message, park it after the last attempt",
+    "code": "const msg = state.main.shift();\nif (!msg) return events;\nmsg.attempts += 1;\ntry {\n    handle(state, msg);\n    events.push(`processed ${msg.id}`);\n} catch (err) {\n    const error = (err as Error).message;\n    msg.firstFailedAt ??= state.now;\n    msg.lastFailedAt = state.now;\n    msg.lastError = error;\n    if (msg.attempts >= state.config.maxAttempts) {\n        state.dlq.push({\n            id: msg.id,\n            schema: msg.schema,\n            body: msg.body,\n            attempts: msg.attempts,\n            firstFailedAt: msg.firstFailedAt,\n            lastFailedAt: msg.lastFailedAt,\n            lastError: error,\n        });\n        events.push(`dead-lettered ${msg.id} after ${msg.attempts} attempts: ${error}`);\n    } else {\n        state.main.push(msg);\n        events.push(`failed ${msg.id} attempt ${msg.attempts}: ${error}`);\n    }\n}"
+  },
+  {
+    "id": "select-letters",
+    "label": "Choose the dead letters to redrive",
+    "code": "const byIds = Array.isArray(cmd.ids) && cmd.ids.length > 0;\nconst byError = typeof cmd.error === \"string\" && cmd.error.length > 0;\nif (byIds === byError) return [\"rejected: give either ids or error\"];\n\nconst selected = byIds ? (cmd.ids as string[]) : state.dlq.filter((d) => d.lastError === cmd.error).map((d) => d.id);\nif (selected.length === 0) return [`no dead letters with error ${cmd.error}`];"
+  },
+  {
+    "id": "queue-redrives",
+    "label": "Queue each chosen letter, if it may go back",
+    "code": "const events: string[] = [];\nfor (const id of selected) {\n    const dead = state.dlq.find((d) => d.id === id);\n    if (!dead) events.push(`${id}: not in the DLQ`);\n    else if (!state.config.supportedSchemas.includes(dead.schema)) events.push(`${id}: schema v${dead.schema} is not supported, not redriven`);\n    else if (state.redrivePending.includes(id)) events.push(`${id}: already queued for redrive`);\n    else {\n        state.redrivePending.push(id);\n        events.push(`${id}: queued for redrive`);\n    }\n}"
+  },
+  {
+    "id": "purge",
+    "label": "Purge dead letters older than the limit",
+    "code": "if (!Number.isInteger(olderThanDays) || olderThanDays < 1) return [\"rejected: olderThanDays must be a whole number of at least 1\"];\nconst limit = olderThanDays * MINUTES_PER_DAY;\nconst events: string[] = [];\nstate.dlq = state.dlq.filter((d) => {\n    if (state.now - d.lastFailedAt < limit) return true;\n    events.push(`purged ${d.id}`);\n    state.redrivePending = state.redrivePending.filter((id) => id !== d.id);\n    return false;\n});\nreturn events;"
+  },
+  {
+    "id": "purge-unchecked-days",
+    "label": "Purge dead letters older than the limit",
+    "code": "const limit = olderThanDays * MINUTES_PER_DAY;\nconst events: string[] = [];\nstate.dlq = state.dlq.filter((d) => {\n    if (state.now - d.lastFailedAt < limit) return true;\n    events.push(`purged ${d.id}`);\n    state.redrivePending = state.redrivePending.filter((id) => id !== d.id);\n    return false;\n});\nreturn events;",
+    "distractor": true
+  },
+  {
+    "id": "queue-any-schema",
+    "label": "Queue each chosen letter, if it may go back",
+    "code": "const events: string[] = [];\nfor (const id of selected) {\n    const dead = state.dlq.find((d) => d.id === id);\n    if (!dead) events.push(`${id}: not in the DLQ`);\n    else if (state.redrivePending.includes(id)) events.push(`${id}: already queued for redrive`);\n    else {\n        state.redrivePending.push(id);\n        events.push(`${id}: queued for redrive`);\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "redrive-everything-at-once",
+    "label": "Move a limited batch of redrives back",
+    "code": "const batch = state.redrivePending.splice(0);\nfor (const id of batch) {\n    const index = state.dlq.findIndex((d) => d.id === id);\n    if (index < 0) continue;\n    if (state.main.some((m) => m.id === id)) {\n        events.push(`${id}: already in the main queue, left in the DLQ`);\n        continue;\n    }\n    const [dead] = state.dlq.splice(index, 1);\n    state.main.push({ id: dead.id, schema: dead.schema, body: dead.body, attempts: 0, firstFailedAt: null, lastFailedAt: null, lastError: null });\n    events.push(`redriven ${id}`);\n}",
+    "distractor": true
+  },
+  {
+    "id": "redrive-keeps-attempts",
+    "label": "Move a limited batch of redrives back",
+    "code": "const batch = state.redrivePending.splice(0, state.config.redrivePerTick);\nfor (const id of batch) {\n    const index = state.dlq.findIndex((d) => d.id === id);\n    if (index < 0) continue;\n    if (state.main.some((m) => m.id === id)) {\n        events.push(`${id}: already in the main queue, left in the DLQ`);\n        continue;\n    }\n    const [dead] = state.dlq.splice(index, 1);\n    state.main.push({ id: dead.id, schema: dead.schema, body: dead.body, attempts: dead.attempts, firstFailedAt: dead.firstFailedAt, lastFailedAt: dead.lastFailedAt, lastError: dead.lastError });\n    events.push(`redriven ${id}`);\n}",
+    "distractor": true
+  }
+]

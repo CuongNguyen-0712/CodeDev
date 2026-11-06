@@ -1,0 +1,29 @@
+[
+  {
+    "id": "loop-state",
+    "label": "What the run keeps track of between steps",
+    "code": "let steps = 0;\nlet lastKey = \"\";\nlet sameInARow = 0;\nlet lastError: string | null = null;\nconst escalate = (reason: \"max_steps\" | \"repeated_call\"): Outcome => ({\n    status: \"escalated\",\n    reason,\n    summary: `${reason} after ${steps} steps; last error: ${lastError ?? \"none\"}`,\n});"
+  },
+  {
+    "id": "next-step",
+    "label": "Ask the model for its next step",
+    "code": "if (steps >= policy.maxSteps) return escalate(\"max_steps\");\nconst turn = model.next(transcript);\nsteps++;"
+  },
+  {
+    "id": "run-call",
+    "label": "Run the proposed call and give the model its result",
+    "code": "const key = `${call.name} ${canonical(call.args)}`;\nsameInARow = key === lastKey ? sameInARow + 1 : 1;\nlastKey = key;\nif (sameInARow >= policy.maxSameCall) return escalate(\"repeated_call\");\n\ntranscript.push({ role: \"assistant\", content: `call ${call.name} ${JSON.stringify(call.args)}` });\nlet content = \"\";\nfor (let retry = 0; ; retry++) {\n    try {\n        content = tools.call(call);\n        break;\n    } catch (error) {\n        if (!(error instanceof ToolError)) throw error;\n        if (TEMPORARY.has(error.code) && retry < policy.maxRetries) {\n            clock.sleep(policy.baseBackoffMs * 2 ** retry);\n            continue;\n        }\n        lastError = `${error.code}: ${error.message}`;\n        content = `error ${lastError}`;\n        break;\n    }\n}\ntranscript.push({ role: \"tool\", content });"
+  },
+  {
+    "id": "run-call-fixed-wait",
+    "label": "Run the proposed call and give the model its result",
+    "code": "const key = `${call.name} ${canonical(call.args)}`;\nsameInARow = key === lastKey ? sameInARow + 1 : 1;\nlastKey = key;\nif (sameInARow >= policy.maxSameCall) return escalate(\"repeated_call\");\n\ntranscript.push({ role: \"assistant\", content: `call ${call.name} ${JSON.stringify(call.args)}` });\nlet content = \"\";\nfor (let retry = 0; ; retry++) {\n    try {\n        content = tools.call(call);\n        break;\n    } catch (error) {\n        if (!(error instanceof ToolError)) throw error;\n        if (TEMPORARY.has(error.code) && retry < policy.maxRetries) {\n            clock.sleep(policy.baseBackoffMs);\n            continue;\n        }\n        lastError = `${error.code}: ${error.message}`;\n        content = `error ${lastError}`;\n        break;\n    }\n}\ntranscript.push({ role: \"tool\", content });",
+    "distractor": true
+  },
+  {
+    "id": "run-call-retry-any-error",
+    "label": "Run the proposed call and give the model its result",
+    "code": "const key = `${call.name} ${canonical(call.args)}`;\nsameInARow = key === lastKey ? sameInARow + 1 : 1;\nlastKey = key;\nif (sameInARow >= policy.maxSameCall) return escalate(\"repeated_call\");\n\ntranscript.push({ role: \"assistant\", content: `call ${call.name} ${JSON.stringify(call.args)}` });\nlet content = \"\";\nfor (let retry = 0; ; retry++) {\n    try {\n        content = tools.call(call);\n        break;\n    } catch (error) {\n        if (!(error instanceof ToolError)) throw error;\n        if (retry < policy.maxRetries) {\n            clock.sleep(policy.baseBackoffMs * 2 ** retry);\n            continue;\n        }\n        lastError = `${error.code}: ${error.message}`;\n        content = `error ${lastError}`;\n        break;\n    }\n}\ntranscript.push({ role: \"tool\", content });",
+    "distractor": true
+  }
+]

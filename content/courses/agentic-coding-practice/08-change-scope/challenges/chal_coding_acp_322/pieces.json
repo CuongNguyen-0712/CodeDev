@@ -1,0 +1,60 @@
+[
+  {
+    "id": "glob-match",
+    "label": "Match the whole path, every brace alternative",
+    "code": "const segments = path.split(\"/\");\nreturn expandBraces(pattern).some((alt) => matchSegments(alt.split(\"/\"), 0, segments, 0));"
+  },
+  {
+    "id": "paths-to-check",
+    "label": "The paths to check, two for a rename",
+    "code": "const toCheck: { path: string; change: string }[] = [];\nfor (const c of changes) {\n    if (c.status === \"renamed\") {\n        toCheck.push({ path: c.from, change: \"renamed-from\" }, { path: c.path, change: \"renamed-to\" });\n    } else {\n        toCheck.push({ path: c.path, change: c.status });\n    }\n}"
+  },
+  {
+    "id": "judge-paths",
+    "label": "The first violation of each path, if any",
+    "code": "for (const { path, change } of toCheck) {\n    if (invalidPath(path)) {\n        violations.push({ path, change, reason: \"invalid path\" });\n        continue;\n    }\n    const isAllowed = allowed.some((p) => matchGlob(p, path));\n    const hit = forbidden.find((f) => matchGlob(f.pattern, path) && !(f.unlessAllowed && isAllowed));\n    if (hit) violations.push({ path, change, reason: `forbidden: ${hit.pattern}` });\n    else if (!isAllowed) violations.push({ path, change, reason: \"outside allowed paths\" });\n}"
+  },
+  {
+    "id": "report",
+    "label": "Sorted violations and the report",
+    "code": "const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);\nviolations.sort((a, b) => cmp(a.path, b.path) || cmp(a.change, b.change));\nreturn { ok: violations.length === 0, checked: toCheck.length, violations };"
+  },
+  {
+    "id": "expand-braces",
+    "label": "Helper: expand {a,b} groups into alternatives",
+    "code": "function expandBraces(pattern: string): string[] {\n    const open = pattern.indexOf(\"{\");\n    if (open === -1) return [pattern];\n    const close = pattern.indexOf(\"}\", open + 1);\n    if (close === -1) return [pattern];\n    const head = pattern.slice(0, open);\n    const rest = expandBraces(pattern.slice(close + 1));\n    return pattern.slice(open + 1, close).split(\",\").flatMap((alt) => rest.map((r) => head + alt + r));\n}"
+  },
+  {
+    "id": "segment-matches",
+    "label": "Helper: does one pattern segment match one path segment",
+    "code": "function segmentMatches(pattern: string, segment: string): boolean {\n    let source = \"\";\n    for (const ch of pattern) {\n        if (ch === \"*\") source += source.endsWith(\".*\") ? \"\" : \".*\";\n        else if (ch === \"?\") source += \".\";\n        else source += ch.replace(/[.*+?^${}()|[\\]\\\\\\/-]/g, \"\\\\$&\");\n    }\n    return new RegExp(`^${source}$`, \"s\").test(segment);\n}"
+  },
+  {
+    "id": "match-segments",
+    "label": "Helper: match segment lists, ** included",
+    "code": "function matchSegments(p: string[], i: number, s: string[], j: number): boolean {\n    if (i === p.length) return j === s.length;\n    if (p[i] === \"**\") return matchSegments(p, i + 1, s, j) || (j < s.length && matchSegments(p, i, s, j + 1));\n    return j < s.length && segmentMatches(p[i], s[j]) && matchSegments(p, i + 1, s, j + 1);\n}"
+  },
+  {
+    "id": "invalid-path",
+    "label": "Helper: is a path invalid",
+    "code": "function invalidPath(path: string): boolean {\n    if (path === \"\" || path.includes(\"\\\\\")) return true;\n    return path.split(\"/\").some((seg) => seg === \"\" || seg === \".\" || seg === \"..\");\n}"
+  },
+  {
+    "id": "judge-paths-forbidden-always-wins",
+    "label": "The first violation of each path, if any",
+    "code": "for (const { path, change } of toCheck) {\n    if (invalidPath(path)) {\n        violations.push({ path, change, reason: \"invalid path\" });\n        continue;\n    }\n    const isAllowed = allowed.some((p) => matchGlob(p, path));\n    const hit = forbidden.find((f) => matchGlob(f.pattern, path));\n    if (hit) violations.push({ path, change, reason: `forbidden: ${hit.pattern}` });\n    else if (!isAllowed) violations.push({ path, change, reason: \"outside allowed paths\" });\n}",
+    "distractor": true
+  },
+  {
+    "id": "match-segments-double-star-needs-folder",
+    "label": "Helper: match segment lists, ** included",
+    "code": "function matchSegments(p: string[], i: number, s: string[], j: number): boolean {\n    if (i === p.length) return j === s.length;\n    if (p[i] === \"**\") return j < s.length && (matchSegments(p, i + 1, s, j + 1) || matchSegments(p, i, s, j + 1));\n    return j < s.length && segmentMatches(p[i], s[j]) && matchSegments(p, i + 1, s, j + 1);\n}",
+    "distractor": true
+  },
+  {
+    "id": "paths-to-check-new-path-only",
+    "label": "The paths to check, two for a rename",
+    "code": "const toCheck: { path: string; change: string }[] = [];\nfor (const c of changes) {\n    if (c.status === \"renamed\") {\n        toCheck.push({ path: c.path, change: \"renamed-to\" });\n    } else {\n        toCheck.push({ path: c.path, change: c.status });\n    }\n}",
+    "distractor": true
+  }
+]

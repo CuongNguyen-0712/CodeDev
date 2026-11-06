@@ -1,0 +1,50 @@
+[
+  {
+    "id": "runs-on",
+    "label": "Decide where this component runs",
+    "code": "const uses = node.uses ?? [];\nconst onClient = parentOnClient === true || uses.some((f) => CLIENT_FEATURES.includes(f));\nplan.components.push({ name: node.name, runsOn: onClient ? \"client\" : \"server\" });"
+  },
+  {
+    "id": "client-size",
+    "label": "Count its code toward the client bundle",
+    "code": "total += kb(node.ownKb) + kb(node.libKb);"
+  },
+  {
+    "id": "boundary-and-props",
+    "label": "Mark the boundary and check the props crossing it",
+    "code": "if (parentOnClient !== true) {\n    plan.useClient.push(node.name);\n    if (parentOnClient === false) {\n        for (const [prop, kind] of Object.entries(node.props ?? {})) {\n            if (!CAN_CROSS.includes(kind)) plan.badProps.push(`${node.name}.${prop} (${kind})`);\n        }\n    }\n}"
+  },
+  {
+    "id": "conflicts",
+    "label": "Flag server-only features on the client",
+    "code": "if (uses.some((f) => SERVER_ONLY_FEATURES.includes(f))) plan.conflicts.push(node.name);"
+  },
+  {
+    "id": "visit-children",
+    "label": "Visit the children",
+    "code": "for (const child of node.children ?? []) visit(child, onClient);"
+  },
+  {
+    "id": "walk-and-round",
+    "label": "Walk the tree and report the size",
+    "code": "visit(root, null);\nplan.clientKb = Math.round(total * 10) / 10;\nreturn plan;"
+  },
+  {
+    "id": "boundary-date-blocked",
+    "label": "Mark the boundary and check the props crossing it",
+    "code": "if (parentOnClient !== true) {\n    plan.useClient.push(node.name);\n    if (parentOnClient === false) {\n        for (const [prop, kind] of Object.entries(node.props ?? {})) {\n            if (!CAN_CROSS.includes(kind) || kind === \"date\") plan.badProps.push(`${node.name}.${prop} (${kind})`);\n        }\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "boundary-every-client",
+    "label": "Mark the boundary and check the props crossing it",
+    "code": "plan.useClient.push(node.name);\nif (parentOnClient === false) {\n    for (const [prop, kind] of Object.entries(node.props ?? {})) {\n        if (!CAN_CROSS.includes(kind)) plan.badProps.push(`${node.name}.${prop} (${kind})`);\n    }\n}",
+    "distractor": true
+  },
+  {
+    "id": "runs-on-own-features",
+    "label": "Decide where this component runs",
+    "code": "const uses = node.uses ?? [];\nconst onClient = uses.some((f) => CLIENT_FEATURES.includes(f));\nplan.components.push({ name: node.name, runsOn: onClient ? \"client\" : \"server\" });",
+    "distractor": true
+  }
+]

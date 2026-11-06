@@ -56,8 +56,8 @@ type Deps = {
 };
 
 async function enrollWithPayment(req: EnrollRequest, deps: Deps): Promise<EnrollOutcome> {
-    // DuplicateEnrollmentError propagates from here: nothing has been charged yet.
     const enrollment = await deps.enrollments.insert({ userId: req.userId, courseId: req.courseId });
+    // @piece charge: Charge the learner, and handle a failed charge
     const context = (reason: string): LogContext => ({
         enrollmentId: enrollment.id,
         userId: req.userId,
@@ -73,31 +73,32 @@ async function enrollWithPayment(req: EnrollRequest, deps: Deps): Promise<Enroll
             idempotencyKey: enrollment.id,
         }));
     } catch (error) {
-        // No payment, no enrollment: undo the pending row whatever went wrong.
         await deps.enrollments.remove(enrollment.id);
         if (error instanceof PaymentDeclinedError) {
-            // An expected business outcome: map it to a result the API can show the learner.
             deps.logger.warn("payment_declined", context(error.code));
             return { status: "payment_declined", code: error.code };
         }
-        // Not a decision about the card: the caller must know (retry later, 503, alert).
         deps.logger.error("payment_failed", context(messageOf(error)));
         throw error;
     }
-
+    // @end
     await deps.enrollments.activate(enrollment.id, chargeId);
     try {
         await deps.mailer.sendReceipt(req.userId, req.courseId);
+    // @piece receipt-failure: When the receipt cannot be sent
     } catch (error) {
         // Best effort: the learner paid and is enrolled; the receipt can be resent from the log.
         deps.logger.warn("receipt_failed", context(messageOf(error)));
+    // @end
     }
     return { status: "enrolled", enrollmentId: enrollment.id };
 }
 
+// @piece error-helper: Helper below the enrollment flow
 function messageOf(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
+// @end
 
 // ------------------------------------------------------------ fakes and test runner (do not change)
 // In-memory enrollments table, a fake payment gateway that behaves by payment method id

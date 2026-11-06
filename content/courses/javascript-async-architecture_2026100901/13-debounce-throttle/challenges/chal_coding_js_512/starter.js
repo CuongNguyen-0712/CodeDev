@@ -31,17 +31,24 @@ function debounce(fn, waitMs, options = {}, timers) {
   const leading = options.leading === true;
   const trailing = options.trailing !== false;
 
+  // [ ] Burst state: timer, latest arguments, times
+
+  // [ ] Invoke fn, and end a burst
+
+  // [ ] Set the timer for the next due time
+
+  // [ ] When the timer fires
+
   function debounced(...args) {
-    // TODO: start or extend the burst, remember the latest arguments,
-    //       invoke on the leading edge and/or schedule the trailing / maxWait invocation.
+    // [ ] Start or extend the burst on every call
   }
 
   debounced.cancel = function cancel() {
-    // TODO
+    // [ ] Drop the pending call
   };
 
   debounced.flush = function flush() {
-    // TODO
+    // [ ] Run the pending call now
   };
 
   return debounced;

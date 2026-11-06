@@ -1,0 +1,29 @@
+[
+  {
+    "id": "search-condition",
+    "label": "Build the title search",
+    "code": "sql = (\n    \"SELECT course_id, title, level FROM courses \"\n    \"WHERE title LIKE ? ESCAPE '\\\\' AND status = 'published'\"\n)\nparams = [\"%\" + escape_like(q) + \"%\"]"
+  },
+  {
+    "id": "level-filter",
+    "label": "Filter by level when one is given",
+    "code": "if level:\n    sql += \" AND level = ?\"\n    params.append(level)"
+  },
+  {
+    "id": "run-query",
+    "label": "Run the query",
+    "code": "return [list(row) for row in db.execute(sql, params)]"
+  },
+  {
+    "id": "search-condition-partial-escape",
+    "label": "Build the title search",
+    "code": "sql = (\n    \"SELECT course_id, title, level FROM courses \"\n    \"WHERE title LIKE ? ESCAPE '\\\\' AND status = 'published'\"\n)\nparams = [\"%\" + q.replace(\"%\", \"\\\\%\").replace(\"_\", \"\\\\_\") + \"%\"]",
+    "distractor": true
+  },
+  {
+    "id": "search-condition-raw-pattern",
+    "label": "Build the title search",
+    "code": "sql = (\n    \"SELECT course_id, title, level FROM courses \"\n    \"WHERE title LIKE ? AND status = 'published'\"\n)\nparams = [\"%\" + q + \"%\"]",
+    "distractor": true
+  }
+]

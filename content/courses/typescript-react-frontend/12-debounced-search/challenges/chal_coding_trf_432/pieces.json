@@ -1,0 +1,50 @@
+[
+  {
+    "id": "state",
+    "label": "The pending timer, the request in flight, the latest id",
+    "code": "let timer: number | null = null;\nlet inFlight: FakeAbortController | null = null;\nlet latest = 0; // id of the only request whose answer may still be shown"
+  },
+  {
+    "id": "cancel-timer",
+    "label": "Cancel a scheduled search",
+    "code": "function cancelTimer(): void {\n    if (timer !== null) clock.clearTimeout(timer);\n    timer = null;\n}"
+  },
+  {
+    "id": "abort-request",
+    "label": "Abort the request in flight",
+    "code": "function abortInFlight(): void {\n    inFlight?.abort();\n    inFlight = null;\n}"
+  },
+  {
+    "id": "send",
+    "label": "Send one request; show only the latest answer",
+    "code": "abortInFlight();\nconst id = ++latest;\nconst controller = new FakeAbortController();\ninFlight = controller;\nsearch(query, controller.signal).then(\n    (results) => {\n        if (id !== latest) return; // a newer request, a cleared box or an unmount\n        inFlight = null;\n        show(results);\n    },\n    (error: unknown) => {\n        if (id !== latest || (error instanceof Error && error.name === \"AbortError\")) return;\n        inFlight = null;\n        showError(error instanceof Error ? error.message : String(error));\n    },\n);"
+  },
+  {
+    "id": "on-input",
+    "label": "Wait for a pause in typing",
+    "code": "cancelTimer();\nconst query = text.trim();\nif (query === \"\") {\n    latest++;\n    abortInFlight();\n    show([]);\n    return;\n}\ntimer = clock.setTimeout(() => {\n    timer = null;\n    send(query);\n}, debounceMs);"
+  },
+  {
+    "id": "dispose",
+    "label": "Stop everything when the box goes away",
+    "code": "cancelTimer();\nlatest++;\nabortInFlight();"
+  },
+  {
+    "id": "on-input-keep-first-timer",
+    "label": "Wait for a pause in typing",
+    "code": "const query = text.trim();\nif (query === \"\") {\n    latest++;\n    abortInFlight();\n    show([]);\n    return;\n}\nif (timer !== null) return;\ntimer = clock.setTimeout(() => {\n    timer = null;\n    send(query);\n}, debounceMs);",
+    "distractor": true
+  },
+  {
+    "id": "send-no-abort",
+    "label": "Send one request; show only the latest answer",
+    "code": "const id = ++latest;\nconst controller = new FakeAbortController();\ninFlight = controller;\nsearch(query, controller.signal).then(\n    (results) => {\n        if (id !== latest) return; // a newer request, a cleared box or an unmount\n        inFlight = null;\n        show(results);\n    },\n    (error: unknown) => {\n        if (id !== latest || (error instanceof Error && error.name === \"AbortError\")) return;\n        inFlight = null;\n        showError(error instanceof Error ? error.message : String(error));\n    },\n);",
+    "distractor": true
+  },
+  {
+    "id": "send-no-latest-check",
+    "label": "Send one request; show only the latest answer",
+    "code": "abortInFlight();\nconst id = ++latest;\nconst controller = new FakeAbortController();\ninFlight = controller;\nsearch(query, controller.signal).then(\n    (results) => {\n        inFlight = null;\n        show(results);\n    },\n    (error: unknown) => {\n        if (error instanceof Error && error.name === \"AbortError\") return;\n        inFlight = null;\n        showError(error instanceof Error ? error.message : String(error));\n    },\n);",
+    "distractor": true
+  }
+]

@@ -1,0 +1,29 @@
+[
+  {
+    "id": "validate",
+    "label": "Refuse a message without an id or course",
+    "code": "const valid = (s: unknown): boolean => typeof s === \"string\" && s !== \"\";\nif (!valid(msg.id) || !valid(msg.payload?.courseId)) return \"invalid\";"
+  },
+  {
+    "id": "handle-once",
+    "label": "Count the certificate once per message id",
+    "code": "return this.db.tx((t): Outcome => {\n    if (t.inbox.has(msg.id)) return \"duplicate\";\n    t.inbox.set(msg.id, { processedAt: now });\n    const course = msg.payload.courseId;\n    t.counters.set(course, (t.counters.get(course) ?? 0) + 1);\n    return \"processed\";\n});"
+  },
+  {
+    "id": "cleanup",
+    "label": "Delete inbox rows past the retention window",
+    "code": "return this.db.tx((t) => {\n    let removed = 0;\n    for (const [id, row] of t.inbox) {\n        if (now - row.processedAt >= retentionMs) {\n            t.inbox.delete(id);\n            removed++;\n        }\n    }\n    return removed;\n});"
+  },
+  {
+    "id": "cleanup-keeps-boundary",
+    "label": "Delete inbox rows past the retention window",
+    "code": "return this.db.tx((t) => {\n    let removed = 0;\n    for (const [id, row] of t.inbox) {\n        if (now - row.processedAt > retentionMs) {\n            t.inbox.delete(id);\n            removed++;\n        }\n    }\n    return removed;\n});",
+    "distractor": true
+  },
+  {
+    "id": "count-in-separate-transactions",
+    "label": "Count the certificate once per message id",
+    "code": "if (this.db.tx((t) => t.inbox.has(msg.id))) return \"duplicate\";\nconst course = msg.payload.courseId;\nthis.db.tx((t) => { t.counters.set(course, (t.counters.get(course) ?? 0) + 1); });\nthis.db.tx((t) => { t.inbox.set(msg.id, { processedAt: now }); });\nreturn \"processed\";",
+    "distractor": true
+  }
+]
