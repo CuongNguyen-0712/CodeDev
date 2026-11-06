@@ -8,8 +8,8 @@ import DefaultLayout from '@/components/layouts/defaultLayout'
 
 export async function generateMetadata() {
     return {
-        title: "Welcome to CodeDev | Login or signup",
-        description: "Welcome to CodeDev, your gateway to mastering coding skills...",
+        title: "Sign in or create an account | CodeDev",
+        description: "Sign in to continue your courses, or create an account to enroll, submit challenges and keep your progress.",
     }
 }
 

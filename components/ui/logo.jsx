@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
  */
 
 // The brand wordmark is the one gradient in the app (docs/ui-ux/DESIGN_SYSTEM_SPEC.md 10).
-const GRADIENT = "linear-gradient(90deg, var(--logo-start), var(--logo-mid) 55%, var(--logo-end))"; // taste-skill-ignore
 
 function GradientStops() {
     return (
@@ -83,12 +82,11 @@ export function LogoMark({ size = 24, compact = size <= 20, title, className, ..
     );
 }
 
-/** `_CodeDev;` in the code font. The underscore and semicolon are not read aloud. */
+/** `_CodeDev;` in solid ink. The underscore and semicolon are not read aloud. */
 export function LogoWordmark({ className }) {
     return (
         <span
-            className={cn("font-mono font-semibold tracking-tight bg-clip-text text-transparent", className)} // taste-skill-ignore: brand wordmark
-            style={{ backgroundImage: GRADIENT }}
+            className={cn("font-semibold tracking-tight text-foreground", className)}
         >
             <span aria-hidden="true">_</span>CodeDev<span aria-hidden="true">;</span>
         </span>

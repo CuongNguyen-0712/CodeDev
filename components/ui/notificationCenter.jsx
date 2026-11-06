@@ -98,7 +98,7 @@ export function NotificationEmpty({ unreadOnly = false, className }) {
         <Empty className={className}>
             <EmptyHeader>
                 <EmptyMedia variant="icon"><LuBell aria-hidden="true" /></EmptyMedia>
-                <EmptyTitle>{unreadOnly ? "You're all caught up" : "Nothing here yet"}</EmptyTitle>
+                <EmptyTitle>{unreadOnly ? "You're all caught up" : "No notifications yet"}</EmptyTitle>
                 <EmptyDescription>
                     {unreadOnly ? "New notifications land here until you read them." : "Course access, level-ups, achievements and messages from the team land here."}
                 </EmptyDescription>
@@ -163,7 +163,7 @@ export default function NotificationCenter() {
                 <TooltipContent side="bottom">Notifications</TooltipContent>
             </Tooltip>
 
-            <PopoverContent align="end" className="w-80 p-0 shadow-lg sm:w-96">
+            <PopoverContent align="end" className="w-80 p-0 sm:w-96">
                 <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
                     <p className="flex items-baseline gap-2">
                         <span className="text-sm font-semibold">Notifications</span>

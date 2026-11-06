@@ -70,8 +70,6 @@ export default function EmailBrandBadge({ badge = null, baseUrl = null }) {
                                         fontWeight: "600",
                                         padding: "3px 9px",
                                         borderRadius: "9999px",
-                                        textTransform: "uppercase",
-                                        letterSpacing: "0.5px",
                                         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                                     }}
                                 >

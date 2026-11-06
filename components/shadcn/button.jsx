@@ -8,8 +8,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Dark: a 1px violet rim + soft glow keeps the main action the focal point on dark surfaces.
-        default: "bg-primary text-primary-foreground hover:bg-primary-hover dark:text-white dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.14),0_0_0_1px_rgb(167_139_250/0.35),0_8px_24px_-12px_rgb(124_58_237/0.9)]",
+        default: "bg-primary text-primary-foreground hover:bg-primary-hover dark:text-white",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20",
         soft: "bg-primary-soft text-primary-soft-foreground hover:bg-primary-soft/80",

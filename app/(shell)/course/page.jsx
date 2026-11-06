@@ -11,7 +11,7 @@ import { parseListQuery, toQueryParams } from "@/lib/listFilters";
 export async function generateMetadata() {
     return {
         title: "Course | CodeDev",
-        description: "Discover courses to enhance your skills",
+        description: "Filter courses by level, price, language or role, then open one to see its syllabus.",
     }
 }
 

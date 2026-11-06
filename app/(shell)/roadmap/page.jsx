@@ -7,7 +7,7 @@ import { roadmapQueries } from "@/queries/roadmap.query";
 
 export const metadata = {
 	title: "Roadmap | CodeDev",
-	description: "A public roadmap for the learning journey.",
+	description: "Paths for developer roles. Each step links to the courses that cover it.",
 };
 
 // The list is the same for everyone (cached in Redis) and is rendered into the HTML. The search and

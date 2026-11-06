@@ -207,7 +207,7 @@ export default function Signup({ active, changeForm, onSignedUp }) {
                 return
             }
 
-            alert(200, "Sign in successful! Redirecting...")
+            alert(200, "Signed in. Redirecting…")
             enterSignedIn(queryClient, HOME_PATH)
         } catch (error) {
             setServerError(error?.message || `Sign in with ${value} failed. Please try again.`)

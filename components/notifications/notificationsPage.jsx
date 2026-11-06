@@ -90,7 +90,7 @@ export default function NotificationsPage() {
     // The line under the title states what the data says, not what the page is for.
     const finding = !first ? null
         : unreadCount > 0 ? `${unreadCount} unread`
-        : first.items?.length ? "You're all caught up" : "Nothing here yet";
+        : first.items?.length ? "You're all caught up" : "No notifications yet";
 
     return (
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">

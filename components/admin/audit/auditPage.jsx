@@ -167,7 +167,7 @@ export default function AuditPage() {
                             {entries.map((entry) => (
                                 <li key={entry.id}>
                                     <button type="button" onClick={() => setOpen(entry)} className="grid w-full grid-cols-[10.5rem_minmax(0,1fr)] gap-3 px-4 py-2 text-left text-sm hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none @xl:grid-cols-[10.5rem_11rem_minmax(0,1fr)]">
-                                        <time dateTime={entry.created_at} className="font-mono text-xs leading-5 text-muted-foreground">{stamp(entry.created_at)}</time>
+                                        <time dateTime={entry.created_at} className="text-xs leading-5 text-muted-foreground tabular-nums">{stamp(entry.created_at)}</time>
                                         <span className="truncate font-mono text-xs leading-5">{entry.action}</span>
                                         <span className="col-span-2 min-w-0 truncate @xl:col-span-1">
                                             <span className="text-muted-foreground">{entry.actor || "system"} →</span> {entry.target_type} <span className="font-mono text-xs">{entry.target_id}</span>
@@ -191,7 +191,7 @@ export default function AuditPage() {
                     {open && (
                         <>
                             <SheetHeader>
-                                <SheetTitle className="font-mono text-base">{open.action}</SheetTitle>
+                                <SheetTitle className="text-base">{open.action}</SheetTitle>
                                 <SheetDescription>{stamp(open.created_at)} by {open.actor || "system"}</SheetDescription>
                             </SheetHeader>
                             <div className="space-y-5 px-4 pb-6">

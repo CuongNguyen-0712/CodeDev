@@ -15,7 +15,7 @@ export const instant = false;
 export async function generateMetadata() {
     return {
         title: 'Home | CodeDev',
-        description: 'Welcome to CodeDev, your gateway to mastering coding skills. Explore our platform to find courses, connect with peers, and enhance your coding journey.',
+        description: 'Your level, the next lesson to open, the courses you are taking and courses picked for you.',
     };
 }
 

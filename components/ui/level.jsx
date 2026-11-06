@@ -228,7 +228,7 @@ export function RankUpWatcher() {
         // Compare only snapshots of the same account (sign-out / switch resets the baseline).
         if (last.current?.userId === userId) {
             for (const up of rankUps(last.current.ranks, data)) {
-                notify(200, `Rank up! ${up.title} on the ${BOARD_LABELS[up.board]} board`, { id: `rank-up-${up.board}-${up.title}` });
+                notify(200, `New rank: ${up.title} on the ${BOARD_LABELS[up.board]} board`, { id: `rank-up-${up.board}-${up.title}` });
             }
         }
         last.current = { userId, ranks: data };

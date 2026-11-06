@@ -74,7 +74,7 @@ export default function Login({ active, changeForm, initialUsername = '' }) {
                     return
                 }
 
-                alert(200, "Login successful! Redirecting...")
+                alert(200, "Signed in. Redirecting…")
                 enterSignedIn(queryClient, target)
             },
 
@@ -147,7 +147,7 @@ export default function Login({ active, changeForm, initialUsername = '' }) {
                 return
             }
 
-            alert(200, "Login successful! Redirecting...")
+            alert(200, "Signed in. Redirecting…")
             enterSignedIn(queryClient, target)
         } catch (error) {
             setServerError(error?.message || `Sign in with ${value} failed. Please try again.`)

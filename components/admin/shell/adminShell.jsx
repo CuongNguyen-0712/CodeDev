@@ -162,7 +162,7 @@ export default function AdminShell({ permissions, environment, user, children })
                 >
                     Skip to content
                 </a>
-                <Sidebar collapsible="offcanvas" className="border-r border-sidebar-border">
+                <Sidebar collapsible="offcanvas" role="navigation" aria-label="Admin navigation" className="border-r border-sidebar-border">
                     <SidebarHeader className="px-3 pt-4">
                         <Link href="/admin" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-semibold">
                             <LogoMark size={22} />
@@ -222,9 +222,10 @@ export default function AdminShell({ permissions, environment, user, children })
                             {env.label}
                         </span>
                     </header>
-                    <main id="admin-main" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">
+                    {/* SidebarInset is already the page's <main>; this is the skip link's scroll target. */}
+                    <div id="admin-main" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">
                         <div key={`${pathname}|${zone}`} data-admin-view className="@container mx-auto w-full max-w-[1280px] px-4 py-6 md:px-6">{children}</div>
-                    </main>
+                    </div>
                 </SidebarInset>
             </SidebarProvider>
             <StepUpDialog />

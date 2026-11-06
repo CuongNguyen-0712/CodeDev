@@ -7,7 +7,7 @@ import LearngingPage from '@/components/learning/learningPage';
 export async function generateMetadata() {
     return {
         title: 'Learning | CodeDev',
-        description: 'Learning page for CodeDev platform',
+        description: 'The courses you are enrolled in, split into in progress, not started and completed.',
     };
 }
 

@@ -104,7 +104,7 @@ export default function OrdersAdmin() {
                         <TableCell>{order.username}</TableCell>
                         <TableCell className="max-w-56 truncate @max-2xl:hidden">{order.course_title}</TableCell>
                         <TableCell className="@max-2xl:hidden">{order.payment_method === "points" ? "Points" : "Online payment"}</TableCell>
-                        <TableCell className="text-right font-mono tabular-nums">
+                        <TableCell className="text-right tabular-nums">
                             {order.payment_method === "points" ? `${order.points_total} pts` : formatMoney(order.amount_minor, order.currency)}
                         </TableCell>
                         <TableCell>

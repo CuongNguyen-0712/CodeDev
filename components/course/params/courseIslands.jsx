@@ -51,7 +51,7 @@ export function CopyCourseLink() {
     const handleShare = async () => {
         try {
             await navigator.clipboard.writeText(window.location.href);
-            alert(200, "Course link copied to clipboard!");
+            alert(200, "Course link copied");
         } catch {
             alert(0, "Copy this link: " + window.location.href);
         }

@@ -369,7 +369,7 @@ function AccountMenu() {
         {triggerButton}
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-72 sm:w-80 p-1.5 shadow-lg rounded-xl border-border/80">
+      <DropdownMenuContent align="end" className="w-72 sm:w-80 p-1.5 border-border/80">
         <DropdownMenuLabel className="p-2 font-normal">{summary}</DropdownMenuLabel>
         {MENU_GROUPS.map((group) => (
           <Fragment key={group.label}>
@@ -440,7 +440,7 @@ export default function Navbar() {
   const { status } = useSession();
 
   return (
-    <header className="sticky top-0 z-20 flex h-12 w-full shrink-0 items-center gap-2 border-b border-border/80 bg-background/85 px-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 sm:px-4">
+    <header className="sticky top-0 z-20 flex h-12 w-full shrink-0 items-center gap-2 border-b border-border/80 bg-background px-3 sm:px-4">
       <Tooltip>
         <TooltipTrigger asChild>
           <SidebarTrigger className="-ml-1 size-8 text-muted-foreground hover:text-foreground" />
