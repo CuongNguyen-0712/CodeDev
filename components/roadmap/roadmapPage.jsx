@@ -8,7 +8,7 @@ import { roadmapQueries } from '@/queries/roadmap.query';
 import { onboardingQueries } from '@/queries/premium.query';
 import { levelMapping } from '@/constants/constants';
 import { useListQueryState } from '@/hooks/useListQueryState';
-import { LEVELS } from '@/lib/listFilters';
+import { LEVELS, onboardingFilter } from '@/lib/listFilters';
 
 import { ErrorReload } from '@/components/ui/error';
 import SearchBar from '@/components/ui/searchBar';
@@ -179,7 +179,14 @@ export default function RoadmapPage() {
 
     // The list is small and cached for every visitor, so it is filtered here; the URL keeps
     // the view (`?q=frontend&level=beginner`) shareable.
-    const { search, filter, isFiltered: hasActiveFilters, setSearch, setFilter, reset } = useListQueryState('roadmap');
+    const { status: sessionStatus } = useSession();
+    // A completed onboarding opens the list on the learner's level; anyone else gets every roadmap.
+    const { data: onboarding } = useQuery(onboardingQueries.status(sessionStatus));
+    const suggested = useMemo(
+        () => onboarding?.status === 'completed' ? onboardingFilter('roadmap', onboarding.preferences) : null,
+        [onboarding]
+    );
+    const { search, filter, isFiltered: hasActiveFilters, setSearch, setFilter, reset } = useListQueryState('roadmap', { suggested });
 
     // Safely extract roadmaps array
     const roadmaps = useMemo(() => {

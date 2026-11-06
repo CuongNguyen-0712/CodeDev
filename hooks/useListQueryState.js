@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import { defaultFilter, isFiltered, parseListQuery, toQueryParams, LIST_SCHEMAS } from "@/lib/listFilters";
@@ -12,8 +12,11 @@ import { defaultFilter, isFiltered, parseListQuery, toQueryParams, LIST_SCHEMAS 
  * Writes go through the History API, which Next.js syncs with useSearchParams without a server
  * round trip. Typing replaces the current entry; applying filters pushes a new one. Query keys
  * that belong to other features are kept.
+ *
+ * `suggested`: a filter to start from (the learner's onboarding profile) when the page opens with
+ * an empty query. Applied once per mount, so Reset clears it until the next visit.
  */
-export function useListQueryState(kind) {
+export function useListQueryState(kind, { suggested = null } = {}) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
 
@@ -43,6 +46,14 @@ export function useListQueryState(kind) {
         // `null` state: Next.js only syncs useSearchParams for entries it did not create itself.
         window.history[push ? "pushState" : "replaceState"](null, "", url);
     }, [kind, pathname]);
+
+    const suggestedApplied = useRef(false);
+    useEffect(() => {
+        if (!suggested || suggestedApplied.current) return;
+        suggestedApplied.current = true;
+        if (isFiltered(kind, latest.current.state) || latest.current.state.search) return;
+        write({ ...latest.current.state, filter: suggested });
+    }, [kind, suggested, write]);
 
     const setSearch = useCallback((search) => {
         write({ ...latest.current.state, search });

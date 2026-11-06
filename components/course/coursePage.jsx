@@ -6,7 +6,8 @@ import { useSession } from "next-auth/react";
 import { courseQueries } from "@/queries/course.query";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useListQueryState } from "@/hooks/useListQueryState";
-import { LEVELS } from "@/lib/listFilters";
+import { LEVELS, onboardingFilter } from "@/lib/listFilters";
+import { onboardingQueries } from "@/queries/premium.query";
 
 import { ErrorReload } from "../ui/error";
 import SearchBar from "../ui/searchBar";
@@ -74,10 +75,17 @@ function CourseItemSkeleton() {
 }
 
 export default function CoursePage({ stats = null }) {
-    const { search, filter, sort, params, isFiltered: hasActiveFilters, setSearch, setFilter, setSort, reset } = useListQueryState('course');
-
     const { status: sessionStatus } = useSession();
     const isSignedIn = sessionStatus === 'authenticated';
+
+    // A completed onboarding opens the catalog on the learner's level and role; anyone else gets the default view.
+    const { data: onboarding } = useQuery(onboardingQueries.status(sessionStatus));
+    const suggested = useMemo(
+        () => onboarding?.status === 'completed' ? onboardingFilter('course', onboarding.preferences) : null,
+        [onboarding]
+    );
+
+    const { search, filter, sort, params, isFiltered: hasActiveFilters, setSearch, setFilter, setSort, reset } = useListQueryState('course', { suggested });
 
     const { data: filterOptions } = useQuery(courseQueries.filters());
 

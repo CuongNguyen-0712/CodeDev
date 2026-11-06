@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     parseListQuery, toQueryParams, toQueryString, isFiltered, listCacheIdentity,
-    normalizeSearch, escapeLike, defaultFilter, SEARCH_MAX_LENGTH,
+    normalizeSearch, escapeLike, defaultFilter, onboardingFilter, SEARCH_MAX_LENGTH,
 } from "@/lib/listFilters";
 
 const qs = (s) => new URLSearchParams(s);
@@ -80,5 +80,19 @@ describe("list filters: serialisation and cache identity", () => {
     it("escapes LIKE wildcards", () => {
         const bs = "\\";
         expect(escapeLike(`100%_a${bs}b`)).toBe(`100${bs}%${bs}_a${bs}${bs}b`);
+    });
+});
+
+describe("list filters: onboarding suggestion", () => {
+    it("maps the experience level and role onto the course filter, junior counting as beginner", () => {
+        const filter = onboardingFilter("course", { experienceLevel: "junior", roleCode: "backend_developer", industryCodes: ["fintech"] });
+        expect(filter).toEqual({ ...defaultFilter("course"), level: ["beginner"], role: ["backend_developer"] });
+        expect(toQueryParams("course", { filter })).toEqual({ level: "beginner", role: "backend_developer" });
+    });
+
+    it("uses only the level for roadmaps and nothing when the profile is empty", () => {
+        expect(onboardingFilter("roadmap", { experienceLevel: "advanced", roleCode: "backend_developer" })).toEqual({ level: ["advanced"] });
+        expect(onboardingFilter("course", { experienceLevel: null, roleCode: null })).toBeNull();
+        expect(onboardingFilter("course", undefined)).toBeNull();
     });
 });
