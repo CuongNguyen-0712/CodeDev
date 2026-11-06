@@ -3,31 +3,28 @@ import { describe, expect, it } from "vitest";
 import { niceTicks, pickLabels } from "@/components/admin/ui/barChart";
 
 describe("pickLabels", () => {
-    it("labels every bar when there is room (5 star rows)", () => {
-        expect([...pickLabels(5, 600)].sort()).toEqual([0, 1, 2, 3, 4]);
+    it("labels every bar, centred, when each has room (7 days)", () => {
+        const labels = pickLabels(7, 600);
+        expect([...labels.keys()]).toEqual([0, 1, 2, 3, 4, 5, 6]);
+        expect(new Set(labels.values())).toEqual(new Set(["middle"]));
     });
 
-    it.each([
-        [14, 300],
-        [14, 900],
-        [30, 600],
-        [90, 600],
-        [90, 280],
-    ])("always labels the last of %i bars and keeps labels apart at %i px", (count, width) => {
-        const picked = [...pickLabels(count, width)].sort((a, b) => a - b);
-        expect(picked.at(-1)).toBe(count - 1);
-        const slot = width / count;
-        picked.slice(1).forEach((index, i) => expect((index - picked[i]) * slot).toBeGreaterThanOrEqual(52));
+    it.each([[14, 300], [30, 600], [90, 900]])("labels only the first and last of %i bars at %i px, flush with the edges", (count, width) => {
+        expect([...pickLabels(count, width)]).toEqual([[0, "start"], [count - 1, "end"]]);
     });
 
-    it("returns nothing for an empty series", () => {
+    it("handles one bar and an empty series", () => {
+        expect([...pickLabels(1, 20)]).toEqual([[0, "middle"]]);
         expect(pickLabels(0, 500).size).toBe(0);
     });
 });
 
 describe("niceTicks", () => {
-    it("ends at or above the maximum with round steps", () => {
+    it("uses whole steps that end at or above the maximum", () => {
         expect(niceTicks(13)).toEqual([0, 5, 10, 15]);
+        expect(niceTicks(10)).toEqual([0, 5, 10]);
+        expect(niceTicks(3)).toEqual([0, 1, 2, 3]);
+        expect(niceTicks(1)).toEqual([0, 1]);
         expect(niceTicks(0)).toEqual([0, 1]);
     });
 });
