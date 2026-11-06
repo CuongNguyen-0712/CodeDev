@@ -1,0 +1,40 @@
+[
+  {
+    "id": "latest-per-id",
+    "label": "Keep only the latest report of each metric instance",
+    "code": "const latest = new Map();\nfor (const beacon of beacons) latest.set(beacon.id, beacon);"
+  },
+  {
+    "id": "p75",
+    "label": "The 75th percentile value (nearest rank)",
+    "code": "const values = samples.map((s) => s.value).sort((a, b) => a - b);\nconst p75 = values[Math.ceil(values.length * 0.75) - 1];"
+  },
+  {
+    "id": "rate",
+    "label": "Good, needs improvement or poor by the metric's thresholds",
+    "code": "const [good, poor] = THRESHOLDS[name];\nconst rating = p75 <= good ? \"good\" : p75 <= poor ? \"needs-improvement\" : \"poor\";"
+  },
+  {
+    "id": "culprit",
+    "label": "The target behind most samples at or above p75",
+    "code": "const counts = new Map();\nfor (const s of samples) if (s.value >= p75) counts.set(s.target, (counts.get(s.target) || 0) + 1);\nconst culprit = [...counts].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0][0];"
+  },
+  {
+    "id": "latest-keep-first",
+    "label": "Keep only the latest report of each metric instance",
+    "code": "const latest = new Map();\nfor (const beacon of beacons) if (!latest.has(beacon.id)) latest.set(beacon.id, beacon);",
+    "distractor": true
+  },
+  {
+    "id": "p75-average",
+    "label": "The 75th percentile value (nearest rank)",
+    "code": "const values = samples.map((s) => s.value).sort((a, b) => a - b);\nconst p75 = Math.round((values.reduce((sum, v) => sum + v, 0) / values.length) * 1000) / 1000;",
+    "distractor": true
+  },
+  {
+    "id": "rate-fid-thresholds",
+    "label": "Good, needs improvement or poor by the metric's thresholds",
+    "code": "const [good, poor] = name === \"INP\" ? [100, 300] : THRESHOLDS[name];\nconst rating = p75 <= good ? \"good\" : p75 <= poor ? \"needs-improvement\" : \"poor\";",
+    "distractor": true
+  }
+]

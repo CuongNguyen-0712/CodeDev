@@ -1,0 +1,578 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pdp_121",
+      "name": "idempotent-loads-quiz",
+      "type": "quiz",
+      "title": "Read the double payout",
+      "description": "Three statements about the night a restaurant was paid twice, and about the fixes that were tried. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "extract-load"
+      ],
+      "points": 10,
+      "hints": [
+        "Line up the task log with the database: when did the first attempt's INSERT commit, and when did Airflow decide the attempt had failed?",
+        "Read SQLite's documentation of the REPLACE conflict resolution: what happens to the existing row, and to the columns the INSERT does not name?",
+        "With an upsert guarded by `WHERE excluded.computed_at > restaurant_payouts.computed_at`, follow a replay of a file computed earlier than the row already in the table."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The payouts task timed out on its first attempt and Airflow retried it:\n\n```text\n[2026-11-05 02:10:04] payouts.load  INFO  inserted 412 rows into restaurant_payouts\n[2026-11-05 02:10:31] payouts.load  ERROR Task timed out after 30.0 seconds (execution_timeout)\n[2026-11-05 02:10:31] payouts.load  INFO  Marking task as UP_FOR_RETRY\n[2026-11-05 02:15:32] payouts.load  INFO  inserted 412 rows into restaurant_payouts\n```\n\n```sql\nSELECT restaurant_id, business_date, count(*) FROM restaurant_payouts\nGROUP BY 1, 2 HAVING count(*) > 1;\n-- 412 rows\n```\n\nStatement: \"Retries are safe here because Airflow only retries a task that failed, and a failed attempt has not written anything.\"",
+          "explanation": "False. The first attempt committed its 412 rows at 02:10:04 and then failed afterwards, on the timeout, so the retry inserted them again. Airflow knows that the task failed, not what it had already done. Every task that Airflow (or any orchestrator) may retry has to be idempotent: running it twice with the same input must leave the same result, which a plain INSERT on a table without a natural key cannot do.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A teammate switched the load to `INSERT OR REPLACE` after adding a unique key on `(restaurant_id, business_date)`:\n\n```sql\n-- finance marked the transfer for restaurant 102 at 09:30\nSELECT paid_at FROM restaurant_payouts WHERE restaurant_id = 102 AND business_date = '2026-11-04';\n-- 2026-11-05 09:30:00\n\nINSERT OR REPLACE INTO restaurant_payouts (restaurant_id, business_date, amount_vnd, orders, computed_at)\nVALUES (102, '2026-11-04', 1980000, 27, '2026-11-05 02:10:00');\n\nSELECT paid_at FROM restaurant_payouts WHERE restaurant_id = 102 AND business_date = '2026-11-04';\n-- NULL\n```\n\nStatement: \"`OR REPLACE` deletes the conflicting row and inserts a new one, so every column the INSERT does not name, like `paid_at`, comes back as its default.\"",
+          "explanation": "True. SQLite's REPLACE conflict resolution removes the rows that violate the constraint, then inserts the new row; columns not listed take their defaults (`NULL` here). `INSERT ... ON CONFLICT (...) DO UPDATE SET ...` updates only the columns it names, which is what a load that shares a table with another writer needs. PostgreSQL has no `OR REPLACE`; its `ON CONFLICT DO UPDATE` behaves the same way as SQLite's upsert.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Finance replayed Monday's original file after a corrected computation had been loaded:\n\n```sql\nINSERT INTO restaurant_payouts AS t (restaurant_id, business_date, amount_vnd, orders, computed_at)\nVALUES (103, '2026-11-04', 7310000, 104, '2026-11-05 02:10:00')\nON CONFLICT (restaurant_id, business_date) DO UPDATE SET\n    amount_vnd = excluded.amount_vnd, orders = excluded.orders, computed_at = excluded.computed_at\nWHERE excluded.computed_at > t.computed_at;\n-- row in the table before: amount_vnd 7120000, computed_at 2026-11-05 11:00:00\n```\n\nStatement: \"The row keeps 7,120,000 VND: the incoming row was computed earlier than the one in the table, so the `WHERE` of the `DO UPDATE` skips it, and replaying old files cannot undo a correction.\"",
+          "explanation": "True. The `WHERE` clause of `DO UPDATE` is evaluated against the existing row (`t`) and the proposed one (`excluded`); when it is false the conflicting row is left alone and the statement reports zero rows changed. Comparing a version or timestamp that travels with the data (not the load time) makes the load order-independent: replays, retries and backfills of old partitions can run in any order.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pdp_122",
+      "name": "idempotent-payout-load",
+      "type": "fix_bug",
+      "title": "Fix the payout loader",
+      "description": "Last month an Airflow retry loaded the same night twice and a restaurant was paid double. The editor holds `pipelines/load_payouts.py` with its key blocks missing, each marked by a `# [ ]` line; some pieces are the old loader's code on purpose. Fill every line so that the table has at most one row per restaurant and business day, `load` can run any number of times with the same rows, a newer `computed_at` updates the amounts while a replay of an older file changes nothing, `paid_at` (set by finance) is never touched, and a load that fails halfway leaves the table as it was. Run replays retries, payments, corrections and a failing load on SQLite.",
+      "difficulty": "medium",
+      "outcomes": [
+        "extract-load"
+      ],
+      "points": 30,
+      "hints": [
+        "Ask three questions of each piece: what makes two rows 'the same payout', what happens to columns the load does not own, and in which order can two loads of the same day arrive?",
+        "Look at a composite `PRIMARY KEY (...)`, `INSERT ... ON CONFLICT (...) DO UPDATE SET col = excluded.col WHERE ...`, and `with wh:` around `executemany`.",
+        "A daily courier bonus table with one row per courier and day, written by a job and approved by a manager, would use `PRIMARY KEY (courier_id, day)` and `ON CONFLICT (courier_id, day) DO UPDATE SET bonus_vnd = excluded.bonus_vnd, computed_at = excluded.computed_at WHERE excluded.computed_at > courier_bonus.computed_at`, never naming `approved_by`."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "pipelines/load_payouts.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The same load run twice (an Airflow retry) leaves one row per restaurant and day",
+          "input": {
+            "steps": [
+              {
+                "load": [
+                  {
+                    "restaurant_id": 101,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 4250000,
+                    "orders": 61,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 1980000,
+                    "orders": 27,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 7310000,
+                    "orders": 104,
+                    "computed_at": "2026-11-05 02:10:00"
+                  }
+                ]
+              },
+              {
+                "load": [
+                  {
+                    "restaurant_id": 101,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 4250000,
+                    "orders": 61,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 1980000,
+                    "orders": 27,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 7310000,
+                    "orders": 104,
+                    "computed_at": "2026-11-05 02:10:00"
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "rows": [
+              [
+                101,
+                "2026-11-04",
+                4250000,
+                61,
+                "2026-11-05 02:10:00",
+                null
+              ],
+              [
+                102,
+                "2026-11-04",
+                1980000,
+                27,
+                "2026-11-05 02:10:00",
+                null
+              ],
+              [
+                103,
+                "2026-11-04",
+                7310000,
+                104,
+                "2026-11-05 02:10:00",
+                null
+              ]
+            ],
+            "failed_steps": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A retry after finance paid a restaurant keeps paid_at",
+          "input": {
+            "steps": [
+              {
+                "load": [
+                  {
+                    "restaurant_id": 101,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 4250000,
+                    "orders": 61,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 1980000,
+                    "orders": 27,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 7310000,
+                    "orders": 104,
+                    "computed_at": "2026-11-05 02:10:00"
+                  }
+                ]
+              },
+              {
+                "pay": [
+                  102,
+                  "2026-11-04",
+                  "2026-11-05 09:30:00"
+                ]
+              },
+              {
+                "load": [
+                  {
+                    "restaurant_id": 101,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 4250000,
+                    "orders": 61,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 1980000,
+                    "orders": 27,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 7310000,
+                    "orders": 104,
+                    "computed_at": "2026-11-05 02:10:00"
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "rows": [
+              [
+                101,
+                "2026-11-04",
+                4250000,
+                61,
+                "2026-11-05 02:10:00",
+                null
+              ],
+              [
+                102,
+                "2026-11-04",
+                1980000,
+                27,
+                "2026-11-05 02:10:00",
+                "2026-11-05 09:30:00"
+              ],
+              [
+                103,
+                "2026-11-04",
+                7310000,
+                104,
+                "2026-11-05 02:10:00",
+                null
+              ]
+            ],
+            "failed_steps": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A corrected computation updates the row; replaying the older file changes nothing",
+          "input": {
+            "steps": [
+              {
+                "load": [
+                  {
+                    "restaurant_id": 101,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 4250000,
+                    "orders": 61,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 1980000,
+                    "orders": 27,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 7310000,
+                    "orders": 104,
+                    "computed_at": "2026-11-05 02:10:00"
+                  }
+                ]
+              },
+              {
+                "load": [
+                  {
+                    "restaurant_id": 103,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 7120000,
+                    "orders": 101,
+                    "computed_at": "2026-11-05 11:00:00"
+                  }
+                ]
+              },
+              {
+                "load": [
+                  {
+                    "restaurant_id": 101,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 4250000,
+                    "orders": 61,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 1980000,
+                    "orders": 27,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 7310000,
+                    "orders": 104,
+                    "computed_at": "2026-11-05 02:10:00"
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "rows": [
+              [
+                101,
+                "2026-11-04",
+                4250000,
+                61,
+                "2026-11-05 02:10:00",
+                null
+              ],
+              [
+                102,
+                "2026-11-04",
+                1980000,
+                27,
+                "2026-11-05 02:10:00",
+                null
+              ],
+              [
+                103,
+                "2026-11-04",
+                7120000,
+                101,
+                "2026-11-05 11:00:00",
+                null
+              ]
+            ],
+            "failed_steps": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A load that fails halfway leaves the table as it was",
+          "input": {
+            "steps": [
+              {
+                "load": [
+                  {
+                    "restaurant_id": 101,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 4250000,
+                    "orders": 61,
+                    "computed_at": "2026-11-05 02:10:00"
+                  }
+                ]
+              },
+              {
+                "load": [
+                  {
+                    "restaurant_id": 101,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 4300000,
+                    "orders": 62,
+                    "computed_at": "2026-11-06 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 1980000,
+                    "orders": 27,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 7310000,
+                    "orders": 104,
+                    "computed_at": "2026-11-05 02:10:00"
+                  }
+                ],
+                "fail_on": [
+                  103,
+                  "2026-11-04"
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "rows": [
+              [
+                101,
+                "2026-11-04",
+                4250000,
+                61,
+                "2026-11-05 02:10:00",
+                null
+              ]
+            ],
+            "failed_steps": [
+              2
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Two nights, a retry, a payment and a late correction together",
+          "input": {
+            "steps": [
+              {
+                "load": [
+                  {
+                    "restaurant_id": 101,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 4250000,
+                    "orders": 61,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 1980000,
+                    "orders": 27,
+                    "computed_at": "2026-11-05 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 7310000,
+                    "orders": 104,
+                    "computed_at": "2026-11-05 02:10:00"
+                  }
+                ]
+              },
+              {
+                "pay": [
+                  101,
+                  "2026-11-04",
+                  "2026-11-05 09:00:00"
+                ]
+              },
+              {
+                "load": [
+                  {
+                    "restaurant_id": 101,
+                    "business_date": "2026-11-05",
+                    "amount_vnd": 3900000,
+                    "orders": 55,
+                    "computed_at": "2026-11-06 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "business_date": "2026-11-05",
+                    "amount_vnd": 2100000,
+                    "orders": 30,
+                    "computed_at": "2026-11-06 02:10:00"
+                  }
+                ]
+              },
+              {
+                "load": [
+                  {
+                    "restaurant_id": 101,
+                    "business_date": "2026-11-05",
+                    "amount_vnd": 3900000,
+                    "orders": 55,
+                    "computed_at": "2026-11-06 02:10:00"
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "business_date": "2026-11-05",
+                    "amount_vnd": 2100000,
+                    "orders": 30,
+                    "computed_at": "2026-11-06 02:10:00"
+                  }
+                ]
+              },
+              {
+                "load": [
+                  {
+                    "restaurant_id": 101,
+                    "business_date": "2026-11-04",
+                    "amount_vnd": 4180000,
+                    "orders": 60,
+                    "computed_at": "2026-11-06 10:00:00"
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "rows": [
+              [
+                101,
+                "2026-11-04",
+                4180000,
+                60,
+                "2026-11-06 10:00:00",
+                "2026-11-05 09:00:00"
+              ],
+              [
+                101,
+                "2026-11-05",
+                3900000,
+                55,
+                "2026-11-06 02:10:00",
+                null
+              ],
+              [
+                102,
+                "2026-11-04",
+                1980000,
+                27,
+                "2026-11-05 02:10:00",
+                null
+              ],
+              [
+                102,
+                "2026-11-05",
+                2100000,
+                30,
+                "2026-11-06 02:10:00",
+                null
+              ],
+              [
+                103,
+                "2026-11-04",
+                7310000,
+                104,
+                "2026-11-05 02:10:00",
+                null
+              ]
+            ],
+            "failed_steps": []
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+[
+  {
+    "id": "schedule",
+    "label": "Queue the task at now + delay, numbered in call order",
+    "code": "val t = Task(now + delayMs, nextSeq++, task)\nqueue += t"
+  },
+  {
+    "id": "cancel-handle",
+    "label": "A handle that stops the task from ever running",
+    "code": "return object : Cancellable {\n    override fun cancel() {\n        t.cancelled = true\n    }\n}"
+  },
+  {
+    "id": "next-due",
+    "label": "The earliest live task due by the target, first queued first",
+    "code": "queue.removeAll { it.cancelled }\nval next = queue.filter { it.at <= target }.minWithOrNull(compareBy<Task>({ it.at }, { it.seq })) ?: break"
+  },
+  {
+    "id": "run-at-its-time",
+    "label": "Move the clock to the task's time, then run it",
+    "code": "queue.remove(next)\nnow = next.at\nnext.run()"
+  },
+  {
+    "id": "next-due-ignores-cancel",
+    "label": "The earliest live task due by the target, first queued first",
+    "code": "val next = queue.filter { it.at <= target }.minWithOrNull(compareBy<Task>({ it.at }, { it.seq })) ?: break",
+    "distractor": true
+  },
+  {
+    "id": "next-due-insertion-order",
+    "label": "The earliest live task due by the target, first queued first",
+    "code": "queue.removeAll { it.cancelled }\nval next = queue.firstOrNull { it.at <= target } ?: break",
+    "distractor": true
+  },
+  {
+    "id": "run-without-moving-clock",
+    "label": "Move the clock to the task's time, then run it",
+    "code": "queue.remove(next)\nnext.run()",
+    "distractor": true
+  }
+]

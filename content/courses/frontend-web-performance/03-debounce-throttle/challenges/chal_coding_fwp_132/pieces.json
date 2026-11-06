@@ -1,0 +1,35 @@
+[
+  {
+    "id": "abort-previous",
+    "label": "Cancel the request that is still running",
+    "code": "if (controller) controller.abort();\ncontroller = new AbortController();"
+  },
+  {
+    "id": "latest-only",
+    "label": "Show results only for the newest query",
+    "code": "if (id === latest) env.show(results);"
+  },
+  {
+    "id": "wait-for-pause",
+    "label": "Search once typing has paused for waitMs",
+    "code": "env.clearTimeout(timer);\ntimer = env.setTimeout(() => search(text.trim()), waitMs);"
+  },
+  {
+    "id": "abort-previous-fresh-only",
+    "label": "Cancel the request that is still running",
+    "code": "controller = new AbortController();",
+    "distractor": true
+  },
+  {
+    "id": "latest-only-show-all",
+    "label": "Show results only for the newest query",
+    "code": "env.show(results);",
+    "distractor": true
+  },
+  {
+    "id": "wait-for-pause-no-clear",
+    "label": "Search once typing has paused for waitMs",
+    "code": "timer = env.setTimeout(() => search(text.trim()), waitMs);",
+    "distractor": true
+  }
+]

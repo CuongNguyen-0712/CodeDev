@@ -1,0 +1,238 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_rno_142",
+      "name": "outbox-sync-queue",
+      "type": "mini_coding",
+      "title": "Flush the courier's outbox",
+      "description": "Courier actions are saved in the phone's `outbox` table first and sent later by `flushOutbox`, which the app runs every 5 seconds. The first version double-counted cash when an answer was lost after the api had saved it, hammered the api during an outage, and once sent \"complete\" before the \"pickup\" it depended on, which the api refused for good. The editor holds `flushOutbox` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: an entry is sent only when it is due and nothing earlier for the same delivery is still waiting; every send carries a key that makes a repeat harmless; a 408, 429 or 5xx is retried later with a delay that doubles from 1 s up to 60 s and never comes sooner than the api's Retry-After; any other refusal is reported and holds the delivery's later actions; and other deliveries keep moving. Run replays outages, lost answers, a 503 storm and a 429 on a simulated api and prints what the api saved, the cash ledger and every request.",
+      "difficulty": "medium",
+      "outcomes": [
+        "sync"
+      ],
+      "points": 30,
+      "hints": [
+        "For each test, write the requests in time order and what the api saved. A lost answer means the api saved the action but the phone does not know it.",
+        "Look at what decides that an entry waits (its own `nextAttemptAt`, or an earlier entry of the same delivery), at the second argument of `api.send`, and at how `nextAttemptAt` is computed from `attempts` and `retryAfter`.",
+        "An email client's send queue: skip a message if an earlier one in the same thread is waiting; `smtp.send(msg, msg.id)`; on 421/5xx `msg.attempts++` and `msg.nextAt = now + max(min(1000 * 2 ** (msg.attempts - 1), 60000), retryAfter * 1000)`; on 550 move it to Failed and hold the rest of the thread."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Offline in the basement for 10 s, then everything goes through in order",
+          "input": {
+            "actions": [
+              [
+                "pickup",
+                "A"
+              ],
+              [
+                "complete",
+                "A",
+                "185000"
+              ],
+              [
+                "pickup",
+                "B"
+              ]
+            ],
+            "faults": {
+              "1": "network",
+              "2": "network"
+            },
+            "untilMs": 20000
+          },
+          "expected": {
+            "applied": [
+              "pickup A",
+              "complete A",
+              "pickup B"
+            ],
+            "ledger": [
+              "A 185000"
+            ],
+            "failed": [],
+            "left": [],
+            "requests": [
+              "0s pickup A",
+              "5s pickup A",
+              "10s pickup A",
+              "10s complete A",
+              "10s pickup B"
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "The api saved the completion but the answer was lost: the cash is counted once",
+          "input": {
+            "actions": [
+              [
+                "pickup",
+                "A"
+              ],
+              [
+                "complete",
+                "A",
+                "185000"
+              ]
+            ],
+            "faults": {
+              "2": "lost"
+            },
+            "untilMs": 20000
+          },
+          "expected": {
+            "applied": [
+              "pickup A",
+              "complete A"
+            ],
+            "ledger": [
+              "A 185000"
+            ],
+            "failed": [],
+            "left": [],
+            "requests": [
+              "0s pickup A",
+              "0s complete A",
+              "5s complete A"
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A 503 storm: retries back off 1, 2, 4 ... s and never wait more than 60 s",
+          "input": {
+            "actions": [
+              [
+                "pickup",
+                "A"
+              ]
+            ],
+            "faults": {
+              "1": "503",
+              "2": "503",
+              "3": "503",
+              "4": "503",
+              "5": "503",
+              "6": "503",
+              "7": "503",
+              "8": "503"
+            },
+            "untilMs": 300000
+          },
+          "expected": {
+            "applied": [
+              "pickup A"
+            ],
+            "ledger": [],
+            "failed": [],
+            "left": [],
+            "requests": [
+              "0s pickup A",
+              "5s pickup A",
+              "10s pickup A",
+              "15s pickup A",
+              "25s pickup A",
+              "45s pickup A",
+              "80s pickup A",
+              "140s pickup A",
+              "200s pickup A"
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A 429 with Retry-After 30: no retry before 30 s, other deliveries keep moving",
+          "input": {
+            "actions": [
+              [
+                "pickup",
+                "A"
+              ],
+              [
+                "pickup",
+                "B"
+              ]
+            ],
+            "faults": {
+              "1": "429"
+            },
+            "untilMs": 60000
+          },
+          "expected": {
+            "applied": [
+              "pickup B",
+              "pickup A"
+            ],
+            "ledger": [],
+            "failed": [],
+            "left": [],
+            "requests": [
+              "0s pickup A",
+              "0s pickup B",
+              "30s pickup A"
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A failed pickup holds that delivery's completion until the pickup succeeds",
+          "input": {
+            "actions": [
+              [
+                "pickup",
+                "A"
+              ],
+              [
+                "complete",
+                "A",
+                "99000"
+              ],
+              [
+                "pickup",
+                "B"
+              ]
+            ],
+            "faults": {
+              "1": "503"
+            },
+            "untilMs": 20000
+          },
+          "expected": {
+            "applied": [
+              "pickup B",
+              "pickup A",
+              "complete A"
+            ],
+            "ledger": [
+              "A 99000"
+            ],
+            "failed": [],
+            "left": [],
+            "requests": [
+              "0s pickup A",
+              "0s pickup B",
+              "5s pickup A",
+              "5s complete A"
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

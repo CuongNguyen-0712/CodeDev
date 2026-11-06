@@ -1,0 +1,51 @@
+[
+  {
+    "id": "work-then-ack",
+    "label": "Handle the message, then acknowledge it",
+    "code": "await handle(message)\nawait source.ack(message[\"id\"])"
+  },
+  {
+    "id": "fetch-until-stop",
+    "label": "Fetch the next message, unless stop comes first",
+    "code": "get = asyncio.ensure_future(source.get())\nfinished, _ = await asyncio.wait({get, stop_wait}, return_when=asyncio.FIRST_COMPLETED)\nif get not in finished:\n    get.cancel()\n    break\nmessage = get.result()"
+  },
+  {
+    "id": "bounded-start",
+    "label": "Start the handler, at most `concurrency` at a time",
+    "code": "await slots.acquire()\ntask = asyncio.create_task(work(message))\nin_flight.add(task)\ntask.add_done_callback(in_flight.discard)"
+  },
+  {
+    "id": "drain-with-grace",
+    "label": "Let running handlers finish, but only for `grace` seconds",
+    "code": "if in_flight:\n    await asyncio.wait(set(in_flight), timeout=grace)"
+  },
+  {
+    "id": "cancel-leftovers",
+    "label": "Cancel what is still running and wait until it stopped",
+    "code": "leftovers = list(in_flight)\nfor task in leftovers:\n    task.cancel()\nawait asyncio.gather(*leftovers, return_exceptions=True)"
+  },
+  {
+    "id": "ack-before-handle",
+    "label": "Handle the message, then acknowledge it",
+    "code": "await source.ack(message[\"id\"])\nawait handle(message)",
+    "distractor": true
+  },
+  {
+    "id": "cancel-without-waiting",
+    "label": "Cancel what is still running and wait until it stopped",
+    "code": "for task in list(in_flight):\n    task.cancel()",
+    "distractor": true
+  },
+  {
+    "id": "drain-without-timeout",
+    "label": "Let running handlers finish, but only for `grace` seconds",
+    "code": "if in_flight:\n    await asyncio.wait(set(in_flight))",
+    "distractor": true
+  },
+  {
+    "id": "fetch-ignores-stop",
+    "label": "Fetch the next message, unless stop comes first",
+    "code": "if stop.is_set():\n    break\nmessage = await source.get()",
+    "distractor": true
+  }
+]

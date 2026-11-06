@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_kma_152",
+      "key": "challenges/kotlin/chal_coding_kma_152/starter.kt",
+      "contentType": "text/x-kotlin; charset=utf-8",
+      "originalName": "DeliveryHistoryPager.kt",
+      "size": 2614
+    }
+  ]
+}

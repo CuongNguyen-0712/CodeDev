@@ -1,0 +1,40 @@
+[
+  {
+    "id": "current-config",
+    "label": "The newest config available, online or offline",
+    "code": "const fresh = remote.fetch();\nif (fresh) cache.save(fresh);\nconst config = fresh ?? cache.load();"
+  },
+  {
+    "id": "kill-switch",
+    "label": "A killed or disabled flag is off for everyone",
+    "code": "if (flag.killed || !flag.enabled) return false;"
+  },
+  {
+    "id": "targeting",
+    "label": "Only the platforms and versions the flag targets",
+    "code": "const targeted = flag.rules.length === 0 || flag.rules.some((rule) =>\n    (rule.platform === undefined || rule.platform === user.platform) &&\n    (rule.minAppVersion === undefined || compareVersions(user.appVersion, rule.minAppVersion) >= 0) &&\n    (rule.maxOsVersion === undefined || user.osVersion <= rule.maxOsVersion));\nif (!targeted) return false;"
+  },
+  {
+    "id": "rollout-bucket",
+    "label": "The same couriers stay in as the percentage grows",
+    "code": "return bucket(`${key}:${user.id}`) < flag.rollout;"
+  },
+  {
+    "id": "current-config-remote-only",
+    "label": "The newest config available, online or offline",
+    "code": "const config = remote.fetch();",
+    "distractor": true
+  },
+  {
+    "id": "rollout-bucket-user-only",
+    "label": "The same couriers stay in as the percentage grows",
+    "code": "return bucket(user.id) < flag.rollout;",
+    "distractor": true
+  },
+  {
+    "id": "targeting-string-versions",
+    "label": "Only the platforms and versions the flag targets",
+    "code": "const targeted = flag.rules.length === 0 || flag.rules.some((rule) =>\n    (rule.platform === undefined || rule.platform === user.platform) &&\n    (rule.minAppVersion === undefined || user.appVersion >= rule.minAppVersion) &&\n    (rule.maxOsVersion === undefined || user.osVersion <= rule.maxOsVersion));\nif (!targeted) return false;",
+    "distractor": true
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "on-load",
+    "label": "First load: show the spinner, drop an old error",
+    "code": "is Action.Load -> state.copy(loading = true, error = null)"
+  },
+  {
+    "id": "on-refresh",
+    "label": "Pull to refresh: keep the list on screen",
+    "code": "is Action.Refresh -> state.copy(refreshing = true, error = null)"
+  },
+  {
+    "id": "on-loaded",
+    "label": "Fresh orders arrived",
+    "code": "is Action.Loaded -> state.copy(orders = action.orders, loading = false, refreshing = false, error = null)"
+  },
+  {
+    "id": "on-failed",
+    "label": "The request failed",
+    "code": "is Action.LoadFailed -> state.copy(loading = false, refreshing = false, error = action.message)"
+  },
+  {
+    "id": "on-filter",
+    "label": "The courier picked a filter chip",
+    "code": "is Action.FilterChanged -> state.copy(filter = action.filter)"
+  },
+  {
+    "id": "on-picked-up",
+    "label": "The courier picked up one order",
+    "code": "is Action.PickedUp -> state.copy(\n    orders = state.orders.map { if (it.id == action.orderId) it.copy(status = \"picked\") else it },\n)"
+  },
+  {
+    "id": "on-failed-keeps-spinner",
+    "label": "The request failed",
+    "code": "is Action.LoadFailed -> state.copy(loading = false, error = action.message)",
+    "distractor": true
+  },
+  {
+    "id": "on-loaded-keeps-error",
+    "label": "Fresh orders arrived",
+    "code": "is Action.Loaded -> state.copy(orders = action.orders, loading = false, refreshing = false)",
+    "distractor": true
+  },
+  {
+    "id": "on-refresh-clears-list",
+    "label": "Pull to refresh: keep the list on screen",
+    "code": "is Action.Refresh -> state.copy(orders = emptyList(), refreshing = true, error = null)",
+    "distractor": true
+  }
+]

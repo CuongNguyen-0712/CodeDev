@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('react-native-offline-first', 'Mobile App Engineering: Offline-First Data, Sync & Performance with React Native', 'Build mobile apps that keep working on a bad network: local-first storage, a sync queue with retries, conflict resolution, background work and smooth lists on low-end phones.', 'Build mobile apps that keep working on a bad network: local-first storage, a sync queue with retries, conflict resolution, background work and smooth lists on low-end phones. 9 lessons, each starting from a real bug or incident, with graded challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594611/codedev/courses/react-native-offline-first/cover', 'intermediate'::level_enum, 180, 'CodeDev Engineering Team', 0, 0, 100,
+VALUES ('react-native-offline-first', 'Mobile App Engineering: Offline-First Data, Sync & Performance with React Native', 'Build Rice Rocket''s courier app with React Native and Expo so it keeps working on a bad network: local-first storage with expo-sqlite and migrations, optimistic updates, an outbox sync queue, conflict resolution, delta sync with cursors, smooth lists on low-end phones, background tasks and staged releases. Challenges are TypeScript modules graded in the code runner.', 'Build Rice Rocket''s courier app with React Native and Expo so it keeps working on a bad network: local-first storage with expo-sqlite and migrations, optimistic updates, an outbox sync queue, conflict resolution, delta sync with cursors, smooth lists on low-end phones, background tasks and staged releases. 9 lessons on one project, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594611/codedev/courses/react-native-offline-first/cover', 'intermediate'::level_enum, 150, 'CodeDev Engineering Team', 0, 0, 100,
         (SELECT id FROM catalog.language WHERE name = 'TypeScript'),
         (SELECT id FROM catalog.category WHERE name = 'React Native'),
         'premium', 'draft', true, false)
@@ -67,9 +67,689 @@ INSERT INTO catalog.course_skill (course_id, skill_id, weight)
 SELECT (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), s.id, v.weight
 FROM (VALUES ('react', 4), ('typescript', 3), ('async_programming', 4), ('performance', 4), ('testing', 2)) AS v(code, weight)
 JOIN catalog.skill s ON s.code = v.code;
+UPDATE catalog.course SET completion_rules = '{}' WHERE id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first');
 DELETE FROM catalog.course_prerequisite WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first');
 INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
-SELECT (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), id FROM catalog.course WHERE public_id = ANY(ARRAY['javascript-async-architecture_2026100901', 'typescript-foundations']::text[]);
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), id FROM catalog.course WHERE public_id = ANY(ARRAY['javascript-async-architecture_2026100901']::text[]);
+
+-- module 1: Local-first data
+UPDATE course.module SET title = 'Local-first data', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 1 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), 'Local-first data', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 1 AND is_deleted = false);
+
+-- lesson 1.1: Why offline-first: the network is a cache miss (Sanity lesson-rno-1-1)
+UPDATE course.lesson SET title = 'Why offline-first: the network is a cache miss', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-1-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Why offline-first: the network is a cache miss', 'sanity', 'lesson-rno-1-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rno-1-1' AND is_deleted = false);
+
+-- challenge chal_quiz_rno_111 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_rno_111', (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-1-1' AND is_deleted = false LIMIT 1), 'why-offline-first-quiz', 'Read the basement reports', 'Three statements about what went wrong when Rice Rocket''s couriers used the online-first app in basements and elevators. Decide whether each one is true.', 'open', 'easy'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_111');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_111'), 1, 'NetInfo describes the phone''s network interface. Ask what it knows about the path from that interface to Rice Rocket''s api, and about the next ten seconds.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_111'), 2, 'A timeout on the phone says the answer did not arrive in time. It says nothing about whether the request arrived. Look at the server log for the same delivery.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_111'), 3, 'Compare what a courier in a basement sees with each design: a spinner until the request ends, or the list saved on the phone with a note saying when it was last refreshed.');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_111');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_111'), 'The Delivered button now checks NetInfo first. A courier in the basement car park of a Thu Duc apartment block still sees an error:
+
+```ts
+const state = await NetInfo.fetch();
+if (state.isConnected) {
+  await api.post(`/deliveries/${id}/complete`);
+}
+```
+
+```text
+NetInfo: { type: "wifi", isConnected: true, isInternetReachable: false }
+[api] POST /deliveries/d-8812/complete
+TypeError: Network request failed
+```
+
+Statement: "If NetInfo reports `isConnected: true`, the request will reach the server, so checking it before every write prevents these failures."', 'single_choice'::question_type, 'False. `isConnected` only says the phone is attached to a network: here a building''s Wi-Fi with no working internet behind it (`isInternetReachable: false`), which is common behind captive portals. Even a good reading is stale a second later in an elevator. The reliable test is to send the request, with a timeout, and handle the failure by keeping the action on the phone and retrying later. The misconception is that a connectivity check can predict a request.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_111') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_111'), 'The app showed "Request timed out" and the courier tapped Delivered again:
+
+```text
+# phone
+12:41:07  POST /deliveries/d-8812/complete  -> timeout after 15 s
+12:41:30  POST /deliveries/d-8812/complete  -> 200
+
+# api log
+12:41:09  POST /deliveries/d-8812/complete  200  courier=c-204  cod=185000
+12:41:31  POST /deliveries/d-8812/complete  200  courier=c-204  cod=185000
+```
+
+Statement: "The first request reached the server even though the phone timed out; if the app sends a key it generated for this action (for example an `Idempotency-Key` header) and the api remembers it, the second request is recognised as the same action."', 'single_choice'::question_type, 'True. The server processed the first request at 12:41:09; only the answer was lost on the way back, so the phone gave up. A retry without a key looks like a second delivery (and a second cash entry). A key created once per user action, sent with every retry and stored by the api with its first result, turns retries into safe replays. The misconception is that a timeout means nothing happened.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_111') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_111'), 'The delivery list screen today:
+
+```tsx
+const [deliveries, setDeliveries] = useState<Delivery[] | null>(null);
+useEffect(() => {
+  api.get("/couriers/me/deliveries").then(setDeliveries);
+}, []);
+if (!deliveries) return <Spinner />;
+```
+
+Statement: "Reading the list from the phone''s database first and refreshing it in the background shows the last known deliveries at once in a basement, at the cost of data that may be stale, which the screen should label (for example ''updated 4 min ago'')."', 'single_choice'::question_type, 'True. Local-first treats the network as a slow, unreliable cache fill: the screen renders what the phone already has, and a background sync replaces it when the api answers. The price is staleness, so the UI shows when the data was last refreshed and the server stays the authority for assignments. The misconception is that offline-first means the phone''s copy is always right.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_111') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- lesson 1.2: Local storage schema and migrations (Sanity lesson-rno-1-2)
+UPDATE course.lesson SET title = 'Local storage schema and migrations', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-1-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Local storage schema and migrations', 'sanity', 'lesson-rno-1-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rno-1-2' AND is_deleted = false);
+
+-- challenge chal_coding_rno_122 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_rno_122', (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-1-2' AND is_deleted = false LIMIT 1), 'local-schema-migrations', 'Upgrade the courier app''s database', 'Version 2.3 of the courier app adds the cash to collect on each delivery. Last release, a migration that crashed half way left some phones with a database that claimed the new version but missed the new column, and those couriers could not open the app until they reinstalled it and lost their pending deliveries. The editor holds `migrate(db, appVersion)` and the list of migrations, with key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a database newer than the app is refused with a clear error and left as it is; only migrations above the stored version (and up to the app''s) run, in order; each migration and its version number are written together or not at all, so a phone killed mid-migration simply runs it again on the next start; and v3 adds `cod_amount` as a NOT NULL column that existing deliveries get as 0. Run starts the app on databases at different versions, sometimes kills it during the upgrade, and prints the resulting schema.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_122');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_122'), 1, 'For each test, write down the stored version, which migrations should run, and what is on disk if the app dies after any single statement.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_122'), 2, 'Look at the comparison that picks pending migrations, at where the version is written relative to `db.transaction`, and at what SQLite needs to add a NOT NULL column to a table that already has rows.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_122'), 3, 'A notes app adding a `pinned` flag in v7: `{ version: 7, up: (tx) => tx.addColumn("notes", "pinned", { notNull: true, default: 0 }) }`, run by a loop that does `db.transaction((tx) => { m.up(tx); tx.setUserVersion(m.version); })` for every `m.version > current`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"refuse-newer","label":"Stop if the database is newer than this build","code":"if (current > appVersion) {\n    throw new Error(`database version ${current} is newer than this app (${appVersion}): update the app`);\n}"},{"id":"pending-steps","label":"The migrations this database has not run yet","code":"const pending = MIGRATIONS\n    .filter((m) => m.version > current && m.version <= appVersion)\n    .sort((a, b) => a.version - b.version);"},{"id":"atomic-step","label":"Run one migration and record it, all or nothing","code":"db.transaction((tx) => {\n    m.up(tx);\n    tx.setUserVersion(m.version);\n});"},{"id":"cod-column","label":"v3: cash to collect on each delivery, 0 for existing rows","code":"{\n    version: 3,\n    up: (tx) => tx.addColumn(\"deliveries\", \"cod_amount\", { notNull: true, default: 0 }),\n},"},{"id":"cod-column-no-default","label":"v3: cash to collect on each delivery, 0 for existing rows","code":"{\n    version: 3,\n    up: (tx) => tx.addColumn(\"deliveries\", \"cod_amount\", { notNull: true }),\n},","distractor":true},{"id":"pending-from-current","label":"The migrations this database has not run yet","code":"const pending = MIGRATIONS\n    .filter((m) => m.version >= current && m.version <= appVersion)\n    .sort((a, b) => a.version - b.version);","distractor":true},{"id":"version-before-steps","label":"Run one migration and record it, all or nothing","code":"db.setUserVersion(m.version);\ndb.transaction((tx) => m.up(tx));","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_122');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_122'), 'A fresh install creates every table and index at version 4', '{"from":0,"appVersion":4}', '{"launches":["ok v4"],"userVersion":4,"tables":{"deliveries":["id","address","status","cod_amount"],"outbox":["id","kind","payload","attempts"]},"indexes":["idx_deliveries_status"],"codAmounts":[]}', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_122'), 'Upgrading from version 2 keeps the deliveries and gives them cod_amount 0', '{"from":2,"rows":3,"appVersion":4}', '{"launches":["ok v4"],"userVersion":4,"tables":{"deliveries":["id","address","status","cod_amount"],"outbox":["id","kind","payload","attempts"]},"indexes":["idx_deliveries_status"],"codAmounts":[0,0,0]}', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_122'), 'A database from a newer build is refused and left untouched', '{"from":5,"rows":1,"appVersion":4}', '{"launches":["error: database version 5 is newer than this app (4): update the app"],"userVersion":5,"tables":{"deliveries":["id","address","status","cod_amount"],"outbox":["id","kind","payload","attempts"],"proofs":["delivery_id","photo_uri"]},"indexes":["idx_deliveries_status"],"codAmounts":[0]}', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_122'), 'Killed in the middle of v3: the next start finishes the upgrade cleanly', '{"from":2,"rows":2,"appVersion":4,"killAtStatement":2}', '{"launches":["killed at v2","ok v4"],"userVersion":4,"tables":{"deliveries":["id","address","status","cod_amount"],"outbox":["id","kind","payload","attempts"]},"indexes":["idx_deliveries_status"],"codAmounts":[0,0]}', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_122'), 'Started twice on an up-to-date database: nothing runs again', '{"from":4,"rows":2,"appVersion":4,"launches":2}', '{"launches":["ok v4","ok v4"],"userVersion":4,"tables":{"deliveries":["id","address","status","cod_amount"],"outbox":["id","kind","payload","attempts"]},"indexes":["idx_deliveries_status"],"codAmounts":[0,0]}', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_rno_122_starter', 's3', 'challenges/typescript/chal_coding_rno_122/starter.ts', 'raw', 'application/typescript', 6490, 'main.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_122'), 'typescript', 'main.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_rno_122_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.3: Optimistic updates and rollback (Sanity lesson-rno-1-3)
+UPDATE course.lesson SET title = 'Optimistic updates and rollback', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-1-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Optimistic updates and rollback', 'sanity', 'lesson-rno-1-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rno-1-3' AND is_deleted = false);
+
+-- challenge chal_coding_rno_132 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_rno_132', (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-1-3' AND is_deleted = false LIMIT 1), 'optimistic-delivery-status', 'Fix the optimistic Delivered button', 'Tapping Delivered in the courier app changes the row at once and sends the request in the background (TanStack Query `useMutation`). Couriers reported three bugs: the row sometimes flicked back to "picked up" a second after the tap; when a customer had already cancelled, the row went back to "picked up" and stayed there instead of showing "cancelled"; and with two quick taps, a rejected first delivery also undid the second one. The editor holds `completeDeliveryOptions` with its key blocks missing, each marked by a `// [ ]` line; the pieces include last week''s buggy versions. Fill every line so that the tap shows at once and is not overwritten by a refetch that was already running, a rejected tap undoes only its own delivery, and every tap ends on the server''s version of the list. Run replays taps, background refetches, cancellations and late answers, and prints what the list showed after each step.', 'open', 'medium'::difficulty_question, 'fix_bug', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_132');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_132'), 1, 'Write the list the courier sees after every step of a test. A refetch that started before the tap returns the list from before the tap; a rejected answer can arrive after another tap changed a different row.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_132'), 2, 'Look at what onMutate does before it changes the cache (cancel vs refetch), at what onError puts back (one delivery or a copy of the whole list), and at when onSettled asks the server for the truth.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_132'), 3, 'Renaming a chat thread optimistically: `onMutate` cancels `[''threads'']`, saves the old thread, sets the new title on that one thread; `onError` puts back just that thread; `onSettled` invalidates `[''threads'']` whether the rename failed or not.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_132'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"stop-refetch","label":"Keep an in-flight refetch from overwriting the change","code":"cache.cancel(KEY);"},{"id":"apply-change","label":"Show the new status now and remember the old one","code":"const list = cache.get(KEY);\nconst previous = list.find((d) => d.id === vars.id);\ncache.set(KEY, list.map((d) => (d.id === vars.id ? { ...d, status: vars.status } : d)));\nreturn { previous, snapshot: list };"},{"id":"roll-back","label":"Undo this delivery''s change only","code":"const previous = ctx.previous;\nif (previous) cache.set(KEY, cache.get(KEY).map((d) => (d.id === previous.id ? previous : d)));"},{"id":"reconcile","label":"Take the server''s version afterwards","code":"cache.invalidate(KEY);"},{"id":"reconcile-on-success-only","label":"Take the server''s version afterwards","code":"if (!error) cache.invalidate(KEY);","distractor":true},{"id":"refresh-before-change","label":"Keep an in-flight refetch from overwriting the change","code":"cache.invalidate(KEY);","distractor":true},{"id":"restore-whole-list","label":"Undo this delivery''s change only","code":"if (ctx.snapshot) cache.set(KEY, ctx.snapshot);","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_132');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_132'), 'Tap Delivered while a background refetch is in flight: no flick back to picked up', '{"deliveries":["A","B"],"steps":[{"refetchStart":true},{"mutate":"A","status":"delivered"},{"refetchLand":true},{"respond":"A"}]}', '{"timeline":["start: A=picked_up B=picked_up","tap A delivered: A=delivered B=picked_up","refetch lands: A=delivered B=picked_up","A settled: A=delivered B=picked_up"]}', 8, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_132'), 'The customer had cancelled: the tap is undone and the row ends as cancelled', '{"deliveries":["A","B"],"steps":[{"customerCancels":"A"},{"mutate":"A","status":"delivered"},{"respond":"A"}]}', '{"timeline":["start: A=picked_up B=picked_up","tap A delivered: A=delivered B=picked_up","A rejected: A=picked_up B=picked_up","A settled: A=cancelled B=picked_up"]}', 8, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_132'), 'Two quick taps, the first rejected: the second delivery keeps its new status', '{"deliveries":["A","B"],"steps":[{"customerCancels":"A"},{"mutate":"A","status":"delivered"},{"mutate":"B","status":"delivered"},{"respond":"A"},{"respond":"B"}]}', '{"timeline":["start: A=picked_up B=picked_up","tap A delivered: A=delivered B=picked_up","tap B delivered: A=delivered B=delivered","A rejected: A=picked_up B=delivered","A settled: A=cancelled B=delivered","B settled: A=cancelled B=delivered"]}', 8, false, true, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_132'), 'An accepted tap with nothing else going on ends on the server''s list', '{"deliveries":["A","B","C"],"steps":[{"mutate":"C","status":"delivered"},{"respond":"C"}]}', '{"timeline":["start: A=picked_up B=picked_up C=picked_up","tap C delivered: A=picked_up B=picked_up C=delivered","C settled: A=picked_up B=picked_up C=delivered"]}', 6, false, true, 4);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_rno_132_starter', 's3', 'challenges/typescript/chal_coding_rno_132/starter.ts', 'raw', 'application/typescript', 4450, 'main.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_132'), 'typescript', 'main.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_rno_132_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 2: Sync
+UPDATE course.module SET title = 'Sync', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 2 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), 'Sync', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 2 AND is_deleted = false);
+
+-- lesson 2.1: An outbox queue with retries and backoff (Sanity lesson-rno-2-1)
+UPDATE course.lesson SET title = 'An outbox queue with retries and backoff', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-2-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 2 AND is_deleted = false LIMIT 1), 'An outbox queue with retries and backoff', 'sanity', 'lesson-rno-2-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rno-2-1' AND is_deleted = false);
+
+-- challenge chal_coding_rno_142 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_rno_142', (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-2-1' AND is_deleted = false LIMIT 1), 'outbox-sync-queue', 'Flush the courier''s outbox', 'Courier actions are saved in the phone''s `outbox` table first and sent later by `flushOutbox`, which the app runs every 5 seconds. The first version double-counted cash when an answer was lost after the api had saved it, hammered the api during an outage, and once sent "complete" before the "pickup" it depended on, which the api refused for good. The editor holds `flushOutbox` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: an entry is sent only when it is due and nothing earlier for the same delivery is still waiting; every send carries a key that makes a repeat harmless; a 408, 429 or 5xx is retried later with a delay that doubles from 1 s up to 60 s and never comes sooner than the api''s Retry-After; any other refusal is reported and holds the delivery''s later actions; and other deliveries keep moving. Run replays outages, lost answers, a 503 storm and a 429 on a simulated api and prints what the api saved, the cash ledger and every request.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_142');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_142'), 1, 'For each test, write the requests in time order and what the api saved. A lost answer means the api saved the action but the phone does not know it.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_142'), 2, 'Look at what decides that an entry waits (its own `nextAttemptAt`, or an earlier entry of the same delivery), at the second argument of `api.send`, and at how `nextAttemptAt` is computed from `attempts` and `retryAfter`.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_142'), 3, 'An email client''s send queue: skip a message if an earlier one in the same thread is waiting; `smtp.send(msg, msg.id)`; on 421/5xx `msg.attempts++` and `msg.nextAt = now + max(min(1000 * 2 ** (msg.attempts - 1), 60000), retryAfter * 1000)`; on 550 move it to Failed and hold the rest of the thread.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_142'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"wait-turn","label":"Skip entries that are not due or wait behind an earlier one","code":"if (waiting.has(entry.deliveryId) || entry.nextAttemptAt > now) {\n    waiting.add(entry.deliveryId);\n    continue;\n}"},{"id":"send","label":"Send the action so a repeat is recognised","code":"const answer = api.send({ kind: entry.kind, deliveryId: entry.deliveryId, payload: entry.payload }, entry.id);"},{"id":"retry-later","label":"Temporary failure: wait longer each time, as asked","code":"if (answer.status === 408 || answer.status === 429 || answer.status >= 500) {\n    entry.attempts += 1;\n    const backoff = Math.min(1000 * 2 ** (entry.attempts - 1), MAX_BACKOFF_MS);\n    entry.nextAttemptAt = now + Math.max(backoff, (answer.retryAfter ?? 0) * 1000);\n    store.update(entry);\n    waiting.add(entry.deliveryId);\n    continue;\n}"},{"id":"give-up","label":"Refused for good: report it, hold its delivery","code":"store.markFailed(entry, `HTTP ${answer.status}`);\nwaiting.add(entry.deliveryId);"},{"id":"retry-ignores-retry-after","label":"Temporary failure: wait longer each time, as asked","code":"if (answer.status === 408 || answer.status === 429 || answer.status >= 500) {\n    entry.attempts += 1;\n    entry.nextAttemptAt = now + 1000 * 2 ** (entry.attempts - 1);\n    store.update(entry);\n    waiting.add(entry.deliveryId);\n    continue;\n}","distractor":true},{"id":"send-without-key","label":"Send the action so a repeat is recognised","code":"const answer = api.send({ kind: entry.kind, deliveryId: entry.deliveryId, payload: entry.payload });","distractor":true},{"id":"skip-only-not-due","label":"Skip entries that are not due or wait behind an earlier one","code":"if (entry.nextAttemptAt > now) {\n    continue;\n}","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_142');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_142'), 'Offline in the basement for 10 s, then everything goes through in order', '{"actions":[["pickup","A"],["complete","A","185000"],["pickup","B"]],"faults":{"1":"network","2":"network"},"untilMs":20000}', '{"applied":["pickup A","complete A","pickup B"],"ledger":["A 185000"],"failed":[],"left":[],"requests":["0s pickup A","5s pickup A","10s pickup A","10s complete A","10s pickup B"]}', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_142'), 'The api saved the completion but the answer was lost: the cash is counted once', '{"actions":[["pickup","A"],["complete","A","185000"]],"faults":{"2":"lost"},"untilMs":20000}', '{"applied":["pickup A","complete A"],"ledger":["A 185000"],"failed":[],"left":[],"requests":["0s pickup A","0s complete A","5s complete A"]}', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_142'), 'A 503 storm: retries back off 1, 2, 4 ... s and never wait more than 60 s', '{"actions":[["pickup","A"]],"faults":{"1":"503","2":"503","3":"503","4":"503","5":"503","6":"503","7":"503","8":"503"},"untilMs":300000}', '{"applied":["pickup A"],"ledger":[],"failed":[],"left":[],"requests":["0s pickup A","5s pickup A","10s pickup A","15s pickup A","25s pickup A","45s pickup A","80s pickup A","140s pickup A","200s pickup A"]}', 6, false, true, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_142'), 'A 429 with Retry-After 30: no retry before 30 s, other deliveries keep moving', '{"actions":[["pickup","A"],["pickup","B"]],"faults":{"1":"429"},"untilMs":60000}', '{"applied":["pickup B","pickup A"],"ledger":[],"failed":[],"left":[],"requests":["0s pickup A","0s pickup B","30s pickup A"]}', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_142'), 'A failed pickup holds that delivery''s completion until the pickup succeeds', '{"actions":[["pickup","A"],["complete","A","99000"],["pickup","B"]],"faults":{"1":"503"},"untilMs":20000}', '{"applied":["pickup B","pickup A","complete A"],"ledger":["A 99000"],"failed":[],"left":[],"requests":["0s pickup A","0s pickup B","5s pickup A","5s complete A"]}', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_rno_142_starter', 's3', 'challenges/typescript/chal_coding_rno_142/starter.ts', 'raw', 'application/typescript', 5310, 'main.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_142'), 'typescript', 'main.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_rno_142_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.2: Conflict resolution: last-write-wins vs field merge (Sanity lesson-rno-2-2)
+UPDATE course.lesson SET title = 'Conflict resolution: last-write-wins vs field merge', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-2-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Conflict resolution: last-write-wins vs field merge', 'sanity', 'lesson-rno-2-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rno-2-2' AND is_deleted = false);
+
+-- challenge chal_quiz_rno_151 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_rno_151', (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-2-2' AND is_deleted = false LIMIT 1), 'conflict-resolution-quiz', 'Read the sync conflicts', 'Three statements about the conflicts Rice Rocket found once couriers edited deliveries offline while dispatchers edited them on the web. Decide whether each one is true.', 'open', 'hard'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_151');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_151'), 1, 'Compare the two clocks in the evidence with the real order of events. Who sets `updatedAt`, and how far can that clock be off?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_151'), 2, 'List the fields each side changed. Field-level merge decides fields only one side changed; what is left when both sides changed the same field?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_151'), 3, 'To know whether a value changed on the phone, on the server, or on both, you need one more value than the two copies being merged. Which one?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_151');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_151'), 'The sync used last-write-wins on the whole delivery, comparing `updatedAt` set by each writer:
+
+```text
+04:12:03 (real time)  dispatcher fixes the address on the web   updatedAt=2026-11-06T04:12:03Z (server clock)
+04:14:40 (real time)  courier adds a gate code, offline         updatedAt=2026-11-06T04:07:31Z (phone clock, 7 min slow)
+04:20:15 (real time)  phone syncs: server copy is newer -> courier''s gate code dropped
+```
+
+Statement: "Last-write-wins is safe as long as every writer stores an `updatedAt` timestamp with its change."', 'single_choice'::question_type, 'False. The timestamps come from different clocks: the phone''s runs 7 minutes slow, so its later edit looks older and is thrown away. A phone clock can be minutes or hours off (manual time, a dead battery, a traveller''s time zone handling). Even with perfect clocks, whole-record last-write-wins drops the other side''s edits to different fields. Server-assigned versions, a base copy for three-way merge, or hybrid logical clocks avoid trusting device time.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_151') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_151'), 'After switching to a per-field merge, one delivery still showed this:
+
+```text
+field     base               courier (offline)     dispatcher (web)
+address   12 Le Loi, D1      12A Le Loi, D1        14 Le Loi, D1
+note      ""                 "gate code 4471"     ""
+```
+
+Statement: "With a per-field merge there are no conflicts left, so the app never needs to show one to the courier."', 'single_choice'::question_type, 'False. The note changed on one side only and merges cleanly, but both sides changed `address` to different values. The merge has to apply a rule (here the dispatcher''s value wins for addresses) and, because the courier''s edit is lost, tell the courier. Field-level merge shrinks conflicts to the fields both sides changed; it does not remove them.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_151') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_151'), 'The phone now stores the version it last synced next to the edited copy:
+
+```ts
+type Pending = { base: Delivery; local: Delivery };
+// on sync: mergeDelivery(pending.base, pending.local, await api.getDelivery(id), POLICY)
+```
+
+Statement: "Keeping `base` lets the merge tell a field only the courier changed from one only the dispatcher changed, which two copies alone cannot show."', 'single_choice'::question_type, 'True. With only `local` and `remote`, a difference in a field could mean the courier changed it, the dispatcher changed it, or both did. Comparing each side with `base` answers it: equal to base on one side means only the other side changed it. That is the three-way merge git uses for text, applied per field. The cost is storing the base copy until the edit syncs.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_151') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_rno_152 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_rno_152', (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-2-2' AND is_deleted = false LIMIT 1), 'three-way-delivery-merge', 'Merge an offline edit with the dispatcher''s changes', 'When an offline courier comes back online, the app merges the courier''s copy of a delivery with the api''s current copy, field by field, using `base`, the version the edit started from. The first version trusted the newest `updatedAt` (and phone clocks are wrong), let the api''s copy override the courier''s own edits, and doubled list items. The editor holds `mergeDelivery` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a field only one side changed takes that side''s value; a field both changed to the same value keeps it; a field both changed differently follows its policy (`server`: the api''s value, reported in `conflicts`; `device`: the courier''s; `union`: each list item once, sorted); and `updatedAt` never decides anything. Run merges deliveries edited on both sides, including one from a phone whose clock runs fast.', 'open', 'hard'::difficulty_question, 'mini_coding', 40, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_152');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_152'), 1, 'For each field of a test, mark it: changed by the courier, by the dispatcher, by both. Only the last group needs a policy.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_152'), 2, 'Look at which copy each branch returns after comparing with `base`, at whether anything compares `updatedAt`, and at how two lists become one without repeating an item.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_152'), 3, 'Merging a shared shopping list item: `if (same(mine.qty, base.qty)) qty = theirs.qty; else if (same(theirs.qty, base.qty)) qty = mine.qty; else qty = Math.max(mine.qty, theirs.qty)` and labels `[...new Set([...mine.labels, ...theirs.labels])].sort()`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_152'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"only-server-changed","label":"The courier did not touch it: take the api''s value","code":"if (same(local[f], base[f])) {\n    merged[f] = remote[f] ?? null;\n    continue;\n}"},{"id":"only-courier-changed","label":"Only the courier changed it: keep the edit","code":"if (same(remote[f], base[f])) {\n    merged[f] = local[f] ?? null;\n    continue;\n}"},{"id":"both-changed","label":"Both changed it: apply the field''s policy","code":"const rule = policy[f] ?? \"server\";\nif (rule === \"device\") merged[f] = local[f] ?? null;\nelse if (rule === \"union\") merged[f] = unionOf(local[f], remote[f]);\nelse {\n    merged[f] = remote[f] ?? null;\n    conflicts.push(f);\n}"},{"id":"union-lists","label":"The items of both lists, each once, sorted","code":"return [...new Set([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])])].sort();"},{"id":"newest-timestamp-wins","label":"Both changed it: apply the field''s policy","code":"const localNewer = String(local.updatedAt) > String(remote.updatedAt);\nmerged[f] = (localNewer ? local[f] : remote[f]) ?? null;","distractor":true},{"id":"server-copy-wins","label":"Only the courier changed it: keep the edit","code":"if (same(remote[f], base[f])) {\n    merged[f] = remote[f] ?? null;\n    continue;\n}","distractor":true},{"id":"union-concat","label":"The items of both lists, each once, sorted","code":"return [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].sort();","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_152');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_152'), 'The courier adds a gate code while the dispatcher fixes the address: both survive', '{"base":{"id":"d-8812","address":"12 Le Loi, District 1","phone":"0901 234 567","status":"picked_up","note":"","proofPhoto":null,"tags":["cash"],"updatedAt":"2026-11-06T04:10:00Z"},"local":{"id":"d-8812","address":"12 Le Loi, District 1","phone":"0901 234 567","status":"picked_up","note":"gate code 4471","proofPhoto":null,"tags":["cash"],"updatedAt":"2026-11-06T04:14:40Z"},"remote":{"id":"d-8812","address":"14 Le Loi, District 1","phone":"0901 234 567","status":"picked_up","note":"","proofPhoto":null,"tags":["cash"],"updatedAt":"2026-11-06T04:12:03Z"},"policy":{"address":"server","phone":"server","status":"server","note":"device","proofPhoto":"device","tags":"union"}}', '{"merged":{"updatedAt":"2026-11-06T04:12:03Z","address":"14 Le Loi, District 1","id":"d-8812","note":"gate code 4471","phone":"0901 234 567","proofPhoto":null,"status":"picked_up","tags":["cash"]},"conflicts":[]}', 8, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_152'), 'Both add tags: each tag kept once', '{"base":{"id":"d-8812","address":"12 Le Loi, District 1","phone":"0901 234 567","status":"picked_up","note":"","proofPhoto":null,"tags":["cash"],"updatedAt":"2026-11-06T04:10:00Z"},"local":{"id":"d-8812","address":"12 Le Loi, District 1","phone":"0901 234 567","status":"picked_up","note":"","proofPhoto":null,"tags":["cash","fragile"],"updatedAt":"2026-11-06T04:15:00Z"},"remote":{"id":"d-8812","address":"12 Le Loi, District 1","phone":"0901 234 567","status":"picked_up","note":"","proofPhoto":null,"tags":["call-on-arrival","cash","fragile"],"updatedAt":"2026-11-06T04:13:00Z"},"policy":{"address":"server","phone":"server","status":"server","note":"device","proofPhoto":"device","tags":"union"}}', '{"merged":{"updatedAt":"2026-11-06T04:13:00Z","address":"12 Le Loi, District 1","id":"d-8812","note":"","phone":"0901 234 567","proofPhoto":null,"status":"picked_up","tags":["call-on-arrival","cash","fragile"]},"conflicts":[]}', 8, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_152'), 'Both change the address: the dispatcher''s value wins and the courier is told', '{"base":{"id":"d-8812","address":"12 Le Loi, District 1","phone":"0901 234 567","status":"picked_up","note":"","proofPhoto":null,"tags":["cash"],"updatedAt":"2026-11-06T04:10:00Z"},"local":{"id":"d-8812","address":"12A Le Loi, District 1","phone":"0901 234 567","status":"picked_up","note":"","proofPhoto":null,"tags":["cash"],"updatedAt":"2026-11-06T04:14:40Z"},"remote":{"id":"d-8812","address":"14 Le Loi, District 1","phone":"0901 234 567","status":"picked_up","note":"","proofPhoto":null,"tags":["cash"],"updatedAt":"2026-11-06T04:12:03Z"},"policy":{"address":"server","phone":"server","status":"server","note":"device","proofPhoto":"device","tags":"union"}}', '{"merged":{"updatedAt":"2026-11-06T04:12:03Z","address":"14 Le Loi, District 1","id":"d-8812","note":"","phone":"0901 234 567","proofPhoto":null,"status":"picked_up","tags":["cash"]},"conflicts":["address"]}', 8, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_152'), 'A phone clock 10 minutes fast does not make the courier''s phone number win', '{"base":{"id":"d-8812","address":"12 Le Loi, District 1","phone":"0901 234 567","status":"picked_up","note":"","proofPhoto":null,"tags":["cash"],"updatedAt":"2026-11-06T04:10:00Z"},"local":{"id":"d-8812","address":"12 Le Loi, District 1","phone":"0901 234 568","status":"picked_up","note":"call twice","proofPhoto":null,"tags":["cash"],"updatedAt":"2026-11-06T04:25:00Z"},"remote":{"id":"d-8812","address":"12 Le Loi, District 1","phone":"0912 000 111","status":"picked_up","note":"","proofPhoto":null,"tags":["cash"],"updatedAt":"2026-11-06T04:16:00Z"},"policy":{"address":"server","phone":"server","status":"server","note":"device","proofPhoto":"device","tags":"union"}}', '{"merged":{"updatedAt":"2026-11-06T04:16:00Z","address":"12 Le Loi, District 1","id":"d-8812","note":"call twice","phone":"0912 000 111","proofPhoto":null,"status":"picked_up","tags":["cash"]},"conflicts":["phone"]}', 8, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_152'), 'Proof photo kept from the phone; a status both sides set the same way is no conflict', '{"base":{"id":"d-8812","address":"12 Le Loi, District 1","phone":"0901 234 567","status":"picked_up","note":"","proofPhoto":null,"tags":["cash"],"updatedAt":"2026-11-06T04:10:00Z"},"local":{"id":"d-8812","address":"12 Le Loi, District 1","phone":"0901 234 567","status":"delivered","note":"","proofPhoto":"file:///proofs/d-8812.jpg","tags":["cash"],"updatedAt":"2026-11-06T04:18:00Z"},"remote":{"id":"d-8812","address":"12 Le Loi, District 1","phone":"0901 234 567","status":"delivered","note":"","proofPhoto":"s3://placeholder.jpg","tags":["cash"],"updatedAt":"2026-11-06T04:19:00Z"},"policy":{"address":"server","phone":"server","status":"server","note":"device","proofPhoto":"device","tags":"union"}}', '{"merged":{"updatedAt":"2026-11-06T04:19:00Z","address":"12 Le Loi, District 1","id":"d-8812","note":"","phone":"0901 234 567","proofPhoto":"file:///proofs/d-8812.jpg","status":"delivered","tags":["cash"]},"conflicts":[]}', 8, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_rno_152_starter', 's3', 'challenges/typescript/chal_coding_rno_152/starter.ts', 'raw', 'application/typescript', 2342, 'main.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_152'), 'typescript', 'main.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_rno_152_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.3: Delta sync with cursors (Sanity lesson-rno-2-3)
+UPDATE course.lesson SET title = 'Delta sync with cursors', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-2-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Delta sync with cursors', 'sanity', 'lesson-rno-2-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rno-2-3' AND is_deleted = false);
+
+-- challenge chal_coding_rno_162 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_rno_162', (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-2-3' AND is_deleted = false LIMIT 1), 'delta-sync-cursor', 'Sync only what changed', 'The courier app used to download all of a courier''s deliveries on every resume; the first delta version asked for "changes since" the phone''s clock, missed updates and never removed cancelled deliveries. The server now keeps a change log and hands out an opaque cursor. The editor holds `syncDeltas(api, store)` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a sync starts from the cursor saved by the last finished page; it keeps asking for pages until the server has nothing more; each page''s upserts, deletions and its cursor are written together or not at all, so an app killed mid-page simply fetches that page again; deleted changes remove the delivery; and when the server answers 410 (cursor too old) the app clears its copy and downloads everything once. Run plays a day of server changes and app starts, sometimes kills the app during a page, and prints what is on the phone.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_162');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_162'), 1, 'Follow one page through a kill: which rows and which cursor are on disk afterwards, and what will the next start ask the server for? Anything the cursor says you have must really be in the table.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_162'), 2, 'Look at what goes inside `store.transaction` (the rows and `tx.setCursor`) versus `store.setCursor`, at `change.deleted`, at `page.hasMore`, and at catching `HttpError` with status 410.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_162'), 3, 'A news app syncs saved articles the same way: `let c = db.cursor(); for (;;) { const p = feed.since(c); db.tx((t) => { p.items.forEach((a) => (a.removed ? t.del(a.id) : t.put(a))); t.cursor(p.next); }); c = p.next; if (!p.more) break; }`, and on 410 it wipes the table in one transaction and starts again from null.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_162'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"start-cursor","label":"Where the last finished sync stopped","code":"let cursor = store.cursor();"},{"id":"fetch-page","label":"Ask the server for the next page of changes","code":"page = api.changes({ cursor, limit: 100 });"},{"id":"expired-cursor","label":"Start over when the server no longer has the cursor","code":"if (error instanceof HttpError && error.status === 410 && !resynced) {\n    resynced = true;\n    store.transaction((tx) => {\n        tx.clear();\n        tx.setCursor(null);\n    });\n    cursor = null;\n    continue;\n}\nthrow error;"},{"id":"apply-page","label":"Apply the page and keep its cursor, all or nothing","code":"store.transaction((tx) => {\n    for (const change of page.changes) {\n        if (change.deleted) tx.remove(change.id);\n        else tx.upsert(change.id, change.version, change.data);\n    }\n    tx.setCursor(page.nextCursor);\n});"},{"id":"loop-until-done","label":"Stop once the server has nothing more","code":"if (!page.hasMore) return { pages, resynced };"},{"id":"apply-page-cursor-first","label":"Apply the page and keep its cursor, all or nothing","code":"store.setCursor(page.nextCursor);\nstore.transaction((tx) => {\n    for (const change of page.changes) {\n        if (change.deleted) tx.remove(change.id);\n        else tx.upsert(change.id, change.version, change.data);\n    }\n});","distractor":true},{"id":"apply-page-upsert-all","label":"Apply the page and keep its cursor, all or nothing","code":"store.transaction((tx) => {\n    for (const change of page.changes) tx.upsert(change.id, change.version, change.data);\n    tx.setCursor(page.nextCursor);\n});","distractor":true},{"id":"loop-first-page-only","label":"Stop once the server has nothing more","code":"return { pages, resynced };","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_162');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_162'), 'A fresh install downloads every delivery, page by page, and stops at the end', '{"serverPageSize":3,"steps":[{"server":[{"id":"d-1","version":1},{"id":"d-2","version":1},{"id":"d-3","version":1},{"id":"d-4","version":1},{"id":"d-5","version":1},{"id":"d-6","version":1},{"id":"d-7","version":1}]},{"sync":true}]}', '{"rows":["d-1@1","d-2@1","d-3@1","d-4@1","d-5@1","d-6@1","d-7@1"],"cursorAtEnd":true,"pagesServed":3,"resyncs":0,"kills":0,"errors":[]}', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_162'), 'The next sync gets only the changes since the cursor, deletions included', '{"serverPageSize":3,"steps":[{"server":[{"id":"d-1","version":1},{"id":"d-2","version":1},{"id":"d-3","version":1},{"id":"d-4","version":1},{"id":"d-5","version":1},{"id":"d-6","version":1},{"id":"d-7","version":1}]},{"sync":true},{"server":[{"id":"d-2","version":2},{"id":"d-5","version":2,"deleted":true},{"id":"d-8","version":1}]},{"sync":true}]}', '{"rows":["d-1@1","d-2@2","d-3@1","d-4@1","d-6@1","d-7@1","d-8@1"],"cursorAtEnd":true,"pagesServed":4,"resyncs":0,"kills":0,"errors":[]}', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_162'), 'Killed while applying a page: the next start fetches that page again, nothing lost', '{"serverPageSize":3,"steps":[{"server":[{"id":"d-1","version":1},{"id":"d-2","version":1},{"id":"d-3","version":1},{"id":"d-4","version":1},{"id":"d-5","version":1},{"id":"d-6","version":1},{"id":"d-7","version":1}]},{"sync":true,"killAt":{"page":2,"afterWrites":1}},{"sync":true}]}', '{"rows":["d-1@1","d-2@1","d-3@1","d-4@1","d-5@1","d-6@1","d-7@1"],"cursorAtEnd":true,"pagesServed":4,"resyncs":0,"kills":1,"errors":[]}', 6, false, true, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_162'), 'A cursor older than the server keeps (410): the app clears its copy and downloads once', '{"serverPageSize":4,"local":{"rows":[{"id":"d-1","version":1,"data":"d-1 v1"},{"id":"d-99","version":3,"data":"stale"}],"cursorSeq":0},"steps":[{"server":[{"id":"d-1","version":1},{"id":"d-2","version":1},{"id":"d-3","version":1},{"id":"d-99","version":4,"deleted":true},{"id":"d-4","version":1},{"id":"d-2","version":2}]},{"expireBefore":4},{"sync":true}]}', '{"rows":["d-1@1","d-2@2","d-3@1","d-4@1"],"cursorAtEnd":true,"pagesServed":2,"resyncs":1,"kills":0,"errors":[]}', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_162'), 'Killed on a deletion, then the server changes again: the phone still ends up exact', '{"serverPageSize":2,"steps":[{"server":[{"id":"d-1","version":1},{"id":"d-2","version":1},{"id":"d-3","version":1},{"id":"d-4","version":1},{"id":"d-5","version":1},{"id":"d-6","version":1},{"id":"d-7","version":1}]},{"sync":true},{"server":[{"id":"d-3","version":2,"deleted":true},{"id":"d-4","version":2},{"id":"d-6","version":2,"deleted":true}]},{"sync":true,"killAt":{"page":1,"afterWrites":0}},{"server":[{"id":"d-9","version":1}]},{"sync":true}]}', '{"rows":["d-1@1","d-2@1","d-4@2","d-5@1","d-7@1","d-9@1"],"cursorAtEnd":true,"pagesServed":7,"resyncs":0,"kills":1,"errors":[]}', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_rno_162_starter', 's3', 'challenges/typescript/chal_coding_rno_162/starter.ts', 'raw', 'application/typescript', 6952, 'src/sync/deltaSync.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_162'), 'typescript', 'src/sync/deltaSync.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_rno_162_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 3: Device reality
+UPDATE course.module SET title = 'Device reality', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 3 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), 'Device reality', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 3 AND is_deleted = false);
+
+-- lesson 3.1: Lists on low-end phones (Sanity lesson-rno-3-1)
+UPDATE course.lesson SET title = 'Lists on low-end phones', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-3-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Lists on low-end phones', 'sanity', 'lesson-rno-3-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rno-3-1' AND is_deleted = false);
+
+-- challenge chal_quiz_rno_171 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_rno_171', (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-3-1' AND is_deleted = false LIMIT 1), 'lists-low-end-phones-quiz', 'Read the janky delivery list', 'Three statements about what Rice Rocket measured when the delivery list stuttered on the Galaxy A03 phones most couriers use. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_171');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_171'), 1, 'React Native has a JS thread that runs your components and a UI thread that draws native views. Which of the two numbers dropped?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_171'), 2, '`windowSize` counts viewport heights kept rendered around the screen. What does the list show for a fast fling if almost nothing outside the screen is rendered?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_171'), 3, 'A key tells React which component instance belongs to which item. After an insert at the top, what does index 5 point to?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_171');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_171'), 'The Perf Monitor while a courier scrolls "Today''s deliveries" on a Galaxy A03:
+
+```text
+UI:  59.8 fps
+JS:  11.2 fps   (frames dropped while scrolling)
+RAM: 212 MB
+```
+
+Statement: "The native UI thread keeps up; the JS thread is the bottleneck, so the fix is less JavaScript work per row (fewer re-renders, cheaper rows), not faster native drawing."', 'single_choice'::question_type, 'True. React Native renders your components on the JS thread and the UI thread draws the native views. A healthy UI rate next to a collapsed JS rate means the JavaScript side (rendering rows, re-rendering them, work in handlers) cannot produce updates fast enough; FlatList then shows blank areas until rows arrive. The misconception is that list jank is always a native drawing problem.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_171') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_171'), 'To cut the JS work, a teammate shrinks the render window:
+
+```tsx
+<FlatList data={items} renderItem={renderItem} windowSize={1} />
+```
+
+Statement: "`windowSize={1}` renders only the visible screen, so the list gets smoother with no visible side effect."', 'single_choice'::question_type, 'False. `windowSize` is measured in viewport heights (the default is 21: the visible area plus 10 above and 10 below). With 1, nothing outside the screen is ready, so a fast fling shows blank space while rows are rendered on demand, and rows are mounted and unmounted constantly. A small window trades memory and work for blank areas; values like 5 to 11 with `getItemLayout` and memoized rows usually work better.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_171') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_171'), 'The list uses the position as key. Dispatch inserts a new delivery at the top while the courier has row 5 expanded:
+
+```tsx
+<FlatList data={items} keyExtractor={(_, index) => String(index)} ... />
+```
+
+```text
+before: index 5 = d-5 (expanded)    after insert: index 5 = d-4, index 6 = d-5
+screen: d-4 is now shown expanded; d-5 is collapsed
+```
+
+Statement: "Keying by `item.id` makes each component instance follow its delivery, so the expanded state stays on d-5 and only the new row has to render."', 'single_choice'::question_type, 'True. React matches instances to items by key. With index keys, the instance that was showing d-5 now receives d-4''s props: its local state (expanded) moves to the wrong delivery and every row after the insert re-renders with new props. With a stable id, existing instances keep their item and state; only the new delivery mounts. The misconception is that keys only matter for warnings.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_171') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_rno_172 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_rno_172', (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-3-1' AND is_deleted = false LIMIT 1), 'delivery-list-config', 'Configure the delivery list for low-end phones', '"Today''s deliveries" is a FlatList of time-slot headers (40 px) and delivery rows (96 px). On low-end phones it measured every row while scrolling, re-rendered every visible row when one status changed, and after dispatch inserted a delivery, the courier''s expanded row jumped to another delivery. The editor holds `listConfig(items, openDelivery)`, which builds the props the screen passes to FlatList and `React.memo`, with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: `getItemLayout` returns each item''s exact height and offset (headers and rows differ); keys follow the delivery, not its position; a row re-renders only when its own delivery changed; and the row''s props stay equal between renders (`openDelivery` is already stable). Run models FlatList''s render window and React''s key matching, then counts rendered rows per update.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_172');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_172'), 1, 'For each update ask two things: which component instance does React match to each item (the key decides), and does `sameRow` see equal props for rows that did not change?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_172'), 2, 'Look at the heights array and the running offset, `keyExtractor`''s two arguments, whether `rowProps` creates a new function each time, and what `sameRow` compares.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_172'), 3, 'A chat screen with date separators (24 px) and messages (64 px) does: `heights = items.map((i) => (i.kind === "date" ? 24 : 64))`, a running sum for offsets, `keyExtractor={(m) => m.id}`, `React.memo(MessageRow, (a, b) => a.message === b.message && a.onLongPress === b.onLongPress)` with `onLongPress` from `useCallback`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_172'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"item-offsets","label":"Each item''s height and its offset from the top","code":"const heights = items.map((item) => (item.kind === \"slot\" ? SLOT_HEIGHT : ROW_HEIGHT));\nconst offsets: number[] = [];\nlet y = 0;\nfor (const h of heights) {\n    offsets.push(y);\n    y += h;\n}"},{"id":"key-of","label":"A key that follows the delivery, not its position","code":"keyOf: (item: Item) => item.id,"},{"id":"row-props","label":"Props for one row that stay equal between renders","code":"rowProps: (item: Delivery) => ({ item, onOpen: openDelivery }),"},{"id":"same-row","label":"When React.memo may skip re-rendering a row","code":"sameRow: (prev: RowProps, next: RowProps) => prev.item === next.item && prev.onOpen === next.onOpen,"},{"id":"item-offsets-all-rows","label":"Each item''s height and its offset from the top","code":"const heights = items.map(() => ROW_HEIGHT);\nconst offsets = heights.map((_, i) => i * ROW_HEIGHT);","distractor":true},{"id":"key-of-index","label":"A key that follows the delivery, not its position","code":"keyOf: (_item: Item, index: number) => String(index),","distractor":true},{"id":"row-props-inline-handler","label":"Props for one row that stay equal between renders","code":"rowProps: (item: Delivery) => ({ item, onOpen: () => openDelivery(item.id) }),","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_172');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_172'), 'getItemLayout gives exact offsets for headers and rows, and the right window mounts', '{"slots":[{"slot":"10:30","deliveries":6},{"slot":"11:00","deliveries":8},{"slot":"11:30","deliveries":8},{"slot":"12:00","deliveries":10}],"viewport":640,"scroll":1200,"probe":[0,7,8,16,35],"events":[]}', '{"firstRange":[0,34],"firstRendered":31,"offsets":[0,616,656,1424,3136],"layoutMatches":true,"renderedPerEvent":[],"wrongExpanded":0}', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_172'), 'A status change on one visible delivery re-renders that row only', '{"slots":[{"slot":"10:30","deliveries":6},{"slot":"11:00","deliveries":8},{"slot":"11:30","deliveries":8},{"slot":"12:00","deliveries":10}],"viewport":640,"scroll":1200,"probe":[],"events":[{"status":{"id":"d-14","to":"picked_up"}}]}', '{"firstRange":[0,34],"firstRendered":31,"offsets":[],"layoutMatches":true,"renderedPerEvent":[1],"wrongExpanded":0}', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_172'), 'A delivery inserted at the top: the expanded row stays on its delivery, one new row renders', '{"slots":[{"slot":"10:30","deliveries":6},{"slot":"11:00","deliveries":8},{"slot":"11:30","deliveries":8},{"slot":"12:00","deliveries":10}],"viewport":640,"scroll":0,"expand":"d-3","probe":[2,9],"events":[{"insert":{"after":"slot-10:30","id":"d-50"}}]}', '{"firstRange":[0,21],"firstRendered":19,"offsets":[136,752],"layoutMatches":true,"renderedPerEvent":[1],"wrongExpanded":0}', 6, false, true, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_172'), 'Three status changes in a row near the end of the list', '{"slots":[{"slot":"10:30","deliveries":6},{"slot":"11:00","deliveries":8},{"slot":"11:30","deliveries":8},{"slot":"12:00","deliveries":10}],"viewport":640,"scroll":2400,"probe":[30],"events":[{"status":{"id":"d-28","to":"picked_up"}},{"status":{"id":"d-30","to":"picked_up"}},{"status":{"id":"d-28","to":"delivered"}}]}', '{"firstRange":[12,35],"firstRendered":22,"offsets":[2656],"layoutMatches":true,"renderedPerEvent":[1,1,1],"wrongExpanded":0}', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_172'), 'Insert below the expanded row, then a status change: no state moves, minimal renders', '{"slots":[{"slot":"10:30","deliveries":6},{"slot":"11:00","deliveries":8},{"slot":"11:30","deliveries":8},{"slot":"12:00","deliveries":10}],"viewport":640,"scroll":600,"expand":"d-9","probe":[12],"events":[{"insert":{"after":"d-10","id":"d-51"}},{"status":{"id":"d-9","to":"picked_up"}}]}', '{"firstRange":[0,28],"firstRendered":25,"offsets":[1040],"layoutMatches":true,"renderedPerEvent":[1,1],"wrongExpanded":0}', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_rno_172_starter', 's3', 'challenges/typescript/chal_coding_rno_172/starter.ts', 'raw', 'application/typescript', 6659, 'src/screens/deliveries/listConfig.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_172'), 'typescript', 'src/screens/deliveries/listConfig.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_rno_172_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.2: Background tasks and battery budgets (Sanity lesson-rno-3-2)
+UPDATE course.lesson SET title = 'Background tasks and battery budgets', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-3-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Background tasks and battery budgets', 'sanity', 'lesson-rno-3-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rno-3-2' AND is_deleted = false);
+
+-- challenge chal_quiz_rno_181 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_rno_181', (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-3-2' AND is_deleted = false LIMIT 1), 'background-tasks-quiz', 'Read the battery complaints', 'Three statements about what Rice Rocket found when couriers complained that the app drained their battery and still showed stale deliveries. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_181');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_181'), 1, 'Who decides when a background task runs on Android and iOS: your code, or the operating system''s scheduler? What does a "minimum" interval promise?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_181'), 2, 'Compare what wakes the GPS: an update every second at the highest accuracy, or an update only after the courier moved some distance.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_181'), 3, 'Think about what happens to the JavaScript runtime when the app goes to the background and the OS suspends it.');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_181');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_181'), 'The sync was registered as a background task:
+
+```ts
+await BackgroundTask.registerTaskAsync("sync-outbox", { minimumInterval: 1 }); // minutes
+```
+
+```text
+adb logcat (2 hours, phone idle in a pocket)
+10:02 sync-outbox ran
+10:19 sync-outbox ran
+10:51 sync-outbox ran
+11:40 sync-outbox ran
+```
+
+Statement: "`minimumInterval: 1` makes the operating system run the sync every minute; the gaps in the log mean the task registration is broken."', 'single_choice'::question_type, 'False. Background tasks are scheduled by the OS (WorkManager on Android, BGTaskScheduler on iOS): the interval is a lower bound, not a schedule. Android''s periodic work does not run more often than every 15 minutes, and both systems delay work further for battery saving, Doze and app usage patterns. The log shows a working registration. Anything that must happen within seconds needs the app in the foreground or a push from the server.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_181') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_181'), 'Couriers report 20% battery per hour with the app open. The location setup:
+
+```ts
+await Location.startLocationUpdatesAsync("courier-location", {
+  accuracy: Location.Accuracy.BestForNavigation,
+  timeInterval: 1000,
+  distanceInterval: 0,
+});
+```
+
+Statement: "Asking for best accuracy every second keeps the GPS awake all the time; a balanced accuracy and a distance interval (for example 50 m) cut the wake-ups, and the battery drain with them."', 'single_choice'::question_type, 'True. Continuous high-accuracy GPS is one of the most expensive things a phone does. A distance interval sends an update only after the courier actually moved, and a balanced accuracy lets the OS use cheaper sources when they are good enough. Dispatch needs a position every few dozen meters, not every second at standstill.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_181') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_181'), 'To retry failed uploads, the app starts a timer when it goes to the background:
+
+```ts
+AppState.addEventListener("change", (state) => {
+  if (state === "background") setInterval(() => outbox.flush(), 10_000);
+});
+```
+
+Statement: "The interval keeps retrying the outbox every 10 seconds while the app is in the background, so photos uploaded offline reach the server within seconds of the network coming back."', 'single_choice'::question_type, 'False. When the app is backgrounded the OS suspends it shortly after, and JavaScript timers stop with it; they resume only when the app comes back (or a background task wakes it). Retries in the background belong in a scheduled background task, and the reliable moment to flush the outbox is when the app returns to the foreground or the network comes back while it runs.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_181') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+
+-- lesson 3.3: Feature flags and staged rollouts (Sanity lesson-rno-3-3)
+UPDATE course.lesson SET title = 'Feature flags and staged rollouts', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-3-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Feature flags and staged rollouts', 'sanity', 'lesson-rno-3-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-rno-3-3' AND is_deleted = false);
+
+-- challenge chal_quiz_rno_191 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_rno_191', (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-3-3' AND is_deleted = false LIMIT 1), 'feature-flags-rollouts-quiz', 'Read the 2.4 release', 'Three statements about how Rice Rocket shipped, halted and fixed the batch pickup screen in courier app 2.4. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_191');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_191'), 1, 'An over-the-air update replaces the JavaScript bundle and assets. What part of the app does it not replace?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_191'), 2, 'Halting a staged rollout in the store controls who can download the new version from now on. What about phones that already installed it?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_191'), 3, 'If each courier''s bucket is a fixed number from 0 to 99, what happens to the couriers below 10 when the threshold moves to 25?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_191');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_191'), '2.4 added a native barcode scanner module. To ship it faster, the team published an update over the air:
+
+```text
+$ eas update --branch production --message "batch pickup + scanner"
+...
+Crash reports after 20 minutes (2.3 binaries that received the update):
+  Invariant Violation: Native module "BarcodeScanner" cannot be found
+```
+
+Statement: "An OTA update can ship any change, including a new native module, as long as the JavaScript bundle compiles; the crash must come from a bug in the scanner code."', 'single_choice'::question_type, 'False. An OTA update (EAS Update) replaces the JavaScript bundle and assets only; native code lives in the store binary. A 2.3 binary has no BarcodeScanner native module, so the new JavaScript crashes when it calls it. Expo''s runtime version exists to stop that: an update is delivered only to binaries with a matching runtime version, which must change whenever native code changes. New native modules need a store release.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_191') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_191'), 'The store build of 2.4 crashed on some Android 10 phones. The team halted the staged rollout:
+
+```text
+Google Play Console - production track
+  2.4.0 (240)   staged rollout 10%  -> halted
+  installs of 2.4.0 before the halt: 1,180 couriers
+```
+
+Statement: "Halting the rollout stops new installs of 2.4.0 but does not remove it from the 1,180 phones that already updated; a remote kill switch is what turns the crashing screen off for them."', 'single_choice'::question_type, 'True. A halted staged rollout means no more users get the update from the store; it does not downgrade anyone. Couriers already on 2.4.0 keep it until a fixed version ships. A feature flag that the app checks on start (with the batch pickup screen behind it) can switch the feature off for them within minutes, which is why risky screens ship behind a flag even in a staged rollout.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_191') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_191'), 'Flags are evaluated on the phone with a stable hash:
+
+```ts
+const bucket = fnv1a(`${flagKey}:${courierId}`) % 100;   // 0-99, the same every time
+return bucket < flag.rollout;                             // rollout 10 -> 25
+```
+
+Statement: "Raising the rollout from 10% to 25% keeps every courier who already had the feature, because each courier''s bucket number does not change."', 'single_choice'::question_type, 'True. The bucket depends only on the flag key and the courier id, so it is the same on every start and every phone. Couriers below 10 are also below 25; raising the threshold only adds couriers. With a random number per start, couriers would see the feature appear and disappear, and a rollout could not be compared before and after.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_rno_191') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_rno_192 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_rno_192', (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'react-native-offline-first') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-rno-3-3' AND is_deleted = false LIMIT 1), 'feature-flag-evaluation', 'Evaluate feature flags on the phone', 'Batch pickup ships in 2.4 behind a remote flag: Android first, app version 2.4.0 and newer, rolled out to a growing share of couriers, with a kill switch. The first flag client turned features off whenever a courier was offline, compared versions as text (so 2.10.0 counted as older than 2.4.0) and gave every flag at 25% to the same quarter of the couriers. The editor holds `isEnabled(key, user, remote, cache)` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: the app uses the newest config it can get and saves it, and offline it uses the saved one (defaults only when it never got one); a killed or disabled flag is off; rules match the platform, a minimum app version compared number by number, and a maximum OS version; and the rollout keeps the same couriers in as the percentage grows, with each flag picking its own couriers. Run starts the app for 30 to 60 couriers, online and offline, and lists who gets each flag.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_192');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_192'), 1, 'Evaluate one courier by hand: which config is used on an offline start, does any rule match, and which bucket number does the hash give for this flag and this courier?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_192'), 2, 'Look at `remote.fetch()` and the cache, the `killed` / `enabled` fields, `compareVersions` versus comparing strings, and what text goes into `bucket(...)`.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_192'), 3, 'A shop app gating a new checkout does: `const cfg = remote.get() ?? store.last(); if (!cfg?.flags.checkout || cfg.flags.checkout.off) return DEFAULTS.checkout; if (semverCmp(app.version, "5.2.0") < 0) return false; return hash(`checkout:${account.id}`) % 100 < cfg.flags.checkout.percent;`, saving `cfg` whenever the download worked.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_192'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"current-config","label":"The newest config available, online or offline","code":"const fresh = remote.fetch();\nif (fresh) cache.save(fresh);\nconst config = fresh ?? cache.load();"},{"id":"kill-switch","label":"A killed or disabled flag is off for everyone","code":"if (flag.killed || !flag.enabled) return false;"},{"id":"targeting","label":"Only the platforms and versions the flag targets","code":"const targeted = flag.rules.length === 0 || flag.rules.some((rule) =>\n    (rule.platform === undefined || rule.platform === user.platform) &&\n    (rule.minAppVersion === undefined || compareVersions(user.appVersion, rule.minAppVersion) >= 0) &&\n    (rule.maxOsVersion === undefined || user.osVersion <= rule.maxOsVersion));\nif (!targeted) return false;"},{"id":"rollout-bucket","label":"The same couriers stay in as the percentage grows","code":"return bucket(`${key}:${user.id}`) < flag.rollout;"},{"id":"current-config-remote-only","label":"The newest config available, online or offline","code":"const config = remote.fetch();","distractor":true},{"id":"rollout-bucket-user-only","label":"The same couriers stay in as the percentage grows","code":"return bucket(user.id) < flag.rollout;","distractor":true},{"id":"targeting-string-versions","label":"Only the platforms and versions the flag targets","code":"const targeted = flag.rules.length === 0 || flag.rules.some((rule) =>\n    (rule.platform === undefined || rule.platform === user.platform) &&\n    (rule.minAppVersion === undefined || user.appVersion >= rule.minAppVersion) &&\n    (rule.maxOsVersion === undefined || user.osVersion <= rule.maxOsVersion));\nif (!targeted) return false;","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_192');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_192'), 'Batch pickup reaches 25% of Android couriers on 2.4.0 and newer (2.10.0 included)', '{"couriers":60,"flags":["batch-pickup"],"starts":[{"online":true,"config":{"version":1,"flags":{"batch-pickup":{"enabled":true,"killed":false,"rollout":25,"rules":[{"platform":"android","minAppVersion":"2.4.0"}]},"new-map":{"enabled":true,"killed":false,"rollout":25,"rules":[]},"voice-notes":{"enabled":true,"killed":false,"rollout":25,"rules":[]},"cash-summary":{"enabled":true,"killed":false,"rollout":100,"rules":[{"maxOsVersion":11}]}}}}]}', '[{"batch-pickup":["u-5","u-10","u-17","u-23","u-28","u-38","u-46","u-52","u-53","u-59"]}]', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_192'), 'The kill switch turns batch pickup off for everyone on the next start', '{"couriers":40,"flags":["batch-pickup"],"starts":[{"online":true,"config":{"version":1,"flags":{"batch-pickup":{"enabled":true,"killed":false,"rollout":25,"rules":[{"platform":"android","minAppVersion":"2.4.0"}]},"new-map":{"enabled":true,"killed":false,"rollout":25,"rules":[]},"voice-notes":{"enabled":true,"killed":false,"rollout":25,"rules":[]},"cash-summary":{"enabled":true,"killed":false,"rollout":100,"rules":[{"maxOsVersion":11}]}}}},{"online":true,"config":{"version":2,"flags":{"batch-pickup":{"enabled":true,"killed":true,"rollout":25,"rules":[{"platform":"android","minAppVersion":"2.4.0"}]},"new-map":{"enabled":true,"killed":false,"rollout":25,"rules":[]},"voice-notes":{"enabled":true,"killed":false,"rollout":25,"rules":[]},"cash-summary":{"enabled":true,"killed":false,"rollout":100,"rules":[{"maxOsVersion":11}]}}}}]}', '[{"batch-pickup":["u-5","u-10","u-17","u-23","u-28","u-38"]},{"batch-pickup":[]}]', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_192'), 'Raising new-map from 10% to 25% keeps every courier who already had it', '{"couriers":60,"flags":["new-map"],"starts":[{"online":true,"config":{"version":1,"flags":{"batch-pickup":{"enabled":true,"killed":false,"rollout":25,"rules":[{"platform":"android","minAppVersion":"2.4.0"}]},"new-map":{"enabled":true,"killed":false,"rollout":10,"rules":[]},"voice-notes":{"enabled":true,"killed":false,"rollout":25,"rules":[]},"cash-summary":{"enabled":true,"killed":false,"rollout":100,"rules":[{"maxOsVersion":11}]}}}},{"online":true,"config":{"version":2,"flags":{"batch-pickup":{"enabled":true,"killed":false,"rollout":25,"rules":[{"platform":"android","minAppVersion":"2.4.0"}]},"new-map":{"enabled":true,"killed":false,"rollout":25,"rules":[]},"voice-notes":{"enabled":true,"killed":false,"rollout":25,"rules":[]},"cash-summary":{"enabled":true,"killed":false,"rollout":100,"rules":[{"maxOsVersion":11}]}}}}]}', '[{"new-map":["u-18","u-20","u-30","u-48","u-56"]},{"new-map":["u-5","u-8","u-16","u-18","u-20","u-21","u-24","u-30","u-35","u-42","u-48","u-49","u-53","u-56","u-59"]}]', 6, false, true, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_192'), 'Offline starts use the last downloaded config; offline on a fresh install uses defaults', '{"couriers":30,"flags":["batch-pickup","cash-summary"],"starts":[{"online":false},{"online":true,"config":{"version":1,"flags":{"batch-pickup":{"enabled":true,"killed":false,"rollout":25,"rules":[{"platform":"android","minAppVersion":"2.4.0"}]},"new-map":{"enabled":true,"killed":false,"rollout":25,"rules":[]},"voice-notes":{"enabled":true,"killed":false,"rollout":25,"rules":[]},"cash-summary":{"enabled":true,"killed":false,"rollout":100,"rules":[{"maxOsVersion":11}]}}}},{"online":false}]}', '[{"batch-pickup":[],"cash-summary":["u-1","u-2","u-3","u-4","u-5","u-6","u-7","u-8","u-9","u-10","u-11","u-12","u-13","u-14","u-15","u-16","u-17","u-18","u-19","u-20","u-21","u-22","u-23","u-24","u-25","u-26","u-27","u-28","u-29","u-30"]},{"batch-pickup":["u-5","u-10","u-17","u-23","u-28"],"cash-summary":["u-1","u-2","u-5","u-6","u-7","u-10","u-11","u-12","u-15","u-16","u-17","u-20","u-21","u-22","u-25","u-26","u-27","u-30"]},{"batch-pickup":["u-5","u-10","u-17","u-23","u-28"],"cash-summary":["u-1","u-2","u-5","u-6","u-7","u-10","u-11","u-12","u-15","u-16","u-17","u-20","u-21","u-22","u-25","u-26","u-27","u-30"]}]', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_192'), 'Two flags at 25% each pick their own couriers', '{"couriers":40,"flags":["new-map","voice-notes"],"starts":[{"online":true,"config":{"version":1,"flags":{"batch-pickup":{"enabled":true,"killed":false,"rollout":25,"rules":[{"platform":"android","minAppVersion":"2.4.0"}]},"new-map":{"enabled":true,"killed":false,"rollout":25,"rules":[]},"voice-notes":{"enabled":true,"killed":false,"rollout":25,"rules":[]},"cash-summary":{"enabled":true,"killed":false,"rollout":100,"rules":[{"maxOsVersion":11}]}}}}]}', '[{"new-map":["u-5","u-8","u-16","u-18","u-20","u-21","u-24","u-30","u-35"],"voice-notes":["u-7","u-12","u-13","u-16","u-19","u-21","u-24","u-30","u-35"]}]', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_rno_192_starter', 's3', 'challenges/typescript/chal_coding_rno_192/starter.ts', 'raw', 'application/typescript', 3841, 'src/flags/isEnabled.ts')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_rno_192'), 'typescript', 'src/flags/isEnabled.ts', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_rno_192_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
 
 -- learners enrolled before these lessons existed
 INSERT INTO learning.history (user_id, course_id, module_id, lesson_id)

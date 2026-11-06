@@ -1,0 +1,840 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_fwp_142",
+      "name": "menu-virtual-window",
+      "type": "mini_coding",
+      "title": "Render only the rows in view",
+      "description": "The food-court menu lists up to 3,000 rows: 40 px stall headers and 96 px dishes. Rendering all of them built 45,000 DOM nodes and made scrolling stutter on budget phones; keying rows by index also showed the wrong photos after the vegetarian filter. Complete `visibleWindow(rows, viewport, options)`, the calculation behind the virtualized list. The editor holds `menu/virtualWindow.js` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Rules: compute each row's top from the heights; the first visible row is the first whose bottom is below `scrollTop` (find it with a binary search, the list is long); rows that start at or below `scrollTop + height` are not visible; add `overscan` rows (default 3) on each side without leaving the list; return `start`, `end` (exclusive), `offsetTop` (top of row `start`), `totalHeight` and the `keys` of rows `start..end-1`, taken from each row's `id`. Run calls it for several scroll positions, list shapes and a filtered list.",
+      "difficulty": "hard",
+      "outcomes": [
+        "render-efficiency"
+      ],
+      "points": 40,
+      "hints": [
+        "Draw the list as stacked boxes with their top positions: which box contains the scroll position, which box starts at the bottom edge, and what happens near position 0 or at the end of the list?",
+        "Look at an array of tops with one extra entry (the total height), a `while (lo < hi)` binary search on `tops[mid + 1] <= scrollTop`, `Math.max` / `Math.min` around the overscan, and `row.id` for keys.",
+        "Finding which log lines of variable height are on screen in a log viewer looks like: `const tops = [0]; lines.forEach((l, i) => tops.push(tops[i] + l.h));` then a binary search for the first line with `tops[i + 1] > scrollY`, a walk while `tops[j] < scrollY + viewH`, and keys from `line.seq`."
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "menu/virtualWindow.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Top of a 3,000-row list: the visible rows plus 3 below, none above",
+          "input": {
+            "uniform": {
+              "count": 3000,
+              "height": 72
+            },
+            "calls": [
+              {
+                "scrollTop": 0,
+                "height": 640
+              }
+            ]
+          },
+          "expected": [
+            {
+              "start": 0,
+              "end": 12,
+              "offsetTop": 0,
+              "totalHeight": 216000,
+              "keys": [
+                "dish-0",
+                "dish-1",
+                "dish-2",
+                "dish-3",
+                "dish-4",
+                "dish-5",
+                "dish-6",
+                "dish-7",
+                "dish-8",
+                "dish-9",
+                "dish-10",
+                "dish-11"
+              ]
+            }
+          ],
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Middle and end of the list: overscan on both sides, clamped at the last row",
+          "input": {
+            "uniform": {
+              "count": 3000,
+              "height": 72
+            },
+            "calls": [
+              {
+                "scrollTop": 72030,
+                "height": 640
+              },
+              {
+                "scrollTop": 215000,
+                "height": 640
+              }
+            ]
+          },
+          "expected": [
+            {
+              "start": 997,
+              "end": 1013,
+              "offsetTop": 71784,
+              "totalHeight": 216000,
+              "keys": [
+                "dish-997",
+                "dish-998",
+                "dish-999",
+                "dish-1000",
+                "dish-1001",
+                "dish-1002",
+                "dish-1003",
+                "dish-1004",
+                "dish-1005",
+                "dish-1006",
+                "dish-1007",
+                "dish-1008",
+                "dish-1009",
+                "dish-1010",
+                "dish-1011",
+                "dish-1012"
+              ]
+            },
+            {
+              "start": 2983,
+              "end": 2998,
+              "offsetTop": 214776,
+              "totalHeight": 216000,
+              "keys": [
+                "dish-2983",
+                "dish-2984",
+                "dish-2985",
+                "dish-2986",
+                "dish-2987",
+                "dish-2988",
+                "dish-2989",
+                "dish-2990",
+                "dish-2991",
+                "dish-2992",
+                "dish-2993",
+                "dish-2994",
+                "dish-2995",
+                "dish-2996",
+                "dish-2997"
+              ]
+            }
+          ],
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Headers and dishes of different heights",
+          "input": {
+            "rows": [
+              {
+                "id": "stall-0",
+                "height": 40
+              },
+              {
+                "id": "dish-0-0",
+                "height": 96
+              },
+              {
+                "id": "dish-0-1",
+                "height": 96
+              },
+              {
+                "id": "dish-0-2",
+                "height": 96
+              },
+              {
+                "id": "dish-0-3",
+                "height": 96
+              },
+              {
+                "id": "dish-0-4",
+                "height": 96
+              },
+              {
+                "id": "dish-0-5",
+                "height": 96
+              },
+              {
+                "id": "dish-0-6",
+                "height": 96
+              },
+              {
+                "id": "stall-1",
+                "height": 40
+              },
+              {
+                "id": "dish-1-0",
+                "height": 96
+              },
+              {
+                "id": "dish-1-1",
+                "height": 96
+              },
+              {
+                "id": "dish-1-2",
+                "height": 96
+              },
+              {
+                "id": "dish-1-3",
+                "height": 96
+              },
+              {
+                "id": "dish-1-4",
+                "height": 96
+              },
+              {
+                "id": "dish-1-5",
+                "height": 96
+              },
+              {
+                "id": "dish-1-6",
+                "height": 96
+              },
+              {
+                "id": "stall-2",
+                "height": 40
+              },
+              {
+                "id": "dish-2-0",
+                "height": 96
+              },
+              {
+                "id": "dish-2-1",
+                "height": 96
+              },
+              {
+                "id": "dish-2-2",
+                "height": 96
+              },
+              {
+                "id": "dish-2-3",
+                "height": 96
+              },
+              {
+                "id": "dish-2-4",
+                "height": 96
+              },
+              {
+                "id": "dish-2-5",
+                "height": 96
+              },
+              {
+                "id": "dish-2-6",
+                "height": 96
+              },
+              {
+                "id": "stall-3",
+                "height": 40
+              },
+              {
+                "id": "dish-3-0",
+                "height": 96
+              },
+              {
+                "id": "dish-3-1",
+                "height": 96
+              },
+              {
+                "id": "dish-3-2",
+                "height": 96
+              },
+              {
+                "id": "dish-3-3",
+                "height": 96
+              },
+              {
+                "id": "dish-3-4",
+                "height": 96
+              },
+              {
+                "id": "dish-3-5",
+                "height": 96
+              },
+              {
+                "id": "dish-3-6",
+                "height": 96
+              },
+              {
+                "id": "stall-4",
+                "height": 40
+              },
+              {
+                "id": "dish-4-0",
+                "height": 96
+              },
+              {
+                "id": "dish-4-1",
+                "height": 96
+              },
+              {
+                "id": "dish-4-2",
+                "height": 96
+              },
+              {
+                "id": "dish-4-3",
+                "height": 96
+              },
+              {
+                "id": "dish-4-4",
+                "height": 96
+              },
+              {
+                "id": "dish-4-5",
+                "height": 96
+              },
+              {
+                "id": "dish-4-6",
+                "height": 96
+              },
+              {
+                "id": "stall-5",
+                "height": 40
+              },
+              {
+                "id": "dish-5-0",
+                "height": 96
+              },
+              {
+                "id": "dish-5-1",
+                "height": 96
+              },
+              {
+                "id": "dish-5-2",
+                "height": 96
+              },
+              {
+                "id": "dish-5-3",
+                "height": 96
+              },
+              {
+                "id": "dish-5-4",
+                "height": 96
+              },
+              {
+                "id": "dish-5-5",
+                "height": 96
+              },
+              {
+                "id": "dish-5-6",
+                "height": 96
+              },
+              {
+                "id": "stall-6",
+                "height": 40
+              },
+              {
+                "id": "dish-6-0",
+                "height": 96
+              },
+              {
+                "id": "dish-6-1",
+                "height": 96
+              },
+              {
+                "id": "dish-6-2",
+                "height": 96
+              },
+              {
+                "id": "dish-6-3",
+                "height": 96
+              },
+              {
+                "id": "dish-6-4",
+                "height": 96
+              },
+              {
+                "id": "dish-6-5",
+                "height": 96
+              },
+              {
+                "id": "dish-6-6",
+                "height": 96
+              },
+              {
+                "id": "stall-7",
+                "height": 40
+              },
+              {
+                "id": "dish-7-0",
+                "height": 96
+              },
+              {
+                "id": "dish-7-1",
+                "height": 96
+              },
+              {
+                "id": "dish-7-2",
+                "height": 96
+              },
+              {
+                "id": "dish-7-3",
+                "height": 96
+              },
+              {
+                "id": "dish-7-4",
+                "height": 96
+              },
+              {
+                "id": "dish-7-5",
+                "height": 96
+              },
+              {
+                "id": "dish-7-6",
+                "height": 96
+              },
+              {
+                "id": "stall-8",
+                "height": 40
+              },
+              {
+                "id": "dish-8-0",
+                "height": 96
+              },
+              {
+                "id": "dish-8-1",
+                "height": 96
+              },
+              {
+                "id": "dish-8-2",
+                "height": 96
+              },
+              {
+                "id": "dish-8-3",
+                "height": 96
+              },
+              {
+                "id": "dish-8-4",
+                "height": 96
+              },
+              {
+                "id": "dish-8-5",
+                "height": 96
+              },
+              {
+                "id": "dish-8-6",
+                "height": 96
+              },
+              {
+                "id": "stall-9",
+                "height": 40
+              },
+              {
+                "id": "dish-9-0",
+                "height": 96
+              },
+              {
+                "id": "dish-9-1",
+                "height": 96
+              },
+              {
+                "id": "dish-9-2",
+                "height": 96
+              },
+              {
+                "id": "dish-9-3",
+                "height": 96
+              },
+              {
+                "id": "dish-9-4",
+                "height": 96
+              },
+              {
+                "id": "dish-9-5",
+                "height": 96
+              },
+              {
+                "id": "dish-9-6",
+                "height": 96
+              },
+              {
+                "id": "stall-10",
+                "height": 40
+              },
+              {
+                "id": "dish-10-0",
+                "height": 96
+              },
+              {
+                "id": "dish-10-1",
+                "height": 96
+              },
+              {
+                "id": "dish-10-2",
+                "height": 96
+              },
+              {
+                "id": "dish-10-3",
+                "height": 96
+              },
+              {
+                "id": "dish-10-4",
+                "height": 96
+              },
+              {
+                "id": "dish-10-5",
+                "height": 96
+              },
+              {
+                "id": "dish-10-6",
+                "height": 96
+              },
+              {
+                "id": "stall-11",
+                "height": 40
+              },
+              {
+                "id": "dish-11-0",
+                "height": 96
+              },
+              {
+                "id": "dish-11-1",
+                "height": 96
+              },
+              {
+                "id": "dish-11-2",
+                "height": 96
+              },
+              {
+                "id": "dish-11-3",
+                "height": 96
+              },
+              {
+                "id": "dish-11-4",
+                "height": 96
+              },
+              {
+                "id": "dish-11-5",
+                "height": 96
+              },
+              {
+                "id": "dish-11-6",
+                "height": 96
+              }
+            ],
+            "calls": [
+              {
+                "scrollTop": 0,
+                "height": 600,
+                "overscan": 2
+              },
+              {
+                "scrollTop": 1500,
+                "height": 600,
+                "overscan": 2
+              }
+            ]
+          },
+          "expected": [
+            {
+              "start": 0,
+              "end": 9,
+              "offsetTop": 0,
+              "totalHeight": 8544,
+              "keys": [
+                "stall-0",
+                "dish-0-0",
+                "dish-0-1",
+                "dish-0-2",
+                "dish-0-3",
+                "dish-0-4",
+                "dish-0-5",
+                "dish-0-6",
+                "stall-1"
+              ]
+            },
+            {
+              "start": 15,
+              "end": 26,
+              "offsetTop": 1328,
+              "totalHeight": 8544,
+              "keys": [
+                "dish-1-6",
+                "stall-2",
+                "dish-2-0",
+                "dish-2-1",
+                "dish-2-2",
+                "dish-2-3",
+                "dish-2-4",
+                "dish-2-5",
+                "dish-2-6",
+                "stall-3",
+                "dish-3-0"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "After a filter, keys still follow the dishes, not their positions",
+          "input": {
+            "rows": [
+              {
+                "id": "stall-0",
+                "height": 40
+              },
+              {
+                "id": "dish-0-2",
+                "height": 96
+              },
+              {
+                "id": "dish-0-5",
+                "height": 96
+              },
+              {
+                "id": "stall-1",
+                "height": 40
+              },
+              {
+                "id": "dish-1-0",
+                "height": 96
+              },
+              {
+                "id": "dish-1-3",
+                "height": 96
+              },
+              {
+                "id": "dish-1-6",
+                "height": 96
+              },
+              {
+                "id": "stall-2",
+                "height": 40
+              },
+              {
+                "id": "dish-2-1",
+                "height": 96
+              },
+              {
+                "id": "dish-2-4",
+                "height": 96
+              },
+              {
+                "id": "stall-3",
+                "height": 40
+              },
+              {
+                "id": "dish-3-2",
+                "height": 96
+              },
+              {
+                "id": "dish-3-5",
+                "height": 96
+              },
+              {
+                "id": "stall-4",
+                "height": 40
+              },
+              {
+                "id": "dish-4-0",
+                "height": 96
+              },
+              {
+                "id": "dish-4-3",
+                "height": 96
+              },
+              {
+                "id": "dish-4-6",
+                "height": 96
+              },
+              {
+                "id": "stall-5",
+                "height": 40
+              },
+              {
+                "id": "dish-5-1",
+                "height": 96
+              },
+              {
+                "id": "dish-5-4",
+                "height": 96
+              },
+              {
+                "id": "stall-6",
+                "height": 40
+              },
+              {
+                "id": "dish-6-2",
+                "height": 96
+              },
+              {
+                "id": "dish-6-5",
+                "height": 96
+              },
+              {
+                "id": "stall-7",
+                "height": 40
+              },
+              {
+                "id": "dish-7-0",
+                "height": 96
+              },
+              {
+                "id": "dish-7-3",
+                "height": 96
+              },
+              {
+                "id": "dish-7-6",
+                "height": 96
+              },
+              {
+                "id": "stall-8",
+                "height": 40
+              },
+              {
+                "id": "dish-8-1",
+                "height": 96
+              },
+              {
+                "id": "dish-8-4",
+                "height": 96
+              },
+              {
+                "id": "stall-9",
+                "height": 40
+              },
+              {
+                "id": "dish-9-2",
+                "height": 96
+              },
+              {
+                "id": "dish-9-5",
+                "height": 96
+              },
+              {
+                "id": "stall-10",
+                "height": 40
+              },
+              {
+                "id": "dish-10-0",
+                "height": 96
+              },
+              {
+                "id": "dish-10-3",
+                "height": 96
+              },
+              {
+                "id": "dish-10-6",
+                "height": 96
+              },
+              {
+                "id": "stall-11",
+                "height": 40
+              },
+              {
+                "id": "dish-11-1",
+                "height": 96
+              },
+              {
+                "id": "dish-11-4",
+                "height": 96
+              }
+            ],
+            "calls": [
+              {
+                "scrollTop": 400,
+                "height": 500,
+                "overscan": 1
+              }
+            ]
+          },
+          "expected": [
+            {
+              "start": 4,
+              "end": 13,
+              "offsetTop": 272,
+              "totalHeight": 3168,
+              "keys": [
+                "dish-1-0",
+                "dish-1-3",
+                "dish-1-6",
+                "stall-2",
+                "dish-2-1",
+                "dish-2-4",
+                "stall-3",
+                "dish-3-2",
+                "dish-3-5"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "A row starting exactly at the bottom edge is not visible",
+          "input": {
+            "uniform": {
+              "count": 3000,
+              "height": 72
+            },
+            "calls": [
+              {
+                "scrollTop": 0,
+                "height": 720,
+                "overscan": 0
+              }
+            ]
+          },
+          "expected": [
+            {
+              "start": 0,
+              "end": 10,
+              "offsetTop": 0,
+              "totalHeight": 216000,
+              "keys": [
+                "dish-0",
+                "dish-1",
+                "dish-2",
+                "dish-3",
+                "dish-4",
+                "dish-5",
+                "dish-6",
+                "dish-7",
+                "dish-8",
+                "dish-9"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "An empty list renders nothing",
+          "input": {
+            "rows": [],
+            "calls": [
+              {
+                "scrollTop": 0,
+                "height": 640
+              }
+            ]
+          },
+          "expected": [
+            {
+              "start": 0,
+              "end": 0,
+              "offsetTop": 0,
+              "totalHeight": 0,
+              "keys": []
+            }
+          ],
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

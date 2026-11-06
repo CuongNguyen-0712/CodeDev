@@ -1,0 +1,165 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_rno_132",
+      "name": "optimistic-delivery-status",
+      "type": "fix_bug",
+      "title": "Fix the optimistic Delivered button",
+      "description": "Tapping Delivered in the courier app changes the row at once and sends the request in the background (TanStack Query `useMutation`). Couriers reported three bugs: the row sometimes flicked back to \"picked up\" a second after the tap; when a customer had already cancelled, the row went back to \"picked up\" and stayed there instead of showing \"cancelled\"; and with two quick taps, a rejected first delivery also undid the second one. The editor holds `completeDeliveryOptions` with its key blocks missing, each marked by a `// [ ]` line; the pieces include last week's buggy versions. Fill every line so that the tap shows at once and is not overwritten by a refetch that was already running, a rejected tap undoes only its own delivery, and every tap ends on the server's version of the list. Run replays taps, background refetches, cancellations and late answers, and prints what the list showed after each step.",
+      "difficulty": "medium",
+      "outcomes": [
+        "local-first"
+      ],
+      "points": 30,
+      "hints": [
+        "Write the list the courier sees after every step of a test. A refetch that started before the tap returns the list from before the tap; a rejected answer can arrive after another tap changed a different row.",
+        "Look at what onMutate does before it changes the cache (cancel vs refetch), at what onError puts back (one delivery or a copy of the whole list), and at when onSettled asks the server for the truth.",
+        "Renaming a chat thread optimistically: `onMutate` cancels `['threads']`, saves the old thread, sets the new title on that one thread; `onError` puts back just that thread; `onSettled` invalidates `['threads']` whether the rename failed or not."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Tap Delivered while a background refetch is in flight: no flick back to picked up",
+          "input": {
+            "deliveries": [
+              "A",
+              "B"
+            ],
+            "steps": [
+              {
+                "refetchStart": true
+              },
+              {
+                "mutate": "A",
+                "status": "delivered"
+              },
+              {
+                "refetchLand": true
+              },
+              {
+                "respond": "A"
+              }
+            ]
+          },
+          "expected": {
+            "timeline": [
+              "start: A=picked_up B=picked_up",
+              "tap A delivered: A=delivered B=picked_up",
+              "refetch lands: A=delivered B=picked_up",
+              "A settled: A=delivered B=picked_up"
+            ]
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "The customer had cancelled: the tap is undone and the row ends as cancelled",
+          "input": {
+            "deliveries": [
+              "A",
+              "B"
+            ],
+            "steps": [
+              {
+                "customerCancels": "A"
+              },
+              {
+                "mutate": "A",
+                "status": "delivered"
+              },
+              {
+                "respond": "A"
+              }
+            ]
+          },
+          "expected": {
+            "timeline": [
+              "start: A=picked_up B=picked_up",
+              "tap A delivered: A=delivered B=picked_up",
+              "A rejected: A=picked_up B=picked_up",
+              "A settled: A=cancelled B=picked_up"
+            ]
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Two quick taps, the first rejected: the second delivery keeps its new status",
+          "input": {
+            "deliveries": [
+              "A",
+              "B"
+            ],
+            "steps": [
+              {
+                "customerCancels": "A"
+              },
+              {
+                "mutate": "A",
+                "status": "delivered"
+              },
+              {
+                "mutate": "B",
+                "status": "delivered"
+              },
+              {
+                "respond": "A"
+              },
+              {
+                "respond": "B"
+              }
+            ]
+          },
+          "expected": {
+            "timeline": [
+              "start: A=picked_up B=picked_up",
+              "tap A delivered: A=delivered B=picked_up",
+              "tap B delivered: A=delivered B=delivered",
+              "A rejected: A=picked_up B=delivered",
+              "A settled: A=cancelled B=delivered",
+              "B settled: A=cancelled B=delivered"
+            ]
+          },
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "An accepted tap with nothing else going on ends on the server's list",
+          "input": {
+            "deliveries": [
+              "A",
+              "B",
+              "C"
+            ],
+            "steps": [
+              {
+                "mutate": "C",
+                "status": "delivered"
+              },
+              {
+                "respond": "C"
+              }
+            ]
+          },
+          "expected": {
+            "timeline": [
+              "start: A=picked_up B=picked_up C=picked_up",
+              "tap C delivered: A=picked_up B=picked_up C=delivered",
+              "C settled: A=picked_up B=picked_up C=delivered"
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

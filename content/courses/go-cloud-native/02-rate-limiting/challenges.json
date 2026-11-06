@@ -1,0 +1,547 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gcn_121",
+      "name": "rate-limiting-quiz",
+      "type": "quiz",
+      "title": "Read the rate limiter incidents",
+      "description": "Three statements about the limits Rice Rocket put in front of its api. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "traffic-control"
+      ],
+      "points": 10,
+      "hints": [
+        "A token bucket refills over time but has a size. What happens to tokens that would overflow it?",
+        "Who writes each entry of X-Forwarded-For? The client can send the header too, and proxies append to it.",
+        "Each gateway pod keeps its own buckets in memory. How many pods can a client's requests land on?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The restaurant partner API is limited to `rate = 5` tokens per second with `burst = 10`. A partner's batch job sleeps overnight, then starts:\n\n```text\n02:00:00  last request\n07:00:00  job starts, sends 2,000 requests as fast as it can\n```\n\nStatement: \"After 5 idle hours the bucket holds 90,000 tokens, so the first 2,000 requests all pass at once.\"",
+          "explanation": "False. A token bucket never holds more than its burst: refill is `min(burst, tokens + elapsed x rate)`. After any idle time the job gets 10 requests at once, then 5 per second. That cap is what makes the burst a safety limit; without it an idle client could flatten the api. The misconception is that a limiter banks unused capacity.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Requests come through the cloud load balancer (10.0.0.0/8), which appends the address it saw. The limiter keyed anonymous clients like this:\n\n```go\nhops := strings.Split(r.Header.Get(\"X-Forwarded-For\"), \",\")\nkey := strings.TrimSpace(hops[0])\n```\n\n```text\nX-Forwarded-For: 1.1.1.1, 203.0.113.66\nX-Forwarded-For: 2.2.2.2, 203.0.113.66\nX-Forwarded-For: 3.3.3.3, 203.0.113.66\n```\n\nStatement: \"The leftmost entry is safe to use here, because the load balancer is the one that sets X-Forwarded-For.\"",
+          "explanation": "False. The load balancer appends to whatever the client sent, so everything left of the last entry is client-controlled. A scraper that sends a new fake address each time gets a fresh bucket each time, as in the log (the real address 203.0.113.66 is the last entry). Trust X-Forwarded-For only when the peer is your load balancer, and take the entry it added (the rightmost, with one proxy layer).",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The gateway runs 4 replicas behind the load balancer, each with an in-memory limiter of 10 requests per second per API key. A partner reports:\n\n```text\npartner key rest-12: sent 38 req/s for a minute, received 38 x 200, 0 x 429\n```\n\nStatement: \"Each pod counts only the requests it receives, so with requests spread over 4 pods a client can get up to about 4 times the configured rate; divide the limit by the replica count or keep the buckets in a shared store like Redis.\"",
+          "explanation": "True. In-memory buckets are per process. Spread over 4 pods, 38 req/s is about 9.5 per pod, under each pod's limit of 10. Either set the per-pod limit to limit / replicas (simple, but uneven with sticky clients and wrong while the HPA changes the count), or move the counters to a shared store (Redis with an atomic script) when the limit matters. The misconception is that a per-process limiter enforces a global limit.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_gcn_122",
+      "name": "per-client-token-bucket",
+      "type": "mini_coding",
+      "title": "Limit each client with a token bucket",
+      "description": "The editor holds the gateway's limiter (`main.go`) with key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: each client has a bucket of `burst` tokens refilled at `rate` tokens per second and never above `burst`; a request spends a token or is refused with a wait until the next token; `Retry-After` is that wait in whole seconds rounded up; anonymous clients are keyed by their own address, taking X-Forwarded-For only when the peer is the load balancer (10.0.0.0/8) and then only its last entry; and `Evict` forgets buckets that are full again. Run plays timed requests through the limiter and prints each decision.",
+      "difficulty": "medium",
+      "outcomes": [
+        "traffic-control"
+      ],
+      "points": 30,
+      "hints": [
+        "Replay one client by hand: how many tokens does it have at each request, what caps them, and how long is it until the next whole token when there is none?",
+        "Look at `math.Min`, `math.Ceil`, `netip.Prefix.Contains`, the last element of `strings.Split(...)`, and when a bucket is indistinguishable from a new one.",
+        "A login limiter with the same shape: `tries = math.Min(5, tries + elapsed.Minutes()*0.5)`, refuse below 1 with `wait = (1 - tries) / 0.5` minutes, `Retry-After = ceil(seconds)`, and key by the user name plus the trusted client address."
+      ],
+      "coding": {
+        "language": "go",
+        "filePath": "main.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A burst of 5 passes, the 6th and 7th get 429 with Retry-After 1, then one token is back",
+          "input": {
+            "rate": 1,
+            "burst": 5,
+            "events": [
+              {
+                "atMs": 0,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 0,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 0,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 0,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 0,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 0,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 0,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 1500,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              }
+            ]
+          },
+          "expected": {
+            "decisions": [
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 429,
+                "retryAfter": "1"
+              },
+              {
+                "key": "key:rest-12",
+                "status": 429,
+                "retryAfter": "1"
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              }
+            ],
+            "buckets": 1
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "After an idle hour a client still gets only the burst (10), not hours of saved tokens",
+          "input": {
+            "rate": 5,
+            "burst": 10,
+            "events": [
+              {
+                "atMs": 0,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 3600000,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 3600000,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 3600000,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 3600000,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 3600000,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 3600000,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 3600000,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 3600000,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 3600000,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 3600000,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 3600000,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 3600000,
+                "apiKey": "rest-12",
+                "remote": "10.8.1.4:51122"
+              }
+            ]
+          },
+          "expected": {
+            "decisions": [
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 200
+              },
+              {
+                "key": "key:rest-12",
+                "status": 429,
+                "retryAfter": "1"
+              },
+              {
+                "key": "key:rest-12",
+                "status": 429,
+                "retryAfter": "1"
+              }
+            ],
+            "buckets": 1
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Two phones behind the load balancer get separate buckets by their own address",
+          "input": {
+            "rate": 1,
+            "burst": 2,
+            "events": [
+              {
+                "atMs": 0,
+                "remote": "10.8.1.4:51122",
+                "forwardedFor": "203.0.113.7"
+              },
+              {
+                "atMs": 0,
+                "remote": "10.8.1.4:51122",
+                "forwardedFor": "203.0.113.7"
+              },
+              {
+                "atMs": 0,
+                "remote": "10.8.1.4:51122",
+                "forwardedFor": "203.0.113.7"
+              },
+              {
+                "atMs": 0,
+                "remote": "10.8.1.4:51122",
+                "forwardedFor": "198.51.100.9"
+              }
+            ]
+          },
+          "expected": {
+            "decisions": [
+              {
+                "key": "ip:203.0.113.7",
+                "status": 200
+              },
+              {
+                "key": "ip:203.0.113.7",
+                "status": 200
+              },
+              {
+                "key": "ip:203.0.113.7",
+                "status": 429,
+                "retryAfter": "1"
+              },
+              {
+                "key": "ip:198.51.100.9",
+                "status": 200
+              }
+            ],
+            "buckets": 2
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A client that forges X-Forwarded-For stays in its own bucket; direct callers are keyed by peer",
+          "input": {
+            "rate": 1,
+            "burst": 2,
+            "events": [
+              {
+                "atMs": 0,
+                "remote": "10.8.1.4:51122",
+                "forwardedFor": "1.1.1.1, 203.0.113.66"
+              },
+              {
+                "atMs": 0,
+                "remote": "10.8.1.4:51122",
+                "forwardedFor": "2.2.2.2, 203.0.113.66"
+              },
+              {
+                "atMs": 0,
+                "remote": "10.8.1.4:51122",
+                "forwardedFor": "3.3.3.3, 203.0.113.66"
+              },
+              {
+                "atMs": 0,
+                "remote": "10.8.1.4:51122",
+                "forwardedFor": "4.4.4.4, 203.0.113.66"
+              },
+              {
+                "atMs": 0,
+                "remote": "198.18.0.9:5000",
+                "forwardedFor": "9.9.9.9"
+              }
+            ]
+          },
+          "expected": {
+            "decisions": [
+              {
+                "key": "ip:203.0.113.66",
+                "status": 200
+              },
+              {
+                "key": "ip:203.0.113.66",
+                "status": 200
+              },
+              {
+                "key": "ip:203.0.113.66",
+                "status": 429,
+                "retryAfter": "1"
+              },
+              {
+                "key": "ip:203.0.113.66",
+                "status": 429,
+                "retryAfter": "1"
+              },
+              {
+                "key": "ip:198.18.0.9",
+                "status": 200
+              }
+            ],
+            "buckets": 2
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Retry-After rounds up: 2.5 s is 3, 1.5 s is 2",
+          "input": {
+            "rate": 0.4,
+            "burst": 1,
+            "events": [
+              {
+                "atMs": 0,
+                "apiKey": "courier-7",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 0,
+                "apiKey": "courier-7",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 1000,
+                "apiKey": "courier-7",
+                "remote": "10.8.1.4:51122"
+              }
+            ]
+          },
+          "expected": {
+            "decisions": [
+              {
+                "key": "key:courier-7",
+                "status": 200
+              },
+              {
+                "key": "key:courier-7",
+                "status": 429,
+                "retryAfter": "3"
+              },
+              {
+                "key": "key:courier-7",
+                "status": 429,
+                "retryAfter": "2"
+              }
+            ],
+            "buckets": 1
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Evict forgets refilled buckets and keeps the one still in use",
+          "input": {
+            "rate": 1,
+            "burst": 3,
+            "evictAtMs": 10000,
+            "events": [
+              {
+                "atMs": 0,
+                "apiKey": "a",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 0,
+                "apiKey": "b",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 9500,
+                "apiKey": "c",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 9500,
+                "apiKey": "c",
+                "remote": "10.8.1.4:51122"
+              },
+              {
+                "atMs": 9500,
+                "apiKey": "c",
+                "remote": "10.8.1.4:51122"
+              }
+            ]
+          },
+          "expected": {
+            "decisions": [
+              {
+                "key": "key:a",
+                "status": 200
+              },
+              {
+                "key": "key:b",
+                "status": 200
+              },
+              {
+                "key": "key:c",
+                "status": 200
+              },
+              {
+                "key": "key:c",
+                "status": 200
+              },
+              {
+                "key": "key:c",
+                "status": 200
+              }
+            ],
+            "buckets": 1
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_pat_152",
+      "key": "challenges/python/chal_coding_pat_152/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "tests/conftest.py",
+      "size": 7193
+    }
+  ]
+}

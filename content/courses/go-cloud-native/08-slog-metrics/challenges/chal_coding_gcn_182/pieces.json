@@ -1,0 +1,40 @@
+[
+  {
+    "id": "bucket-index",
+    "label": "Pick the bucket: the first upper bound >= the value",
+    "code": "i := sort.SearchFloat64s(h.Bounds, v)"
+  },
+  {
+    "id": "quantile-rank",
+    "label": "Find the rank and the bucket that holds it",
+    "code": "rank := q * float64(h.Total)\nvar below uint64\ni := 0\nfor ; i < len(h.Counts); i++ {\n\tif float64(below+h.Counts[i]) >= rank {\n\t\tbreak\n\t}\n\tbelow += h.Counts[i]\n}"
+  },
+  {
+    "id": "interpolate",
+    "label": "Interpolate inside the bucket like histogram_quantile",
+    "code": "if i >= len(h.Bounds) {\n\treturn h.Bounds[len(h.Bounds)-1]\n}\nlower := 0.0\nif i > 0 {\n\tlower = h.Bounds[i-1]\n}\nupper := h.Bounds[i]\nreturn lower + (upper-lower)*(rank-float64(below))/float64(h.Counts[i])"
+  },
+  {
+    "id": "route-template",
+    "label": "Replace numeric ids in the path with {id}",
+    "code": "parts := strings.Split(path, \"/\")\nfor i, p := range parts {\n\tif _, err := strconv.ParseUint(p, 10, 64); err == nil {\n\t\tparts[i] = \"{id}\"\n\t}\n}\nreturn strings.Join(parts, \"/\")"
+  },
+  {
+    "id": "bucket-index-exclusive",
+    "label": "Pick the bucket: the first upper bound >= the value",
+    "code": "i := sort.Search(len(h.Bounds), func(k int) bool { return h.Bounds[k] > v })",
+    "distractor": true
+  },
+  {
+    "id": "interpolate-upper-bound",
+    "label": "Interpolate inside the bucket like histogram_quantile",
+    "code": "if i >= len(h.Bounds) {\n\treturn h.Bounds[len(h.Bounds)-1]\n}\nreturn h.Bounds[i]",
+    "distractor": true
+  },
+  {
+    "id": "route-template-raw-path",
+    "label": "Replace numeric ids in the path with {id}",
+    "code": "return strings.TrimSuffix(path, \"/\")",
+    "distractor": true
+  }
+]

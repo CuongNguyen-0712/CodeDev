@@ -1,0 +1,409 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_fwp_171",
+      "name": "http-caching-quiz",
+      "type": "quiz",
+      "title": "Read the cache headers",
+      "description": "Three statements about Rice Rocket's CDN and browser caching after a week of production traffic. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "fast-loading"
+      ],
+      "points": 10,
+      "hints": [
+        "Work out the response's age at the CDN, then compare it with the freshness lifetime (s-maxage) and with lifetime + stale-while-revalidate.",
+        "Read RFC 9111's definitions of `no-cache` and `no-store`: which one forbids storing, and which one forbids using a stored copy without checking first?",
+        "A shared cache keys responses by URL (plus Vary). What does a cached `/api/cart` response contain, and who asks for that URL next?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The menu API answers through the CDN with:\n\n```text\nCache-Control: public, s-maxage=60, stale-while-revalidate=300\n```\n\nThe CDN stored the menu 90 seconds ago. A customer opens the restaurant.\n\nStatement: \"The CDN answers at once with the stored menu and fetches a fresh copy from the origin in the background, because 90 s is past the 60 s lifetime but inside the 300 s stale-while-revalidate window.\"",
+          "explanation": "True. At 90 s the response is stale (age > s-maxage 60) but within lifetime + stale-while-revalidate (60 + 300 s), so RFC 5861 lets the cache serve the stored copy immediately and revalidate asynchronously. The next customer gets the refreshed menu. Past 360 s the CDN must wait for the origin. The misconception is that a stale response always costs the user a round trip to the origin.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The HTML of the restaurant pages is sent with:\n\n```text\nCache-Control: no-cache\nETag: \"r42-5f1c\"\n```\n\nStatement: \"`no-cache` means neither the browser nor the CDN stores the page, so every visit downloads the full HTML again.\"",
+          "explanation": "False. `no-cache` allows storing but requires validation before every reuse: the cache sends `If-None-Match: \"r42-5f1c\"` and gets a small `304 Not Modified` while the page is unchanged, or the new page right after a deploy. The directive that forbids storing is `no-store`. The misconception comes from the name; `no-cache` is cheap revalidation, not no caching.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Support received screenshots of a customer seeing someone else's cart. The cart API was answering with:\n\n```text\nGET /api/cart   (cookie: session=...)\nCache-Control: public, max-age=30\n```\n\n```text\nCDN log\n12:01:03  /api/cart  MISS  -> origin (session of An)\n12:01:11  /api/cart  HIT   age=8   (session of Binh)\n```\n\nStatement: \"`private` (or `no-store`) keeps the CDN from storing the cart; the browser may still keep a `private` response for its own user.\"",
+          "explanation": "True. The CDN keys the entry by URL, so Binh received An's cart from the shared cache. `private` tells shared caches not to store the response while the user's own browser still may; `no-store` forbids storing anywhere. Personalized responses (carts, profiles, anything decided by a cookie or token) must never be `public`. The misconception is that a session cookie on the request makes the CDN bypass its cache.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_fwp_172",
+      "name": "caching-headers",
+      "type": "mini_coding",
+      "title": "Set the caching headers for each route",
+      "description": "Rice Rocket's Next.js app answered everything with the framework defaults: the hashed bundles were revalidated on every visit, menu edits took minutes to appear, and once a misconfigured rule let the CDN serve one customer's cart to another. The editor holds `middleware.js` with the header rules missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: hashed files under `/_next/static/` are cached for a year and never revalidated; a restaurant's menu (`/api/restaurants/<id>/menu`) is shared by the CDN, at most 60 s old when served fresh, and refreshed in the background for up to 300 s after that, while browsers always check with the CDN; the cart (`/api/cart`) is never stored anywhere; restaurant pages (`/restaurants/...`) are stored but checked on every visit; anything else is not stored. The browser reads `Cache-Control`; the CDN reads `CDN-Cache-Control` when present. Run plays timelines of requests from several customers through their browsers, the CDN and the origin.",
+      "difficulty": "medium",
+      "outcomes": [
+        "fast-loading"
+      ],
+      "points": 30,
+      "hints": [
+        "For each route ask three questions: may a shared cache store it, how long is it fresh, and what may happen once it is stale?",
+        "Look at `immutable`, `max-age`, `no-cache`, `no-store`, `private` and `stale-while-revalidate`, and at how `CDN-Cache-Control` lets the CDN and the browser follow different rules for the same response.",
+        "A product API on another site: `if (path.startsWith(\"/api/products/\")) return { \"Cache-Control\": \"no-cache\", \"CDN-Cache-Control\": \"max-age=120, stale-while-revalidate=600\" };` and an account endpoint: `if (path === \"/api/me\") return { \"Cache-Control\": \"private, no-store\" };`"
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "middleware.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A hashed bundle is downloaded once and then served from the browser",
+          "input": {
+            "requests": [
+              {
+                "t": 0,
+                "user": "an",
+                "path": "/_next/static/chunks/app-3f9a1c.js"
+              },
+              {
+                "t": 600,
+                "user": "an",
+                "path": "/_next/static/chunks/app-3f9a1c.js"
+              },
+              {
+                "t": 86400,
+                "user": "an",
+                "path": "/_next/static/chunks/app-3f9a1c.js"
+              }
+            ]
+          },
+          "expected": {
+            "responses": [
+              {
+                "t": 0,
+                "user": "an",
+                "path": "/_next/static/chunks/app-3f9a1c.js",
+                "from": "origin",
+                "status": 200,
+                "version": "v1"
+              },
+              {
+                "t": 600,
+                "user": "an",
+                "path": "/_next/static/chunks/app-3f9a1c.js",
+                "from": "browser",
+                "status": "cache",
+                "version": "v1"
+              },
+              {
+                "t": 86400,
+                "user": "an",
+                "path": "/_next/static/chunks/app-3f9a1c.js",
+                "from": "browser",
+                "status": "cache",
+                "version": "v1"
+              }
+            ],
+            "originHits": 1,
+            "leaks": 0
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A menu edit reaches customers about a minute later; the CDN refreshes in the background",
+          "input": {
+            "requests": [
+              {
+                "t": 0,
+                "user": "an",
+                "path": "/api/restaurants/42/menu"
+              },
+              {
+                "t": 30,
+                "user": "an",
+                "path": "/api/restaurants/42/menu"
+              },
+              {
+                "t": 70,
+                "user": "binh",
+                "path": "/api/restaurants/42/menu"
+              },
+              {
+                "t": 71,
+                "user": "an",
+                "path": "/api/restaurants/42/menu"
+              }
+            ],
+            "changes": [
+              {
+                "t": 5,
+                "path": "/api/restaurants/42/menu",
+                "version": "v2"
+              }
+            ]
+          },
+          "expected": {
+            "responses": [
+              {
+                "t": 0,
+                "user": "an",
+                "path": "/api/restaurants/42/menu",
+                "from": "origin",
+                "status": 200,
+                "version": "v1"
+              },
+              {
+                "t": 30,
+                "user": "an",
+                "path": "/api/restaurants/42/menu",
+                "from": "cdn",
+                "status": 304,
+                "version": "v1"
+              },
+              {
+                "t": 70,
+                "user": "binh",
+                "path": "/api/restaurants/42/menu",
+                "from": "cdn-stale",
+                "status": 200,
+                "version": "v1"
+              },
+              {
+                "t": 71,
+                "user": "an",
+                "path": "/api/restaurants/42/menu",
+                "from": "cdn",
+                "status": 200,
+                "version": "v2"
+              }
+            ],
+            "originHits": 2,
+            "leaks": 0
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Each customer only ever sees their own cart",
+          "input": {
+            "requests": [
+              {
+                "t": 0,
+                "user": "an",
+                "path": "/api/cart"
+              },
+              {
+                "t": 10,
+                "user": "binh",
+                "path": "/api/cart"
+              },
+              {
+                "t": 20,
+                "user": "an",
+                "path": "/api/cart"
+              }
+            ]
+          },
+          "expected": {
+            "responses": [
+              {
+                "t": 0,
+                "user": "an",
+                "path": "/api/cart",
+                "from": "origin",
+                "status": 200,
+                "version": "cart-an"
+              },
+              {
+                "t": 10,
+                "user": "binh",
+                "path": "/api/cart",
+                "from": "origin",
+                "status": 200,
+                "version": "cart-binh"
+              },
+              {
+                "t": 20,
+                "user": "an",
+                "path": "/api/cart",
+                "from": "origin",
+                "status": 200,
+                "version": "cart-an"
+              }
+            ],
+            "originHits": 3,
+            "leaks": 0
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Pages are checked on every visit: 304 while unchanged, the new deploy at once",
+          "input": {
+            "requests": [
+              {
+                "t": 0,
+                "user": "an",
+                "path": "/restaurants/com-tam-ba-ghien"
+              },
+              {
+                "t": 30,
+                "user": "an",
+                "path": "/restaurants/com-tam-ba-ghien"
+              },
+              {
+                "t": 50,
+                "user": "an",
+                "path": "/restaurants/com-tam-ba-ghien"
+              }
+            ],
+            "changes": [
+              {
+                "t": 40,
+                "path": "/restaurants/com-tam-ba-ghien",
+                "version": "v2"
+              }
+            ]
+          },
+          "expected": {
+            "responses": [
+              {
+                "t": 0,
+                "user": "an",
+                "path": "/restaurants/com-tam-ba-ghien",
+                "from": "origin",
+                "status": 200,
+                "version": "v1"
+              },
+              {
+                "t": 30,
+                "user": "an",
+                "path": "/restaurants/com-tam-ba-ghien",
+                "from": "origin",
+                "status": 304,
+                "version": "v1"
+              },
+              {
+                "t": 50,
+                "user": "an",
+                "path": "/restaurants/com-tam-ba-ghien",
+                "from": "origin",
+                "status": 200,
+                "version": "v2"
+              }
+            ],
+            "originHits": 3,
+            "leaks": 0
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Lunch rush: 4 customers in 50 s cost the origin one menu request",
+          "input": {
+            "requests": [
+              {
+                "t": 0,
+                "user": "an",
+                "path": "/api/restaurants/42/menu"
+              },
+              {
+                "t": 15,
+                "user": "binh",
+                "path": "/api/restaurants/42/menu"
+              },
+              {
+                "t": 30,
+                "user": "chi",
+                "path": "/api/restaurants/42/menu"
+              },
+              {
+                "t": 50,
+                "user": "dung",
+                "path": "/api/restaurants/42/menu"
+              }
+            ]
+          },
+          "expected": {
+            "responses": [
+              {
+                "t": 0,
+                "user": "an",
+                "path": "/api/restaurants/42/menu",
+                "from": "origin",
+                "status": 200,
+                "version": "v1"
+              },
+              {
+                "t": 15,
+                "user": "binh",
+                "path": "/api/restaurants/42/menu",
+                "from": "cdn",
+                "status": 200,
+                "version": "v1"
+              },
+              {
+                "t": 30,
+                "user": "chi",
+                "path": "/api/restaurants/42/menu",
+                "from": "cdn",
+                "status": 200,
+                "version": "v1"
+              },
+              {
+                "t": 50,
+                "user": "dung",
+                "path": "/api/restaurants/42/menu",
+                "from": "cdn",
+                "status": 200,
+                "version": "v1"
+              }
+            ],
+            "originHits": 1,
+            "leaks": 0
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

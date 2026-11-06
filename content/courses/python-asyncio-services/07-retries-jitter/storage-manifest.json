@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_pas_172",
+      "key": "challenges/python/chal_coding_pas_172/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "retry.py",
+      "size": 6169
+    }
+  ]
+}

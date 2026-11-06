@@ -1,0 +1,328 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gcn_111",
+      "name": "routing-middleware-quiz",
+      "type": "quiz",
+      "title": "Read the gateway's first week",
+      "description": "Three statements about what Rice Rocket saw in the first week of its Go API gateway. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "http-middleware"
+      ],
+      "points": 10,
+      "hints": [
+        "Since Go 1.22 a ServeMux pattern can name a method. What does the mux answer when the path matches but the method does not?",
+        "Write the chain out as nested calls: which wrapper runs first on the way in, and which one sees the response last on the way out?",
+        "Look at what net/http itself does when a handler panics, and at what the client receives in that case."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The gateway registers only one pattern for single orders:\n\n```go\nmux.Handle(\"GET /v1/orders/{id}\", requireToken(http.HandlerFunc(getOrder)))\n```\n\n```text\n$ curl -si -X DELETE -H 'Authorization: Bearer t' https://gw.ricerocket.vn/v1/orders/42\n```\n\nStatement: \"The path matches no route for DELETE, so the mux answers `404 Not Found`.\"",
+          "explanation": "False. With method patterns (Go 1.22+), a path that matches a pattern registered for other methods gets `405 Method Not Allowed` with an `Allow: GET, HEAD` header (a GET pattern also serves HEAD). 404 is only for paths no pattern matches. The misconception is that the method is part of a separate lookup; the mux reports the methods it does have for that path.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The access log showed nothing for requests that crashed. The chain was:\n\n```go\nhandler := withRecovery(withRequestID(withLogging(log, mux)))\n```\n\n```text\n$ curl -s -o /dev/null -w '%{http_code}\\n' -H 'Authorization: Bearer t' https://gw.ricerocket.vn/v1/boom\n500\n$ grep /v1/boom access.log\n$\n```\n\nStatement: \"The panic unwinds through withLogging before withRecovery catches it, so the log line is never written; recovery has to sit inside logging.\"",
+          "explanation": "True. Each wrapper runs its code around `next.ServeHTTP`. A panic in the mux skips the rest of every wrapper between the panic and the recover, so withLogging never reaches its append. With `withRequestID(withLogging(log, withRecovery(mux)))` recovery turns the panic into a 500 first, and logging records that 500. The misconception is that wrapper order only matters for performance.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Before anyone added a recovery middleware, a handler with a nil-map bug produced this:\n\n```text\n# client\n$ curl -s https://gw.ricerocket.vn/v1/boom\ncurl: (52) Empty reply from server\n# gateway stderr\nhttp: panic serving 10.8.1.4:51122: assignment to entry in nil map\ngoroutine 23 [running]: ...\n```\n\nStatement: \"net/http recovers the panic for that one request so the process keeps serving others, but the client gets no HTTP response; a recovery middleware is what turns it into a proper 500 that clients and metrics can see.\"",
+          "explanation": "True. The server recovers a handler panic per request, logs the stack and closes the connection, so other requests are fine but this client sees an empty reply instead of a status code. A recovery middleware answers 500 (when nothing has been written yet), so the client, the load balancer and the access log all see the error. The misconception is that one panic takes the whole server down, or that net/http answers 500 by itself.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_gcn_112",
+      "name": "gateway-routes-middleware",
+      "type": "mini_coding",
+      "title": "Wire the gateway's routes and middleware",
+      "description": "The editor holds `main.go` of Rice Rocket's API gateway with key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: `GET /healthz` answers `ok` without a token; `GET /v1/orders/{id}` and `POST /v1/orders` need a bearer token and a wrong method gets 405 with an `Allow` header; the order handler reads the id from the matched pattern; every request carries an `X-Request-ID` (the load balancer's, or a new one); and every request, including a panicking one, leaves one access-log line with its real status. The file ends with a small copy of the net/http API (same names, without the `http.` prefix) so Run compiles in a second; Run sends test requests through the handler and prints the responses and the log.",
+      "difficulty": "medium",
+      "outcomes": [
+        "http-middleware"
+      ],
+      "points": 30,
+      "hints": [
+        "Trace one request through the chain: which wrapper must see the final status, and which one must turn a panic into a status before that?",
+        "Look at method patterns like `\"GET /path/{name}\"`, `r.PathValue`, a wrapper type that overrides `WriteHeader`, and the order of nested `with...(...)` calls.",
+        "A courier webhook service with the same shape: `mux.Handle(\"POST /hooks/{provider}\", verifySignature(h))`, `provider := r.PathValue(\"provider\")`, and `return withTrace(withMetrics(withRecovery(mux)))` so metrics count the 500s that recovery produces."
+      ],
+      "coding": {
+        "language": "go",
+        "filePath": "main.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Probes reach /healthz without a token; an order is read by its id",
+          "input": {
+            "requests": [
+              {
+                "method": "GET",
+                "path": "/healthz"
+              },
+              {
+                "method": "GET",
+                "path": "/v1/orders/42",
+                "headers": {
+                  "Authorization": "Bearer t-courier-7"
+                }
+              }
+            ]
+          },
+          "expected": {
+            "responses": [
+              {
+                "status": 200,
+                "allow": "",
+                "requestId": "rid-1",
+                "body": "ok"
+              },
+              {
+                "status": 200,
+                "allow": "",
+                "requestId": "rid-2",
+                "body": "{\"order\":\"42\"}"
+              }
+            ],
+            "log": [
+              "rid-1 GET /healthz 200",
+              "rid-2 GET /v1/orders/42 200"
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A wrong method gets 405 with Allow; a missing token gets 401",
+          "input": {
+            "requests": [
+              {
+                "method": "DELETE",
+                "path": "/v1/orders/42",
+                "headers": {
+                  "Authorization": "Bearer t-courier-7"
+                }
+              },
+              {
+                "method": "GET",
+                "path": "/v1/orders/42"
+              }
+            ]
+          },
+          "expected": {
+            "responses": [
+              {
+                "status": 405,
+                "allow": "GET, HEAD",
+                "requestId": "rid-1",
+                "body": "Method Not Allowed"
+              },
+              {
+                "status": 401,
+                "allow": "",
+                "requestId": "rid-2",
+                "body": "missing bearer token"
+              }
+            ],
+            "log": [
+              "rid-1 DELETE /v1/orders/42 405",
+              "rid-2 GET /v1/orders/42 401"
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A panicking upstream handler answers 500 and still shows up in the access log",
+          "input": {
+            "requests": [
+              {
+                "method": "GET",
+                "path": "/v1/boom",
+                "headers": {
+                  "Authorization": "Bearer t-courier-7"
+                }
+              },
+              {
+                "method": "GET",
+                "path": "/healthz"
+              }
+            ]
+          },
+          "expected": {
+            "responses": [
+              {
+                "status": 500,
+                "allow": "",
+                "requestId": "rid-1",
+                "body": "internal error"
+              },
+              {
+                "status": 200,
+                "allow": "",
+                "requestId": "rid-2",
+                "body": "ok"
+              }
+            ],
+            "log": [
+              "rid-1 GET /v1/boom 500",
+              "rid-2 GET /healthz 200"
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "The load balancer's request id is kept; requests without one get a fresh id",
+          "input": {
+            "requests": [
+              {
+                "method": "GET",
+                "path": "/v1/orders/7",
+                "headers": {
+                  "Authorization": "Bearer t",
+                  "X-Request-ID": "lb-7f3a"
+                }
+              },
+              {
+                "method": "GET",
+                "path": "/healthz"
+              },
+              {
+                "method": "GET",
+                "path": "/healthz"
+              }
+            ]
+          },
+          "expected": {
+            "responses": [
+              {
+                "status": 200,
+                "allow": "",
+                "requestId": "lb-7f3a",
+                "body": "{\"order\":\"7\"}"
+              },
+              {
+                "status": 200,
+                "allow": "",
+                "requestId": "rid-1",
+                "body": "ok"
+              },
+              {
+                "status": 200,
+                "allow": "",
+                "requestId": "rid-2",
+                "body": "ok"
+              }
+            ],
+            "log": [
+              "lb-7f3a GET /v1/orders/7 200",
+              "rid-1 GET /healthz 200",
+              "rid-2 GET /healthz 200"
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "201 is logged as 201; an empty id is 404; PUT on the collection is 405 Allow POST",
+          "input": {
+            "requests": [
+              {
+                "method": "POST",
+                "path": "/v1/orders",
+                "headers": {
+                  "Authorization": "Bearer t-courier-7"
+                }
+              },
+              {
+                "method": "GET",
+                "path": "/v1/orders/",
+                "headers": {
+                  "Authorization": "Bearer t-courier-7"
+                }
+              },
+              {
+                "method": "PUT",
+                "path": "/v1/orders",
+                "headers": {
+                  "Authorization": "Bearer t-courier-7"
+                }
+              }
+            ]
+          },
+          "expected": {
+            "responses": [
+              {
+                "status": 201,
+                "allow": "",
+                "requestId": "rid-1",
+                "body": "{\"order\":\"new\"}"
+              },
+              {
+                "status": 404,
+                "allow": "",
+                "requestId": "rid-2",
+                "body": "404 page not found"
+              },
+              {
+                "status": 405,
+                "allow": "POST",
+                "requestId": "rid-3",
+                "body": "Method Not Allowed"
+              }
+            ],
+            "log": [
+              "rid-1 POST /v1/orders 201",
+              "rid-2 GET /v1/orders/ 404",
+              "rid-3 PUT /v1/orders 405"
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

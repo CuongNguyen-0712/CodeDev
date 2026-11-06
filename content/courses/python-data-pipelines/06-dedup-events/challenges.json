@@ -1,0 +1,567 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pdp_162",
+      "name": "dedup-order-events",
+      "type": "mini_coding",
+      "title": "Load order events exactly once",
+      "description": "The apps send order events at least once: a phone that misses the acknowledgement resends the same event (same `event_id`, later `ingested_at`), and an offline phone sends yesterday's events in tonight's file. The revenue report came out 6% too high, and replaying a broken night crashed the load. The editor holds `pipelines/order_events.py` with its key pieces missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that `load_night` keeps one row per `event_id` from the file (the copy that arrived first), adds only events the `events` table does not have yet, and can load the same file twice without changing anything or failing; and `Q_DAILY_REVENUE` sums `order_paid` amounts per business day in Ho Chi Minh City (UTC+7), whichever night the event arrived. Run loads the test's nights into SQLite and prints events per type, revenue per day and which copy of an event was kept.",
+      "difficulty": "medium",
+      "outcomes": [
+        "modeling"
+      ],
+      "points": 30,
+      "hints": [
+        "Write down what makes two rows \"the same event\". Two copies of one retry share something that two bowls of the same dish in one order do not.",
+        "Look at `ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)` to keep one row per key inside the file, `INSERT ... SELECT ... ON CONFLICT (...) DO NOTHING` against the primary key for copies loaded on earlier nights, and SQLite's `date(ts, '+7 hours')` for a local day.",
+        "Deduplicating page views by `view_id`, keeping the first copy and counting views per local day in Bangkok (UTC+7): `SELECT * FROM (SELECT v.*, ROW_NUMBER() OVER (PARTITION BY view_id ORDER BY received_at) AS n FROM raw_views v) WHERE n = 1`, loaded with `INSERT INTO views ... ON CONFLICT (view_id) DO NOTHING`, and reported with `SELECT date(viewed_at, '+7 hours') AS day, COUNT(*) FROM views GROUP BY day`."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "pipelines/order_events.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A resent paid event counts once, and the copy that arrived first is kept",
+          "input": {
+            "nights": [
+              [
+                [
+                  "e-1001-placed",
+                  1001,
+                  "order_placed",
+                  0,
+                  "2026-11-05T04:10:00Z",
+                  "2026-11-05T04:10:02Z"
+                ],
+                [
+                  "e-1001-item-a",
+                  1001,
+                  "item_added",
+                  65000,
+                  "2026-11-05T04:11:00Z",
+                  "2026-11-05T04:11:01Z"
+                ],
+                [
+                  "e-1001-item-b",
+                  1001,
+                  "item_added",
+                  30000,
+                  "2026-11-05T04:11:30Z",
+                  "2026-11-05T04:11:31Z"
+                ],
+                [
+                  "e-1001-paid",
+                  1001,
+                  "order_paid",
+                  95000,
+                  "2026-11-05T04:12:00Z",
+                  "2026-11-05T04:12:01Z"
+                ],
+                [
+                  "e-1001-paid",
+                  1001,
+                  "order_paid",
+                  95000,
+                  "2026-11-05T04:12:00Z",
+                  "2026-11-05T04:12:31Z"
+                ],
+                [
+                  "e-1002-placed",
+                  1002,
+                  "order_placed",
+                  0,
+                  "2026-11-05T05:00:00Z",
+                  "2026-11-05T05:00:01Z"
+                ],
+                [
+                  "e-1002-paid",
+                  1002,
+                  "order_paid",
+                  120000,
+                  "2026-11-05T05:00:40Z",
+                  "2026-11-05T05:01:42Z"
+                ],
+                [
+                  "e-1002-paid",
+                  1002,
+                  "order_paid",
+                  120000,
+                  "2026-11-05T05:00:40Z",
+                  "2026-11-05T05:00:41Z"
+                ]
+              ]
+            ],
+            "watch": [
+              "e-1001-paid",
+              "e-1002-paid"
+            ]
+          },
+          "expected": {
+            "per_type": {
+              "item_added": 2,
+              "order_paid": 2,
+              "order_placed": 2
+            },
+            "revenue": {
+              "2026-11-05": 215000
+            },
+            "kept_copy": {
+              "e-1001-paid": "2026-11-05T04:12:01Z",
+              "e-1002-paid": "2026-11-05T05:00:41Z"
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Loading the same night again changes nothing and does not fail",
+          "input": {
+            "nights": [
+              [
+                [
+                  "e-1001-placed",
+                  1001,
+                  "order_placed",
+                  0,
+                  "2026-11-05T04:10:00Z",
+                  "2026-11-05T04:10:02Z"
+                ],
+                [
+                  "e-1001-item-a",
+                  1001,
+                  "item_added",
+                  65000,
+                  "2026-11-05T04:11:00Z",
+                  "2026-11-05T04:11:01Z"
+                ],
+                [
+                  "e-1001-item-b",
+                  1001,
+                  "item_added",
+                  30000,
+                  "2026-11-05T04:11:30Z",
+                  "2026-11-05T04:11:31Z"
+                ],
+                [
+                  "e-1001-paid",
+                  1001,
+                  "order_paid",
+                  95000,
+                  "2026-11-05T04:12:00Z",
+                  "2026-11-05T04:12:01Z"
+                ],
+                [
+                  "e-1001-paid",
+                  1001,
+                  "order_paid",
+                  95000,
+                  "2026-11-05T04:12:00Z",
+                  "2026-11-05T04:12:31Z"
+                ],
+                [
+                  "e-1002-placed",
+                  1002,
+                  "order_placed",
+                  0,
+                  "2026-11-05T05:00:00Z",
+                  "2026-11-05T05:00:01Z"
+                ],
+                [
+                  "e-1002-paid",
+                  1002,
+                  "order_paid",
+                  120000,
+                  "2026-11-05T05:00:40Z",
+                  "2026-11-05T05:01:42Z"
+                ],
+                [
+                  "e-1002-paid",
+                  1002,
+                  "order_paid",
+                  120000,
+                  "2026-11-05T05:00:40Z",
+                  "2026-11-05T05:00:41Z"
+                ]
+              ],
+              [
+                [
+                  "e-1001-placed",
+                  1001,
+                  "order_placed",
+                  0,
+                  "2026-11-05T04:10:00Z",
+                  "2026-11-05T04:10:02Z"
+                ],
+                [
+                  "e-1001-item-a",
+                  1001,
+                  "item_added",
+                  65000,
+                  "2026-11-05T04:11:00Z",
+                  "2026-11-05T04:11:01Z"
+                ],
+                [
+                  "e-1001-item-b",
+                  1001,
+                  "item_added",
+                  30000,
+                  "2026-11-05T04:11:30Z",
+                  "2026-11-05T04:11:31Z"
+                ],
+                [
+                  "e-1001-paid",
+                  1001,
+                  "order_paid",
+                  95000,
+                  "2026-11-05T04:12:00Z",
+                  "2026-11-05T04:12:01Z"
+                ],
+                [
+                  "e-1001-paid",
+                  1001,
+                  "order_paid",
+                  95000,
+                  "2026-11-05T04:12:00Z",
+                  "2026-11-05T04:12:31Z"
+                ],
+                [
+                  "e-1002-placed",
+                  1002,
+                  "order_placed",
+                  0,
+                  "2026-11-05T05:00:00Z",
+                  "2026-11-05T05:00:01Z"
+                ],
+                [
+                  "e-1002-paid",
+                  1002,
+                  "order_paid",
+                  120000,
+                  "2026-11-05T05:00:40Z",
+                  "2026-11-05T05:01:42Z"
+                ],
+                [
+                  "e-1002-paid",
+                  1002,
+                  "order_paid",
+                  120000,
+                  "2026-11-05T05:00:40Z",
+                  "2026-11-05T05:00:41Z"
+                ]
+              ]
+            ],
+            "watch": [
+              "e-1002-paid"
+            ]
+          },
+          "expected": {
+            "per_type": {
+              "item_added": 2,
+              "order_paid": 2,
+              "order_placed": 2
+            },
+            "revenue": {
+              "2026-11-05": 215000
+            },
+            "kept_copy": {
+              "e-1002-paid": "2026-11-05T05:00:41Z"
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Three identical bowls in one order are three item_added events, not one",
+          "input": {
+            "nights": [
+              [
+                [
+                  "e-1003-placed",
+                  1003,
+                  "order_placed",
+                  0,
+                  "2026-11-05T06:00:00Z",
+                  "2026-11-05T06:00:01Z"
+                ],
+                [
+                  "e-1003-item-1",
+                  1003,
+                  "item_added",
+                  55000,
+                  "2026-11-05T06:00:10Z",
+                  "2026-11-05T06:00:11Z"
+                ],
+                [
+                  "e-1003-item-2",
+                  1003,
+                  "item_added",
+                  55000,
+                  "2026-11-05T06:00:12Z",
+                  "2026-11-05T06:00:13Z"
+                ],
+                [
+                  "e-1003-item-3",
+                  1003,
+                  "item_added",
+                  55000,
+                  "2026-11-05T06:00:14Z",
+                  "2026-11-05T06:00:15Z"
+                ],
+                [
+                  "e-1003-paid",
+                  1003,
+                  "order_paid",
+                  165000,
+                  "2026-11-05T06:01:00Z",
+                  "2026-11-05T06:01:01Z"
+                ]
+              ]
+            ]
+          },
+          "expected": {
+            "per_type": {
+              "item_added": 3,
+              "order_paid": 1,
+              "order_placed": 1
+            },
+            "revenue": {
+              "2026-11-05": 165000
+            },
+            "kept_copy": {}
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A paid event that arrives the next morning counts on the day it was paid",
+          "input": {
+            "nights": [
+              [
+                [
+                  "e-1001-placed",
+                  1001,
+                  "order_placed",
+                  0,
+                  "2026-11-05T04:10:00Z",
+                  "2026-11-05T04:10:02Z"
+                ],
+                [
+                  "e-1001-item-a",
+                  1001,
+                  "item_added",
+                  65000,
+                  "2026-11-05T04:11:00Z",
+                  "2026-11-05T04:11:01Z"
+                ],
+                [
+                  "e-1001-item-b",
+                  1001,
+                  "item_added",
+                  30000,
+                  "2026-11-05T04:11:30Z",
+                  "2026-11-05T04:11:31Z"
+                ],
+                [
+                  "e-1001-paid",
+                  1001,
+                  "order_paid",
+                  95000,
+                  "2026-11-05T04:12:00Z",
+                  "2026-11-05T04:12:01Z"
+                ],
+                [
+                  "e-1001-paid",
+                  1001,
+                  "order_paid",
+                  95000,
+                  "2026-11-05T04:12:00Z",
+                  "2026-11-05T04:12:31Z"
+                ],
+                [
+                  "e-1002-placed",
+                  1002,
+                  "order_placed",
+                  0,
+                  "2026-11-05T05:00:00Z",
+                  "2026-11-05T05:00:01Z"
+                ],
+                [
+                  "e-1002-paid",
+                  1002,
+                  "order_paid",
+                  120000,
+                  "2026-11-05T05:00:40Z",
+                  "2026-11-05T05:01:42Z"
+                ],
+                [
+                  "e-1002-paid",
+                  1002,
+                  "order_paid",
+                  120000,
+                  "2026-11-05T05:00:40Z",
+                  "2026-11-05T05:00:41Z"
+                ]
+              ],
+              [
+                [
+                  "e-1004-placed",
+                  1004,
+                  "order_placed",
+                  0,
+                  "2026-11-05T16:48:00Z",
+                  "2026-11-06T01:30:00Z"
+                ],
+                [
+                  "e-1004-paid",
+                  1004,
+                  "order_paid",
+                  210000,
+                  "2026-11-05T16:50:00Z",
+                  "2026-11-06T01:30:05Z"
+                ],
+                [
+                  "e-2001-paid",
+                  2001,
+                  "order_paid",
+                  80000,
+                  "2026-11-06T05:15:00Z",
+                  "2026-11-06T05:15:02Z"
+                ]
+              ]
+            ]
+          },
+          "expected": {
+            "per_type": {
+              "item_added": 2,
+              "order_paid": 4,
+              "order_placed": 3
+            },
+            "revenue": {
+              "2026-11-05": 425000,
+              "2026-11-06": 80000
+            },
+            "kept_copy": {}
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Paid at 00:20 local is the next business day; a copy resent a night later is ignored",
+          "input": {
+            "nights": [
+              [
+                [
+                  "e-1001-placed",
+                  1001,
+                  "order_placed",
+                  0,
+                  "2026-11-05T04:10:00Z",
+                  "2026-11-05T04:10:02Z"
+                ],
+                [
+                  "e-1001-item-a",
+                  1001,
+                  "item_added",
+                  65000,
+                  "2026-11-05T04:11:00Z",
+                  "2026-11-05T04:11:01Z"
+                ],
+                [
+                  "e-1001-item-b",
+                  1001,
+                  "item_added",
+                  30000,
+                  "2026-11-05T04:11:30Z",
+                  "2026-11-05T04:11:31Z"
+                ],
+                [
+                  "e-1001-paid",
+                  1001,
+                  "order_paid",
+                  95000,
+                  "2026-11-05T04:12:00Z",
+                  "2026-11-05T04:12:01Z"
+                ],
+                [
+                  "e-1001-paid",
+                  1001,
+                  "order_paid",
+                  95000,
+                  "2026-11-05T04:12:00Z",
+                  "2026-11-05T04:12:31Z"
+                ],
+                [
+                  "e-1002-placed",
+                  1002,
+                  "order_placed",
+                  0,
+                  "2026-11-05T05:00:00Z",
+                  "2026-11-05T05:00:01Z"
+                ],
+                [
+                  "e-1002-paid",
+                  1002,
+                  "order_paid",
+                  120000,
+                  "2026-11-05T05:00:40Z",
+                  "2026-11-05T05:01:42Z"
+                ],
+                [
+                  "e-1002-paid",
+                  1002,
+                  "order_paid",
+                  120000,
+                  "2026-11-05T05:00:40Z",
+                  "2026-11-05T05:00:41Z"
+                ]
+              ],
+              [
+                [
+                  "e-1005-paid",
+                  1005,
+                  "order_paid",
+                  99000,
+                  "2026-11-05T17:20:00Z",
+                  "2026-11-05T17:20:01Z"
+                ],
+                [
+                  "e-1001-paid",
+                  1001,
+                  "order_paid",
+                  95000,
+                  "2026-11-05T04:12:00Z",
+                  "2026-11-06T02:00:00Z"
+                ]
+              ]
+            ],
+            "watch": [
+              "e-1001-paid"
+            ]
+          },
+          "expected": {
+            "per_type": {
+              "item_added": 2,
+              "order_paid": 3,
+              "order_placed": 2
+            },
+            "revenue": {
+              "2026-11-05": 215000,
+              "2026-11-06": 99000
+            },
+            "kept_copy": {
+              "e-1001-paid": "2026-11-05T04:12:01Z"
+            }
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

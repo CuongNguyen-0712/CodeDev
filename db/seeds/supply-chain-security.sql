@@ -70,7 +70,7 @@ JOIN catalog.skill s ON s.code = v.code;
 UPDATE catalog.course SET completion_rules = '{}' WHERE id = (SELECT id FROM catalog.course WHERE public_id = 'supply-chain-security');
 DELETE FROM catalog.course_prerequisite WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'supply-chain-security');
 INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
-SELECT (SELECT id FROM catalog.course WHERE public_id = 'supply-chain-security'), id FROM catalog.course WHERE public_id = ANY(ARRAY['devops-foundations-ci-containers', 'ai-assisted-development']::text[]);
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'supply-chain-security'), id FROM catalog.course WHERE public_id = ANY(ARRAY['ai-assisted-development']::text[]);
 
 -- module 1: Dependencies
 UPDATE course.module SET title = 'Dependencies', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'supply-chain-security') AND order_index = 1 AND is_deleted = false LIMIT 1);
@@ -90,7 +90,7 @@ VALUES ('chal_quiz_ssc_111', (SELECT id FROM catalog.course WHERE public_id = 's
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_111');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_111');
 WITH q AS (
@@ -163,7 +163,7 @@ VALUES ('chal_quiz_ssc_121', (SELECT id FROM catalog.course WHERE public_id = 's
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_121');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_121');
 WITH q AS (
@@ -225,17 +225,17 @@ VALUES ('chal_coding_ssc_122', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_122');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_122'), 1, 'For each dependency there are three separate questions: is there a lock entry, does the policy accept the spec, and does the locked version fall inside it? Which of them can you still answer when the spec is "latest" or a git URL - and which findings come from the lock entries alone, without looking at package.json?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_122'), 2, 'Turn every spec into a lower and an upper bound, each with an inclusive flag, or into null when it is outside the subset; "no upper bound" and "null" both become wide-range findings with different details. Then satisfies(version, range) is two comparisons of [major, minor, patch] tuples, after rejecting versions that are not plain digits. For hosts, startsWith against the whole allowed prefix, trailing slash included.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_122'), 3, 'A worked example on other data: ~3.4.1 gives lower 3.4.1 inclusive and upper 3.5.0 exclusive, so 3.4.9 satisfies it while 3.5.0 and 3.4.0 do not. ^0.5.2 gives upper 0.6.0 exclusive, so 0.9.0 is a mismatch. >=5.0.0 parses but has no upper bound; 5.0.0 || 6.0.0 does not parse. A lock entry resolved from http://registry.npmjs.org/... fails an allowed prefix of https://registry.npmjs.org/ because the scheme differs. Two findings for the package "zod" print wide-range before mismatch; "@a/b" sorts before "a".');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_122');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_122'), 'The incident: a dependency missing from the lock, wide ranges, a lock that drifted', '{"packageJson":{"name":"codedev-web","dependencies":{"next":"15.5.4","react":"^19.1.0","marked":"^14.1.0","sanitize-html":">=2.11.0","date-fns":"latest"},"devDependencies":{"typescript":"~5.9.2","vitest":"^3.2.0","eslint":"*"}},"lockfile":{"name":"codedev-web","version":"1.0.0","lockfileVersion":3,"requires":true,"packages":{"":{"name":"codedev-web","version":"1.0.0","dependencies":{"next":"15.5.4","react":"^19.1.0","marked":"^14.1.0","sanitize-html":">=2.11.0","date-fns":"latest"},"devDependencies":{"typescript":"~5.9.2","vitest":"^3.2.0","eslint":"*"}},"node_modules/next":{"version":"15.5.4","resolved":"https://registry.npmjs.org/next/-/next-15.5.4.tgz","integrity":"sha512-z2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtona=="},"node_modules/react":{"version":"19.1.1","resolved":"https://registry.npmjs.org/react/-/react-19.1.1.tgz","integrity":"sha512-onaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb=="},"node_modules/marked":{"version":"14.1.2","resolved":"https://npm-mirror.codedev-cdn.test/marked/-/marked-14.1.2.tgz","integrity":"sha512-943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8=="},"node_modules/date-fns":{"version":"4.1.0","resolved":"https://registry.npmjs.org/date-fns/-/date-fns-4.1.0.tgz","integrity":"sha512-onaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb=="},"node_modules/typescript":{"version":"5.9.3","resolved":"https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz","integrity":"sha512-/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2==","dev":true},"node_modules/vitest":{"version":"4.0.1","resolved":"https://registry.npmjs.org/vitest/-/vitest-4.0.1.tgz","integrity":"sha512-jmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXK==","dev":true},"node_modules/eslint":{"version":"9.36.0","resolved":"https://registry.npmjs.org/eslint/-/eslint-9.36.0.tgz","integrity":"sha512-OVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp==","dev":true},"node_modules/scheduler":{"version":"0.26.0","resolved":"https://registry.npmjs.org/scheduler/-/scheduler-0.26.0.tgz"}}},"policy":{"allowedRegistries":["https://registry.npmjs.org/","https://npm.codedev.test/"]}}', '"wide-range date-fns: latest (not a version range)\nwide-range eslint: * (no upper bound)\nregistry marked: https://npm-mirror.codedev-cdn.test/marked/-/marked-14.1.2.tgz\nmissing sanitize-html: >=2.11.0\nwide-range sanitize-html: >=2.11.0 (no upper bound)\nintegrity scheduler: missing\nmismatch vitest: ^3.2.0 but locked 4.0.1\n7 finding(s)"', 3, true, false, 1),
@@ -265,7 +265,7 @@ VALUES ('chal_quiz_ssc_131', (SELECT id FROM catalog.course WHERE public_id = 's
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_131');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_131');
 WITH q AS (
@@ -320,17 +320,17 @@ VALUES ('chal_coding_ssc_132', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_132');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_132'), 1, 'Which blocking reasons describe facts about the package (does this version exist, can we read its date) and which describe your team''s decisions (an approved name, a waiting period)? Which of the two kinds can a signed-off exception change?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_132'), 2, 'Collect the reasons in two lists - the ones an exception may lift and the ones it may not - and look at exceptions only at the end. For dates: check the timestamp format with a regular expression before Date.parse (which accepts many other formats), take new Date(ms).toISOString().slice(0, 10) for the UTC date, add days in milliseconds from that date''s midnight UTC, and compare YYYY-MM-DD strings. A real date survives the round trip through Date and toISOString unchanged.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_132'), 3, 'A worked example on other data, quarantine 3 days, today 2026-03-10: a version published 2026-03-07T22:00:00-05:00 is 2026-03-08T03:00:00Z, so P = 2026-03-08 and D = 2026-03-11: blocked. One published 2026-03-07T10:00:00Z gives D = 2026-03-10: allowed, because today is not before D. An entry @acme/* allows @acme/cli but not @acme-tools/cli or acme-cli. An exception that expires 2026-03-10 still counts on 2026-03-10; one for version 2.0.0 does nothing for 2.0.1.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_132'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_132'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_132');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_132'), 'The AI pull request: an unknown name, a lookalike, a two-day-old zod; express and our scope pass', '{"today":"2026-10-27","policy":{"allowlist":["@codedev/*","express","zod","marked","dompurify","pino","next","react","react-dom"],"quarantineDays":7,"exceptions":[]},"registry":{"express":{"4.21.1":"2024-10-08T19:42:11Z","4.21.2":"2024-12-05T17:20:31Z","4.22.0":"2026-10-25T09:00:00Z"},"zod":{"4.1.11":"2026-09-22T12:00:00Z","4.1.12":"2026-10-25T06:30:00Z"},"marked":{"14.1.2":"2026-08-01T10:00:00Z","14.1.3":"2026-10-19T10:00:00Z"},"dompurify":{"3.2.7":"2026-09-30T08:00:00Z"},"dom-purify":{"3.1.0":"2026-10-17T03:12:41Z"},"@codedev/md-render":{"0.3.0":"2026-09-30T14:00:00Z","0.4.0":"2026-10-26T16:00:00Z"},"left-pad":{"1.3.0":"2018-04-09T00:00:00Z"},"pino":{"9.12.0":"2026-10-23T11:00:00Z","9.12.1":"2026-10-24T11:00:00Z"}},"changes":[{"name":"marked","from":null,"to":"14.1.2"},{"name":"dom-purify","from":null,"to":"3.1.0"},{"name":"markdown-sanitize-lite","from":null,"to":"1.0.0"},{"name":"zod","from":"4.1.11","to":"4.1.12"},{"name":"@codedev/md-render","from":null,"to":"0.3.0"},{"name":"express","from":"4.21.1","to":"4.21.2"}]}', '"allow marked@14.1.2\nblock dom-purify@3.1.0: not on allowlist\nblock markdown-sanitize-lite@1.0.0: not in registry; not on allowlist\nblock zod@4.1.12 (was 4.1.11): quarantined until 2026-11-01 (published 2026-10-25)\nallow @codedev/md-render@0.3.0\nallow express@4.21.2 (was 4.21.1)\n3 allowed, 3 blocked"', 3, true, false, 1),
@@ -366,7 +366,7 @@ VALUES ('chal_quiz_ssc_211', (SELECT id FROM catalog.course WHERE public_id = 's
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_211');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_211');
 WITH q AS (
@@ -572,17 +572,17 @@ VALUES ('chal_coding_ssc_212', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_212');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_212'), 1, 'How many findings come back for a package.json with 8 dependencies, and which entries never reach the registry lookup? What does it take for a scope to be yours, rather than to start with the same letters as yours?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_212'), 2, 'Look at the two `continue` lines at the top of the loop: one compares scopes with startsWith, the other tests the key with a pattern that has no room for "@scope/". Then look at `spec`: is it ever read? An alias installs the package named after "npm:", not the key.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_212'), 3, 'A similar case with other names: owned ["@acme"], known ["@types"]. "@acme/core" has the scope "@acme" (the text before the first "/"): owned. "@acme-tools/core" has the scope "@acme-tools", which is not equal to "@acme", so it is an unknown scope although it starts with "@acme". "web": "npm:@acme/web-legacy@2.0.0" installs "@acme/web-legacy": searching for "@" from the second character finds the one before 2.0.0. "pad": "npm:left-pad" installs "left-pad". Each of them still gets one finding.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_212'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_212'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_212');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_212'), 'The incident PR: a scope that only looks like CodeDev''s is reported, every entry gets a finding', '{"ownedScopes":["@codedev"],"knownScopes":["@types","@tanstack"],"registry":["next","react","react-dom","react-hook-form","zod","@codedev/ui-kit","@codedev/eslint-config","@types/node","@types/react","@tanstack/react-query","typescript","eslint","vitest","form-utils","express","lodash","@types/express"],"dependencies":{"@codedev/ui-kit":"^3.4.0","@codedev-ui/form-utils":"^1.2.0","@tanstack/react-query":"^5.87.1","next":"15.5.4","react":"19.1.1","react-dom":"19.1.1","react-hook-form":"^7.62.0","zod":"^4.1.5"}}', '[{"dependency":"@codedev/ui-kit","package":"@codedev/ui-kit","status":"ok"},{"dependency":"@codedev-ui/form-utils","package":"@codedev-ui/form-utils","status":"unknown_scope"},{"dependency":"@tanstack/react-query","package":"@tanstack/react-query","status":"ok"},{"dependency":"next","package":"next","status":"ok"},{"dependency":"react","package":"react","status":"ok"},{"dependency":"react-dom","package":"react-dom","status":"ok"},{"dependency":"react-hook-form","package":"react-hook-form","status":"ok"},{"dependency":"zod","package":"zod","status":"ok"}]', 3, true, false, 1),
@@ -611,7 +611,7 @@ VALUES ('chal_quiz_ssc_221', (SELECT id FROM catalog.course WHERE public_id = 's
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_221');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_221');
 WITH q AS (
@@ -661,17 +661,17 @@ VALUES ('chal_coding_ssc_222', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_222');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_222'), 1, 'Which two strings are the same package for npm, and which two only look the same to a hurried reader? Exact must answer the first question with the raw name; the distance answers the second with normalized names.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_222'), 2, 'Build and test the three pieces separately before detectTyposquats: normalize (five steps, in the order given), the distance table (insert, delete and substitute, plus one extra case for two adjacent characters that are swapped, which looks two rows and two columns back), and the threshold, which uses the length of the normalized candidate. Then check the sort keys: verdict, distance, name.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_222'), 3, 'A similar case with other names: popular ["chalk", "qs"]. "hcalk" has "ch" swapped: distance 1 (plain Levenshtein says 2); its normalized length is 5, so the threshold is 1 and it is a lookalike of chalk. "chalk.js" becomes "chalk-js", then "chalk": distance 0, a lookalike, not exact, because the raw name differs. "q-s" stays "q-s": length 3, threshold 0, distance 1 from "qs", so it is clear with nearest "qs".');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_222'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_222'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_222');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_222'), 'The PR''s suggestions: a swap, a separator trick, a scope clone, a missing letter, an exact match', '{"popular":["react","react-dom","lodash","express","request","cross-env","dompurify","zod","qs","ms","chalk","axios","js-yaml","yaml","@types/node","typescript","next","i18next","uuid","pg","ws"],"candidates":["reqeust","cross_env","@codedev-ui/lodash","react","zod-validation-kit","dompurfy"]}', '[{"name":"@codedev-ui/lodash","nearest":"lodash","distance":0,"verdict":"lookalike"},{"name":"cross_env","nearest":"cross-env","distance":0,"verdict":"lookalike"},{"name":"dompurfy","nearest":"dompurify","distance":1,"verdict":"lookalike"},{"name":"reqeust","nearest":"request","distance":1,"verdict":"lookalike"},{"name":"zod-validation-kit","nearest":"axios","distance":15,"verdict":"clear"},{"name":"react","nearest":"react","distance":0,"verdict":"exact"}]', 3, true, false, 1),
@@ -700,7 +700,7 @@ VALUES ('chal_quiz_ssc_231', (SELECT id FROM catalog.course WHERE public_id = 's
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_231');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_231');
 WITH q AS (
@@ -753,17 +753,17 @@ VALUES ('chal_coding_ssc_232', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_232');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_232'), 1, 'What happens to a package that nobody has reviewed: which branch of the if does it take? Then ask the same question for a package whose name was reviewed at another version.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_232'), 2, 'Look at the constant next to the comment that explains why the build broke, and at what `reviewed` contains: names only. Then compare INSTALL_SCRIPTS with the scripts npm runs for a git dependency, and check how a git dependency could ever match an allowlist entry pinned to an integrity hash.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_232'), 3, 'A similar case on other data: allowlist [{ name: "canvas", version: "2.11.2", integrity: "sha512-AAA" }]. canvas 2.11.2 with integrity sha512-AAA and an install script: it runs. canvas 2.11.3: blocked, version_mismatch. canvas 2.11.2 with sha512-BBB: blocked, integrity_mismatch. A package resolved from "git+ssh://git@github.com/acme/tool.git#c0ffee" with a prepare script: blocked, git_dependency. A registry package with only prepare and test scripts: nothing to run, nothing to report.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_232'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_232'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_232');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_232'), 'A native module builds: bcrypt''s reviewed install script runs', '{"lock":[{"name":"bcrypt","version":"5.1.1","resolved":"https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.1.tgz","integrity":"sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==","scripts":{"install":"node-pre-gyp install --fallback-to-build","test":"jest"}},{"name":"next","version":"15.5.4","resolved":"https://registry.npmjs.org/next/-/next-15.5.4.tgz","integrity":"sha512-N6H75n+/cJOi+PjMe9oTR0vtIofsz/5J9BnshoUzB+oMUsT2yHV0+yIxYSLJRJhbl7qrZ/skRiEGCsYR2oYIqA==","scripts":{}},{"name":"node-addon-api","version":"8.5.0","resolved":"https://registry.npmjs.org/node-addon-api/-/node-addon-api-8.5.0.tgz","integrity":"sha512-ZBSN3FuYFqfUWeJbQu3+VvtJpsXDDlALoBa/xTNy2x1sr/Dyq9WCE74pQvf8lEcq/N89bI2B0hfPn1ltdKC5fw==","scripts":{}},{"name":"react","version":"19.1.1","resolved":"https://registry.npmjs.org/react/-/react-19.1.1.tgz","integrity":"sha512-QzDUBgKMOqS3QwTUimmDLdWrcpzKllOrRWz+szj1ofvMHGz5pytxvNCWMFN0m9Rf+kmHTrCvgHSwMGAZKZuycA==","scripts":{}},{"name":"zod","version":"4.1.5","resolved":"https://registry.npmjs.org/zod/-/zod-4.1.5.tgz","integrity":"sha512-XF9ksKgfio1gAZzzRDvXyqrc/qJtGrfMMXs6F6HAtc6XfwEBqgK1fIcPpbsgq4plLiZmgMOoqBlLd3MkiKU8XA==","scripts":{}}],"allowlist":[{"name":"bcrypt","version":"5.1.1","integrity":"sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==","reviewedBy":"reviewer-a"},{"name":"sharp","version":"0.34.4","integrity":"sha512-T680Of4tJKuqCXM8HxzMKhT48ctwA8iHtXRnpKvQd0Ye5N1h0zaQDDTzitvbsR6ZDKGtkfSKD7mVsL4muOXwQg==","reviewedBy":"reviewer-b"},{"name":"esbuild","version":"0.25.9","integrity":"sha512-hW9+T/5bMUVjOlIH8vPwHB8nWUv6V7lupGar0umY6mXayQ0MHKoFod2+6XLMe1Jw4MVVjmFUNihZenWrpUYKBg==","reviewedBy":"reviewer-a"}]}', '{"run":[{"package":"bcrypt@5.1.1","script":"install"}],"blocked":[]}', 3, true, false, 1),
@@ -798,7 +798,7 @@ VALUES ('chal_quiz_ssc_311', (SELECT id FROM catalog.course WHERE public_id = 's
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_311');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_311');
 WITH q AS (
@@ -858,17 +858,17 @@ Each finding is { file, line, rule, preview } with line = number in the new file
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_312');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_312'), 1, 'Before any regex: which number does each added line have in the new file, and which kinds of diff lines move that number? If your line numbers are right for a diff without secrets, the rules are the easy part.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_312'), 2, 'Look at the state you carry from one line to the next (current file or none, inside a hunk or not, next new-file line number), then at the order of the checks for one added line: allowed path, marker, the five pattern rules, and the entropy check only when no pattern matched. The sort happens once, at the end.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_312'), 3, 'A similar trace on other input: the hunk "@@ -7,3 +7,4 @@" followed by " a", "-b", "+c", " d", "+e" gives a = line 7, c = line 8 (b moved nothing), d = line 9, e = line 10. For entropy, "aabb" has two characters with p = 0.5 each, so H = 1.0, and "abcd" has H = 2.0: twenty characters can never exceed log2(20) = 4.32 bits, which is why a 20-character base64 string cannot reach 4.5.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_312'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_312'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_312');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_312'), 'The incident: an AWS key id and a key in a ?? fallback', '{"diff":"diff --git a/src/lib/storage.ts b/src/lib/storage.ts\nindex 3f2a1b0..9c4d2e7 100644\n--- a/src/lib/storage.ts\n+++ b/src/lib/storage.ts\n@@ -1,6 +1,8 @@\n import { S3Client } from \"@aws-sdk/client-s3\";\n \n-const region = \"ap-southeast-1\";\n+const region = process.env.AWS_REGION ?? \"ap-southeast-1\";\n+const accessKeyId = \"AKIAIOSFODNN7EXAMPLE\";\n+const secretAccessKey = process.env.S3_SECRET ?? \"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\";\n \n export const s3 = new S3Client({\n   region,\n@@ -20,3 +22,4 @@ export async function uploadCover(courseId: string, body: Buffer) {\n   });\n   return key;\n }\n+// TODO: read the credentials from the environment\n","allowPaths":["test/fixtures/"]}', '[{"file":"src/lib/storage.ts","line":4,"rule":"aws-access-key-id","preview":"AKIA... (20 chars)"},{"file":"src/lib/storage.ts","line":5,"rule":"high-entropy-base64","preview":"wJal... (40 chars)"}]', 3, true, false, 1),
@@ -898,7 +898,7 @@ VALUES ('chal_quiz_ssc_321', (SELECT id FROM catalog.course WHERE public_id = 's
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_321');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_321');
 WITH q AS (
@@ -962,17 +962,17 @@ The runner reads { env }, prints every logged line as "log: <line>", then "ok" o
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_322');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_322'), 1, 'Count the places where a string leaves loadConfig: every call to log and every thrown Error. For each one, ask which variables can end up inside it, and whether the code decides "is this a secret?" from the schema or from something else.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_322'), 2, 'Look at the line right after the config object is built, at the two throw statements inside the validation loop (what do they include, and how many problems can they report?), and at how the summary decides which values to mask and how mask treats a short value.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_322'), 3, 'A similar case on other input: a schema with SMTP_HOST (not secret), SMTP_PASSWORD (secret, required) and WEBHOOK_URL (secret, must start with https://). With SMTP_PASSWORD unset and WEBHOOK_URL = "http://hooks.test/abc", the loader logs nothing and throws "Invalid configuration: missing SMTP_PASSWORD; invalid WEBHOOK_URL". With valid values, a 9-character password shows as "***" and a 30-character webhook URL as "***" plus its last 4 characters.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_322'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_322'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_322');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_322'), 'A valid production config logs one summary with secrets masked', '{"env":{"NODE_ENV":"production","PORT":"8080","PUBLIC_APP_URL":"https://app.codedev.test","DATABASE_URL":"postgres://codedev_app:FAKE-db-pass-0000@db.codedev.test:5432/codedev","REDIS_URL":"rediss://default:FAKE-redis-0000@cache.codedev.test:6380","JWT_SECRET":"FAKE-jwt-secret-for-tests-0000000000","SANDBOX_API_KEY":"sbx_FAKE_7f3a9c2e5b8d1046"}}', '"log: config ok: NODE_ENV=production PORT=8080 LOG_LEVEL=info PUBLIC_APP_URL=https://app.codedev.test DATABASE_URL=***edev REDIS_URL=***6380 JWT_SECRET=***0000 SANDBOX_API_KEY=***1046\nok"', 3, true, false, 1),
@@ -1002,7 +1002,7 @@ VALUES ('chal_quiz_ssc_331', (SELECT id FROM catalog.course WHERE public_id = 's
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_331');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_331');
 WITH q AS (
@@ -1108,7 +1108,7 @@ VALUES ('chal_quiz_ssc_411', (SELECT id FROM catalog.course WHERE public_id = 's
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_411');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_411');
 WITH q AS (
@@ -1187,17 +1187,17 @@ Up to 2,000 components per SBOM. Standard library only.', 'open', 'hard'::diffic
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_412');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_412'), 1, 'If you key components by the full purl, how does an upgrade from lodash 4.17.20 to 4.17.21 appear in your report: as one change, or as one package added and another removed? And what would a reviewer miss in that noise?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_412'), 2, 'Check three places: where you cut the version out of the purl (after the last @ that follows the last /, before ? and #), whether your walk recurses into every components array, and how you compare versions: for strings, "1.10.0" < "1.9.0" is true.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_412'), 3, 'A similar case on other input: pkg:pypi/requests@2.31.0?extension=whl has the key pkg:pypi/requests and the version 2.31.0. For 2.0.0-beta.11 against 2.0.0-beta.2, beta equals beta, then 11 and 2 are both numeric, so they compare as numbers and beta.11 is the newer one; 2.0.0 is newer than both because it has no prerelease.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_412'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_412'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_412');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_412'), 'An upgrade, a new scoped package and a removed package', '{"before":{"bomFormat":"CycloneDX","specVersion":"1.6","version":1,"components":[{"type":"library","name":"express","version":"4.19.2","purl":"pkg:npm/express@4.19.2","licenses":[{"license":{"id":"MIT"}}],"hashes":[{"alg":"SHA-256","content":"2f6758d3407b167482b6e5939a39adfae4627f3ca3939e7ebd8f944423a1e069"}]},{"type":"library","name":"lodash","version":"4.17.20","purl":"pkg:npm/lodash@4.17.20","licenses":[{"license":{"id":"MIT"}}],"hashes":[{"alg":"SHA-256","content":"2c872687887891249ad246d9a6da5cb95e02a465c94ad2a9afdd7ce74b28e3a7"}]},{"type":"library","name":"left-pad","version":"1.3.0","purl":"pkg:npm/left-pad@1.3.0","licenses":[{"license":{"id":"WTFPL"}}],"hashes":[{"alg":"SHA-256","content":"21db9ce4773b1895cfd5585cddf65a34e9d00ddbd191885c74430bc0177bfa35"}]}]},"after":{"bomFormat":"CycloneDX","specVersion":"1.6","version":1,"components":[{"type":"library","name":"express","version":"4.19.2","purl":"pkg:npm/express@4.19.2","licenses":[{"license":{"id":"MIT"}}],"hashes":[{"alg":"SHA-256","content":"2f6758d3407b167482b6e5939a39adfae4627f3ca3939e7ebd8f944423a1e069"}]},{"type":"library","name":"lodash","version":"4.17.21","purl":"pkg:npm/lodash@4.17.21","licenses":[{"license":{"id":"MIT"}}],"hashes":[{"alg":"SHA-256","content":"adaac4144887ebc2c1b682380ff385210f681fc58b4bc1ef3986148cf8dcd28a"}]},{"type":"library","name":"ui","group":"@codedev","version":"2.1.0","purl":"pkg:npm/%40codedev/ui@2.1.0","licenses":[{"license":{"id":"UNLICENSED"}}],"hashes":[{"alg":"SHA-256","content":"bce02f7d6d03b92f0c4c837166756c2e03652e2322b0d7aea7c5ce2187908de9"}]}]}}', '{"added":[{"key":"pkg:npm/@codedev/ui","version":"2.1.0"}],"removed":[{"key":"pkg:npm/left-pad","version":"1.3.0"}],"versionChanged":[{"key":"pkg:npm/lodash","from":"4.17.20","to":"4.17.21","direction":"upgrade","sameMajor":true}],"licenseChanged":[],"hashChanged":[],"summary":{"before":3,"after":3,"added":1,"removed":1,"versionChanged":1,"licenseChanged":0,"hashChanged":0,"duplicatesCollapsed":0,"withoutPurl":0}}', 3, true, false, 1),
@@ -1227,7 +1227,7 @@ VALUES ('chal_quiz_ssc_421', (SELECT id FROM catalog.course WHERE public_id = 's
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_421');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_421');
 WITH q AS (
@@ -1296,17 +1296,17 @@ Up to 100 artifacts of up to 64 KB. Standard library only (`node:crypto`).', 'op
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_422');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_422'), 1, 'If someone can change both an artifact and the digest written next to it in the manifest, which check still catches them? What has to be true before you can trust any digest in the manifest?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_422'), 2, 'Look at the exact bytes you sign (lines sorted by name, digests in lowercase, a newline after every line including the last), and at what Buffer.from(signature, "hex") returns for a 63-character or non-hex signature: timingSafeEqual throws when the two buffers have different lengths.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_422'), 3, 'A similar check on other input, a webhook: the sender computes HMAC-SHA256 of the raw request body with a shared secret and sends "sha256=<hex>". The receiver strips the prefix, rejects anything that is not 64 hex characters, recomputes the HMAC over the same raw bytes (never over a re-serialized JSON object, whose key order and spacing can differ) and compares the two 32-byte buffers with timingSafeEqual.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_422'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_422'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_422');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_ssc_422'), 'Signed manifest, every artifact matches, refs pinned by digest: deploy', '{"key":"codedev-release-test-key","artifacts":[{"name":"web.tar.gz","content":"d2ViIGJ1bmRsZSAyMDI2LjEwLjMKPHNjcmlwdCBzcmM9L2Fzc2V0cy9hcHAuNGYxYy5qcz48L3NjcmlwdD4K"},{"name":"api.tar.gz","content":"YXBpIHNlcnZlciAyMDI2LjEwLjMKZXhwb3J0IGNvbnN0IHBvcnQgPSA4MDgwOwo="},{"name":"migrations.sql","content":"LS0gbWlncmF0aW9ucyAyMDI2LjEwLjMKQUxURVIgVEFCTEUgc3VibWlzc2lvbnMgQUREIENPTFVNTiBydW50aW1lX21zIGludDsK"}],"manifest":{"release":"2026.10.3","digests":{"web.tar.gz":"e60232b37e8abe3ee72cfb53c00257a532527a75e2942d2e7ebf25594ac210da","migrations.sql":"ec6e004778912b7a210d21c8b064acb420049de67aac904887d914783ac9167d","api.tar.gz":"b0b487ba63334a7e5836476b049b2b389275aeaee883b3ec456e78f54d156bd0"},"signature":"f20007f2448a59d4a27dfd8a64ecac5c4904211412cf6d7f216f7352e9c8e142"},"request":{"release":"2026.10.3","refs":["web.tar.gz@sha256:e60232b37e8abe3ee72cfb53c00257a532527a75e2942d2e7ebf25594ac210da","api.tar.gz@sha256:b0b487ba63334a7e5836476b049b2b389275aeaee883b3ec456e78f54d156bd0"]}}', '{"decision":"deploy","reasons":[],"deployed":["api.tar.gz@sha256:b0b487ba63334a7e5836476b049b2b389275aeaee883b3ec456e78f54d156bd0","web.tar.gz@sha256:e60232b37e8abe3ee72cfb53c00257a532527a75e2942d2e7ebf25594ac210da"]}', 3, true, false, 1),
@@ -1336,7 +1336,7 @@ VALUES ('chal_quiz_ssc_431', (SELECT id FROM catalog.course WHERE public_id = 's
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_431');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_ssc_431');
 WITH q AS (

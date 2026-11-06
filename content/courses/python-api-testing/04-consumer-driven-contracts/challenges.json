@@ -1,0 +1,667 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pat_141",
+      "name": "consumer-driven-contracts-quiz",
+      "type": "quiz",
+      "title": "Read the contract failures",
+      "description": "Three statements about consumer-driven contract tests between Rice Rocket's courier app and its order API. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "contracts"
+      ],
+      "points": 10,
+      "hints": [
+        "Ask who wrote each test and from what knowledge: the provider's tests describe what the provider thinks it returns; who knows what the app reads?",
+        "Imagine the provider adds a field or returns another order tomorrow. Which pacts break, and should they?",
+        "A pact is verified against provider versions. What does a deploy pipeline need to know before it ships one provider version?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The order API renamed a field. Its own suite was green; the courier app broke:\n\n```text\n# order-api CI\ntests/api/test_orders.py ........................ 24 passed\n\n# courier app, production\nTypeError: undefined is not a number  at formatEta(order.eta_minutes)\n```\n\n```diff\n-  \"eta_minutes\": 12,\n+  \"eta\": 12,\n```\n\nStatement: \"The provider's tests passed because they assert what the provider believes its response is; only a contract written from the courier app's side records that the app reads `eta_minutes`.\"",
+          "explanation": "True. The provider changed the code and its tests together, so they agree with each other and say nothing about clients. A consumer-driven contract (a pact) is written by the consumer from the fields it really uses, published to a broker, and verified against every provider build. Here the verification would report `$.eta_minutes: missing` before the deploy. The misconception is that good provider tests protect clients.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A developer proposes making the pact stricter:\n\n```json\n\"response\": {\n  \"status\": 200,\n  \"body\": { \"id\": 91822, \"status\": \"on_the_way\", \"eta_minutes\": 12, \"total\": 125000,\n            \"items\": [{\"name\": \"Com tam suon\", \"quantity\": 2, \"price\": 55000}],\n            \"courier\": {\"id\": 3107, \"name\": \"Tran Van Binh\", \"phone\": \"0901234567\"},\n            \"placed_at\": \"2026-11-06T11:30:00+07:00\", \"tip\": 0, \"promo_code\": null }\n}\n```\n\nStatement: \"Copying the whole provider response as literal values makes the contract safer, because any change at all is caught.\"",
+          "explanation": "False. A pact should contain only what the consumer reads, with type matchers instead of today's values. A full literal copy breaks when the provider adds a field the app ignores, returns another order in the provider state, or changes a price; every such failure is noise that teaches people to skip verification. It also hides which fields matter. The misconception is that more assertions always mean more safety.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The deploy job of the order API runs the Pact Broker's check before shipping:\n\n```text\n$ pact-broker can-i-deploy --pacticipant order-api --version 4f2a9c1 --to-environment production\nComputer says no ¯\\_(ツ)_/¯\n\nCONSUMER     | C.VERSION | PROVIDER  | P.VERSION | SUCCESS?\ncourier-app  | 2.14.0    | order-api | 4f2a9c1   | false\n```\n\nStatement: \"The job should stop: the version of the courier app running in production has a pact that this order API build failed to verify.\"",
+          "explanation": "True. can-i-deploy looks up the verification results between this provider version and the consumer versions recorded as deployed in production; one failed verification means shipping would break a client that users run right now. The fix is to keep `eta_minutes` (or add `eta` alongside it) until the app version that reads `eta` is everywhere. The misconception is that a contract failure is the consumer's problem to fix later.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pat_142",
+      "name": "verify-consumer-pact",
+      "type": "mini_coding",
+      "title": "Verify the courier app's pact",
+      "description": "The courier app now publishes a pact for GET /orders/{id}: the parts of the response it reads, written with matchers. The editor holds `verify_pact.py`: `verify(expected, actual)` with its matching rules missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that `$like` matches by JSON type (recursively for objects), `$regex` fully matches strings, `$eachLike` checks a minimum length and each element's types, plain objects check only the keys the consumer reads, and plain values match exactly. Run verifies the pact against several builds of the order API: the one that renamed `eta_minutes` must fail, a build that only adds fields or returns other data must pass.",
+      "difficulty": "medium",
+      "outcomes": [
+        "contracts"
+      ],
+      "points": 30,
+      "hints": [
+        "Think about what a consumer can rely on: the presence and type of the fields it reads. Which of the matchers compare values, and which only types?",
+        "Look at how an object compares keys (consumer keys only, or both sides), what `$like` compares, and whether `$eachLike` enforces its `min`.",
+        "A pact for a restaurant list could read `{\"restaurants\": {\"$eachLike\": {\"id\": 1, \"name\": \"Pho 24\"}, \"min\": 1}, \"page\": {\"$like\": 1}}`: `{\"restaurants\": [], \"page\": 1}` fails (`expected at least 1 elements, got 0`), `{\"restaurants\": [{\"id\": 9, \"name\": \"Bun Cha\", \"open\": true}], \"page\": 2, \"total\": 40}` passes."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "verify_pact.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The rename that broke the app: eta_minutes became eta",
+          "input": {
+            "pact": {
+              "consumer": "courier-app",
+              "provider": "order-api",
+              "interactions": [
+                {
+                  "description": "an order on the way",
+                  "providerState": "order 91822 is on the way with courier 3107",
+                  "request": {
+                    "method": "GET",
+                    "path": "/orders/91822"
+                  },
+                  "response": {
+                    "status": 200,
+                    "body": {
+                      "id": {
+                        "$like": 91822
+                      },
+                      "status": "on_the_way",
+                      "eta_minutes": {
+                        "$like": 12
+                      },
+                      "total": {
+                        "$like": 125000
+                      },
+                      "items": {
+                        "$eachLike": {
+                          "name": "Com tam suon",
+                          "quantity": 2
+                        },
+                        "min": 1
+                      },
+                      "courier": {
+                        "$like": {
+                          "id": 3107,
+                          "name": "Tran Van Binh"
+                        }
+                      },
+                      "placed_at": {
+                        "$regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})$",
+                        "example": "2026-11-06T11:30:00+07:00"
+                      }
+                    }
+                  }
+                },
+                {
+                  "description": "an order nobody has picked up",
+                  "providerState": "order 91906 is placed and unassigned",
+                  "request": {
+                    "method": "GET",
+                    "path": "/orders/91906"
+                  },
+                  "response": {
+                    "status": 200,
+                    "body": {
+                      "id": {
+                        "$like": 91906
+                      },
+                      "status": "placed",
+                      "courier": null
+                    }
+                  }
+                }
+              ]
+            },
+            "actual": {
+              "an order on the way": {
+                "status": 200,
+                "body": {
+                  "id": 91822,
+                  "status": "on_the_way",
+                  "total": 125000,
+                  "items": [
+                    {
+                      "name": "Com tam suon",
+                      "quantity": 2,
+                      "price": 55000
+                    },
+                    {
+                      "name": "Tra da",
+                      "quantity": 1,
+                      "price": 15000
+                    }
+                  ],
+                  "courier": {
+                    "id": 3107,
+                    "name": "Tran Van Binh"
+                  },
+                  "placed_at": "2026-11-06T11:30:00+07:00",
+                  "eta": 12
+                }
+              },
+              "an order nobody has picked up": {
+                "status": 200,
+                "body": {
+                  "id": 91906,
+                  "status": "placed",
+                  "total": 60000,
+                  "courier": null,
+                  "eta_minutes": null
+                }
+              }
+            }
+          },
+          "expected": {
+            "an order on the way": [
+              "$.eta_minutes: missing"
+            ],
+            "an order nobody has picked up": "ok",
+            "can_deploy": false
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "New fields and other values pass: the app reads types, not today's data",
+          "input": {
+            "pact": {
+              "consumer": "courier-app",
+              "provider": "order-api",
+              "interactions": [
+                {
+                  "description": "an order on the way",
+                  "providerState": "order 91822 is on the way with courier 3107",
+                  "request": {
+                    "method": "GET",
+                    "path": "/orders/91822"
+                  },
+                  "response": {
+                    "status": 200,
+                    "body": {
+                      "id": {
+                        "$like": 91822
+                      },
+                      "status": "on_the_way",
+                      "eta_minutes": {
+                        "$like": 12
+                      },
+                      "total": {
+                        "$like": 125000
+                      },
+                      "items": {
+                        "$eachLike": {
+                          "name": "Com tam suon",
+                          "quantity": 2
+                        },
+                        "min": 1
+                      },
+                      "courier": {
+                        "$like": {
+                          "id": 3107,
+                          "name": "Tran Van Binh"
+                        }
+                      },
+                      "placed_at": {
+                        "$regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})$",
+                        "example": "2026-11-06T11:30:00+07:00"
+                      }
+                    }
+                  }
+                },
+                {
+                  "description": "an order nobody has picked up",
+                  "providerState": "order 91906 is placed and unassigned",
+                  "request": {
+                    "method": "GET",
+                    "path": "/orders/91906"
+                  },
+                  "response": {
+                    "status": 200,
+                    "body": {
+                      "id": {
+                        "$like": 91906
+                      },
+                      "status": "placed",
+                      "courier": null
+                    }
+                  }
+                }
+              ]
+            },
+            "actual": {
+              "an order on the way": {
+                "status": 200,
+                "body": {
+                  "id": 92011,
+                  "status": "on_the_way",
+                  "eta_minutes": 31,
+                  "total": 87000,
+                  "items": [
+                    {
+                      "name": "Banh mi",
+                      "quantity": 3,
+                      "price": 25000
+                    }
+                  ],
+                  "courier": {
+                    "id": 4410,
+                    "name": "Le Thi Hoa",
+                    "vehicle": "bike"
+                  },
+                  "placed_at": "2026-11-06T11:30:00+07:00",
+                  "tip": 10000
+                }
+              },
+              "an order nobody has picked up": {
+                "status": 200,
+                "body": {
+                  "id": 91906,
+                  "status": "placed",
+                  "total": 60000,
+                  "courier": null,
+                  "eta_minutes": null,
+                  "notes": ""
+                }
+              }
+            }
+          },
+          "expected": {
+            "an order on the way": "ok",
+            "an order nobody has picked up": "ok",
+            "can_deploy": true
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "An order with no items breaks the eachLike minimum; a null courier is exactly what the pact says",
+          "input": {
+            "pact": {
+              "consumer": "courier-app",
+              "provider": "order-api",
+              "interactions": [
+                {
+                  "description": "an order on the way",
+                  "providerState": "order 91822 is on the way with courier 3107",
+                  "request": {
+                    "method": "GET",
+                    "path": "/orders/91822"
+                  },
+                  "response": {
+                    "status": 200,
+                    "body": {
+                      "id": {
+                        "$like": 91822
+                      },
+                      "status": "on_the_way",
+                      "eta_minutes": {
+                        "$like": 12
+                      },
+                      "total": {
+                        "$like": 125000
+                      },
+                      "items": {
+                        "$eachLike": {
+                          "name": "Com tam suon",
+                          "quantity": 2
+                        },
+                        "min": 1
+                      },
+                      "courier": {
+                        "$like": {
+                          "id": 3107,
+                          "name": "Tran Van Binh"
+                        }
+                      },
+                      "placed_at": {
+                        "$regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})$",
+                        "example": "2026-11-06T11:30:00+07:00"
+                      }
+                    }
+                  }
+                },
+                {
+                  "description": "an order nobody has picked up",
+                  "providerState": "order 91906 is placed and unassigned",
+                  "request": {
+                    "method": "GET",
+                    "path": "/orders/91906"
+                  },
+                  "response": {
+                    "status": 200,
+                    "body": {
+                      "id": {
+                        "$like": 91906
+                      },
+                      "status": "placed",
+                      "courier": null
+                    }
+                  }
+                }
+              ]
+            },
+            "actual": {
+              "an order on the way": {
+                "status": 200,
+                "body": {
+                  "id": 91822,
+                  "status": "on_the_way",
+                  "eta_minutes": 12,
+                  "total": 125000,
+                  "items": [],
+                  "courier": {
+                    "id": 3107,
+                    "name": "Tran Van Binh"
+                  },
+                  "placed_at": "2026-11-06T11:30:00+07:00"
+                }
+              },
+              "an order nobody has picked up": {
+                "status": 200,
+                "body": {
+                  "id": 91906,
+                  "status": "placed",
+                  "total": 60000,
+                  "courier": null,
+                  "eta_minutes": null
+                }
+              }
+            }
+          },
+          "expected": {
+            "an order on the way": [
+              "$.items: expected at least 1 elements, got 0"
+            ],
+            "an order nobody has picked up": "ok",
+            "can_deploy": false
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A time without offset and a 404 for the unassigned order",
+          "input": {
+            "pact": {
+              "consumer": "courier-app",
+              "provider": "order-api",
+              "interactions": [
+                {
+                  "description": "an order on the way",
+                  "providerState": "order 91822 is on the way with courier 3107",
+                  "request": {
+                    "method": "GET",
+                    "path": "/orders/91822"
+                  },
+                  "response": {
+                    "status": 200,
+                    "body": {
+                      "id": {
+                        "$like": 91822
+                      },
+                      "status": "on_the_way",
+                      "eta_minutes": {
+                        "$like": 12
+                      },
+                      "total": {
+                        "$like": 125000
+                      },
+                      "items": {
+                        "$eachLike": {
+                          "name": "Com tam suon",
+                          "quantity": 2
+                        },
+                        "min": 1
+                      },
+                      "courier": {
+                        "$like": {
+                          "id": 3107,
+                          "name": "Tran Van Binh"
+                        }
+                      },
+                      "placed_at": {
+                        "$regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})$",
+                        "example": "2026-11-06T11:30:00+07:00"
+                      }
+                    }
+                  }
+                },
+                {
+                  "description": "an order nobody has picked up",
+                  "providerState": "order 91906 is placed and unassigned",
+                  "request": {
+                    "method": "GET",
+                    "path": "/orders/91906"
+                  },
+                  "response": {
+                    "status": 200,
+                    "body": {
+                      "id": {
+                        "$like": 91906
+                      },
+                      "status": "placed",
+                      "courier": null
+                    }
+                  }
+                }
+              ]
+            },
+            "actual": {
+              "an order on the way": {
+                "status": 200,
+                "body": {
+                  "id": 91822,
+                  "status": "on_the_way",
+                  "eta_minutes": 12,
+                  "total": 125000,
+                  "items": [
+                    {
+                      "name": "Com tam suon",
+                      "quantity": 2,
+                      "price": 55000
+                    },
+                    {
+                      "name": "Tra da",
+                      "quantity": 1,
+                      "price": 15000
+                    }
+                  ],
+                  "courier": {
+                    "id": 3107,
+                    "name": "Tran Van Binh"
+                  },
+                  "placed_at": "2026-11-06 11:30:00"
+                }
+              },
+              "an order nobody has picked up": {
+                "status": 404,
+                "body": {
+                  "type": "about:blank",
+                  "title": "Not Found",
+                  "status": 404
+                }
+              }
+            }
+          },
+          "expected": {
+            "an order on the way": [
+              "$.placed_at: \"2026-11-06 11:30:00\" does not match ^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})$"
+            ],
+            "an order nobody has picked up": [
+              "status: expected 200, got 404"
+            ],
+            "can_deploy": false
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Type changes deep in the body: a string total, an item without quantity, a courier as a string",
+          "input": {
+            "pact": {
+              "consumer": "courier-app",
+              "provider": "order-api",
+              "interactions": [
+                {
+                  "description": "an order on the way",
+                  "providerState": "order 91822 is on the way with courier 3107",
+                  "request": {
+                    "method": "GET",
+                    "path": "/orders/91822"
+                  },
+                  "response": {
+                    "status": 200,
+                    "body": {
+                      "id": {
+                        "$like": 91822
+                      },
+                      "status": "on_the_way",
+                      "eta_minutes": {
+                        "$like": 12
+                      },
+                      "total": {
+                        "$like": 125000
+                      },
+                      "items": {
+                        "$eachLike": {
+                          "name": "Com tam suon",
+                          "quantity": 2
+                        },
+                        "min": 1
+                      },
+                      "courier": {
+                        "$like": {
+                          "id": 3107,
+                          "name": "Tran Van Binh"
+                        }
+                      },
+                      "placed_at": {
+                        "$regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})$",
+                        "example": "2026-11-06T11:30:00+07:00"
+                      }
+                    }
+                  }
+                },
+                {
+                  "description": "an order nobody has picked up",
+                  "providerState": "order 91906 is placed and unassigned",
+                  "request": {
+                    "method": "GET",
+                    "path": "/orders/91906"
+                  },
+                  "response": {
+                    "status": 200,
+                    "body": {
+                      "id": {
+                        "$like": 91906
+                      },
+                      "status": "placed",
+                      "courier": null
+                    }
+                  }
+                }
+              ]
+            },
+            "actual": {
+              "an order on the way": {
+                "status": 200,
+                "body": {
+                  "id": 91822,
+                  "status": "on_the_way",
+                  "eta_minutes": 12,
+                  "total": "125000",
+                  "items": [
+                    {
+                      "name": "Com tam suon",
+                      "quantity": 2,
+                      "price": 55000
+                    },
+                    {
+                      "name": "Tra da",
+                      "price": 15000
+                    }
+                  ],
+                  "courier": "Tran Van Binh",
+                  "placed_at": "2026-11-06T11:30:00+07:00"
+                }
+              },
+              "an order nobody has picked up": {
+                "status": 200,
+                "body": {
+                  "id": 91906,
+                  "status": "placed",
+                  "total": 60000,
+                  "courier": {
+                    "id": 1,
+                    "name": "x"
+                  },
+                  "eta_minutes": null
+                }
+              }
+            }
+          },
+          "expected": {
+            "an order on the way": [
+              "$.total: expected number, got string",
+              "$.items[1].quantity: missing",
+              "$.courier: expected object, got string"
+            ],
+            "an order nobody has picked up": [
+              "$.courier: expected null, got {\"id\": 1, \"name\": \"x\"}"
+            ],
+            "can_deploy": false
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+[
+  {
+    "id": "deadline",
+    "label": "One time budget for reserving and charging",
+    "code": "async with asyncio.timeout(2.0):\n    reservation = await deps.stock.reserve(order[\"id\"])\n    charge = await deps.payments.charge(order[\"id\"], order[\"amount\"])"
+  },
+  {
+    "id": "ledger-write",
+    "label": "Write the successful charge to the ledger",
+    "code": "await asyncio.shield(deps.ledger.record(order[\"id\"], charge))"
+  },
+  {
+    "id": "timeout-answer",
+    "label": "Answer a checkout that ran out of time",
+    "code": "except TimeoutError:\n    return {\"status\": \"timeout\"}"
+  },
+  {
+    "id": "release-unpaid",
+    "label": "Give back the stock of an unpaid checkout",
+    "code": "finally:\n    if reservation is not None and not paid:\n        await deps.stock.release(reservation)"
+  },
+  {
+    "id": "deadline-per-step",
+    "label": "One time budget for reserving and charging",
+    "code": "async with asyncio.timeout(2.0):\n    reservation = await deps.stock.reserve(order[\"id\"])\nasync with asyncio.timeout(2.0):\n    charge = await deps.payments.charge(order[\"id\"], order[\"amount\"])",
+    "distractor": true
+  },
+  {
+    "id": "ledger-write-unshielded",
+    "label": "Write the successful charge to the ledger",
+    "code": "await deps.ledger.record(order[\"id\"], charge)",
+    "distractor": true
+  },
+  {
+    "id": "release-unpaid-swallow-cancel",
+    "label": "Give back the stock of an unpaid checkout",
+    "code": "except asyncio.CancelledError:\n    if reservation is not None and not paid:\n        await deps.stock.release(reservation)\n    return {\"status\": \"cancelled\"}",
+    "distractor": true
+  }
+]

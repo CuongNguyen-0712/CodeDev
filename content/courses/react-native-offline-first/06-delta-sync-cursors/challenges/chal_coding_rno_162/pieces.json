@@ -1,0 +1,45 @@
+[
+  {
+    "id": "start-cursor",
+    "label": "Where the last finished sync stopped",
+    "code": "let cursor = store.cursor();"
+  },
+  {
+    "id": "fetch-page",
+    "label": "Ask the server for the next page of changes",
+    "code": "page = api.changes({ cursor, limit: 100 });"
+  },
+  {
+    "id": "expired-cursor",
+    "label": "Start over when the server no longer has the cursor",
+    "code": "if (error instanceof HttpError && error.status === 410 && !resynced) {\n    resynced = true;\n    store.transaction((tx) => {\n        tx.clear();\n        tx.setCursor(null);\n    });\n    cursor = null;\n    continue;\n}\nthrow error;"
+  },
+  {
+    "id": "apply-page",
+    "label": "Apply the page and keep its cursor, all or nothing",
+    "code": "store.transaction((tx) => {\n    for (const change of page.changes) {\n        if (change.deleted) tx.remove(change.id);\n        else tx.upsert(change.id, change.version, change.data);\n    }\n    tx.setCursor(page.nextCursor);\n});"
+  },
+  {
+    "id": "loop-until-done",
+    "label": "Stop once the server has nothing more",
+    "code": "if (!page.hasMore) return { pages, resynced };"
+  },
+  {
+    "id": "apply-page-cursor-first",
+    "label": "Apply the page and keep its cursor, all or nothing",
+    "code": "store.setCursor(page.nextCursor);\nstore.transaction((tx) => {\n    for (const change of page.changes) {\n        if (change.deleted) tx.remove(change.id);\n        else tx.upsert(change.id, change.version, change.data);\n    }\n});",
+    "distractor": true
+  },
+  {
+    "id": "apply-page-upsert-all",
+    "label": "Apply the page and keep its cursor, all or nothing",
+    "code": "store.transaction((tx) => {\n    for (const change of page.changes) tx.upsert(change.id, change.version, change.data);\n    tx.setCursor(page.nextCursor);\n});",
+    "distractor": true
+  },
+  {
+    "id": "loop-first-page-only",
+    "label": "Stop once the server has nothing more",
+    "code": "return { pages, resynced };",
+    "distractor": true
+  }
+]

@@ -70,7 +70,7 @@ JOIN catalog.skill s ON s.code = v.code;
 UPDATE catalog.course SET completion_rules = '{}' WHERE id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-react-frontend');
 DELETE FROM catalog.course_prerequisite WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-react-frontend');
 INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
-SELECT (SELECT id FROM catalog.course WHERE public_id = 'typescript-react-frontend'), id FROM catalog.course WHERE public_id = ANY(ARRAY['typescript-foundations', 'web-http-fundamentals']::text[]);
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'typescript-react-frontend'), id FROM catalog.course WHERE public_id = ANY(ARRAY['']::text[]);
 
 -- module 1: Feature Boundaries & Types
 UPDATE course.module SET title = 'Feature Boundaries & Types', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'typescript-react-frontend') AND order_index = 1 AND is_deleted = false LIMIT 1);
@@ -90,7 +90,7 @@ VALUES ('chal_quiz_trf_111', (SELECT id FROM catalog.course WHERE public_id = 't
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_111');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_111');
 WITH q AS (
@@ -147,7 +147,7 @@ VALUES ('chal_quiz_trf_121', (SELECT id FROM catalog.course WHERE public_id = 't
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_121');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_121');
 WITH q AS (
@@ -214,17 +214,17 @@ VALUES ('chal_coding_trf_122', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_122');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_122'), 1, 'Which field of the snapshot tells you whether there is a response at all, and should it be checked before or after you look at the number of courses?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_122'), 2, 'Look at the three values of snapshot.status first (a switch on it narrows nicely), then, inside the error branch, at error.status, and remember that error can be missing. Inside the success branch, data can be missing too, and the query may contain spaces typed by the learner.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_122'), 3, 'A similar mapping for a different screen, the leaderboard: { status: "pending" } -> { kind: "loading" }; { status: "success", isFetching: true, data: [3 rows] } -> { kind: "ranked", rows: those 3 rows, refreshing: true }; { status: "success", data: [] } -> { kind: "noScores" }; { status: "error", error: { status: 404 } } -> { kind: "error", message: the API''s message, canRetry: false }. Note that "no rows" is decided only after the request has succeeded.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_122');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_122'), 'First load: loading while pending, then the courses', '[{"status":"pending","isFetching":true,"query":""},{"status":"success","isFetching":false,"query":"","data":[{"id":"c1","title":"React Basics","category":"react","level":"beginner","rating":4.5,"enrolled":1200,"publishedAt":"2026-03-02"},{"id":"c2","title":"Hooks in Depth","category":"react","level":"intermediate","rating":4.8,"enrolled":860,"publishedAt":"2026-05-14"}]}]', '[{"kind":"loading"},{"kind":"success","courses":["c1","c2"],"refreshing":false}]', 3, true, false, 1),
@@ -253,7 +253,7 @@ VALUES ('chal_quiz_trf_131', (SELECT id FROM catalog.course WHERE public_id = 't
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_131');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_131');
 WITH q AS (
@@ -311,17 +311,17 @@ VALUES ('chal_coding_trf_132', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_132');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_132'), 1, 'Which array methods return a new array and which change the array you call them on? Where in your function could the original array end up being sorted?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_132'), 2, 'Look at the order of the steps: filter first, then sort, then compute total and totalPages, then clamp the page, and only then slice. For the sort, the comparator needs a second comparison that only runs when the first one says the two courses are equal.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_132'), 3, 'A similar task on another list: ranking leaderboard entries by score (high first), then userId. [...entries].sort((a, b) => b.score - a.score || (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0)). With 7 entries and 3 per page, totalPages is 3; a request for page 5 becomes page 3 and returns the 7th entry alone; with 0 entries it is page 1 of 1 with no items.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_132'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_132'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_132');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_132'), 'Search is trimmed and case-insensitive; top rated first, page 1 of 2', '{"courses":[{"id":"c07","title":"Hooks in Depth","category":"react","level":"intermediate","rating":4.8,"enrolled":860,"publishedAt":"2026-05-14"},{"id":"c02","title":"React Basics","category":"react","level":"beginner","rating":4.6,"enrolled":5400,"publishedAt":"2025-11-03"},{"id":"c11","title":"Testing React Apps","category":"react","level":"intermediate","rating":4.8,"enrolled":720,"publishedAt":"2026-02-20"},{"id":"c04","title":"SQL Joins","category":"sql","level":"beginner","rating":4.4,"enrolled":3100,"publishedAt":"2026-05-14"},{"id":"c09","title":"Node Streams","category":"node","level":"advanced","rating":4.2,"enrolled":410,"publishedAt":"2026-01-08"},{"id":"c01","title":"React Server Components","category":"react","level":"advanced","rating":4.7,"enrolled":380,"publishedAt":"2026-06-30"},{"id":"c05","title":"Python for Data","category":"python","level":"beginner","rating":4.6,"enrolled":2900,"publishedAt":"2025-09-12"},{"id":"c12","title":"Docker Basics","category":"devops","level":"beginner","rating":4.5,"enrolled":1900,"publishedAt":"2026-03-01"},{"id":"c03","title":"SQL Indexes","category":"sql","level":"advanced","rating":4.9,"enrolled":640,"publishedAt":"2026-04-02"},{"id":"c08","title":"Express to Fastify","category":"node","level":"intermediate","rating":4.3,"enrolled":530,"publishedAt":"2026-06-30"}],"queries":[{"search":"  REACT ","category":"all","level":"all","sort":"rating","page":1,"pageSize":2}]}', '{"pages":[{"items":["c11","c01"],"page":1,"totalPages":2,"total":3}],"inputUnchanged":true}', 3, true, false, 1),
@@ -356,7 +356,7 @@ VALUES ('chal_quiz_trf_211', (SELECT id FROM catalog.course WHERE public_id = 't
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_211');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_211');
 WITH q AS (
@@ -420,17 +420,17 @@ VALUES ('chal_coding_trf_212', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_212');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_212'), 1, 'For each action, ask two questions in this order: is this action valid and does it change anything at all - and if it does, which other fields lose their meaning because of the change?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_212'), 2, 'Look at the runtime checks you need before trusting a payload: Array.includes on the readonly constant lists, Number.isInteger for pages, typeof for the search text. Then look at which branches end in `return state` and which build `{ ...state, ... }`; a filter on the categories array returns a new array, push and splice change the old one.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_212'), 3, 'A similar reducer for a lesson list with { tab: "all" | "done"; page: number; totalPages: number }: tabChanged "done" on { tab: "all", page: 4, totalPages: 6 } returns { tab: "done", page: 1, totalPages: 6 }; tabChanged "all" on that same state returns the very same object; tabChanged "archived" returns the same object; pageChanged 9 returns the same object; listLoaded with totalPages 2 on page 4 returns { ..., page: 2, totalPages: 2 }.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_212'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_212'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_212');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_212'), 'The incident: page 7 of React, switch to SQL, then the SQL results load with 2 pages', '{"state":{"search":"","categories":["react"],"level":"all","sort":"newest","page":7,"totalPages":12},"actions":[{"type":"categoryToggled","category":"react"},{"type":"categoryToggled","category":"sql"},{"type":"resultsLoaded","totalPages":2}]}', '"{\"type\":\"categoryToggled\",\"category\":\"react\"} -> search=\"\" categories=[] level=all sort=newest page=1/12\n{\"type\":\"categoryToggled\",\"category\":\"sql\"} -> search=\"\" categories=[sql] level=all sort=newest page=1/12\n{\"type\":\"resultsLoaded\",\"totalPages\":2} -> search=\"\" categories=[sql] level=all sort=newest page=1/2"', 3, true, false, 1),
@@ -459,7 +459,7 @@ VALUES ('chal_quiz_trf_221', (SELECT id FROM catalog.course WHERE public_id = 't
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_221');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_221');
 WITH q AS (
@@ -554,7 +554,7 @@ VALUES ('chal_quiz_trf_231', (SELECT id FROM catalog.course WHERE public_id = 't
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_231');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_231');
 WITH q AS (
@@ -616,7 +616,7 @@ VALUES ('chal_quiz_trf_311', (SELECT id FROM catalog.course WHERE public_id = 't
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_311');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_311');
 WITH q AS (
@@ -717,7 +717,7 @@ VALUES ('chal_quiz_trf_321', (SELECT id FROM catalog.course WHERE public_id = 't
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_321');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_321');
 WITH q AS (
@@ -908,17 +908,17 @@ VALUES ('chal_coding_trf_322', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_322');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_322'), 1, 'The effect runs whenever one of its dependencies is not Object.is-equal to the value from the previous render. Is `query` ever equal to the previous `query`?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_322'), 2, 'Look at the line that builds `query` and at the dependency array of the effect. Follow one request: it resolves, setCourses and setLoading run, the component renders again - what does the effect see?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_322'), 3, 'A similar case: `const options = { sort: ''title'' }; useEffect(() => load(options), [options]);` reloads after every render. Depending on `options.sort` (a string) instead, and building the object inside the effect, makes the effect run only when the sort really changes.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_322'), 'stdio', 5000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_322'), 'stdio', 5000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_322');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_322'), 'Mounts on react/1: one request, loading, then the titles', '[{"category":"react","page":1}]', '"react/1: requests react/1; first screen \"loading\"; then \"React Basics, Hooks in Depth\""', 3, true, false, 1),
@@ -946,7 +946,7 @@ VALUES ('chal_quiz_trf_331', (SELECT id FROM catalog.course WHERE public_id = 't
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_331');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_331');
 WITH q AS (
@@ -1008,17 +1008,17 @@ VALUES ('chal_coding_trf_332', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_332');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_332'), 1, 'Which value of `filter` does the interval callback read: the one from the render that is on screen now, or the one from the render that created the interval?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_332'), 2, 'Look at the dependency array of the polling effect and at the comment just above it. What did ESLint want to tell the author?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_332'), 3, 'A similar case: `useEffect(() => { const id = setInterval(() => console.log(count), 1000); return () => clearInterval(id); }, [])` logs 0 forever. Listing `count` in the dependencies recreates the interval with the new value, and the cleanup removes the old one so only one interval runs.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_332'), 'stdio', 5000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_332'), 'stdio', 5000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_332');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_332'), 'Mount, then one refresh after 30 seconds', '[{"filter":"react"},{"advance":30000}]', '"filter react: requests react; screen \"React Basics, Hooks in Depth\"\n+30s: requests react; screen \"React Basics, Hooks in Depth\""', 3, true, false, 1),
@@ -1052,7 +1052,7 @@ VALUES ('chal_quiz_trf_411', (SELECT id FROM catalog.course WHERE public_id = 't
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_411');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_411');
 WITH q AS (
@@ -1109,17 +1109,17 @@ VALUES ('chal_coding_trf_412', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_412');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_412'), 1, 'Before you look at a single field: which questions does the API layer have to answer, in which order, to know whether there is anything to parse at all? A rejected fetch, an error status and a 204 never reach JSON.parse.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_412'), 2, 'Look at three places: the content-type header (find it by comparing the header names in lower case, then compare the start of the value), the status range, and a small function parseCourse(value: unknown, i: number) that returns either a Course built from the checked fields or the reason string. Type guards such as `typeof x === "string"`, Number.isInteger and a list of allowed values narrow unknown without any `as`.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_412'), 3, 'A similar parser on different data, for a leaderboard row { userId: string; exp: number }: write isRecord(v: unknown): v is Record<string, unknown> (typeof v === "object", not null, not an array); then parseRow(v, i) returns "rows[i] is not an object" when !isRecord(v), reads const { userId, exp } = v, returns "rows[i].userId is invalid" unless typeof userId === "string", "rows[i].exp is invalid" unless Number.isInteger(exp), and finally returns the new object { userId, exp }. Because the result is a new object, an extra property such as "debug" never leaks into the app.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_412'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_412'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_412');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_412'), 'A valid list keeps only the seven Course fields; 204 No Content is an empty list', '[{"status":200,"headers":{"content-type":"application/json"},"body":"[{\"id\":\"c_101\",\"title\":\"React Basics\",\"category\":\"react\",\"level\":\"beginner\",\"rating\":4.6,\"enrolled\":1820,\"publishedAt\":\"2026-03-02T09:00:00Z\"},{\"id\":\"c_214\",\"title\":\"Node Streams in Practice\",\"category\":\"node\",\"level\":\"intermediate\",\"rating\":4.3,\"enrolled\":640,\"publishedAt\":\"2026-05-18T09:00:00Z\",\"draft\":false,\"instructorId\":\"u_9\"}]"},{"status":204,"headers":{},"body":""}]', '[{"ok":true,"data":[{"id":"c_101","title":"React Basics","category":"react","level":"beginner","rating":4.6,"enrolled":1820,"publishedAt":"2026-03-02T09:00:00Z"},{"id":"c_214","title":"Node Streams in Practice","category":"node","level":"intermediate","rating":4.3,"enrolled":640,"publishedAt":"2026-05-18T09:00:00Z"}]},{"ok":true,"data":[]}]', 3, true, false, 1),
@@ -1148,7 +1148,7 @@ VALUES ('chal_quiz_trf_421', (SELECT id FROM catalog.course WHERE public_id = 't
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_421');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_421');
 WITH q AS (
@@ -1204,17 +1204,17 @@ VALUES ('chal_coding_trf_422', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_422');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_422'), 1, 'Two separate questions: when are two filter objects "the same request" for the server, and when does a mutation make a cached answer wrong? The first is answered by normalizeFilters, the second by a small table from mutation type to target keys.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_422'), 2, 'Look at how the keys are built: courseKeys.list starts with courseKeys.lists(), which starts with courseKeys.all, so a target such as ["courses", "list"] is a prefix of every list key. Then look at how you compare a target with a cached key: position by position, with the target no longer than the key. Joining a key into one string such as "courses/detail/c_1" and calling startsWith treats "c_1" as a prefix of "c_10".'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_422'), 3, 'A similar factory for a different feature: leaderboardKeys.all = ["leaderboard"], leaderboardKeys.period(p) = ["leaderboard", p]. With the cache [["leaderboard","weekly"], ["leaderboard","weekly","page",2], ["leaderboard","weekly-2025"], ["users","u_7"]], invalidating the target ["leaderboard","weekly"] returns the first two keys only: the third has a different second element, and the fourth a different first one.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_422'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_422'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_422');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_422'), 'Equal filters give equal keys: property order, defaults and spaces do not matter', '{"filters":[{"category":"react","page":1},{"page":1,"sort":"popular","category":"react"},{"category":"react","search":"   "},{"search":" Hooks ","category":"react","page":2},{"page":2,"category":"react","search":"hooks"}]}', '[["courses","list",{"category":"react"}],["courses","list",{"category":"react"}],["courses","list",{"category":"react"}],["courses","list",{"category":"react","page":2,"search":"hooks"}],["courses","list",{"category":"react","page":2,"search":"hooks"}]]', 3, true, false, 1),
@@ -1243,7 +1243,7 @@ VALUES ('chal_quiz_trf_431', (SELECT id FROM catalog.course WHERE public_id = 't
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_431');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_trf_431');
 WITH q AS (
@@ -1309,17 +1309,17 @@ VALUES ('chal_coding_trf_432', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_432');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_432'), 1, 'Three separate jobs hide in this box: deciding when to send (the timer), stopping the network work that is no longer needed (abort), and deciding whether an answer may still reach the screen. Which of the three protects you when the server ignores the abort?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_432'), 2, 'Keep three variables in the closure returned by createDebouncedSearch: the pending timer id, the controller of the in-flight request, and a counter or id of the latest request. Look at what each of onInput, the timer callback, the .then handlers and dispose has to read or change; the handlers compare the id they captured with the current latest one.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_432'), 3, 'A similar pattern on a different feature, autosave of a lesson note with a 1 s delay: onChange clears the pending timer and starts a new one; when it fires, saveCount += 1 and the save captures const mine = saveCount; when its response arrives, it updates the "Saved" label only if mine === saveCount, so an older save that finishes late never overwrites the status of a newer one.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_432'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_432'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_432');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_trf_432'), 'The incident: "react hooks" typed every 80 ms sends one request, 300 ms after the last key', '{"debounceMs":300,"steps":[{"type":"react hooks","every":80}]}', '["t=1100 request \"react hooks\"","t=1300 response \"react hooks\"","t=1300 show [React Hooks in Depth, Testing React Hooks with Fake Timers]"]', 3, true, false, 1),

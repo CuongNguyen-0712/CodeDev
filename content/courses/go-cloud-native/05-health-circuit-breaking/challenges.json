@@ -1,0 +1,417 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gcn_151",
+      "name": "health-circuit-breaking-quiz",
+      "type": "quiz",
+      "title": "Read the hung menu instance",
+      "description": "Three statements about the afternoon one menu-service instance hung and the gateway kept sending it traffic. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "resilience"
+      ],
+      "points": 10,
+      "hints": [
+        "Compare what a client waits for with the breaker closed (the full timeout) and open (no upstream call at all). What else does a waiting request hold in the gateway?",
+        "Ask what a 404 says about the menu service's health. Who could send many 404s in a row, and what would happen to every other client if they opened the breaker?",
+        "Work out the worst case of the active check: how often it probes, and how many failed probes it needs before the instance leaves the pool."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The gateway's metrics for the menu route while instance `menu-2` hung, before and after the breaker opened:\n\n```text\n# breaker closed\nmenu_requests{status=\"504\"}  1,240 / min   p99 2.00 s   gateway goroutines 3,900\n# breaker open (after 3 timeouts in a row)\nmenu_requests{status=\"503\"}  1,180 / min   p99 0.001 s  gateway goroutines 410\n```\n\nStatement: \"Failing fast with 503 does not fix the menu, but it stops clients waiting 2 s each and frees the goroutines and connections those waits held, while the menu service gets room to recover.\"",
+          "explanation": "True. With the breaker closed every request to the hung instance waits for the full 2 s timeout, holding a goroutine, a client connection and an upstream connection; at 1,240 requests a minute they pile up (3,900 goroutines). Open, the gateway answers at once without calling the upstream, so the waits and the load on the struggling service both disappear. The misconception is that a breaker is about the error rate; it is about not spending resources on calls that will fail.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A partner integration requested dish ids that do not exist for a few minutes:\n\n```text\n14:02:11 GET /menu/rr-118/dishes/99901  upstream=menu-1 status=404 1.8 ms\n14:02:11 GET /menu/rr-118/dishes/99902  upstream=menu-1 status=404 1.7 ms\n14:02:11 GET /menu/rr-118/dishes/99903  upstream=menu-1 status=404 1.9 ms\n14:02:11 breaker menu-1: closed -> open\n14:02:12 GET /menu/rr-007/dishes/12      status=503 (breaker open)\n```\n\nStatement: \"Counting the 404s as failures is right: they are error responses, so the breaker protected the menu service.\"",
+          "explanation": "False. A 404 means the menu service worked and answered correctly that the dish does not exist. Counting client errors as failures lets one misbehaving client open the breaker for everyone: the next customer's valid request got 503. Breakers count what says the upstream is unhealthy: timeouts, connection errors and 5xx (Resilience4j and Envoy's outlier detection make the same distinction by configuration). The misconception is that every non-2xx status means the upstream is broken.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The gateway's active health check for each menu instance:\n\n```yaml\nhealthCheck:\n  path: /healthz\n  interval: 5s\n  timeout: 1s\n  unhealthyThreshold: 3   # failed probes in a row before the instance leaves the pool\n  healthyThreshold: 2\n```\n\nStatement: \"An instance that hangs right after a passing probe keeps receiving real traffic for about 15 seconds before this check removes it, so a breaker that reacts to failures of real requests is still needed.\"",
+          "explanation": "True. The check needs 3 failed probes 5 seconds apart (each failing after its 1 s timeout), so a hang just after a good probe is noticed after roughly 15 seconds, and every real request routed there in the meantime waits for its own timeout. Passive signals (a breaker per upstream, outlier detection) react to the real traffic within a few failed requests. The two complement each other: active checks bring an instance back, passive ones take it out fast. The misconception is that a health endpoint alone protects users.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_gcn_152",
+      "name": "menu-circuit-breaker",
+      "type": "mini_coding",
+      "title": "Put a circuit breaker in front of the menu service",
+      "description": "When one menu-service instance hung, the gateway sent it every request and each one waited for the 2 s timeout. The editor holds `breaker.go` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a call longer than `TimeoutMs` is cut and the client gets 504, an upstream 5xx becomes 502, and any other status (4xx included) passes through; only timeouts and 5xx count as failures; `FailureThreshold` failures in a row open the breaker, and a success in between resets the count; while open, requests get 503 at once without calling the upstream until `OpenForMs` has passed; then requests go through as trials (half-open): one failure opens it again for a new cool-down, `SuccessThreshold` successes in a row close it. Run replays request timelines against the program.",
+      "difficulty": "medium",
+      "outcomes": [
+        "resilience"
+      ],
+      "points": 30,
+      "hints": [
+        "Draw the three states and the arrows between them, then ask for each arrow: which function moves it (allow or record) and at what time (arrival or end of the call)?",
+        "Look at `allow` for the open state (cool-down, then half-open), at `record` for half-open (failure reopens, successes close) and for closed (count in a row, reset on success), and at how `serve` turns a call into a status and a failure flag.",
+        "A login throttle with the same shape: `if s.state == \"locked\" { if now-s.lockedAt < s.cfg.LockForMs { return false }; s.state = \"trial\" }` in allow, and in record `if s.state == \"trial\" { if failed { s.lock(now); return }; s.state = \"open\"; return }`, `if !failed { s.fails = 0; return }; s.fails++; if s.fails >= s.cfg.MaxFails { s.lock(now) }`."
+      ],
+      "coding": {
+        "language": "go",
+        "filePath": "breaker.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A hung instance: three 504s in a row, then 503 at once without calling it",
+          "input": {
+            "config": {
+              "timeoutMs": 2000,
+              "failureThreshold": 3,
+              "openForMs": 10000,
+              "successThreshold": 2
+            },
+            "requests": [
+              {
+                "t": 0,
+                "status": 200,
+                "latencyMs": 30000
+              },
+              {
+                "t": 2500,
+                "status": 200,
+                "latencyMs": 30000
+              },
+              {
+                "t": 5000,
+                "status": 200,
+                "latencyMs": 30000
+              },
+              {
+                "t": 7500,
+                "status": 200,
+                "latencyMs": 30000
+              },
+              {
+                "t": 10000,
+                "status": 200,
+                "latencyMs": 30000
+              },
+              {
+                "t": 12500,
+                "status": 200,
+                "latencyMs": 30000
+              }
+            ]
+          },
+          "expected": {
+            "statuses": [
+              504,
+              504,
+              504,
+              503,
+              503,
+              503
+            ],
+            "upstreamCalls": 3,
+            "clientWaitMs": 6000,
+            "transitions": [
+              "7000 closed->open"
+            ],
+            "state": "open"
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "After the cool-down, two successful trials close the breaker again",
+          "input": {
+            "config": {
+              "timeoutMs": 2000,
+              "failureThreshold": 3,
+              "openForMs": 10000,
+              "successThreshold": 2
+            },
+            "requests": [
+              {
+                "t": 0,
+                "status": 200,
+                "latencyMs": 30000
+              },
+              {
+                "t": 2500,
+                "status": 200,
+                "latencyMs": 30000
+              },
+              {
+                "t": 5000,
+                "status": 200,
+                "latencyMs": 30000
+              },
+              {
+                "t": 8000,
+                "status": 200,
+                "latencyMs": 30000
+              },
+              {
+                "t": 17000,
+                "status": 200,
+                "latencyMs": 80
+              },
+              {
+                "t": 17500,
+                "status": 200,
+                "latencyMs": 80
+              },
+              {
+                "t": 18000,
+                "status": 200,
+                "latencyMs": 80
+              }
+            ]
+          },
+          "expected": {
+            "statuses": [
+              504,
+              504,
+              504,
+              503,
+              200,
+              200,
+              200
+            ],
+            "upstreamCalls": 6,
+            "clientWaitMs": 6240,
+            "transitions": [
+              "7000 closed->open",
+              "17000 open->half-open",
+              "17580 half-open->closed"
+            ],
+            "state": "closed"
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A failed trial reopens the breaker for a full new cool-down",
+          "input": {
+            "config": {
+              "timeoutMs": 2000,
+              "failureThreshold": 3,
+              "openForMs": 10000,
+              "successThreshold": 2
+            },
+            "requests": [
+              {
+                "t": 0,
+                "status": 200,
+                "latencyMs": 30000
+              },
+              {
+                "t": 2500,
+                "status": 200,
+                "latencyMs": 30000
+              },
+              {
+                "t": 5000,
+                "status": 200,
+                "latencyMs": 30000
+              },
+              {
+                "t": 17000,
+                "status": 200,
+                "latencyMs": 30000
+              },
+              {
+                "t": 20000,
+                "status": 200,
+                "latencyMs": 80
+              },
+              {
+                "t": 28000,
+                "status": 200,
+                "latencyMs": 80
+              },
+              {
+                "t": 29000,
+                "status": 200,
+                "latencyMs": 80
+              }
+            ]
+          },
+          "expected": {
+            "statuses": [
+              504,
+              504,
+              504,
+              504,
+              503,
+              503,
+              200
+            ],
+            "upstreamCalls": 5,
+            "clientWaitMs": 8080,
+            "transitions": [
+              "7000 closed->open",
+              "17000 open->half-open",
+              "19000 half-open->open",
+              "29000 open->half-open"
+            ],
+            "state": "half-open"
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "404s for unknown dishes are the client's fault and never open the breaker",
+          "input": {
+            "config": {
+              "timeoutMs": 2000,
+              "failureThreshold": 3,
+              "openForMs": 10000,
+              "successThreshold": 2
+            },
+            "requests": [
+              {
+                "t": 0,
+                "status": 404,
+                "latencyMs": 20
+              },
+              {
+                "t": 1000,
+                "status": 404,
+                "latencyMs": 20
+              },
+              {
+                "t": 2000,
+                "status": 404,
+                "latencyMs": 20
+              },
+              {
+                "t": 3000,
+                "status": 404,
+                "latencyMs": 20
+              },
+              {
+                "t": 4000,
+                "status": 404,
+                "latencyMs": 20
+              }
+            ]
+          },
+          "expected": {
+            "statuses": [
+              404,
+              404,
+              404,
+              404,
+              404
+            ],
+            "upstreamCalls": 5,
+            "clientWaitMs": 100,
+            "transitions": [],
+            "state": "closed"
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Failures with successes in between do not open the breaker",
+          "input": {
+            "config": {
+              "timeoutMs": 2000,
+              "failureThreshold": 3,
+              "openForMs": 10000,
+              "successThreshold": 2
+            },
+            "requests": [
+              {
+                "t": 0,
+                "status": 502,
+                "latencyMs": 50
+              },
+              {
+                "t": 1000,
+                "status": 200,
+                "latencyMs": 50
+              },
+              {
+                "t": 2000,
+                "status": 502,
+                "latencyMs": 50
+              },
+              {
+                "t": 3000,
+                "status": 200,
+                "latencyMs": 50
+              },
+              {
+                "t": 4000,
+                "status": 502,
+                "latencyMs": 50
+              },
+              {
+                "t": 5000,
+                "status": 200,
+                "latencyMs": 50
+              },
+              {
+                "t": 6000,
+                "status": 502,
+                "latencyMs": 50
+              }
+            ]
+          },
+          "expected": {
+            "statuses": [
+              502,
+              200,
+              502,
+              200,
+              502,
+              200,
+              502
+            ],
+            "upstreamCalls": 7,
+            "clientWaitMs": 350,
+            "transitions": [],
+            "state": "closed"
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

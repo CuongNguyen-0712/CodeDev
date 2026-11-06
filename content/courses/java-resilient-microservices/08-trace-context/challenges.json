@@ -1,0 +1,134 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_jrm_181",
+      "name": "trace-context-quiz",
+      "type": "quiz",
+      "title": "Read the broken traces",
+      "description": "Three statements about why one checkout request showed up as several unrelated traces in Rice Rocket's tracing backend. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "operations"
+      ],
+      "points": 10,
+      "hints": [
+        "Trace context travels in a header. Which code writes that header on an outgoing call, and does a hand-made HTTP client run that code?",
+        "Read the last two hex digits of the traceparent: which bit means sampled, and what does a service that follows its parent's decision do when the bit is 0?",
+        "A Kafka record has headers too. What can a consumer continue from if the producer wrote nothing there?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "One checkout, two traces. order-service and payment-service both run Spring Boot with Micrometer Tracing (OpenTelemetry bridge); payment-service calls the card processor through an old helper:\n\n```java\nHttpURLConnection conn = (HttpURLConnection) new URL(processorUrl).openConnection();\nconn.setRequestMethod(\"POST\");\nconn.getOutputStream().write(body);\n```\n\n```text\norder-service    traceId=4bf92f3577b34da6a3ce929d0e0e4736  POST /checkout\npayment-service  traceId=4bf92f3577b34da6a3ce929d0e0e4736  POST /payments\ncard-processor   traceId=9c1e0d7a2b4f6e8d0a1c3e5f7b9d1f3a  POST /authorize\n```\n\nStatement: \"With Micrometer Tracing on the classpath every outgoing HTTP call carries the trace context automatically, so the new trace at the card processor must come from sampling.\"",
+          "explanation": "False. Context crosses a hop only when the client that makes the call is instrumented and writes `traceparent`. Spring Boot instruments the `RestClient`, `RestTemplate` and `WebClient` built from its auto-configured builders; a raw `HttpURLConnection` sends no trace header, so the processor starts a new trace. Sampling decides whether spans are recorded, not whether the trace id is passed on. Replace the helper with an instrumented client, or inject the header yourself through the tracer's propagator.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The ids match in the logs, but the payment spans are missing in the tracing backend. The incoming header at payment-service:\n\n```text\ntraceparent: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00\n```\n\nStatement: \"The trace flags 00 mean the caller decided not to sample this request; a service that follows its parent's decision records no spans for it, so the backend shows nothing although the trace id is logged.\"",
+          "explanation": "True. The last field is trace-flags; bit 0x01 is sampled, and `00` says the caller did not record this trace. With a parent-based sampler (the default in OpenTelemetry and Micrometer Tracing) downstream services follow that decision, so no spans reach the backend, while logging still prints the propagated trace id. Raise the sampling probability at the edge, or sample errors and slow requests with tail-based sampling in the collector.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After order-service publishes OrderPlaced, the courier-matcher's spans always start a new trace:\n\n```text\n$ kafka-console-consumer --topic orders.v1 --property print.headers=true --max-messages 1\nNO_HEADERS\t{\"orderId\":\"o-90412\"}\n```\n\nStatement: \"For messaging the producer has to put traceparent into the record headers; without that header the consumer cannot continue the trace and can only start a new one (or link to nothing).\"",
+          "explanation": "True. Kafka carries no trace context by itself: an instrumented producer (KafkaTemplate with observation enabled, or the OpenTelemetry agent) writes `traceparent` into the record headers, and the consumer continues from it or creates a span link to it. `NO_HEADERS` shows the producer wrote nothing, so every consumer span is a new root. Enable observation on the KafkaTemplate and the listener container.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_jrm_182",
+      "name": "traceparent-propagation",
+      "type": "mini_coding",
+      "title": "Continue the trace across a hand-written client",
+      "description": "payment-service calls the card processor through a hand-written HTTP client, so no library writes the trace header for it. The editor holds `Main.java` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that outgoing() continues a valid W3C traceparent (same trace-id, this call's span id as parent, version 00, the caller's sampled flag) and starts a new trace, with the reason, for a missing or invalid one: wrong length, a bad or ff version, ids that are not lowercase hex of the right length, all-zero ids, or bad flags. Future versions are read by their first four fields. Run sends a list of incoming headers and checks the line printed for each.",
+      "difficulty": "medium",
+      "outcomes": [
+        "operations"
+      ],
+      "points": 30,
+      "hints": [
+        "Write down the exact layout of the 55 characters (where each field starts and ends, where the dashes are) and go through the reasons in the order the description lists them.",
+        "Look at what the outgoing header keeps from the incoming one (trace-id, sampled bit) and what it replaces (version, parent-id), and at which character classes and lengths the id checks accept.",
+        "A B3 single header (`{traceId}-{spanId}-{sampled}`) is continued the same way: keep the trace id, put the current span id in place of the caller's, keep the sampling decision, and reject ids that are not lowercase hex of 16 or 32 digits or that are all zeros."
+      ],
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A valid header is continued: same trace, this call as the parent, the caller's sampling",
+          "input": "span 53995c3f42cd8ad8\nnew-trace 4bf92f3577b34da6a3ce929d0e0e4736\nsample-new true\nin 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\nin 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "continue 00-0af7651916cd43dd8448eb211c80319c-53995c3f42cd8ad8-01\ncontinue 00-0af7651916cd43dd8448eb211c80319c-53995c3f42cd8ad8-00"
+        },
+        {
+          "name": "Missing, uppercase and version ff headers start a new trace",
+          "input": "span 53995c3f42cd8ad8\nnew-trace 4bf92f3577b34da6a3ce929d0e0e4736\nsample-new true\nin -\nin 00-0AF7651916CD43DD8448EB211C80319C-B7AD6B7169203331-01\nin ff-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "restart (missing) 00-4bf92f3577b34da6a3ce929d0e0e4736-53995c3f42cd8ad8-01\nrestart (bad trace-id) 00-4bf92f3577b34da6a3ce929d0e0e4736-53995c3f42cd8ad8-01\nrestart (version ff) 00-4bf92f3577b34da6a3ce929d0e0e4736-53995c3f42cd8ad8-01"
+        },
+        {
+          "name": "All-zero ids and a truncated header start a new trace",
+          "input": "span 53995c3f42cd8ad8\nnew-trace 4bf92f3577b34da6a3ce929d0e0e4736\nsample-new true\nin 00-00000000000000000000000000000000-b7ad6b7169203331-01\nin 00-0af7651916cd43dd8448eb211c80319c-0000000000000000-01\nin 00-0af7651916cd43dd8448eb211c80319c-b7ad6b71692033-01\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "restart (zero trace-id) 00-4bf92f3577b34da6a3ce929d0e0e4736-53995c3f42cd8ad8-01\nrestart (zero parent-id) 00-4bf92f3577b34da6a3ce929d0e0e4736-53995c3f42cd8ad8-01\nrestart (bad length) 00-4bf92f3577b34da6a3ce929d0e0e4736-53995c3f42cd8ad8-01"
+        },
+        {
+          "name": "A future version is read by its first four fields; bad flags and extra 00 fields restart",
+          "input": "span 00f067aa0ba902b7\nnew-trace 5a8c1d2e3f4b5c6d7e8f9a0b1c2d3e4f\nsample-new false\nin 01-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-09-x1y2\nin 01-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01x\nin 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-0g\nin 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01-extra\n",
+          "hidden": true,
+          "score": 6,
+          "expected": "continue 00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01\nrestart (bad length) 00-5a8c1d2e3f4b5c6d7e8f9a0b1c2d3e4f-00f067aa0ba902b7-00\nrestart (bad flags) 00-5a8c1d2e3f4b5c6d7e8f9a0b1c2d3e4f-00f067aa0ba902b7-00\nrestart (bad length) 00-5a8c1d2e3f4b5c6d7e8f9a0b1c2d3e4f-00f067aa0ba902b7-00"
+        },
+        {
+          "name": "Each hop names itself as the parent of the next call",
+          "input": "span 1111111111111111\nnew-trace 22222222222222222222222222222222\nsample-new false\nin 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\nspan 3333333333333333\nin 00-0af7651916cd43dd8448eb211c80319c-1111111111111111-01\n",
+          "hidden": true,
+          "score": 6,
+          "expected": "continue 00-0af7651916cd43dd8448eb211c80319c-1111111111111111-01\ncontinue 00-0af7651916cd43dd8448eb211c80319c-3333333333333333-01"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_rno_172",
+      "key": "challenges/typescript/chal_coding_rno_172/starter.ts",
+      "contentType": "application/typescript; charset=utf-8",
+      "originalName": "src/screens/deliveries/listConfig.ts",
+      "size": 6659
+    }
+  ]
+}

@@ -1,0 +1,384 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rno_171",
+      "name": "lists-low-end-phones-quiz",
+      "type": "quiz",
+      "title": "Read the janky delivery list",
+      "description": "Three statements about what Rice Rocket measured when the delivery list stuttered on the Galaxy A03 phones most couriers use. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "device-performance"
+      ],
+      "points": 10,
+      "hints": [
+        "React Native has a JS thread that runs your components and a UI thread that draws native views. Which of the two numbers dropped?",
+        "`windowSize` counts viewport heights kept rendered around the screen. What does the list show for a fast fling if almost nothing outside the screen is rendered?",
+        "A key tells React which component instance belongs to which item. After an insert at the top, what does index 5 point to?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The Perf Monitor while a courier scrolls \"Today's deliveries\" on a Galaxy A03:\n\n```text\nUI:  59.8 fps\nJS:  11.2 fps   (frames dropped while scrolling)\nRAM: 212 MB\n```\n\nStatement: \"The native UI thread keeps up; the JS thread is the bottleneck, so the fix is less JavaScript work per row (fewer re-renders, cheaper rows), not faster native drawing.\"",
+          "explanation": "True. React Native renders your components on the JS thread and the UI thread draws the native views. A healthy UI rate next to a collapsed JS rate means the JavaScript side (rendering rows, re-rendering them, work in handlers) cannot produce updates fast enough; FlatList then shows blank areas until rows arrive. The misconception is that list jank is always a native drawing problem.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "To cut the JS work, a teammate shrinks the render window:\n\n```tsx\n<FlatList data={items} renderItem={renderItem} windowSize={1} />\n```\n\nStatement: \"`windowSize={1}` renders only the visible screen, so the list gets smoother with no visible side effect.\"",
+          "explanation": "False. `windowSize` is measured in viewport heights (the default is 21: the visible area plus 10 above and 10 below). With 1, nothing outside the screen is ready, so a fast fling shows blank space while rows are rendered on demand, and rows are mounted and unmounted constantly. A small window trades memory and work for blank areas; values like 5 to 11 with `getItemLayout` and memoized rows usually work better.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The list uses the position as key. Dispatch inserts a new delivery at the top while the courier has row 5 expanded:\n\n```tsx\n<FlatList data={items} keyExtractor={(_, index) => String(index)} ... />\n```\n\n```text\nbefore: index 5 = d-5 (expanded)    after insert: index 5 = d-4, index 6 = d-5\nscreen: d-4 is now shown expanded; d-5 is collapsed\n```\n\nStatement: \"Keying by `item.id` makes each component instance follow its delivery, so the expanded state stays on d-5 and only the new row has to render.\"",
+          "explanation": "True. React matches instances to items by key. With index keys, the instance that was showing d-5 now receives d-4's props: its local state (expanded) moves to the wrong delivery and every row after the insert re-renders with new props. With a stable id, existing instances keep their item and state; only the new delivery mounts. The misconception is that keys only matter for warnings.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_rno_172",
+      "name": "delivery-list-config",
+      "type": "mini_coding",
+      "title": "Configure the delivery list for low-end phones",
+      "description": "\"Today's deliveries\" is a FlatList of time-slot headers (40 px) and delivery rows (96 px). On low-end phones it measured every row while scrolling, re-rendered every visible row when one status changed, and after dispatch inserted a delivery, the courier's expanded row jumped to another delivery. The editor holds `listConfig(items, openDelivery)`, which builds the props the screen passes to FlatList and `React.memo`, with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: `getItemLayout` returns each item's exact height and offset (headers and rows differ); keys follow the delivery, not its position; a row re-renders only when its own delivery changed; and the row's props stay equal between renders (`openDelivery` is already stable). Run models FlatList's render window and React's key matching, then counts rendered rows per update.",
+      "difficulty": "medium",
+      "outcomes": [
+        "device-performance"
+      ],
+      "points": 30,
+      "hints": [
+        "For each update ask two things: which component instance does React match to each item (the key decides), and does `sameRow` see equal props for rows that did not change?",
+        "Look at the heights array and the running offset, `keyExtractor`'s two arguments, whether `rowProps` creates a new function each time, and what `sameRow` compares.",
+        "A chat screen with date separators (24 px) and messages (64 px) does: `heights = items.map((i) => (i.kind === \"date\" ? 24 : 64))`, a running sum for offsets, `keyExtractor={(m) => m.id}`, `React.memo(MessageRow, (a, b) => a.message === b.message && a.onLongPress === b.onLongPress)` with `onLongPress` from `useCallback`."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "src/screens/deliveries/listConfig.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "getItemLayout gives exact offsets for headers and rows, and the right window mounts",
+          "input": {
+            "slots": [
+              {
+                "slot": "10:30",
+                "deliveries": 6
+              },
+              {
+                "slot": "11:00",
+                "deliveries": 8
+              },
+              {
+                "slot": "11:30",
+                "deliveries": 8
+              },
+              {
+                "slot": "12:00",
+                "deliveries": 10
+              }
+            ],
+            "viewport": 640,
+            "scroll": 1200,
+            "probe": [
+              0,
+              7,
+              8,
+              16,
+              35
+            ],
+            "events": []
+          },
+          "expected": {
+            "firstRange": [
+              0,
+              34
+            ],
+            "firstRendered": 31,
+            "offsets": [
+              0,
+              616,
+              656,
+              1424,
+              3136
+            ],
+            "layoutMatches": true,
+            "renderedPerEvent": [],
+            "wrongExpanded": 0
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A status change on one visible delivery re-renders that row only",
+          "input": {
+            "slots": [
+              {
+                "slot": "10:30",
+                "deliveries": 6
+              },
+              {
+                "slot": "11:00",
+                "deliveries": 8
+              },
+              {
+                "slot": "11:30",
+                "deliveries": 8
+              },
+              {
+                "slot": "12:00",
+                "deliveries": 10
+              }
+            ],
+            "viewport": 640,
+            "scroll": 1200,
+            "probe": [],
+            "events": [
+              {
+                "status": {
+                  "id": "d-14",
+                  "to": "picked_up"
+                }
+              }
+            ]
+          },
+          "expected": {
+            "firstRange": [
+              0,
+              34
+            ],
+            "firstRendered": 31,
+            "offsets": [],
+            "layoutMatches": true,
+            "renderedPerEvent": [
+              1
+            ],
+            "wrongExpanded": 0
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A delivery inserted at the top: the expanded row stays on its delivery, one new row renders",
+          "input": {
+            "slots": [
+              {
+                "slot": "10:30",
+                "deliveries": 6
+              },
+              {
+                "slot": "11:00",
+                "deliveries": 8
+              },
+              {
+                "slot": "11:30",
+                "deliveries": 8
+              },
+              {
+                "slot": "12:00",
+                "deliveries": 10
+              }
+            ],
+            "viewport": 640,
+            "scroll": 0,
+            "expand": "d-3",
+            "probe": [
+              2,
+              9
+            ],
+            "events": [
+              {
+                "insert": {
+                  "after": "slot-10:30",
+                  "id": "d-50"
+                }
+              }
+            ]
+          },
+          "expected": {
+            "firstRange": [
+              0,
+              21
+            ],
+            "firstRendered": 19,
+            "offsets": [
+              136,
+              752
+            ],
+            "layoutMatches": true,
+            "renderedPerEvent": [
+              1
+            ],
+            "wrongExpanded": 0
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Three status changes in a row near the end of the list",
+          "input": {
+            "slots": [
+              {
+                "slot": "10:30",
+                "deliveries": 6
+              },
+              {
+                "slot": "11:00",
+                "deliveries": 8
+              },
+              {
+                "slot": "11:30",
+                "deliveries": 8
+              },
+              {
+                "slot": "12:00",
+                "deliveries": 10
+              }
+            ],
+            "viewport": 640,
+            "scroll": 2400,
+            "probe": [
+              30
+            ],
+            "events": [
+              {
+                "status": {
+                  "id": "d-28",
+                  "to": "picked_up"
+                }
+              },
+              {
+                "status": {
+                  "id": "d-30",
+                  "to": "picked_up"
+                }
+              },
+              {
+                "status": {
+                  "id": "d-28",
+                  "to": "delivered"
+                }
+              }
+            ]
+          },
+          "expected": {
+            "firstRange": [
+              12,
+              35
+            ],
+            "firstRendered": 22,
+            "offsets": [
+              2656
+            ],
+            "layoutMatches": true,
+            "renderedPerEvent": [
+              1,
+              1,
+              1
+            ],
+            "wrongExpanded": 0
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Insert below the expanded row, then a status change: no state moves, minimal renders",
+          "input": {
+            "slots": [
+              {
+                "slot": "10:30",
+                "deliveries": 6
+              },
+              {
+                "slot": "11:00",
+                "deliveries": 8
+              },
+              {
+                "slot": "11:30",
+                "deliveries": 8
+              },
+              {
+                "slot": "12:00",
+                "deliveries": 10
+              }
+            ],
+            "viewport": 640,
+            "scroll": 600,
+            "expand": "d-9",
+            "probe": [
+              12
+            ],
+            "events": [
+              {
+                "insert": {
+                  "after": "d-10",
+                  "id": "d-51"
+                }
+              },
+              {
+                "status": {
+                  "id": "d-9",
+                  "to": "picked_up"
+                }
+              }
+            ]
+          },
+          "expected": {
+            "firstRange": [
+              0,
+              28
+            ],
+            "firstRendered": 25,
+            "offsets": [
+              1040
+            ],
+            "layoutMatches": true,
+            "renderedPerEvent": [
+              1,
+              1
+            ],
+            "wrongExpanded": 0
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

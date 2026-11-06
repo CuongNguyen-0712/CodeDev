@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_pdp_172",
+      "key": "challenges/python/chal_coding_pdp_172/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "pipelines/order_checks.py",
+      "size": 3491
+    }
+  ]
+}

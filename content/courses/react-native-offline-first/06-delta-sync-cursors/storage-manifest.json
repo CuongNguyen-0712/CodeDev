@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_rno_162",
+      "key": "challenges/typescript/chal_coding_rno_162/starter.ts",
+      "contentType": "application/typescript; charset=utf-8",
+      "originalName": "src/sync/deltaSync.ts",
+      "size": 6952
+    }
+  ]
+}

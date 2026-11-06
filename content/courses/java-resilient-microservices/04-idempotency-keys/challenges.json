@@ -1,0 +1,74 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_jrm_142",
+      "name": "payment-idempotency-keys",
+      "type": "mini_coding",
+      "title": "Idempotency keys for payments and callbacks",
+      "description": "Customers on a flaky network were charged twice when the app retried POST /payments, and the provider's duplicated callbacks marked one refund twice. The editor holds `Main.java` with payment-service's idempotency store, its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a key older than `ttl` ms is forgotten; the first request with a key claims it before the work starts; the same key with a different request body gets 422; a duplicate that arrives while the first request still runs gets 409; a finished request's answer is kept and replayed to later duplicates, except 5xx answers, which are dropped so the client's retry runs the work again. The test runner replays timed requests and prints each answer and how many charges succeeded.",
+      "difficulty": "medium",
+      "outcomes": [
+        "consistency"
+      ],
+      "points": 30,
+      "hints": [
+        "Follow one key through time: what is stored when the first request starts, while it runs, after it answers 201, after it answers 503, and a day later?",
+        "Look at the order of the checks in `begin` (expired, absent, other body, still running, replay), at `equals` vs `==` for the body fingerprint, and at the `status >= 500` case in `complete`.",
+        "A coupon redemption keyed by (user, coupon): `if (old != null && old.at + ttl <= now) old = null; if (old == null) { store.put(k, running(now, hash)); return RUN; } if (!old.hash.equals(hash)) return reply(422); if (old.running) return reply(409); return reply(old.status);` and on finish `if (status >= 500) store.remove(k); else store.put(k, done(status));`."
+      ],
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A retried payment gets the first answer without a second charge",
+          "input": "store ttl=86400000\nreq r1 t=0 key=k1 body=order-881:185000 ms=200 status=201\nreq r2 t=500 key=k1 body=order-881:185000 ms=200 status=201\n",
+          "expected": "r1 key=k1 -> 201 processed\nr2 key=k1 -> 201 replayed\ncharges=1",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A duplicate that arrives while the first is still running gets 409",
+          "input": "store ttl=86400000\nreq r1 t=0 key=k1 body=order-882:96000 ms=300 status=201\nreq r2 t=100 key=k1 body=order-882:96000 ms=300 status=201\nreq r3 t=400 key=k1 body=order-882:96000 ms=300 status=201\n",
+          "expected": "r1 key=k1 -> 201 processed\nr2 key=k1 -> 409 in progress\nr3 key=k1 -> 201 replayed\ncharges=1",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A 5xx answer is not kept, so the client's retry runs the payment again",
+          "input": "store ttl=86400000\nreq r1 t=0 key=k2 body=order-883:40000 ms=100 status=503\nreq r2 t=200 key=k2 body=order-883:40000 ms=100 status=201\nreq r3 t=500 key=k2 body=order-883:40000 ms=100 status=201\n",
+          "expected": "r1 key=k2 -> 503 processed\nr2 key=k2 -> 201 processed\nr3 key=k2 -> 201 replayed\ncharges=1",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The same key with a different body is refused; the original body still replays",
+          "input": "store ttl=86400000\nreq r1 t=0 key=k3 body=order-884:120000 ms=100 status=201\nreq r2 t=300 key=k3 body=order-885:75000 ms=100 status=201\nreq r3 t=600 key=k3 body=order-884:120000 ms=100 status=201\n",
+          "expected": "r1 key=k3 -> 201 processed\nr2 key=k3 -> 422 key reused\nr3 key=k3 -> 201 replayed\ncharges=1",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Client errors are kept, and keys are forgotten after 24 hours",
+          "input": "store ttl=86400000\nreq r1 t=0 key=k4 body=order-886:50000 ms=100 status=402\nreq r2 t=1000 key=k4 body=order-886:50000 ms=100 status=201\nreq r3 t=86400000 key=k4 body=order-886:50000 ms=100 status=201\nreq r4 t=86400500 key=k4 body=order-886:50000 ms=100 status=201\n",
+          "expected": "r1 key=k4 -> 402 processed\nr2 key=k4 -> 402 replayed\nr3 key=k4 -> 201 processed\nr4 key=k4 -> 201 replayed\ncharges=1",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Provider callbacks delivered twice at once, and calls without a key",
+          "input": "store ttl=86400000\nreq e1 t=0 key=evt_1QxA body=charge.succeeded:ch_7Fp9 ms=150 status=200\nreq e2 t=0 key=evt_1QxA body=charge.succeeded:ch_7Fp9 ms=150 status=200\nreq e3 t=50 key=evt_1QxB body=charge.refunded:ch_7Fp9 ms=150 status=200\nreq e4 t=120 key=evt_1QxB body=charge.refunded:ch_7Fp9 ms=150 status=200\nreq e5 t=400 key=evt_1QxA body=charge.succeeded:ch_7Fp9 ms=150 status=200\nreq n1 t=0 key=- body=order-887:30000 ms=100 status=201\nreq n2 t=50 key=- body=order-887:30000 ms=100 status=201\n",
+          "expected": "e1 key=evt_1QxA -> 200 processed\ne2 key=evt_1QxA -> 409 in progress\ne3 key=evt_1QxB -> 200 processed\ne4 key=evt_1QxB -> 409 in progress\ne5 key=evt_1QxA -> 200 replayed\nn1 key=- -> 201 processed\nn2 key=- -> 201 processed\ncharges=4",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

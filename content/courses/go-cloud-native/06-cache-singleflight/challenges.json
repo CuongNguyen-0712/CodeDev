@@ -1,0 +1,201 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_gcn_162",
+      "name": "menu-cache-singleflight",
+      "type": "mini_coding",
+      "title": "Cache the menus without a stampede",
+      "description": "The gateway cached each restaurant's menu for 60 s. When the entry for a popular restaurant expired at lunch, hundreds of requests missed at once and all called the menu service, which fell over; failed calls were cached too, so customers saw an empty menu for a minute. The editor holds `menucache.go` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that `Get`: returns an entry younger than `ttlMs` without calling the menu service; makes concurrent misses for the same key share one call and all receive its result; never caches a failed call; and serves the expired entry when a refresh fails (stale-if-error). Run sends bursts of concurrent requests and counts the calls the menu service gets.",
+      "difficulty": "hard",
+      "outcomes": [
+        "resilience"
+      ],
+      "points": 40,
+      "hints": [
+        "Follow two goroutines that miss at the same moment: which one calls the menu service, where does the other wait, and what must happen to the shared call once it is finished so the next expiry starts a new one?",
+        "Look at the TTL check in the fresh-hit block, the `inflight` map (join an existing call, wait on `done`), what is written to `entries` on success and on failure, and the order of storing the result, removing the call and closing `done`.",
+        "A token cache with the same shape: `if t, ok := c.tokens[user]; ok && c.now() < t.expires { return t.value, nil }`, `if f, ok := c.pending[user]; ok { c.mu.Unlock(); <-f.ready; return f.token, f.err }`, and after the login call `if err == nil { c.tokens[user] = token{...} }; f.token, f.err = tok, err; delete(c.pending, user); close(f.ready)`."
+      ],
+      "coding": {
+        "language": "go",
+        "filePath": "menucache.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "200 requests at the lunch rush share one call to the menu service",
+          "input": {
+            "ttlMs": 60000,
+            "steps": [
+              {
+                "atMs": 0,
+                "requests": 200,
+                "origin": "menu-v1"
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "originCalls": 1,
+                "results": {
+                  "menu-v1": 200
+                }
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Within the TTL every request is served from the cache",
+          "input": {
+            "ttlMs": 60000,
+            "steps": [
+              {
+                "atMs": 0,
+                "requests": 1,
+                "origin": "menu-v1"
+              },
+              {
+                "atMs": 30000,
+                "requests": 50,
+                "origin": "menu-v2"
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "originCalls": 1,
+                "results": {
+                  "menu-v1": 1
+                }
+              },
+              {
+                "originCalls": 0,
+                "results": {
+                  "menu-v1": 50
+                }
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "After the TTL, 200 requests refresh the menu with one call",
+          "input": {
+            "ttlMs": 60000,
+            "steps": [
+              {
+                "atMs": 0,
+                "requests": 1,
+                "origin": "menu-v1"
+              },
+              {
+                "atMs": 61000,
+                "requests": 200,
+                "origin": "menu-v2"
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "originCalls": 1,
+                "results": {
+                  "menu-v1": 1
+                }
+              },
+              {
+                "originCalls": 1,
+                "results": {
+                  "menu-v2": 200
+                }
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "A failed call is not cached: the next request tries again",
+          "input": {
+            "ttlMs": 60000,
+            "steps": [
+              {
+                "atMs": 0,
+                "requests": 50,
+                "origin": "error"
+              },
+              {
+                "atMs": 1000,
+                "requests": 1,
+                "origin": "menu-v1"
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "originCalls": 1,
+                "results": {
+                  "error": 50
+                }
+              },
+              {
+                "originCalls": 1,
+                "results": {
+                  "menu-v1": 1
+                }
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "When the menu service is down after the TTL, the last menu is still served",
+          "input": {
+            "ttlMs": 60000,
+            "steps": [
+              {
+                "atMs": 0,
+                "requests": 1,
+                "origin": "menu-v1"
+              },
+              {
+                "atMs": 61000,
+                "requests": 100,
+                "origin": "error"
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "originCalls": 1,
+                "results": {
+                  "menu-v1": 1
+                }
+              },
+              {
+                "originCalls": 1,
+                "results": {
+                  "menu-v1": 100
+                }
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 8
+        }
+      ]
+    }
+  ]
+}

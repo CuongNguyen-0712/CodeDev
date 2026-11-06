@@ -1,0 +1,45 @@
+[
+  {
+    "id": "visible-state",
+    "label": "Server snapshot with the pending changes on top",
+    "code": "val shown = server.toSortedMap()\nfor (p in pending) shown[p.orderId] = p.to\nreturn shown"
+  },
+  {
+    "id": "server-push",
+    "label": "Take the server's status, keep the pending changes",
+    "code": "server[orderId] = status"
+  },
+  {
+    "id": "start-mutation",
+    "label": "Accept only the next step of what the courier sees",
+    "code": "val current = visible()[orderId] ?: return null\nif (to.ordinal != current.ordinal + 1) return null\nval change = Pending(mutationId, orderId, to)\npending += change\nreturn change"
+  },
+  {
+    "id": "confirm",
+    "label": "Make the accepted change server state",
+    "code": "val change = pending.firstOrNull { it.id == mutationId } ?: return\npending.remove(change)\nserver[change.orderId] = status"
+  },
+  {
+    "id": "rollback",
+    "label": "Drop the failed change and the ones queued after it",
+    "code": "val i = pending.indexOfFirst { it.id == mutationId }\nif (i < 0) return null\nval failed = pending[i]\nval dropped = pending.filterIndexed { j, p -> j == i || (j > i && p.orderId == failed.orderId) }\npending.removeAll(dropped)\nval later = dropped.size - 1\nreturn \"Could not mark ${failed.orderId} ${failed.to}: $reason\" + if (later > 0) \" (dropped $later later change)\" else \"\""
+  },
+  {
+    "id": "rollback-keeps-optimistic",
+    "label": "Drop the failed change and the ones queued after it",
+    "code": "val failed = pending.firstOrNull { it.id == mutationId } ?: return null\npending.remove(failed)\nserver[failed.orderId] = failed.to\nreturn \"Could not mark ${failed.orderId} ${failed.to}: $reason\"",
+    "distractor": true
+  },
+  {
+    "id": "server-push-clears-pending",
+    "label": "Take the server's status, keep the pending changes",
+    "code": "server[orderId] = status\npending.removeAll { it.orderId == orderId }",
+    "distractor": true
+  },
+  {
+    "id": "start-mutation-server-state",
+    "label": "Accept only the next step of what the courier sees",
+    "code": "val current = server[orderId] ?: return null\nif (to.ordinal != current.ordinal + 1) return null\nval change = Pending(mutationId, orderId, to)\npending += change\nreturn change",
+    "distractor": true
+  }
+]

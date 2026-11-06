@@ -1,0 +1,121 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pas_152",
+      "name": "order-events-queue-backpressure",
+      "type": "mini_coding",
+      "title": "Load the order events through a bounded queue",
+      "description": "Rice Rocket's loader reads order events from the stream about ten times faster than the warehouse can write them. With an unbounded `asyncio.Queue` the buffer grew until the pod was OOMKilled; after a fix, one refused event made the loader hang forever on `queue.join()`; another version returned early and dropped the events still in the buffer. The editor holds `run_pipeline` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that at most `maxsize` events wait in the buffer, `workers` writers run concurrently, a refused event goes to the dead-letter list, and the function returns only after every event read is written or dead-lettered, with no writer left running. Run streams the events on a simulated clock and reports the most events held in memory at once, the dead letters, the time and the tasks left over.",
+      "difficulty": "hard",
+      "outcomes": [
+        "throughput"
+      ],
+      "points": 40,
+      "hints": [
+        "Follow one refused event: who calls `queue.task_done()` for it? `queue.join()` waits until every `put` has a matching `task_done`.",
+        "Look at `asyncio.Queue(maxsize=...)` (its `put` waits while the queue is full: that is the backpressure), `try/except/finally` in the worker loop, and stopping workers that wait on `get()` forever: `join()` first, then `task.cancel()` and `gather(..., return_exceptions=True)`.",
+        "A thumbnail pipeline: `q = asyncio.Queue(maxsize=20)`; `async def worker(): while True: photo = await q.get(); try: await resize(photo) except ResizeError: failed.append(photo) finally: q.task_done()`; start 3 workers; `async for p in uploads: await q.put(p)`; then `await q.join()`, cancel the workers and gather them."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "app/event_loader.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "20 events: all written, no writer left running",
+          "input": {
+            "count": 20
+          },
+          "expected": {
+            "written": 20,
+            "rows_in_warehouse": 20,
+            "dead": [],
+            "max_in_memory": 16,
+            "elapsed_s": 0.54,
+            "tasks_left": 0
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "1,000 events from a fast stream: memory stays bounded by the buffer",
+          "input": {
+            "count": 1000
+          },
+          "expected": {
+            "written": 1000,
+            "rows_in_warehouse": 1000,
+            "dead": [],
+            "max_in_memory": 55,
+            "elapsed_s": 25.04,
+            "tasks_left": 0
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Two events refused by the warehouse: dead-lettered, the loader finishes",
+          "input": {
+            "count": 60,
+            "bad": [
+              "e7",
+              "e40"
+            ]
+          },
+          "expected": {
+            "written": 58,
+            "rows_in_warehouse": 58,
+            "dead": [
+              "e7",
+              "e40"
+            ],
+            "max_in_memory": 40,
+            "elapsed_s": 1.54,
+            "tasks_left": 0
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "One writer and a buffer of 5: still bounded, still complete",
+          "input": {
+            "count": 30,
+            "workers": 1,
+            "maxsize": 5
+          },
+          "expected": {
+            "written": 30,
+            "rows_in_warehouse": 30,
+            "dead": [],
+            "max_in_memory": 7,
+            "elapsed_s": 3.01,
+            "tasks_left": 0
+          },
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "An empty stream: returns at once and leaves nothing running",
+          "input": {
+            "count": 0
+          },
+          "expected": {
+            "written": 0,
+            "rows_in_warehouse": 0,
+            "dead": [],
+            "max_in_memory": 0,
+            "elapsed_s": 0,
+            "tasks_left": 0
+          },
+          "hidden": true,
+          "score": 8
+        }
+      ]
+    }
+  ]
+}

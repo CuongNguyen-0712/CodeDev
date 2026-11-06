@@ -1,0 +1,134 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_jrm_151",
+      "name": "transactional-outbox-quiz",
+      "type": "quiz",
+      "title": "Read the order events incident",
+      "description": "Three statements about what went wrong between Rice Rocket's order-service, its database and Kafka. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "consistency"
+      ],
+      "points": 10,
+      "hints": [
+        "Put the two writes on a timeline: when does Kafka accept the record, and when does PostgreSQL decide whether the order exists?",
+        "An outbox relay is at-least-once by design. What makes two pods pick the same rows, and what does PostgreSQL offer so a pod skips rows another pod already holds?",
+        "Two pods each claim a different batch. Can two events of the same order end up in different batches, and who publishes first then?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The courier-matcher received OrderPlaced for order `o-88213`, but the order does not exist:\n\n```java\n@Transactional\npublic Order place(PlaceOrder cmd) {\n    Order order = orders.save(Order.from(cmd));\n    kafka.send(\"orders.v1\", order.id(), new OrderPlaced(order.id()));\n    return order;\n}\n```\n\n```text\n10:42:07.118 KafkaProducer  sent orders.v1 key=o-88213 offset=91822\n10:42:07.131 SqlExceptionHelper  ERROR: duplicate key value violates unique constraint \"orders_idempotency_key\"\n10:42:07.132 TransactionInterceptor  rolling back order placement\n```\n\nStatement: \"Kafka accepted the event before PostgreSQL decided at commit, and a rollback cannot recall it; writing the event to an outbox table in the same transaction makes 'the order exists' and 'its event will be sent' one atomic decision.\"",
+          "explanation": "True. The INSERT is flushed at commit, after `kafka.send` already returned: the unique violation rolls the order back, but the record is in the topic for good. With an outbox row written in the same transaction, the order and the event either both commit or both roll back; a relay publishes committed rows afterwards. The misconception is that `@Transactional` covers Kafka too: it covers only the database (Kafka transactions are a separate mechanism and do not make the two atomic).",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After scaling the relay to two pods, consumers see every event twice:\n\n```sql\n-- each relay pod, every 500 ms\nSELECT id, aggregate_id, type FROM outbox\nWHERE sent_at IS NULL ORDER BY id LIMIT 100;\n```\n\n```text\nrelay-7c9f  published ids 4101-4200\nrelay-5d2a  published ids 4101-4200\n```\n\nStatement: \"The duplicates prove the outbox pattern does not work with more than one pod; publishing from the request transaction again is the safer design.\"",
+          "explanation": "False. Both pods read the same unsent rows because the query takes no row locks. `FOR UPDATE SKIP LOCKED` makes each pod claim its own rows and skip rows another pod holds, without waiting. Even then the relay is at-least-once (a crash between publish and commit re-sends), so consumers dedupe by event id. Publishing from the request transaction brings back events for rolled-back orders and lost events when Kafka is down.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The relay now claims with `FOR UPDATE SKIP LOCKED`, batch size 100, on three pods. Order `o-90001` wrote OrderPlaced (outbox id 5100) and OrderCancelled (id 5101) a few milliseconds apart; they landed in different batches.\n\nStatement: \"Because every pod publishes its batch in id order, two events of the same order can never reach Kafka out of order.\"",
+          "explanation": "False. Id order holds inside one batch, not across pods: pod A can hold 5001-5100 and pod B 5101-5200, and B may publish OrderCancelled before A publishes OrderPlaced. Per-order ordering needs one publisher per key (one active relay, or relays that claim by hash of `aggregate_id`), or consumers that check a per-aggregate version. The misconception is that a global id order survives parallel publishers.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_jrm_152",
+      "name": "order-outbox-relay",
+      "type": "fix_bug",
+      "title": "Fix the order outbox relay",
+      "description": "Last week's order-service published OrderPlaced from inside the request transaction, and its first outbox relay was rushed. Symptoms: couriers were offered orders that had been rolled back; while Kafka was down for an upgrade, checkout failed for every customer; after an outage some orders never got their event; and with two relay pods every event went out twice. The editor holds `Main.java` with the three places to fix missing, each marked by a `// [ ]` line; some pieces repeat last week's bugs. Fill every line so that placeOrder saves the order and its event in one transaction and sends nothing itself, CLAIM_SQL lets two pods share the work without doubles or waiting, and relayOnce marks an event sent only after Kafka acknowledged it. Run replays scripted incidents against a PostgreSQL and Kafka stand-in and reports what reached Kafka.",
+      "difficulty": "medium",
+      "outcomes": [
+        "consistency"
+      ],
+      "points": 30,
+      "hints": [
+        "For each symptom, find the moment two systems disagree: the order rolled back but the event exists, the event marked sent but never published, two pods holding the same row.",
+        "Look at what placeOrder does between begin and commit, at the lock clause of CLAIM_SQL (PostgreSQL's FOR UPDATE and its SKIP LOCKED option), and at the order of `broker.send` and `tx.markSent` in relayOnce.",
+        "A billing job that several workers drain from a jobs table claims work like this: `SELECT id FROM jobs WHERE done_at IS NULL ORDER BY id LIMIT ? FOR UPDATE SKIP LOCKED`, calls the provider for each row, and only after the provider confirmed runs `UPDATE jobs SET done_at = now() WHERE id = ?`, all in the transaction that holds the locks."
+      ],
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two orders and one relay poll: each OrderPlaced reaches Kafka once",
+          "input": "place o1 lan\nplace o2 minh\nrelay 10\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "orders: o1 o2\npublished: o1:OrderPlaced o2:OrderPlaced\nevents for orders that do not exist: 0\norders whose event is lost: 0\nevents still waiting in the outbox: 0\nduplicate events: 0\nrelay waits on another pod's locks: 0"
+        },
+        {
+          "name": "Orders that fail at commit produce no event",
+          "input": "place o1 lan\nplace o2 -\nplace o1 lan\nrelay 10\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "place o2: ERROR: null value in column \"customer_id\" of relation \"orders\" violates not-null constraint\nplace o1: ERROR: duplicate key value violates unique constraint \"orders_pkey\"\norders: o1\npublished: o1:OrderPlaced\nevents for orders that do not exist: 0\norders whose event is lost: 0\nevents still waiting in the outbox: 0\nduplicate events: 0\nrelay waits on another pod's locks: 0"
+        },
+        {
+          "name": "Kafka down while customers order: orders are saved, events go out once Kafka is back",
+          "input": "kafka down\nplace o1 lan\nplace o2 minh\nrelay 10\nkafka up\nrelay 10\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "orders: o1 o2\npublished: o1:OrderPlaced o2:OrderPlaced\nevents for orders that do not exist: 0\norders whose event is lost: 0\nevents still waiting in the outbox: 0\nduplicate events: 0\nrelay waits on another pod's locks: 0"
+        },
+        {
+          "name": "Kafka fails in the middle of a batch: nothing is lost, the rest goes out on the next poll",
+          "input": "place o1 lan\nplace o2 minh\nplace o3 an\nplace o4 binh\nplace o5 chi\nkafka fail-after 2\nrelay 10\nkafka up\nrelay 10\n",
+          "hidden": true,
+          "score": 6,
+          "expected": "orders: o1 o2 o3 o4 o5\npublished: o1:OrderPlaced o2:OrderPlaced o3:OrderPlaced o4:OrderPlaced o5:OrderPlaced\nevents for orders that do not exist: 0\norders whose event is lost: 0\nevents still waiting in the outbox: 0\nduplicate events: 0\nrelay waits on another pod's locks: 0"
+        },
+        {
+          "name": "Two relay pods poll at the same time: every event published exactly once, no waiting",
+          "input": "place o1 lan\nplace o2 minh\nplace o3 an\nplace o4 binh\nplace o5 chi\nplace o6 dung\nrelay-pair 3\n",
+          "hidden": true,
+          "score": 6,
+          "expected": "orders: o1 o2 o3 o4 o5 o6\npublished: o4:OrderPlaced o5:OrderPlaced o6:OrderPlaced o1:OrderPlaced o2:OrderPlaced o3:OrderPlaced\nevents for orders that do not exist: 0\norders whose event is lost: 0\nevents still waiting in the outbox: 0\nduplicate events: 0\nrelay waits on another pod's locks: 0"
+        }
+      ]
+    }
+  ]
+}

@@ -84,7 +84,6 @@
     "performance"
   ],
   "prerequisites": [
-    "postgres-performance",
     "observability-opentelemetry"
   ],
   "modules": [

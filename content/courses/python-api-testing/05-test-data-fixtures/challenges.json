@@ -1,0 +1,211 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pat_152",
+      "name": "test-data-fixtures",
+      "type": "fix_bug",
+      "title": "Fix the test data fixtures",
+      "description": "Rice Rocket's API suite became order-dependent: it passed in the usual order and failed under pytest-randomly, a run killed by CI blocked every later run with `409 email already used`, and staging collected thousands of orphaned QA customers. The editor holds `tests/conftest.py` with its fixture blocks missing, each marked by a `# [ ]` line; some pieces are the old, buggy versions. Fill every line so that each test gets its own customer and its own restaurant, emails never collide across tests, runs or leftovers of a killed run, nothing is left on staging (customers can only be deleted once their orders are gone) whether a test passes or fails, and the shared seed restaurant 1 is never touched. The docstring is the exact contract; the runner at the bottom plays a small pytest against a fake staging API.",
+      "difficulty": "medium",
+      "outcomes": [
+        "reliable-suites"
+      ],
+      "points": 30,
+      "hints": [
+        "For each fixture ask: could another test, another CI run or a run that crashed yesterday have created the same thing, and does anything outside this test depend on it?",
+        "Look at what makes the email unique (`run['run_id']`, `run['seq']()`), whether the restaurant is created or borrowed, and the order of the DELETE calls after `yield`: what does the API answer when a customer still has orders?",
+        "A fixture for couriers in another suite: `email = f\"courier+{run['run_id']}-{run['seq']()}@example.test\"`, `status, body = api.post(\"/couriers\", {...})`, then `try: yield courier` / `finally:` delete the courier's deliveries first, the courier last."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "tests/conftest.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One CI run: every test passes and nothing is left on staging",
+          "input": {
+            "runs": [
+              "ci-4101"
+            ],
+            "order": [
+              "test_place_order",
+              "test_closed_restaurant_rejects_orders",
+              "test_email_is_unique",
+              "test_reorder"
+            ]
+          },
+          "expected": {
+            "runs": [
+              {
+                "test_place_order": "passed",
+                "test_closed_restaurant_rejects_orders": "passed",
+                "test_email_is_unique": "passed",
+                "test_reorder": "passed"
+              }
+            ],
+            "left_behind": {
+              "customers": 0,
+              "orders": 0,
+              "restaurants": 0,
+              "seed_restaurant_open": true
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Random order: the closed-restaurant test runs first and the others still pass",
+          "input": {
+            "runs": [
+              "ci-4101"
+            ],
+            "order": [
+              "test_closed_restaurant_rejects_orders",
+              "test_place_order",
+              "test_reorder",
+              "test_email_is_unique"
+            ]
+          },
+          "expected": {
+            "runs": [
+              {
+                "test_closed_restaurant_rejects_orders": "passed",
+                "test_place_order": "passed",
+                "test_reorder": "passed",
+                "test_email_is_unique": "passed"
+              }
+            ],
+            "left_behind": {
+              "customers": 0,
+              "orders": 0,
+              "restaurants": 0,
+              "seed_restaurant_open": true
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A test that fails after creating orders still leaves nothing behind",
+          "input": {
+            "runs": [
+              "ci-4101"
+            ],
+            "order": [
+              "test_place_order",
+              "test_closed_restaurant_rejects_orders",
+              "test_email_is_unique",
+              "test_reorder"
+            ],
+            "crash": [
+              "test_reorder",
+              "test_place_order"
+            ]
+          },
+          "expected": {
+            "runs": [
+              {
+                "test_place_order": "failed: simulated failure after the request",
+                "test_closed_restaurant_rejects_orders": "passed",
+                "test_email_is_unique": "passed",
+                "test_reorder": "failed: simulated failure after the request"
+              }
+            ],
+            "left_behind": {
+              "customers": 0,
+              "orders": 0,
+              "restaurants": 0,
+              "seed_restaurant_open": true
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A killed CI job left its QA customers behind: the next run is not blocked by them",
+          "input": {
+            "runs": [
+              "ci-4101"
+            ],
+            "order": [
+              "test_place_order",
+              "test_closed_restaurant_rejects_orders",
+              "test_email_is_unique",
+              "test_reorder"
+            ],
+            "leftovers": [
+              {
+                "email": "qa@ricerocket.test"
+              },
+              {
+                "email": "qa+ci-4100-1@ricerocket.test"
+              }
+            ]
+          },
+          "expected": {
+            "runs": [
+              {
+                "test_place_order": "passed",
+                "test_closed_restaurant_rejects_orders": "passed",
+                "test_email_is_unique": "passed",
+                "test_reorder": "passed"
+              }
+            ],
+            "left_behind": {
+              "customers": 0,
+              "orders": 0,
+              "restaurants": 0,
+              "seed_restaurant_open": true
+            }
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Two runs back to back on the same staging API, in two different orders",
+          "input": {
+            "runs": [
+              "ci-4101",
+              "ci-4102"
+            ],
+            "order": [
+              "test_closed_restaurant_rejects_orders",
+              "test_reorder",
+              "test_place_order",
+              "test_email_is_unique"
+            ]
+          },
+          "expected": {
+            "runs": [
+              {
+                "test_closed_restaurant_rejects_orders": "passed",
+                "test_reorder": "passed",
+                "test_place_order": "passed",
+                "test_email_is_unique": "passed"
+              },
+              {
+                "test_closed_restaurant_rejects_orders": "passed",
+                "test_reorder": "passed",
+                "test_place_order": "passed",
+                "test_email_is_unique": "passed"
+              }
+            ],
+            "left_behind": {
+              "customers": 0,
+              "orders": 0,
+              "restaurants": 0,
+              "seed_restaurant_open": true
+            }
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

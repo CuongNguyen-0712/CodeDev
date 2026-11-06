@@ -1,0 +1,45 @@
+[
+  {
+    "id": "json-type",
+    "label": "The JSON type of a decoded Python value",
+    "code": "if value is None:\n    return \"null\"\nif isinstance(value, bool):\n    return \"boolean\"\nif isinstance(value, int) or (isinstance(value, float) and value.is_integer()):\n    return \"integer\"\nif isinstance(value, float):\n    return \"number\"\nif isinstance(value, str):\n    return \"string\"\nreturn \"array\" if isinstance(value, list) else \"object\""
+  },
+  {
+    "id": "type-check",
+    "label": "Stop at a value of the wrong type",
+    "code": "actual = json_type(value)\nif allowed and actual not in allowed and not (actual == \"integer\" and \"number\" in allowed):\n    return [f\"{path}: expected {' or '.join(allowed)}, got {actual}\"]"
+  },
+  {
+    "id": "object-rules",
+    "label": "Missing, nested and unexpected properties",
+    "code": "for name in schema.get(\"required\", []):\n    if name not in value:\n        problems.append(f\"{path}.{name}: missing\")\nprops = schema.get(\"properties\", {})\nfor name, sub in props.items():\n    if name in value:\n        problems += validate(sub, value[name], f\"{path}.{name}\")\nif schema.get(\"additionalProperties\") is False:\n    problems += [f\"{path}.{name}: not allowed\" for name in value if name not in props]"
+  },
+  {
+    "id": "array-items",
+    "label": "Every element of an array",
+    "code": "for i, item in enumerate(value):\n    problems += validate(schema[\"items\"], item, f\"{path}[{i}]\")"
+  },
+  {
+    "id": "value-rules",
+    "label": "Allowed values, minimum and date-time format",
+    "code": "if \"enum\" in schema and value not in schema[\"enum\"]:\n    problems.append(f\"{path}: {json.dumps(value)} is not one of {json.dumps(schema['enum'])}\")\nif \"minimum\" in schema and json_type(value) in (\"integer\", \"number\") and value < schema[\"minimum\"]:\n    problems.append(f\"{path}: {value} is below the minimum {schema['minimum']}\")\nif schema.get(\"format\") == \"date-time\" and isinstance(value, str) and not DATE_TIME.match(value):\n    problems.append(f\"{path}: not a date-time with an offset\")"
+  },
+  {
+    "id": "json-type-bool-as-int",
+    "label": "The JSON type of a decoded Python value",
+    "code": "if value is None:\n    return \"null\"\nif isinstance(value, int) or (isinstance(value, float) and value.is_integer()):\n    return \"integer\"\nif isinstance(value, bool):\n    return \"boolean\"\nif isinstance(value, float):\n    return \"number\"\nif isinstance(value, str):\n    return \"string\"\nreturn \"array\" if isinstance(value, list) else \"object\"",
+    "distractor": true
+  },
+  {
+    "id": "object-rules-null-is-missing",
+    "label": "Missing, nested and unexpected properties",
+    "code": "for name in schema.get(\"required\", []):\n    if value.get(name) is None:\n        problems.append(f\"{path}.{name}: missing\")\nprops = schema.get(\"properties\", {})\nfor name, sub in props.items():\n    if name in value:\n        problems += validate(sub, value[name], f\"{path}.{name}\")\nif schema.get(\"additionalProperties\") is False:\n    problems += [f\"{path}.{name}: not allowed\" for name in value if name not in props]",
+    "distractor": true
+  },
+  {
+    "id": "value-rules-no-offset",
+    "label": "Allowed values, minimum and date-time format",
+    "code": "if \"enum\" in schema and value not in schema[\"enum\"]:\n    problems.append(f\"{path}: {json.dumps(value)} is not one of {json.dumps(schema['enum'])}\")\nif \"minimum\" in schema and json_type(value) in (\"integer\", \"number\") and value < schema[\"minimum\"]:\n    problems.append(f\"{path}: {value} is below the minimum {schema['minimum']}\")\nif schema.get(\"format\") == \"date-time\" and isinstance(value, str) and not re.match(r\"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\", value):\n    problems.append(f\"{path}: not a date-time with an offset\")",
+    "distractor": true
+  }
+]

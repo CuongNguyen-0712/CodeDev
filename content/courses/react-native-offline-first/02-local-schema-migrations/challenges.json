@@ -1,0 +1,221 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_rno_122",
+      "name": "local-schema-migrations",
+      "type": "mini_coding",
+      "title": "Upgrade the courier app's database",
+      "description": "Version 2.3 of the courier app adds the cash to collect on each delivery. Last release, a migration that crashed half way left some phones with a database that claimed the new version but missed the new column, and those couriers could not open the app until they reinstalled it and lost their pending deliveries. The editor holds `migrate(db, appVersion)` and the list of migrations, with key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a database newer than the app is refused with a clear error and left as it is; only migrations above the stored version (and up to the app's) run, in order; each migration and its version number are written together or not at all, so a phone killed mid-migration simply runs it again on the next start; and v3 adds `cod_amount` as a NOT NULL column that existing deliveries get as 0. Run starts the app on databases at different versions, sometimes kills it during the upgrade, and prints the resulting schema.",
+      "difficulty": "medium",
+      "outcomes": [
+        "local-first"
+      ],
+      "points": 30,
+      "hints": [
+        "For each test, write down the stored version, which migrations should run, and what is on disk if the app dies after any single statement.",
+        "Look at the comparison that picks pending migrations, at where the version is written relative to `db.transaction`, and at what SQLite needs to add a NOT NULL column to a table that already has rows.",
+        "A notes app adding a `pinned` flag in v7: `{ version: 7, up: (tx) => tx.addColumn(\"notes\", \"pinned\", { notNull: true, default: 0 }) }`, run by a loop that does `db.transaction((tx) => { m.up(tx); tx.setUserVersion(m.version); })` for every `m.version > current`."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A fresh install creates every table and index at version 4",
+          "input": {
+            "from": 0,
+            "appVersion": 4
+          },
+          "expected": {
+            "launches": [
+              "ok v4"
+            ],
+            "userVersion": 4,
+            "tables": {
+              "deliveries": [
+                "id",
+                "address",
+                "status",
+                "cod_amount"
+              ],
+              "outbox": [
+                "id",
+                "kind",
+                "payload",
+                "attempts"
+              ]
+            },
+            "indexes": [
+              "idx_deliveries_status"
+            ],
+            "codAmounts": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Upgrading from version 2 keeps the deliveries and gives them cod_amount 0",
+          "input": {
+            "from": 2,
+            "rows": 3,
+            "appVersion": 4
+          },
+          "expected": {
+            "launches": [
+              "ok v4"
+            ],
+            "userVersion": 4,
+            "tables": {
+              "deliveries": [
+                "id",
+                "address",
+                "status",
+                "cod_amount"
+              ],
+              "outbox": [
+                "id",
+                "kind",
+                "payload",
+                "attempts"
+              ]
+            },
+            "indexes": [
+              "idx_deliveries_status"
+            ],
+            "codAmounts": [
+              0,
+              0,
+              0
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A database from a newer build is refused and left untouched",
+          "input": {
+            "from": 5,
+            "rows": 1,
+            "appVersion": 4
+          },
+          "expected": {
+            "launches": [
+              "error: database version 5 is newer than this app (4): update the app"
+            ],
+            "userVersion": 5,
+            "tables": {
+              "deliveries": [
+                "id",
+                "address",
+                "status",
+                "cod_amount"
+              ],
+              "outbox": [
+                "id",
+                "kind",
+                "payload",
+                "attempts"
+              ],
+              "proofs": [
+                "delivery_id",
+                "photo_uri"
+              ]
+            },
+            "indexes": [
+              "idx_deliveries_status"
+            ],
+            "codAmounts": [
+              0
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Killed in the middle of v3: the next start finishes the upgrade cleanly",
+          "input": {
+            "from": 2,
+            "rows": 2,
+            "appVersion": 4,
+            "killAtStatement": 2
+          },
+          "expected": {
+            "launches": [
+              "killed at v2",
+              "ok v4"
+            ],
+            "userVersion": 4,
+            "tables": {
+              "deliveries": [
+                "id",
+                "address",
+                "status",
+                "cod_amount"
+              ],
+              "outbox": [
+                "id",
+                "kind",
+                "payload",
+                "attempts"
+              ]
+            },
+            "indexes": [
+              "idx_deliveries_status"
+            ],
+            "codAmounts": [
+              0,
+              0
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Started twice on an up-to-date database: nothing runs again",
+          "input": {
+            "from": 4,
+            "rows": 2,
+            "appVersion": 4,
+            "launches": 2
+          },
+          "expected": {
+            "launches": [
+              "ok v4",
+              "ok v4"
+            ],
+            "userVersion": 4,
+            "tables": {
+              "deliveries": [
+                "id",
+                "address",
+                "status",
+                "cod_amount"
+              ],
+              "outbox": [
+                "id",
+                "kind",
+                "payload",
+                "attempts"
+              ]
+            },
+            "indexes": [
+              "idx_deliveries_status"
+            ],
+            "codAmounts": [
+              0,
+              0
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

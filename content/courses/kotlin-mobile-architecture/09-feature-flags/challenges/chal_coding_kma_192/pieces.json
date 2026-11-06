@@ -1,0 +1,45 @@
+[
+  {
+    "id": "compare-versions",
+    "label": "Compare dotted versions number by number",
+    "code": "val x = a.split(\".\").map { it.toInt() }\nval y = b.split(\".\").map { it.toInt() }\nfor (i in 0 until maxOf(x.size, y.size)) {\n    val d = x.getOrElse(i) { 0 }.compareTo(y.getOrElse(i) { 0 })\n    if (d != 0) return d\n}\nreturn 0"
+  },
+  {
+    "id": "bucket",
+    "label": "A stable bucket per flag and courier",
+    "code": "return (fnv1a32(\"$flagKey:$courierId\") and 0x7fffffff) % 100"
+  },
+  {
+    "id": "kill-switch",
+    "label": "Off for everyone once the flag is killed",
+    "code": "if (!flag.enabled) return Decision(false, \"killed\")"
+  },
+  {
+    "id": "compatibility",
+    "label": "Off on app versions and phones that cannot run it",
+    "code": "if (compareVersions(c.appVersion, flag.minVersion) < 0) return Decision(false, \"app ${c.appVersion} < ${flag.minVersion}\")\nif (c.sdk < flag.minSdk) return Decision(false, \"sdk ${c.sdk} < ${flag.minSdk}\")"
+  },
+  {
+    "id": "allowlist",
+    "label": "QA couriers always get it",
+    "code": "if (c.id in flag.allow) return Decision(true, \"allowlist\")"
+  },
+  {
+    "id": "bucket-courier-only",
+    "label": "A stable bucket per flag and courier",
+    "code": "return (fnv1a32(courierId) and 0x7fffffff) % 100",
+    "distractor": true
+  },
+  {
+    "id": "compare-versions-as-text",
+    "label": "Compare dotted versions number by number",
+    "code": "return a.compareTo(b)",
+    "distractor": true
+  },
+  {
+    "id": "kill-switch-spares-allowlist",
+    "label": "Off for everyone once the flag is killed",
+    "code": "if (!flag.enabled && c.id !in flag.allow) return Decision(false, \"killed\")",
+    "distractor": true
+  }
+]

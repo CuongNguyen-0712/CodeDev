@@ -1,0 +1,40 @@
+[
+  {
+    "id": "one-bulkhead-each",
+    "label": "Which bulkhead guards a dependency",
+    "code": "return bulkheads.computeIfAbsent(dependency, d -> new Bulkhead(limits.get(d)));"
+  },
+  {
+    "id": "acquire-or-wait",
+    "label": "Take a permit, queue for one, or reject",
+    "code": "if (b.inUse < b.max) {\n    b.inUse++;\n    sim.start(call, now);\n} else if (b.maxWaitMs > 0) {\n    b.waiting.addLast(new Waiter(call, now + b.maxWaitMs));\n} else {\n    sim.reject(call, now);\n}"
+  },
+  {
+    "id": "release-permit",
+    "label": "Give the permit back when a call ends",
+    "code": "b.inUse--;"
+  },
+  {
+    "id": "give-up-waiting",
+    "label": "Reject calls that waited too long",
+    "code": "b.waiting.removeIf(w -> {\n    if (w.deadline() > now) {\n        return false;\n    }\n    sim.reject(w.call(), w.deadline());\n    return true;\n});"
+  },
+  {
+    "id": "one-bulkhead-shared",
+    "label": "Which bulkhead guards a dependency",
+    "code": "return bulkheads.computeIfAbsent(\"http-client\", d -> new Bulkhead(limits.get(dependency)));",
+    "distractor": true
+  },
+  {
+    "id": "queue-length-not-time",
+    "label": "Reject calls that waited too long",
+    "code": "while (b.waiting.size() > b.max) {\n    sim.reject(b.waiting.removeLast().call(), now);\n}",
+    "distractor": true
+  },
+  {
+    "id": "release-on-success-only",
+    "label": "Give the permit back when a call ends",
+    "code": "if (!call.fails()) {\n    b.inUse--;\n}",
+    "distractor": true
+  }
+]

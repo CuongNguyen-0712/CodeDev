@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('python-asyncio-services', 'Async Python: asyncio, TaskGroup & High-Throughput Services', 'Write asyncio services that stay fast and shut down cleanly: structured concurrency with TaskGroup, timeouts and cancellation, bounded fan-out, queues with backpressure, rate limits and retries.', 'Write asyncio services that stay fast and shut down cleanly: structured concurrency with TaskGroup, timeouts and cancellation, bounded fan-out, queues with backpressure, rate limits and retries. 9 lessons, each starting from a real bug or incident, with graded challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594602/codedev/courses/python-asyncio-services/cover', 'advanced'::level_enum, 180, 'CodeDev Engineering Team', 0, 0, 150,
+VALUES ('python-asyncio-services', 'Async Python: asyncio, TaskGroup & High-Throughput Services', 'Write asyncio services (FastAPI workers, consumers, crawlers) that stay fast and stop cleanly: the event loop and blocking calls, TaskGroup structured concurrency, timeouts and cancellation, bounded fan-out, queues with backpressure, token-bucket rate limits, retries with jitter, threads for sync code, and graceful shutdown. Challenges are Python programs graded in the code runner.', 'Write asyncio services (FastAPI workers, consumers, crawlers) that stay fast and stop cleanly: the event loop and blocking calls, TaskGroup structured concurrency, timeouts and cancellation, bounded fan-out, queues with backpressure, token-bucket rate limits, retries with jitter, threads for sync code, and graceful shutdown. 9 lessons on one project, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594602/codedev/courses/python-asyncio-services/cover', 'advanced'::level_enum, 150, 'CodeDev Engineering Team', 0, 0, 150,
         (SELECT id FROM catalog.language WHERE name = 'Python'),
         (SELECT id FROM catalog.category WHERE name = 'Backend Development'),
         'premium', 'draft', true, false)
@@ -67,9 +67,779 @@ INSERT INTO catalog.course_skill (course_id, skill_id, weight)
 SELECT (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), s.id, v.weight
 FROM (VALUES ('python', 5), ('async_programming', 5), ('concurrency', 4), ('performance', 3)) AS v(code, weight)
 JOIN catalog.skill s ON s.code = v.code;
+UPDATE catalog.course SET completion_rules = '{}' WHERE id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services');
 DELETE FROM catalog.course_prerequisite WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services');
 INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
-SELECT (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), id FROM catalog.course WHERE public_id = ANY(ARRAY['python-foundations-automation']::text[]);
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), id FROM catalog.course WHERE public_id = ANY(ARRAY['']::text[]);
+
+-- module 1: The event loop
+UPDATE course.module SET title = 'The event loop', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 1 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), 'The event loop', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 1 AND is_deleted = false);
+
+-- lesson 1.1: Coroutines vs blocking calls in the event loop (Sanity lesson-pas-1-1)
+UPDATE course.lesson SET title = 'Coroutines vs blocking calls in the event loop', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-1-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Coroutines vs blocking calls in the event loop', 'sanity', 'lesson-pas-1-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-pas-1-1' AND is_deleted = false);
+
+-- challenge chal_quiz_pas_111 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_pas_111', (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-1-1' AND is_deleted = false LIMIT 1), 'blocking-event-loop-quiz', 'Read the slow receipt endpoint', 'Three statements about the FastAPI service whose receipt endpoint made every request on the pod slow at the lunch peak. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_111');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_111'), 1, 'Check where FastAPI runs an `async def` path operation and where it runs a plain `def` one.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_111'), 2, 'Read the debug log line: what does asyncio measure when it says a step "took 0.812 seconds", and what is the default threshold for that warning?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_111'), 3, 'A thread keeps the event loop free, but pure-Python CPU work in that thread still needs the GIL. What gives real parallelism for it?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_111');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_111'), 'The receipt endpoint, and what the pod looked like at noon:
+
+```python
+@app.get("/orders/{order_id}/receipt")
+async def receipt(order_id: str):
+    order = await orders.get(order_id)
+    eta = requests.get(f"{MAPS}/eta", params={"to": order.address}, timeout=5).json()
+    return await build_pdf(order, eta)
+```
+
+```text
+GET /health            200   1830 ms
+GET /menu/42           200   2410 ms
+GET /orders/9/receipt  200   2655 ms
+```
+
+Statement: "Because the endpoint is `async def`, FastAPI runs it in its thread pool, so the blocking `requests.get` only slows the receipt requests, not `/health` or `/menu`."', 'single_choice'::question_type, 'False. FastAPI runs `async def` path operations directly on the event loop and only runs plain `def` ones in its thread pool. A blocking call inside `async def` holds the single event loop thread, so every other request on the worker, health checks included, waits behind it; that is why `/health` takes 1.8 s. Use an async client (`httpx.AsyncClient`), or make the endpoint a plain `def` so FastAPI moves it to a thread. The misconception is that `async def` makes code non-blocking by itself.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_111') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_111'), 'The team ran one pod with `PYTHONASYNCIODEBUG=1`:
+
+```text
+WARNING asyncio: Executing <Task pending name=''Task-311'' coro=<receipt() running at app/receipts.py:41>> took 0.812 seconds
+```
+
+```python
+41:    pdf = render_receipt(order, eta)   # reportlab, pure Python
+```
+
+Statement: "Debug mode warns about any step that holds the event loop longer than `slow_callback_duration` (100 ms by default); here the 0.812 s step is the PDF rendering, which belongs in a thread or process pool."', 'single_choice'::question_type, 'True. In debug mode asyncio times every callback and task step and logs the ones slower than `loop.slow_callback_duration`, which defaults to 0.1 s. A task step runs from one `await` that suspends to the next, so 0.812 s without suspending means CPU work on the loop thread: the PDF rendering. Moving it to `await asyncio.to_thread(render_receipt, order, eta)` or a `ProcessPoolExecutor` frees the loop. The misconception is that the warning is about slow I/O; awaited I/O never shows up there.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_111') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_111'), 'After moving the rendering to a thread, the loop answers quickly again, but the pod''s receipts per second did not grow past one CPU:
+
+```python
+pdf = await asyncio.to_thread(render_receipt, order, eta)
+```
+
+Statement: "`to_thread` keeps the event loop responsive, but pure-Python CPU work in threads still takes turns on the GIL; for real parallel rendering use a `ProcessPoolExecutor` (or a free-threaded Python build)."', 'single_choice'::question_type, 'True. `asyncio.to_thread` runs the function in the default thread pool, so the loop thread is free between the GIL hand-offs and requests are served again. On the standard (GIL) build only one thread runs Python bytecode at a time, so several renderings share one core. `loop.run_in_executor(ProcessPoolExecutor(), ...)` renders in separate processes; the free-threaded build (3.13+, experimental at first) removes the GIL. The misconception is that threads make CPU-bound Python faster.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_111') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_pas_112 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_pas_112', (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-1-1' AND is_deleted = false LIMIT 1), 'receipt-handler-blocking', 'Fix the receipt handler that blocks the event loop', 'Rice Rocket''s receipt endpoint (`async def build_receipt(order, deps)`) asks the maps API for the delivery ETA, renders the PDF and stores it. At the lunch peak every request on the pod slowed down and the liveness probe failed: the handler blocked the event loop. The editor holds the fixed handler with its key lines missing, each marked by a `# [ ]` line; the wrong pieces are the original code. Fill every line so that nothing blocks the loop: the ETA comes from the async client, the 0.2 s pause between the 3 attempts is awaited, the CPU-heavy rendering runs in `deps.pool`, and the receipt is stored before the handler returns. Run serves the test''s orders concurrently on a simulated clock and reports the receipts, the event loop lag a 50 ms heartbeat sees and the probe failures it would cause.', 'open', 'medium'::difficulty_question, 'fix_bug', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_112');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_112'), 1, 'Read each line as the event loop thread: which ones hand control back with `await`, and which ones keep the thread busy until they finish?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_112'), 2, 'Look at the two ETA methods in the docstring, `asyncio.sleep` vs `time.sleep`, and what `deps.pool.run(fn, *args)` does with a sync function.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_112'), 3, 'A thumbnail step in another service follows the same rules: `size = await storage.head(key)` (async client), `await asyncio.sleep(0.5)` between attempts, `thumb = await pool.run(make_thumbnail, image)` for the CPU work, then `await storage.put(thumb_key, thumb)`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_112'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"fetch-eta","label":"Ask the maps API for the delivery ETA","code":"eta = await deps.maps.eta(order[\"address\"])"},{"id":"retry-wait","label":"Wait before the next attempt","code":"await asyncio.sleep(0.2)"},{"id":"render-pdf","label":"Render the receipt PDF","code":"pdf = await deps.pool.run(render_receipt, order, eta)"},{"id":"save-receipt","label":"Store the receipt","code":"await deps.store.save(order[\"id\"], pdf)"},{"id":"fetch-eta-requests","label":"Ask the maps API for the delivery ETA","code":"eta = deps.maps.eta_sync(order[\"address\"])","distractor":true},{"id":"render-pdf-in-loop","label":"Render the receipt PDF","code":"pdf = render_receipt(order, eta)","distractor":true},{"id":"retry-wait-time-sleep","label":"Wait before the next attempt","code":"time.sleep(0.2)","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_112');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_112'), 'Two quiet orders: receipts stored, the loop never stalls', '{"orders":[{"id":"o1001","address":"12 Le Loi"},{"id":"o1002","address":"7 Pasteur"}]}', '{"receipts":[["o1001",21],["o1002",21]],"saved":["o1001","o1002"],"finished_at_s":1.15,"max_loop_lag_ms":0,"probe_failures":0}', 5, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_112'), 'Lunch peak, 20 orders at once: no event loop lag, no failed probe', '{"orders":[{"id":"o1001","address":"12 Le Loi"},{"id":"o1002","address":"7 Pasteur"},{"id":"o1003","address":"88 Nguyen Hue"},{"id":"o1004","address":"3 Hai Ba Trung"},{"id":"o1005","address":"41 Dong Khoi"},{"id":"o1006","address":"9 Ly Tu Trong"},{"id":"o1007","address":"150 Tran Hung Dao"},{"id":"o1008","address":"22 Vo Van Tan"},{"id":"o1009","address":"5 Ton Duc Thang"},{"id":"o1010","address":"64 Nam Ky Khoi Nghia"},{"id":"o1011","address":"12 Le Loi"},{"id":"o1012","address":"7 Pasteur"},{"id":"o1013","address":"88 Nguyen Hue"},{"id":"o1014","address":"3 Hai Ba Trung"},{"id":"o1015","address":"41 Dong Khoi"},{"id":"o1016","address":"9 Ly Tu Trong"},{"id":"o1017","address":"150 Tran Hung Dao"},{"id":"o1018","address":"22 Vo Van Tan"},{"id":"o1019","address":"5 Ton Duc Thang"},{"id":"o1020","address":"64 Nam Ky Khoi Nghia"}]}', '{"receipts":[["o1001",21],["o1002",21],["o1003",25],["o1004",26],["o1005",24],["o1006",25],["o1007",29],["o1008",25],["o1009",27],["o1010",12],["o1011",21],["o1012",21],["o1013",25],["o1014",26],["o1015",24],["o1016",25],["o1017",29],["o1018",25],["o1019",27],["o1020",12]],"saved":["o1001","o1002","o1003","o1004","o1005","o1006","o1007","o1008","o1009","o1010","o1011","o1012","o1013","o1014","o1015","o1016","o1017","o1018","o1019","o1020"],"finished_at_s":4.35,"max_loop_lag_ms":0,"probe_failures":0}', 7, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_112'), 'The maps API answers 429 once for some orders: retried without blocking', '{"orders":[{"id":"o1001","address":"12 Le Loi"},{"id":"o1002","address":"7 Pasteur"},{"id":"o1003","address":"88 Nguyen Hue"},{"id":"o1004","address":"3 Hai Ba Trung"},{"id":"o1005","address":"41 Dong Khoi"},{"id":"o1006","address":"9 Ly Tu Trong"}],"busy":{"7 Pasteur":1,"41 Dong Khoi":2}}', '{"receipts":[["o1001",21],["o1002",21],["o1003",25],["o1004",26],["o1005",24],["o1006",25]],"saved":["o1001","o1002","o1003","o1004","o1005","o1006"],"finished_at_s":2.15,"max_loop_lag_ms":0,"probe_failures":0}', 6, false, true, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_112'), 'The maps API stays busy for one order: receipt with eta null, still stored', '{"orders":[{"id":"o1001","address":"12 Le Loi"},{"id":"o1002","address":"7 Pasteur"},{"id":"o1003","address":"88 Nguyen Hue"}],"busy":{"88 Nguyen Hue":5}}', '{"receipts":[["o1001",21],["o1002",21],["o1003",null]],"saved":["o1001","o1002","o1003"],"finished_at_s":2.35,"max_loop_lag_ms":0,"probe_failures":0}', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_112'), 'One worker in the pool: renderings queue, the loop still answers', '{"orders":[{"id":"o1001","address":"12 Le Loi"},{"id":"o1002","address":"7 Pasteur"},{"id":"o1003","address":"88 Nguyen Hue"},{"id":"o1004","address":"3 Hai Ba Trung"},{"id":"o1005","address":"41 Dong Khoi"}],"workers":1}', '{"receipts":[["o1001",21],["o1002",21],["o1003",25],["o1004",26],["o1005",24]],"saved":["o1001","o1002","o1003","o1004","o1005"],"finished_at_s":4.35,"max_loop_lag_ms":0,"probe_failures":0}', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_pas_112_starter', 's3', 'challenges/python/chal_coding_pas_112/starter.py', 'raw', 'text/x-python', 6002, 'app/receipts.py')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_112'), 'python', 'app/receipts.py', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_pas_112_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.2: TaskGroup and structured concurrency (Sanity lesson-pas-1-2)
+UPDATE course.lesson SET title = 'TaskGroup and structured concurrency', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-1-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 1 AND is_deleted = false LIMIT 1), 'TaskGroup and structured concurrency', 'sanity', 'lesson-pas-1-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-pas-1-2' AND is_deleted = false);
+
+-- challenge chal_coding_pas_122 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_pas_122', (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-1-2' AND is_deleted = false LIMIT 1), 'tracking-screen-taskgroup', 'Load the tracking screen with a TaskGroup', 'The courier app''s tracking screen needs the order, the courier''s position and the restaurant''s ETA from three services. The first version awaited them one after another (0.75 s) and, when it switched to `asyncio.gather`, a failing restaurant service left the other two calls running in the background. The editor holds `load_tracking` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that the three calls run together in an `asyncio.TaskGroup`, "no courier yet" (`NotAssigned`) shows as `courier: None`, and any `ApiError` cancels the calls still running and raises `TrackingUnavailable` naming the failed services. Run loads the screen on a simulated clock and reports the time it took, the calls still running when `load_tracking` returned and the calls that were cancelled.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_122');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_122'), 1, 'Follow a failure: when the restaurant call raises at 0.1 s, which code cancels the order and courier calls, and what kind of exception reaches the line after the `async with` block?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_122'), 2, 'Look at `asyncio.TaskGroup` with `tg.create_task(...)`, `except*` for the `ExceptionGroup` a TaskGroup raises, and a small wrapper coroutine that turns one expected exception into `None`.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_122'), 3, 'A menu page that loads a restaurant and its reviews together: `async with asyncio.TaskGroup() as tg: r = tg.create_task(api.restaurant(rid)); v = tg.create_task(reviews_or_empty(api, rid))` inside `try:`, then `except* ServiceDown as group: down = sorted({e.service for e in group.exceptions})`, and `reviews_or_empty` returns `[]` on `NoReviews`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"courier-optional","label":"No courier assigned yet is a normal answer","code":"try:\n    return await api.courier(order_id)\nexcept NotAssigned:\n    return None"},{"id":"run-together","label":"Run the three calls together as one group","code":"try:\n    async with asyncio.TaskGroup() as tg:\n        order = tg.create_task(api.order(order_id))\n        courier = tg.create_task(courier_or_none(api, order_id))\n        eta = tg.create_task(api.restaurant_eta(order_id))"},{"id":"collect-failures","label":"Note which services failed","code":"except* ApiError as group:\n    failed = sorted({error.service for error in group.exceptions})"},{"id":"collect-failures-plain-except","label":"Note which services failed","code":"except ApiError as error:\n    failed = [error.service]","distractor":true},{"id":"courier-optional-no-catch","label":"No courier assigned yet is a normal answer","code":"return await api.courier(order_id)","distractor":true},{"id":"run-together-gather","label":"Run the three calls together as one group","code":"try:\n    order = asyncio.ensure_future(api.order(order_id))\n    courier = asyncio.ensure_future(courier_or_none(api, order_id))\n    eta = asyncio.ensure_future(api.restaurant_eta(order_id))\n    await asyncio.gather(order, courier, eta)","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_122');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_122'), 'All three services answer: the screen loads in 0.3 s', '{"order_id":"o1001"}', '{"screen":{"status":"cooking","courier":{"lat":10.7769,"lng":106.7009},"eta":12},"elapsed_s":0.3,"still_running":[],"cancelled":[]}', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_122'), 'No courier has accepted the order yet: courier is null, nothing fails', '{"order_id":"o1002","unassigned":true}', '{"screen":{"status":"cooking","courier":null,"eta":12},"elapsed_s":0.3,"still_running":[],"cancelled":[]}', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_122'), 'The restaurant service fails at 0.1 s: one clear error, the other calls are cancelled', '{"order_id":"o1003","fail":{"restaurant":0.1}}', '{"error":"TrackingUnavailable: restaurant","elapsed_s":0.1,"still_running":[],"cancelled":["courier","order"]}', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_122'), 'Two services fail together: both are named, sorted', '{"order_id":"o1004","fail":{"restaurant":0.1,"courier":0.05}}', '{"error":"TrackingUnavailable: courier","elapsed_s":0.05,"still_running":[],"cancelled":["order","restaurant"]}', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_122'), 'The order service fails last, at 0.2 s: the slow courier call is cancelled', '{"order_id":"o1005","fail":{"order":0.2}}', '{"error":"TrackingUnavailable: order","elapsed_s":0.2,"still_running":[],"cancelled":["courier","restaurant"]}', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_pas_122_starter', 's3', 'challenges/python/chal_coding_pas_122/starter.py', 'raw', 'text/x-python', 4725, 'app/tracking.py')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_122'), 'python', 'app/tracking.py', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_pas_122_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.3: Timeouts and cancellation (Sanity lesson-pas-1-3)
+UPDATE course.lesson SET title = 'Timeouts and cancellation', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-1-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Timeouts and cancellation', 'sanity', 'lesson-pas-1-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-pas-1-3' AND is_deleted = false);
+
+-- challenge chal_quiz_pas_131 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_pas_131', (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-1-3' AND is_deleted = false LIMIT 1), 'timeouts-cancellation-quiz', 'Read the checkout that hung', 'Three statements about the checkout that waited 90 seconds on the payment provider, and the timeouts the team added afterwards. Decide whether each one is true.', 'open', 'hard'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_131');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_131'), 1, 'Since Python 3.8, which class does `asyncio.CancelledError` inherit from, and does `except Exception` catch it? Where does `asyncio.timeout` turn the cancellation into `TimeoutError`?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_131'), 2, 'Add up the worst case of each `async with asyncio.timeout(...)` block when they run one after another.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_131'), 3, '`asyncio.timeout` cancels the task and then expects that cancellation to come back out of the block. What happens to it if the code inside returns normally instead?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_131');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_131'), 'The payment step after the first fix:
+
+```python
+async with asyncio.timeout(2.0):
+    try:
+        charge = await payments.charge(order_id, amount)
+    except Exception:
+        log.exception("charge failed")
+        return {"status": "failed"}
+```
+
+Statement: "`except Exception` swallows the timeout''s cancellation, so a payment provider that hangs still makes this request hang."', 'single_choice'::question_type, 'False. Since Python 3.8 `asyncio.CancelledError` inherits from `BaseException`, not `Exception`, so `except Exception` does not catch it. When the 2 s run out, `asyncio.timeout` cancels the task, the `CancelledError` passes through the `except Exception`, and the `async with` turns it into `TimeoutError` at the block''s exit. A bare `except:` or `except BaseException:` that does not re-raise would swallow it. The misconception is that every `except` around an `await` breaks timeouts.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_131') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_131'), 'The second fix gave every step its own budget:
+
+```python
+async with asyncio.timeout(2.0):
+    reservation = await stock.reserve(order_id)
+async with asyncio.timeout(2.0):
+    charge = await payments.charge(order_id, amount)
+async with asyncio.timeout(2.0):
+    await ledger.record(order_id, charge)
+```
+
+Statement: "Each step is limited to 2 s, so the checkout as a whole never takes more than 2 s."', 'single_choice'::question_type, 'False. Three blocks one after another allow up to 2 + 2 + 2 = 6 s, and the client''s own timeout (or the load balancer''s) fires long before. A request needs one budget for the whole operation: one `async with asyncio.timeout(2.0)` around the steps, or `asyncio.timeout_at(deadline)` with a deadline computed once and passed down. The misconception is that per-step limits add up to the request''s limit.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_131') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_131'), 'A teammate wanted to release the stock when the client disconnects:
+
+```python
+try:
+    async with asyncio.timeout(2.0):
+        charge = await payments.charge(order_id, amount)
+except asyncio.CancelledError:
+    await stock.release(reservation)
+    return {"status": "cancelled"}
+```
+
+Statement: "Returning from the `except asyncio.CancelledError` clause swallows the cancellation; the cleanup should run (for example in `finally`) and the `CancelledError` must propagate, or the timeout cannot turn its cancellation into `TimeoutError`."', 'single_choice'::question_type, 'True. `asyncio.timeout` works by cancelling the task and catching that same cancellation at the end of the block. Here the cancellation is caught first and turned into a normal return, so a slow charge returns `{"status": "cancelled"}` instead of a timeout, and a real client disconnect is reported as a normal result to code that expects the task to be cancelled. The asyncio documentation asks for `CancelledError` to be re-raised after cleanup; `try/finally` (or `except CancelledError: ...; raise`) does that. The misconception is that cancellation is an error you may handle and continue.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_131') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_pas_132 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_pas_132', (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-1-3' AND is_deleted = false LIMIT 1), 'checkout-deadline-cancellation', 'Give the checkout one deadline and clean up on cancel', 'Rice Rocket''s checkout reserves the dishes, charges the card and writes a ledger row. The payment provider once hung for 90 seconds, the first timeout fix gave each step its own 2 s, and a disconnecting client left dishes reserved forever. The editor holds `checkout` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that reserving and charging share one 2.0 s budget (then `{"status": "timeout"}`), stock of an unpaid checkout is released on a timeout, a declined card and a disconnect, a cancellation keeps propagating after that cleanup, and a successful charge always gets its ledger row even if the client disconnects during the write. Run plays one checkout on a simulated clock and reports what the caller saw, the stock still held and the ledger.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_132');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_132'), 1, 'Walk three timelines: a payment that takes 1.95 s, a client that disconnects at 0.5 s (during the charge), and one that disconnects at 0.7 s (during the ledger write). Where is the task when it is cancelled, and what must still happen?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_132'), 2, 'Look at one `async with asyncio.timeout(...)` around several awaits, `except TimeoutError`, `try/finally` for cleanup that must run however the block ends, and `asyncio.shield` for a step that must finish.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_132'), 3, 'A booking flow with the same rules: `async with asyncio.timeout(3): seat = await seats.hold(id); ticket = await tickets.issue(id)` inside `try`, `except TimeoutError: return {"status": "timeout"}`, a `finally:` that releases the seat when no ticket was issued, and `await asyncio.shield(audit.write(ticket))` after the block.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_132'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"deadline","label":"One time budget for reserving and charging","code":"async with asyncio.timeout(2.0):\n    reservation = await deps.stock.reserve(order[\"id\"])\n    charge = await deps.payments.charge(order[\"id\"], order[\"amount\"])"},{"id":"ledger-write","label":"Write the successful charge to the ledger","code":"await asyncio.shield(deps.ledger.record(order[\"id\"], charge))"},{"id":"timeout-answer","label":"Answer a checkout that ran out of time","code":"except TimeoutError:\n    return {\"status\": \"timeout\"}"},{"id":"release-unpaid","label":"Give back the stock of an unpaid checkout","code":"finally:\n    if reservation is not None and not paid:\n        await deps.stock.release(reservation)"},{"id":"deadline-per-step","label":"One time budget for reserving and charging","code":"async with asyncio.timeout(2.0):\n    reservation = await deps.stock.reserve(order[\"id\"])\nasync with asyncio.timeout(2.0):\n    charge = await deps.payments.charge(order[\"id\"], order[\"amount\"])","distractor":true},{"id":"ledger-write-unshielded","label":"Write the successful charge to the ledger","code":"await deps.ledger.record(order[\"id\"], charge)","distractor":true},{"id":"release-unpaid-swallow-cancel","label":"Give back the stock of an unpaid checkout","code":"except asyncio.CancelledError:\n    if reservation is not None and not paid:\n        await deps.stock.release(reservation)\n    return {\"status\": \"cancelled\"}","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_132');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_132'), 'A normal checkout: paid, stock kept for the order, one ledger row', '{"order_id":"o2001"}', '{"outcome":{"status":"paid","charge":"ch-o2001"},"ended_s":0.8,"stock_held":["r-o2001"],"released":0,"ledger":[["o2001","ch-o2001"]]}', 5, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_132'), 'The provider takes 1.95 s: the shared 2 s budget runs out, the stock is released', '{"order_id":"o2002","payment_s":1.95}', '{"outcome":{"status":"timeout"},"ended_s":2.05,"stock_held":[],"released":1,"ledger":[]}', 5, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_132'), 'A declined card: declined, the stock is released', '{"order_id":"o2003","declined":true}', '{"outcome":{"status":"declined"},"ended_s":0.65,"stock_held":[],"released":1,"ledger":[]}', 5, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_132'), 'The client disconnects during the charge: cancelled, the stock is released', '{"order_id":"o2004","payment_s":1,"disconnect_at":0.5}', '{"outcome":"cancelled","ended_s":0.55,"stock_held":[],"released":1,"ledger":[]}', 5, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_132'), 'The client disconnects during the ledger write: cancelled, but the row is written', '{"order_id":"o2005","payment_s":0.5,"disconnect_at":0.7}', '{"outcome":"cancelled","ended_s":0.7,"stock_held":["r-o2005"],"released":0,"ledger":[["o2005","ch-o2005"]]}', 5, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_132'), 'The provider hangs: timeout at 2 s instead of waiting', '{"order_id":"o2006","payment_s":90}', '{"outcome":{"status":"timeout"},"ended_s":2.05,"stock_held":[],"released":1,"ledger":[]}', 5, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_pas_132_starter', 's3', 'challenges/python/chal_coding_pas_132/starter.py', 'raw', 'text/x-python', 4849, 'app/checkout.py')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_132'), 'python', 'app/checkout.py', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_pas_132_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 2: Throughput
+UPDATE course.module SET title = 'Throughput', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 2 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), 'Throughput', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 2 AND is_deleted = false);
+
+-- lesson 2.1: Semaphore-limited fan-out (Sanity lesson-pas-2-1)
+UPDATE course.lesson SET title = 'Semaphore-limited fan-out', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-2-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Semaphore-limited fan-out', 'sanity', 'lesson-pas-2-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-pas-2-1' AND is_deleted = false);
+
+-- challenge chal_coding_pas_142 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_pas_142', (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-2-1' AND is_deleted = false LIMIT 1), 'menu-refresh-bounded-fanout', 'Refresh 300 partner menus with bounded fan-out', 'Every morning Rice Rocket refreshes the menus of its partner restaurants. The first version awaited them one by one (two minutes); the second started all 300 with `asyncio.gather`, the partner gateway answered 429 to everything over 20 open calls, and one broken restaurant failed the whole batch. The editor holds `refresh_menus` with its key lines missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that at most `limit` calls are open at once, all restaurants run concurrently up to that limit, a failing restaurant becomes `{"error": ...}` without stopping the others, and the result keeps the input order. Run refreshes the test''s restaurants on a simulated clock and reports the most calls open at once, the time it took and the failures.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_142');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_142'), 1, 'Count open calls at the busiest moment: which object is shared by all the calls, and where is it created? A limit that every call creates for itself limits nothing.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_142'), 2, 'Look at `asyncio.Semaphore(limit)` created once, `async with slots:` around exactly the partner call, a `try/except PartnerError` per restaurant, and `asyncio.gather` (results in argument order).'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_142'), 3, 'Thumbnails for 1,000 photos with at most 8 uploads at a time: `slots = asyncio.Semaphore(8)` once; `async def upload(p): async with slots: return await cdn.put(p)`; `async def safe(p): try: return {"ok": await upload(p)} except CdnError as e: return {"error": str(e)}`; `await asyncio.gather(*(safe(p) for p in photos))`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_142'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"concurrency-limit","label":"At most `limit` partner calls at a time","code":"slots = asyncio.Semaphore(limit)"},{"id":"guarded-call","label":"One partner call, holding a slot","code":"async with slots:\n    return await partners.menu(restaurant_id)"},{"id":"per-item-errors","label":"One failed restaurant must not fail the batch","code":"try:\n    return {\"ok\": await fetch_one(restaurant_id)}\nexcept PartnerError as error:\n    return {\"error\": str(error)}"},{"id":"run-all","label":"Start every restaurant and keep the input order","code":"results = await asyncio.gather(*(fetch_or_error(rid) for rid in restaurant_ids))"},{"id":"guarded-call-new-semaphore","label":"One partner call, holding a slot","code":"async with asyncio.Semaphore(limit):\n    return await partners.menu(restaurant_id)","distractor":true},{"id":"per-item-errors-none","label":"One failed restaurant must not fail the batch","code":"return {\"ok\": await fetch_one(restaurant_id)}","distractor":true},{"id":"run-all-one-by-one","label":"Start every restaurant and keep the input order","code":"results = [await fetch_or_error(rid) for rid in restaurant_ids]","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_142');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_142'), '25 restaurants, limit 10: never more than 10 open calls, done in 3 rounds', '{"count":25}', '{"max_open":10,"elapsed_s":1.2,"menus":25,"errors":{},"order_kept":true}', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_142'), 'All 300 partners: no 429 from the gateway, 30 rounds of 10', '{"count":300}', '{"max_open":10,"elapsed_s":12,"menus":300,"errors":{},"order_kept":true}', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_142'), 'Two restaurants are down: their errors are listed, the other menus arrive', '{"count":12,"down":["r004","r009"]}', '{"max_open":10,"elapsed_s":0.5,"menus":10,"errors":{"r004":"HTTP 503 from r004","r009":"HTTP 503 from r009"},"order_kept":true}', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_142'), 'Limit 1 for a fragile partner: one call at a time', '{"count":4,"limit":1}', '{"max_open":1,"elapsed_s":1.6,"menus":4,"errors":{},"order_kept":true}', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_142'), 'A slow first restaurant does not reorder the results', '{"restaurants":["r1","r2","r3"],"slow":{"r1":1},"limit":2}', '{"max_open":2,"elapsed_s":1,"menus":3,"errors":{},"order_kept":true}', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_pas_142_starter', 's3', 'challenges/python/chal_coding_pas_142/starter.py', 'raw', 'text/x-python', 4089, 'app/menu_refresh.py')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_142'), 'python', 'app/menu_refresh.py', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_pas_142_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.2: Queues and backpressure (Sanity lesson-pas-2-2)
+UPDATE course.lesson SET title = 'Queues and backpressure', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-2-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Queues and backpressure', 'sanity', 'lesson-pas-2-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-pas-2-2' AND is_deleted = false);
+
+-- challenge chal_coding_pas_152 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_pas_152', (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-2-2' AND is_deleted = false LIMIT 1), 'order-events-queue-backpressure', 'Load the order events through a bounded queue', 'Rice Rocket''s loader reads order events from the stream about ten times faster than the warehouse can write them. With an unbounded `asyncio.Queue` the buffer grew until the pod was OOMKilled; after a fix, one refused event made the loader hang forever on `queue.join()`; another version returned early and dropped the events still in the buffer. The editor holds `run_pipeline` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that at most `maxsize` events wait in the buffer, `workers` writers run concurrently, a refused event goes to the dead-letter list, and the function returns only after every event read is written or dead-lettered, with no writer left running. Run streams the events on a simulated clock and reports the most events held in memory at once, the dead letters, the time and the tasks left over.', 'open', 'hard'::difficulty_question, 'mini_coding', 40, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_152');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_152'), 1, 'Follow one refused event: who calls `queue.task_done()` for it? `queue.join()` waits until every `put` has a matching `task_done`.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_152'), 2, 'Look at `asyncio.Queue(maxsize=...)` (its `put` waits while the queue is full: that is the backpressure), `try/except/finally` in the worker loop, and stopping workers that wait on `get()` forever: `join()` first, then `task.cancel()` and `gather(..., return_exceptions=True)`.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_152'), 3, 'A thumbnail pipeline: `q = asyncio.Queue(maxsize=20)`; `async def worker(): while True: photo = await q.get(); try: await resize(photo) except ResizeError: failed.append(photo) finally: q.task_done()`; start 3 workers; `async for p in uploads: await q.put(p)`; then `await q.join()`, cancel the workers and gather them.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_152'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"bounded-buffer","label":"A buffer that holds at most `maxsize` events","code":"queue = asyncio.Queue(maxsize=maxsize)"},{"id":"write-one","label":"Write one event and always mark it done","code":"try:\n    await sink.write(event)\n    written += 1\nexcept SinkError:\n    dead.append(event[\"id\"])\nfinally:\n    queue.task_done()"},{"id":"start-writers","label":"Start the writers","code":"tasks = [asyncio.create_task(writer()) for _ in range(workers)]"},{"id":"read-source","label":"Read the stream into the buffer","code":"async for event in source:\n    await queue.put(event)"},{"id":"drain-and-stop","label":"Wait for the buffer to drain, then stop the writers","code":"await queue.join()\nfor task in tasks:\n    task.cancel()\nawait asyncio.gather(*tasks, return_exceptions=True)"},{"id":"bounded-buffer-unbounded","label":"A buffer that holds at most `maxsize` events","code":"queue = asyncio.Queue()","distractor":true},{"id":"drain-and-stop-early","label":"Wait for the buffer to drain, then stop the writers","code":"for task in tasks:\n    task.cancel()\nawait asyncio.gather(*tasks, return_exceptions=True)","distractor":true},{"id":"write-one-done-on-success","label":"Write one event and always mark it done","code":"try:\n    await sink.write(event)\n    written += 1\n    queue.task_done()\nexcept SinkError:\n    dead.append(event[\"id\"])","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_152');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_152'), '20 events: all written, no writer left running', '{"count":20}', '{"written":20,"rows_in_warehouse":20,"dead":[],"max_in_memory":16,"elapsed_s":0.54,"tasks_left":0}', 8, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_152'), '1,000 events from a fast stream: memory stays bounded by the buffer', '{"count":1000}', '{"written":1000,"rows_in_warehouse":1000,"dead":[],"max_in_memory":55,"elapsed_s":25.04,"tasks_left":0}', 8, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_152'), 'Two events refused by the warehouse: dead-lettered, the loader finishes', '{"count":60,"bad":["e7","e40"]}', '{"written":58,"rows_in_warehouse":58,"dead":["e7","e40"],"max_in_memory":40,"elapsed_s":1.54,"tasks_left":0}', 8, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_152'), 'One writer and a buffer of 5: still bounded, still complete', '{"count":30,"workers":1,"maxsize":5}', '{"written":30,"rows_in_warehouse":30,"dead":[],"max_in_memory":7,"elapsed_s":3.01,"tasks_left":0}', 8, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_152'), 'An empty stream: returns at once and leaves nothing running', '{"count":0}', '{"written":0,"rows_in_warehouse":0,"dead":[],"max_in_memory":0,"elapsed_s":0,"tasks_left":0}', 8, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_pas_152_starter', 's3', 'challenges/python/chal_coding_pas_152/starter.py', 'raw', 'text/x-python', 4180, 'app/event_loader.py')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_152'), 'python', 'app/event_loader.py', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_pas_152_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.3: Rate limiting with a token bucket (Sanity lesson-pas-2-3)
+UPDATE course.lesson SET title = 'Rate limiting with a token bucket', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-2-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Rate limiting with a token bucket', 'sanity', 'lesson-pas-2-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-pas-2-3' AND is_deleted = false);
+
+-- challenge chal_quiz_pas_161 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_pas_161', (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-2-3' AND is_deleted = false LIMIT 1), 'rate-limiting-quiz', 'Read the 429 storm', 'Three statements about the lunch-rush evening when Rice Rocket''s SMS provider started answering 429. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_161');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_161'), 1, 'A semaphore counts requests that are in flight at the same moment. How many requests per second does that allow when each one takes 50 ms?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_161'), 2, 'Draw the timeline of 100 tasks that each start with `await asyncio.sleep(0.05)`: when does each of them wake up?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_161'), 3, 'Count who keeps sending after the first 429: one task, or all of them? What does the provider see during its Retry-After window?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_161');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_161'), 'The worker limits concurrency, and the provider still rejects requests:
+
+```python
+sem = asyncio.Semaphore(20)
+
+async def send_one(sms):
+    async with sem:
+        return await client.post("/v1/sms", json=sms)   # about 50 ms each
+```
+
+```text
+18:02:11 provider: 412 requests in the last second, limit 20/s (burst 40) -> 429
+```
+
+Statement: "A semaphore of 20 caps how many requests are in flight at once, not how many start per second: with 50 ms responses it lets about 400 requests per second through."', 'single_choice'::question_type, 'True. Each slot is free again after 50 ms, so 20 slots turn over 20 times a second: about 400 requests per second. Concurrency limits protect your own sockets and memory; a provider''s rate limit needs a limiter that counts starts over time, such as a token bucket. The misconception is that a semaphore is a rate limiter.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_161') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_161'), 'The first fix spaced the requests out inside each task:
+
+```python
+async def send_one(sms):
+    await asyncio.sleep(1 / 20)          # 20 per second
+    return await client.post("/v1/sms", json=sms)
+
+async with asyncio.TaskGroup() as tg:
+    for sms in batch:                    # 100 messages
+        tg.create_task(send_one(sms))
+```
+
+Statement: "Each task waits 50 ms before it sends, so the 100 requests leave 50 ms apart, at exactly 20 per second."', 'single_choice'::question_type, 'False. All 100 tasks start at the same moment and all of them sleep for the same 50 ms at the same time, so all 100 requests leave together at t = 50 ms. A sleep inside each task delays the burst, it does not spread it. Spacing needs shared state: one limiter that every task asks, which hands out tokens one after the other (a token bucket behind a lock, or a library such as aiolimiter).', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_161') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_161'), 'During a short provider incident the log shows:
+
+```text
+18:40:01.020 sms-311 429 Retry-After: 2
+18:40:01.070 sms-312 429 Retry-After: 2
+18:40:01.120 sms-313 429 Retry-After: 2
+... 37 more 429s within 2 seconds ...
+18:40:03.050 provider: account rate-limited for 10 minutes (too many rejected requests)
+```
+
+Statement: "Only the task that got the 429 waited for Retry-After; the other senders kept their pace and kept hitting the provider. Pausing the shared limiter for the Retry-After time stops every sender at once."', 'single_choice'::question_type, 'True. Retry-After describes the provider''s state, not one request''s: every request sent in that window will be rejected too. If each task only pauses itself, the rest of the worker keeps sending at full rate and piles up rejections until the provider blocks the account. Recording the pause in the shared limiter (nobody gets a token until it ends) turns 40 rejections into one or two.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_161') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_pas_162 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_pas_162', (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-2-3' AND is_deleted = false LIMIT 1), 'sms-token-bucket', 'A token bucket for the SMS provider', 'Rice Rocket''s provider allows 20 SMS per second with bursts of 40; above that it answers 429 with Retry-After, and more than 20 rejections in one run block the account. The editor holds `sms_limiter.py` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that `TokenBucket(rate, capacity)` starts full, refills `rate` tokens per second up to `capacity`, and hands tokens out one caller at a time (waiting exactly until the next token); nobody gets a token while `paused_until` is in the future; and `send_all` sends every message concurrently through the bucket, pausing the whole worker for Retry-After on a 429 and then sending that message again. Run plays the batches on asyncio''s clock (it jumps instead of waiting) against a simulated provider.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_162');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_162'), 1, 'Follow the 41st message of a burst: how many tokens are left, how long until the next one, and what stops the 42nd from taking the same token?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_162'), 2, 'Look at the bucket''s state (tokens, last refill time, a lock, paused_until), `min(capacity, ...)` in the refill, `async with self.lock`, and `asyncio.TaskGroup` for the fan-out.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_162'), 3, 'A limiter for crawling one website at 2 pages per second with bursts of 5 looks like: `tokens = min(5, tokens + elapsed * 2)`; under one `asyncio.Lock`, if `tokens < 1` sleep `(1 - tokens) / 2`, refill again, then `tokens -= 1`; on a 503 with Retry-After set `paused_until = max(paused_until, now + retry_after)` on the shared limiter.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_162'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"bucket-state","label":"A full bucket, its clock and one lock for all callers","code":"self.rate = rate\nself.capacity = capacity\nself.tokens = float(capacity)\nself.updated = asyncio.get_running_loop().time()\nself.paused_until = 0.0\nself.lock = asyncio.Lock()"},{"id":"refill","label":"Add the tokens earned since the last look, up to capacity","code":"self.tokens = min(self.capacity, self.tokens + (now - self.updated) * self.rate)\nself.updated = now"},{"id":"take-or-wait","label":"Take a token, or wait exactly until the next one","code":"async with self.lock:\n    while loop.time() < self.paused_until:\n        await asyncio.sleep(self.paused_until - loop.time())\n    self._refill(loop.time())\n    if self.tokens < 1:\n        await asyncio.sleep((1 - self.tokens) / self.rate)\n        self._refill(loop.time())\n    self.tokens -= 1"},{"id":"pause-on-429","label":"Pause every sender for the Retry-After time","code":"bucket.paused_until = max(bucket.paused_until, loop.time() + retry_after)"},{"id":"fan-out","label":"Send every message concurrently and wait for all of them","code":"async with asyncio.TaskGroup() as tg:\n    for message in messages:\n        tg.create_task(one(message))"},{"id":"pause-own-task","label":"Pause every sender for the Retry-After time","code":"await asyncio.sleep(retry_after)","distractor":true},{"id":"refill-no-cap","label":"Add the tokens earned since the last look, up to capacity","code":"self.tokens = self.tokens + (now - self.updated) * self.rate\nself.updated = now","distractor":true},{"id":"take-or-wait-per-task","label":"Take a token, or wait exactly until the next one","code":"while loop.time() < self.paused_until:\n    await asyncio.sleep(self.paused_until - loop.time())\nself._refill(loop.time())\nif self.tokens < 1:\n    await asyncio.sleep(1 / self.rate)\nself.tokens -= 1","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_162');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_162'), 'A burst of 100 SMS: no 429, 40 at once then 20 per second', '{"rate":20,"capacity":40,"provider":{"rate":20,"capacity":40},"batches":[{"at":0,"count":100}]}', '{"sent":100,"rejected":0,"blocked":false,"busiest_second":59,"finished_at":3}', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_162'), 'Ten quiet seconds between two batches do not overfill the bucket', '{"rate":20,"capacity":40,"provider":{"rate":20,"capacity":40},"batches":[{"at":0,"count":30},{"at":10,"count":80}]}', '{"sent":110,"rejected":0,"blocked":false,"busiest_second":59,"finished_at":12}', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_162'), 'A 429 with Retry-After pauses the whole worker, and every SMS still goes out', '{"rate":20,"capacity":40,"provider":{"rate":20,"capacity":40},"batches":[{"at":0,"count":120}],"outage":{"from":1,"to":1.5,"retry_after":2}}', '{"sent":120,"rejected":2,"blocked":false,"busiest_second":59,"finished_at":4.1}', 6, false, true, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_162'), 'A limiter set below the provider''s limit paces the run by its own rate', '{"rate":10,"capacity":10,"provider":{"rate":20,"capacity":40},"batches":[{"at":0,"count":50}]}', '{"sent":50,"rejected":0,"blocked":false,"busiest_second":19,"finished_at":4}', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_162'), 'Three batches 20 s apart after an incident window, never blocked', '{"rate":20,"capacity":40,"provider":{"rate":20,"capacity":40},"batches":[{"at":0,"count":60},{"at":20,"count":60},{"at":40,"count":60}],"outage":{"from":21,"to":22,"retry_after":3}}', '{"sent":180,"rejected":1,"blocked":false,"busiest_second":59,"finished_at":41}', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_pas_162_starter', 's3', 'challenges/python/chal_coding_pas_162/starter.py', 'raw', 'text/x-python', 4730, 'sms_limiter.py')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_162'), 'python', 'sms_limiter.py', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_pas_162_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 3: Production
+UPDATE course.module SET title = 'Production', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 3 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), 'Production', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 3 AND is_deleted = false);
+
+-- lesson 3.1: Retries with backoff and jitter (Sanity lesson-pas-3-1)
+UPDATE course.lesson SET title = 'Retries with backoff and jitter', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-3-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Retries with backoff and jitter', 'sanity', 'lesson-pas-3-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-pas-3-1' AND is_deleted = false);
+
+-- challenge chal_coding_pas_172 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_pas_172', (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-3-1' AND is_deleted = false LIMIT 1), 'retry-backoff-jitter', 'Fix the gateway retry loop', 'Rice Rocket''s order-status poller asks the payment gateway about 300 pending orders. During a five-minute gateway outage its retry helper made things worse: all 300 pollers retried in lockstep every second and knocked the gateway over again as it came back, `400 order not found` answers were retried until the attempts ran out, a request kept retrying after its deadline, and a cancelled request went on calling the gateway in the background. The editor holds `retry.py` with the repaired helper''s key blocks missing, each marked by a `# [ ]` line; the wrong pieces are the old helper''s code. Fill every line so that `call_with_retry` retries only TimeoutError, ConnectionError and HTTP 429/502/503/504, waits `rng.uniform(0, min(cap, base * 2 ** attempt))` (Retry-After as a minimum), never sleeps past the deadline, never swallows cancellation, and finally raises the last error. Run plays single calls, a 300-poller outage and a cancellation on asyncio''s clock.', 'open', 'medium'::difficulty_question, 'fix_bug', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_172');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_172'), 1, 'Take the symptoms one by one: which line decides what gets retried, which decides how long to wait, and which one should look at the clock before sleeping?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_172'), 2, 'Look at the exception classes in the `except` clauses (and what `BaseException` also catches), `rng.uniform` with `base * 2 ** attempt`, and comparing `loop.time() + delay` with the give-up time.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_172'), 3, 'A retry helper for an S3 upload looks like: `except (TimeoutError, ConnectionError)` and `except ClientError` with a status check that re-raises 4xx; `delay = rng.uniform(0, min(20, 0.2 * 2 ** attempt))`; `if loop.time() + delay > give_up_at: break`; after the loop, `raise last`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_172'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"retryable-errors","label":"Which failures are worth another try","code":"except (TimeoutError, ConnectionError) as error:\n    last, retry_after = error, None\nexcept HTTPError as error:\n    if error.status not in RETRYABLE_STATUS:\n        raise\n    last, retry_after = error, error.retry_after"},{"id":"backoff-delay","label":"Exponential backoff with full jitter, or Retry-After","code":"delay = rng.uniform(0, min(cap, base * 2 ** attempt))\nif retry_after is not None:\n    delay = max(delay, retry_after)"},{"id":"deadline-check","label":"Give up instead of sleeping past the deadline","code":"if loop.time() + delay > give_up_at:\n    break"},{"id":"deadline-before-sleep-only","label":"Give up instead of sleeping past the deadline","code":"if loop.time() >= give_up_at:\n    break","distractor":true},{"id":"fixed-one-second","label":"Exponential backoff with full jitter, or Retry-After","code":"delay = 1.0\nif retry_after is not None:\n    delay = max(delay, retry_after)","distractor":true},{"id":"retry-even-cancel","label":"Which failures are worth another try","code":"except BaseException as error:\n    if isinstance(error, HTTPError) and error.status not in RETRYABLE_STATUS:\n        raise\n    last, retry_after = error, getattr(error, \"retry_after\", None)","distractor":true},{"id":"retry-everything","label":"Which failures are worth another try","code":"except Exception as error:\n    last, retry_after = error, getattr(error, \"retry_after\", None)","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_172');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_172'), 'Timeouts, a reset and a 503, then success: retried with jittered backoff', '{"scenario":"single","outcomes":["timeout","conn",503,"ok"],"attempts":5,"base":0.5,"cap":8,"deadline":30}', '{"result":"ok","calls_at":[0,0.167,1.115,2.742],"finished_at":2.842}', 5, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_172'), '400 order not found is raised at once, never retried', '{"scenario":"single","outcomes":[400],"attempts":5,"base":0.5,"cap":8,"deadline":30}', '{"result":"HTTPError 400","calls_at":[0],"finished_at":0.1}', 5, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_172'), '429 with Retry-After: 3 waits at least 3 seconds before trying again', '{"scenario":"single","outcomes":[{"status":429,"retry_after":3},"ok"],"attempts":5,"base":0.5,"cap":8,"deadline":30}', '{"result":"ok","calls_at":[0,3.1],"finished_at":3.2}', 5, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_172'), 'With a 6 s deadline the helper gives up instead of sleeping past it', '{"scenario":"single","outcomes":[503,503,503,503,503,503],"attempts":6,"base":1,"cap":8,"deadline":6}', '{"result":"HTTPError 503","calls_at":[0,0.234,2.029,5.184],"finished_at":5.284}', 5, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_172'), '300 pollers through a 5 s outage: spread out, no wave when the gateway is back', '{"scenario":"herd","clients":300,"down_until":5}', '{"ok":300,"failed":0,"calls":1771,"peak_calls_per_second":830,"calls_in_first_second_back":92,"all_done_at":12.43}', 5, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_172'), 'A cancelled request stops and never calls the gateway again', '{"scenario":"cancelled","cancel_at":2}', '{"state":"cancelled","calls_at":[0]}', 5, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_pas_172_starter', 's3', 'challenges/python/chal_coding_pas_172/starter.py', 'raw', 'text/x-python', 6169, 'retry.py')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_172'), 'python', 'retry.py', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_pas_172_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.2: Sync code in async apps: threads, executors and free-threading (Sanity lesson-pas-3-2)
+UPDATE course.lesson SET title = 'Sync code in async apps: threads, executors and free-threading', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-3-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Sync code in async apps: threads, executors and free-threading', 'sanity', 'lesson-pas-3-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-pas-3-2' AND is_deleted = false);
+
+-- challenge chal_quiz_pas_181 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_pas_181', (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-3-2' AND is_deleted = false LIMIT 1), 'sync-code-threads-quiz', 'Read the slow receipts', 'Three statements about the week Rice Rocket''s api slowed down every endpoint while it generated receipt PDFs. Decide whether each one is true.', 'open', 'hard'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_181');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_181'), 1, 'Check which Python build the pod runs (`sys._is_gil_enabled()` exists from 3.13). With the GIL, how many threads can execute Python bytecode at the same moment?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_181'), 2, 'Ask where the call runs: an `async def` endpoint runs on the event loop thread itself; where does FastAPI run a plain `def` endpoint?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_181'), 3, 'Look up the default `max_workers` of `ThreadPoolExecutor` in the docs, then read the timestamps: do the 64 calls start together or in groups?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_181');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_181'), 'Receipts are now rendered off the event loop, on a pod with 8 cores running the standard CPython 3.13 build:
+
+```python
+async def render_all(orders):
+    return await asyncio.gather(*(asyncio.to_thread(render_pdf, o) for o in orders))
+```
+
+```text
+render_pdf alone:            310 ms  (pure Python, CPU-bound)
+render_all, 8 orders:       2480 ms
+$ python -c ''import sys; print(sys._is_gil_enabled())''
+True
+```
+
+Statement: "`asyncio.to_thread` runs the 8 renders in parallel on the 8 cores, so the batch should take about 310 ms; 2480 ms means the thread pool is misconfigured."', 'single_choice'::question_type, 'False. On the standard (GIL) build only one thread executes Python bytecode at a time, so 8 CPU-bound renders in threads take about 8 x 310 ms. `to_thread` still helps: the event loop keeps serving other requests between bytecode slices, and threads do overlap blocking I/O. CPU-bound parallelism needs processes (`loop.run_in_executor(ProcessPoolExecutor(), ...)`), C code that releases the GIL, or the free-threaded build (`python3.14t`), where pure-Python threads can run in parallel.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_181') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_181'), 'The receipt endpoint uploads the PDF with a synchronous SDK, and the p99 of every endpoint jumps while it runs:
+
+```python
+@app.post("/orders/{order_id}/receipt")
+async def receipt(order_id: int):
+    pdf = await render(order_id)
+    s3.put_object(Bucket="rr-receipts", Key=f"{order_id}.pdf", Body=pdf)   # boto3, ~400 ms
+    return {"ok": True}
+```
+
+```text
+asyncio WARNING Executing <Task pending name=''Task-91'' coro=<receipt() running at api/receipts.py:7>> took 0.412 seconds
+```
+
+Statement: "`put_object` blocks the event loop thread, so every other request waits; declaring the endpoint as plain `def` (FastAPI then runs it in its threadpool) or wrapping the call in `await asyncio.to_thread(...)` fixes it."', 'single_choice'::question_type, 'True. An `async def` endpoint runs on the event loop thread; a blocking call inside it stops every other coroutine for its whole duration, which asyncio''s debug mode reports as a slow callback. FastAPI runs plain `def` endpoints in a worker threadpool, and `asyncio.to_thread` moves one call there; an async SDK (aioboto3) avoids the thread entirely. The misconception is that `async def` makes the code inside it non-blocking.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_181') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_181'), 'A batch job pushes 64 blocking webhook calls through the default executor on a 4-core pod:
+
+```python
+loop = asyncio.get_running_loop()
+results = await asyncio.gather(*(loop.run_in_executor(None, post_webhook, h) for h in hooks))   # 64 hooks, ~1 s each
+```
+
+```text
+started 8 calls at 0.00s, 8 more at 1.01s, 8 more at 2.02s ... finished at 8.07s
+```
+
+Statement: "The default executor starts one thread per submitted call, so all 64 webhooks run at once; the 8-second run means the webhook server is slow."', 'single_choice'::question_type, 'False. The default executor is a `ThreadPoolExecutor` with `min(32, os.cpu_count() + 4)` workers: 8 on a 4-core pod, so the calls run in batches of 8, exactly as the timestamps show. For I/O-bound work, size a dedicated executor (`ThreadPoolExecutor(max_workers=32)` passed to `run_in_executor`, or `loop.set_default_executor`) or, better, use an async HTTP client with a semaphore. The misconception is that executors are unbounded.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_181') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+
+-- lesson 3.3: Graceful shutdown and signal handling (Sanity lesson-pas-3-3)
+UPDATE course.lesson SET title = 'Graceful shutdown and signal handling', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-3-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Graceful shutdown and signal handling', 'sanity', 'lesson-pas-3-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-pas-3-3' AND is_deleted = false);
+
+-- challenge chal_quiz_pas_191 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_pas_191', (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-3-3' AND is_deleted = false LIMIT 1), 'graceful-shutdown-quiz', 'Read the deploy that lost locations', 'Three statements about what happened to Rice Rocket''s courier-location worker during a rolling deploy. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_191');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_191'), 1, 'Which signals does `asyncio.run` turn into cancellation of the main task, and what does the Python default handler do with SIGTERM?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_191'), 2, 'Follow the pod''s termination timeline in the Kubernetes docs: what is sent first, how long the kubelet waits, and what comes after the wait.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_191'), 3, 'Who receives SIGTERM in a FastAPI pod started with `uvicorn api.main:app`: your code or the server? Which part of your app runs after the server stops taking requests?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_191');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_191'), 'The worker''s main function wraps its loop in try/finally, yet a deploy shows no flush at all:
+
+```python
+async def main():
+    try:
+        await consume_forever()
+    finally:
+        await flush_batch()          # writes the buffered locations
+        log.info("worker stopped cleanly")
+
+asyncio.run(main())
+```
+
+```text
+$ kubectl -n rice-rocket logs courier-worker-7f9c-x2 --previous | tail -2
+12:30:58 wrote 50 locations
+12:31:00 wrote 50 locations
+$ kubectl -n rice-rocket get events --field-selector involvedObject.name=courier-worker-7f9c-x2 | tail -1
+Normal  Killing  pod/courier-worker-7f9c-x2  Stopping container worker
+```
+
+Statement: "`asyncio.run` turns SIGTERM into a cancellation of `main()`, so the `finally` block ran and the log line is just missing."', 'single_choice'::question_type, 'False. `asyncio.run` handles SIGINT (Ctrl+C): since Python 3.11 it cancels the main task so `finally` blocks run. SIGTERM keeps Python''s default action, which ends the process at once: no cancellation, no `finally`, no flush. A worker that must clean up registers its own handler, `loop.add_signal_handler(signal.SIGTERM, stop.set)` (Unix only), and lets the main loop finish its work.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_191') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_191'), 'The cleanup handler is now installed, but long batches still end mid-write:
+
+```yaml
+# deployment courier-worker
+spec:
+  template:
+    spec:
+      terminationGracePeriodSeconds: 30
+```
+
+```text
+12:45:00.010 SIGTERM received, draining 3 handlers
+12:45:30.012 (no more log lines)
+$ kubectl -n rice-rocket get pod courier-worker-7f9c-k8 -o jsonpath=''{.status.containerStatuses[0].lastState.terminated.exitCode}''
+137
+```
+
+Statement: "Kubernetes sends SIGTERM, waits terminationGracePeriodSeconds (30 s here), then sends SIGKILL; a drain that takes longer than that is cut off, which the exit code 137 (128 + 9) confirms."', 'single_choice'::question_type, 'True. After SIGTERM the kubelet waits the grace period (default 30 s, counted from the start of termination, preStop hook included) and then kills the container with SIGKILL, which no handler can catch. Exit code 137 means killed by signal 9. The worker''s own drain timeout must be shorter than the grace period, with room for the final flush; cancelled work stays unacknowledged and is redelivered to the next pod.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_191') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_191'), 'The api pod runs FastAPI under uvicorn and closes its database pool in the lifespan handler:
+
+```python
+@asynccontextmanager
+async def lifespan(app):
+    app.state.db = await create_pool()
+    yield
+    await app.state.db.close()
+```
+
+```text
+$ uvicorn api.main:app --timeout-graceful-shutdown 20
+... SIGTERM
+INFO:     Shutting down
+INFO:     Waiting for connections to close. (CTRL+C to force quit)
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+```
+
+Statement: "uvicorn handles SIGTERM itself: it stops accepting connections, waits up to the graceful-shutdown timeout for open requests, and only then runs the code after `yield` in the lifespan handler."', 'single_choice'::question_type, 'True. The server owns the signal: uvicorn installs SIGINT and SIGTERM handlers, stops accepting new connections, waits for in-flight requests (bounded by `--timeout-graceful-shutdown`), and then runs the application''s lifespan shutdown, where the pool is closed. Your code should not install a competing SIGTERM handler in a uvicorn app; put cleanup after `yield`. Keep the timeout below the pod''s terminationGracePeriodSeconds.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pas_191') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_pas_192 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_pas_192', (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-asyncio-services') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-pas-3-3' AND is_deleted = false LIMIT 1), 'graceful-worker-shutdown', 'Drain the location worker on SIGTERM', 'Rice Rocket''s courier-location worker loses or duplicates updates on every deploy. The editor holds `worker.py` with the shutdown-aware consumer''s key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. The SIGTERM handler only sets `stop`. Fill every line so that `run_worker` stops fetching as soon as `stop` is set (it never waits for another message after that), runs at most `concurrency` handlers at once, acknowledges a message only after its handler finished, and on stop gives running handlers up to `grace` seconds, then cancels the rest, waits until they stopped and returns the ids it cancelled. Unacknowledged messages are redelivered to the next pod; Kubernetes kills the process `kill_after` seconds after SIGTERM. Run plays deploys on asyncio''s clock.', 'open', 'hard'::difficulty_question, 'mini_coding', 40, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_192');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_192'), 1, 'Walk through a deploy second by second: what is the loop waiting on when SIGTERM arrives, which handlers are running, and what must be true about acknowledgements when the process exits?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_192'), 2, 'Look at `asyncio.wait({get, stop_wait}, return_when=asyncio.FIRST_COMPLETED)`, `asyncio.Semaphore`, `asyncio.wait(tasks, timeout=...)`, `task.cancel()` followed by `asyncio.gather(..., return_exceptions=True)`.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_192'), 3, 'A crawler that stops on Ctrl+C looks like: race `queue.get()` against `stop.wait()` with `asyncio.wait(..., FIRST_COMPLETED)` and cancel the losing `get`; start each page under a semaphore; on stop `done, pending = await asyncio.wait(running, timeout=10)`, cancel `pending` and `await asyncio.gather(*pending, return_exceptions=True)`; save a page as visited only after it was stored.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_192'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"work-then-ack","label":"Handle the message, then acknowledge it","code":"await handle(message)\nawait source.ack(message[\"id\"])"},{"id":"fetch-until-stop","label":"Fetch the next message, unless stop comes first","code":"get = asyncio.ensure_future(source.get())\nfinished, _ = await asyncio.wait({get, stop_wait}, return_when=asyncio.FIRST_COMPLETED)\nif get not in finished:\n    get.cancel()\n    break\nmessage = get.result()"},{"id":"bounded-start","label":"Start the handler, at most `concurrency` at a time","code":"await slots.acquire()\ntask = asyncio.create_task(work(message))\nin_flight.add(task)\ntask.add_done_callback(in_flight.discard)"},{"id":"drain-with-grace","label":"Let running handlers finish, but only for `grace` seconds","code":"if in_flight:\n    await asyncio.wait(set(in_flight), timeout=grace)"},{"id":"cancel-leftovers","label":"Cancel what is still running and wait until it stopped","code":"leftovers = list(in_flight)\nfor task in leftovers:\n    task.cancel()\nawait asyncio.gather(*leftovers, return_exceptions=True)"},{"id":"ack-before-handle","label":"Handle the message, then acknowledge it","code":"await source.ack(message[\"id\"])\nawait handle(message)","distractor":true},{"id":"cancel-without-waiting","label":"Cancel what is still running and wait until it stopped","code":"for task in list(in_flight):\n    task.cancel()","distractor":true},{"id":"drain-without-timeout","label":"Let running handlers finish, but only for `grace` seconds","code":"if in_flight:\n    await asyncio.wait(set(in_flight))","distractor":true},{"id":"fetch-ignores-stop","label":"Fetch the next message, unless stop comes first","code":"if stop.is_set():\n    break\nmessage = await source.get()","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_192');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_192'), 'SIGTERM when everything is done: all acknowledged, clean exit at once', '{"messages":[{"id":"loc-1","at":0,"duration":1},{"id":"loc-2","at":1,"duration":2},{"id":"loc-3","at":2,"duration":1},{"id":"loc-4","at":4,"duration":1}],"concurrency":4,"grace":20,"kill_after":30,"sigterm_at":10}', '{"acked":["loc-1","loc-2","loc-3","loc-4"],"cancelled":[],"lost":[],"redelivered":[],"fetched_after_sigterm":[],"killed":false,"exited_at":10}', 8, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_192'), 'SIGTERM mid-run: running handlers finish, later messages stay for the next pod', '{"messages":[{"id":"loc-1","at":0,"duration":2},{"id":"loc-2","at":1,"duration":4},{"id":"loc-3","at":5,"duration":1},{"id":"loc-4","at":6,"duration":1}],"concurrency":4,"grace":20,"kill_after":30,"sigterm_at":3}', '{"acked":["loc-1","loc-2"],"cancelled":[],"lost":[],"redelivered":["loc-3","loc-4"],"fetched_after_sigterm":[],"killed":false,"exited_at":5}', 8, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_192'), 'A 60 s handler is cancelled after the grace period, unacknowledged, before SIGKILL', '{"messages":[{"id":"loc-1","at":0,"duration":60},{"id":"loc-2","at":1,"duration":2}],"concurrency":4,"grace":20,"kill_after":30,"sigterm_at":5}', '{"acked":["loc-2"],"cancelled":["loc-1"],"lost":[],"redelivered":["loc-1"],"fetched_after_sigterm":[],"killed":false,"exited_at":25}', 8, false, true, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_192'), 'Two at a time: queued messages and a short grace period', '{"messages":[{"id":"loc-1","at":0,"duration":3},{"id":"loc-2","at":0,"duration":3},{"id":"loc-3","at":0,"duration":3},{"id":"loc-4","at":0,"duration":3},{"id":"loc-5","at":0,"duration":3}],"concurrency":2,"grace":2,"kill_after":30,"sigterm_at":4}', '{"acked":["loc-1","loc-2","loc-3","loc-4"],"cancelled":["loc-5"],"lost":[],"redelivered":["loc-5"],"fetched_after_sigterm":[],"killed":false,"exited_at":8}', 8, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_192'), 'An idle worker exits as soon as SIGTERM arrives', '{"messages":[],"concurrency":4,"grace":20,"kill_after":30,"sigterm_at":5}', '{"acked":[],"cancelled":[],"lost":[],"redelivered":[],"fetched_after_sigterm":[],"killed":false,"exited_at":5}', 8, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_pas_192_starter', 's3', 'challenges/python/chal_coding_pas_192/starter.py', 'raw', 'text/x-python', 4567, 'worker.py')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_pas_192'), 'python', 'worker.py', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_pas_192_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
 
 -- learners enrolled before these lessons existed
 INSERT INTO learning.history (user_id, course_id, module_id, lesson_id)

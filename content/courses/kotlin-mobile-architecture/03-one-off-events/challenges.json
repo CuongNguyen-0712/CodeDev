@@ -1,0 +1,134 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_kma_131",
+      "name": "one-off-events-quiz",
+      "type": "quiz",
+      "title": "Read the lost and repeated messages",
+      "description": "Three statements about how the courier app delivered 'new order' and 'order cancelled' messages before the fix. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "ui-events"
+      ],
+      "points": 10,
+      "hints": [
+        "On rotation the Activity and its composition are recreated, but the ViewModel survives. What does the new screen read first?",
+        "Look up what `MutableSharedFlow()` with no replay and no buffer does with a value emitted while it has zero subscribers.",
+        "A `Channel` holds sent elements until someone receives them. How many receivers get each element?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Navigation to the delivery screen was a field of the UI state:\n\n```kotlin\ndata class OrdersState(val navigateTo: String? = null /* ... */)\n\n// screen\nval state by viewModel.state.collectAsStateWithLifecycle()\nLaunchedEffect(state.navigateTo) {\n    state.navigateTo?.let { navController.navigate(\"delivery/$it\") }\n}\n```\n\n```text\n1. Courier accepts O-2231 -> delivery screen opens\n2. Courier presses Back, rotates the phone on the orders screen\n3. The delivery screen for O-2231 opens again\n```\n\nStatement: \"Because Compose recreates the screen on rotation, a `navigateTo` value in the state is acted on only once.\"",
+          "explanation": "False. The ViewModel survives rotation and still holds `navigateTo = \"O-2231\"`; the new composition collects it and `LaunchedEffect` runs again. A value that triggers something must be cleared once handled: the screen calls `viewModel.onNavigated()` (or acknowledges a message by id) and the reducer sets it back to null. Recreating the UI is exactly why handled-but-not-cleared state repeats.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The first fix moved messages to a SharedFlow:\n\n```kotlin\nprivate val _messages = MutableSharedFlow<String>()\nval messages = _messages.asSharedFlow()\n\nfun onCancelledByCustomer(id: String) = viewModelScope.launch {\n    _messages.emit(\"Order $id was cancelled by the customer\")\n}\n```\n\n```text\n18:40:02  courier switches to the maps app (screen stops collecting)\n18:40:09  push: O-2231 cancelled -> emit(...)\n18:40:30  courier returns: no message, drives to the restaurant anyway\n```\n\nStatement: \"The message waits in the SharedFlow until the screen starts collecting again, so the courier saw it on return.\"",
+          "explanation": "False. `MutableSharedFlow()` defaults to no replay and no buffer; when it has no subscribers, `emit` returns at once and the value is dropped. `collectAsStateWithLifecycle` / `repeatOnLifecycle` stop collecting in the background, so the cancellation was lost. Either keep pending messages in the state until the UI acknowledges them, or use a `Channel` that buffers until received.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "For a UI-only effect (a snackbar that may be skipped if nobody sees it), a teammate proposes:\n\n```kotlin\nprivate val _effects = Channel<String>(Channel.BUFFERED)\nval effects = _effects.receiveAsFlow()\n\n// screen\nLaunchedEffect(Unit) {\n    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {\n        viewModel.effects.collect { snackbar.showSnackbar(it) }\n    }\n}\n```\n\nStatement: \"Elements sent while the screen is in the background stay in the channel's buffer and are received when it collects again, and each element goes to one collector only.\"",
+          "explanation": "True. A buffered `Channel` keeps sent elements until a receiver takes them, and `receiveAsFlow` hands each element to exactly one collector, so nothing is replayed after rotation. The remaining gap: an element received just before the collector is cancelled can be lost, which is why Android's guidance prefers modelling important events as state that the UI acknowledges; a channel is acceptable for effects you can afford to drop.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_kma_132",
+      "name": "courier-messages-fix",
+      "type": "fix_bug",
+      "title": "Fix the courier message queue",
+      "description": "Couriers missed 'order cancelled' messages and sometimes saw a newer message before an older one. The app now keeps pending messages in `CourierState.messages`; the screen shows `currentMessage(state)` and calls `messageShown(state, id)` when the courier dismisses it. Last week's version had three bugs. The editor holds the file with the message functions missing, each marked by a `// [ ]` line; the buggy versions are among the pieces. Fill every line so that: every message is queued with its own id, even when two arrive back to back or while the app is in the background; the oldest pending message is shown first; dismissing removes exactly the message that was shown, even if the acknowledgement arrives twice; and a cancellation removes the order and queues its message in one state change. Run simulates the screen going to the background, rotating and the courier tapping, and prints what is shown after each step.",
+      "difficulty": "medium",
+      "outcomes": [
+        "ui-events"
+      ],
+      "points": 30,
+      "hints": [
+        "Follow two messages that arrive while the screen is in the background. Which function decides whether the first one survives the second, which one decides the order they are shown in, and which one decides what a repeated acknowledgement removes?",
+        "Look at `+` versus `listOf(...)` for queuing, `firstOrNull()` versus `lastOrNull()` for what is shown, and removing by id (`filterNot { it.id == id }`) versus by position (`drop(1)`).",
+        "A download queue that the UI acknowledges: `fun enqueue(s: State, url: String) = s.copy(jobs = s.jobs + Job(s.nextId, url), nextId = s.nextId + 1)`, `fun current(s: State) = s.jobs.firstOrNull()`, `fun done(s: State, id: Long) = s.copy(jobs = s.jobs.filterNot { it.id == id })`."
+      ],
+      "coding": {
+        "language": "kotlin",
+        "filePath": "CourierMessages.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two messages while in the background are both shown on return, oldest first",
+          "input": "assigned O-2231\nbackground\nassigned O-2240\ncancelled O-2231\nforeground\ntap\ntap\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "assigned O-2231 -> showing #1 New order O-2231 | orders=[O-2231] | queued=1\nbackground -> showing nothing | orders=[O-2231] | queued=1\nassigned O-2240 -> showing nothing | orders=[O-2231, O-2240] | queued=2\ncancelled O-2231 -> showing nothing | orders=[O-2240] | queued=3\nforeground -> showing #1 New order O-2231 | orders=[O-2240] | queued=3\ntap -> showing #2 New order O-2240 | orders=[O-2240] | queued=2\ntap -> showing #3 Order O-2231 was cancelled by the customer | orders=[O-2240] | queued=1"
+        },
+        {
+          "name": "Rotation shows an unacknowledged message again; a dismissed one never returns",
+          "input": "assigned O-2231\nrotate\ntap\nrotate\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "assigned O-2231 -> showing #1 New order O-2231 | orders=[O-2231] | queued=1\nrotate -> showing #1 New order O-2231 | orders=[O-2231] | queued=1\ntap -> showing nothing | orders=[O-2231] | queued=0\nrotate -> showing nothing | orders=[O-2231] | queued=0"
+        },
+        {
+          "name": "A cancellation removes the order and tells the courier",
+          "input": "assigned O-2231\nassigned O-2240\ntap\ntap\ncancelled O-2240\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "assigned O-2231 -> showing #1 New order O-2231 | orders=[O-2231] | queued=1\nassigned O-2240 -> showing #1 New order O-2231 | orders=[O-2231, O-2240] | queued=2\ntap -> showing #2 New order O-2240 | orders=[O-2231, O-2240] | queued=1\ntap -> showing nothing | orders=[O-2231, O-2240] | queued=0\ncancelled O-2240 -> showing #3 Order O-2240 was cancelled by the customer | orders=[O-2231] | queued=1"
+        },
+        {
+          "name": "A repeated acknowledgement does not swallow the next message",
+          "input": "assigned O-2231\nassigned O-2240\ncancelled O-2231\ntap-twice\ntap\ntap\n",
+          "hidden": true,
+          "score": 6,
+          "expected": "assigned O-2231 -> showing #1 New order O-2231 | orders=[O-2231] | queued=1\nassigned O-2240 -> showing #1 New order O-2231 | orders=[O-2231, O-2240] | queued=2\ncancelled O-2231 -> showing #1 New order O-2231 | orders=[O-2240] | queued=3\ntap-twice -> showing #2 New order O-2240 | orders=[O-2240] | queued=2\ntap -> showing #3 Order O-2231 was cancelled by the customer | orders=[O-2240] | queued=1\ntap -> showing nothing | orders=[O-2240] | queued=0"
+        },
+        {
+          "name": "Messages that arrive while one is on screen wait their turn",
+          "input": "assigned O-3001\nassigned O-3002\nassigned O-3003\ntap\nrotate\ntap\ntap\n",
+          "hidden": true,
+          "score": 6,
+          "expected": "assigned O-3001 -> showing #1 New order O-3001 | orders=[O-3001] | queued=1\nassigned O-3002 -> showing #1 New order O-3001 | orders=[O-3001, O-3002] | queued=2\nassigned O-3003 -> showing #1 New order O-3001 | orders=[O-3001, O-3002, O-3003] | queued=3\ntap -> showing #2 New order O-3002 | orders=[O-3001, O-3002, O-3003] | queued=2\nrotate -> showing #2 New order O-3002 | orders=[O-3001, O-3002, O-3003] | queued=2\ntap -> showing #3 New order O-3003 | orders=[O-3001, O-3002, O-3003] | queued=1\ntap -> showing nothing | orders=[O-3001, O-3002, O-3003] | queued=0"
+        }
+      ]
+    }
+  ]
+}

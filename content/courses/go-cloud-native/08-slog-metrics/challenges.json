@@ -1,0 +1,721 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gcn_181",
+      "name": "slog-metrics-quiz",
+      "type": "quiz",
+      "title": "Read the slow-checkout investigation",
+      "description": "Three statements about how Rice Rocket found out why checkout felt slow while every dashboard looked green. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "operability"
+      ],
+      "points": 10,
+      "hints": [
+        "An average mixes every request into one number. How many requests out of 100 would have to take 3 s to move it from 0.06 s to 0.12 s, and how many customers is that per hour?",
+        "Every distinct combination of label values is its own time series, stored and indexed separately. How many distinct values can a path with an order id take?",
+        "Look at what `logger.With(...)` returns and which log lines are written through it."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The checkout dashboard and the histogram behind it, for the same hour:\n\n```text\navg(gateway_request_seconds{route=\"/checkout\"})          0.121 s\nhistogram_quantile(0.50, ...{route=\"/checkout\"})       0.064 s\nhistogram_quantile(0.99, ...{route=\"/checkout\"})       3.000 s\ngateway_request_seconds_bucket{route=\"/checkout\",le=\"2\"}    9 800\ngateway_request_seconds_bucket{route=\"/checkout\",le=\"4\"}   10 000\n```\n\nStatement: \"About 2% of checkouts take between 2 and 4 seconds: the average hides them, and the p99 from the histogram shows them.\"",
+          "explanation": "True. 10,000 - 9,800 = 200 of 10,000 requests (2%) fall between 2 s and 4 s. The average (0.121 s) blends them with 9,800 fast ones and looks healthy; p50 says the typical request is fast; p99 says one checkout in fifty waits about 3 s, which is what customers complained about. Percentiles from histograms are estimates (interpolated inside a bucket), so bucket bounds should sit near the latencies you care about. The misconception is that a low average means nobody is slow.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A teammate labelled the latency histogram with the raw path:\n\n```go\nrequestSeconds.WithLabelValues(r.URL.Path).Observe(elapsed.Seconds())\n```\n\n```text\n$ curl -s localhost:9090/metrics | grep -c 'gateway_request_seconds_bucket{path=\"/orders/'\n183644\n```\n\nStatement: \"This is fine: Prometheus compresses repeated label values, so one series per order id costs almost nothing.\"",
+          "explanation": "False. Every distinct label value creates a separate time series, with its own buckets (8 series per histogram here), its own index entries and its own memory in the gateway and in Prometheus; label values are not deduplicated into one series. Order ids are unbounded, so the series count grows with business volume until scrapes slow down and queries time out. Label with the route template (`/orders/{id}`, or `r.Pattern` in Go 1.23+) and put ids in logs or traces instead. The misconception is that labels are cheap metadata.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The checkout handler now logs through a request-scoped logger:\n\n```go\nlog := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With(\"request_id\", rid, \"route\", \"/checkout\")\nlog.Info(\"payment call\", \"provider\", \"momo\", \"ms\", 2870)\n```\n\n```text\n{\"time\":\"2026-11-06T11:42:07Z\",\"level\":\"INFO\",\"msg\":\"payment call\",\"request_id\":\"8f3a1c\",\"route\":\"/checkout\",\"provider\":\"momo\",\"ms\":2870}\n```\n\nStatement: \"`With` returns a logger that adds `request_id` and `route` to every line written through it, so all lines of one slow checkout can be found with one query on `request_id`.\"",
+          "explanation": "True. `Logger.With` returns a new logger carrying those attributes, and the JSON handler writes them as fields on every record, so a log query on `request_id=\"8f3a1c\"` returns the whole story of that request (here: a 2.87 s call to the payment provider). Structured fields replace parsing free text with regular expressions. The misconception is that attributes have to be repeated on each log call.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_gcn_182",
+      "name": "latency-histogram",
+      "type": "mini_coding",
+      "title": "Record latency the way Prometheus reads it",
+      "description": "The gateway's metrics showed an average latency per raw path: checkout looked fast while customers waited seconds, and the order pages produced one time series per order. The editor holds `metrics.go` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: `Observe` puts a value in the first bucket whose upper bound is greater than or equal to it (a value on a bound belongs to that bucket); `Quantile` estimates like PromQL's `histogram_quantile` (rank = q x count, the bucket holding the rank, linear interpolation from the previous bound, the highest finite bound for the +Inf bucket); and `routeLabel` replaces numeric path segments with `{id}`. Run records request timings and compares the buckets, p50, p99 and the number of series.",
+      "difficulty": "medium",
+      "outcomes": [
+        "operability"
+      ],
+      "points": 30,
+      "hints": [
+        "Work one small example by hand: five values, the cumulative count per `le`, then where rank 2.5 falls and how far into that bucket it is.",
+        "Look at the search that picks a bucket (`>=` or `>`), the loop that adds bucket counts until it reaches the rank, the interpolation between the bucket's lower and upper bound, and how a path segment is recognised as an id.",
+        "A size histogram with the same shape: `i := sort.SearchFloat64s(h.limits, kb)`; for the median, `rank := 0.5 * float64(h.n)`, walk the buckets summing counts until `>= rank`, then `lo + (hi-lo)*(rank-before)/float64(h.counts[i])`; for labels, `strings.Split(p, \"/\")` and replace segments that `strconv.ParseUint` accepts."
+      ],
+      "coding": {
+        "language": "go",
+        "filePath": "metrics.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One route: cumulative buckets, a value on a bound in its bucket, p50 and p99",
+          "input": {
+            "bounds": [
+              0.125,
+              0.25,
+              0.5,
+              1,
+              2,
+              4
+            ],
+            "requests": [
+              {
+                "path": "/menu",
+                "seconds": 0.125
+              },
+              {
+                "path": "/menu",
+                "seconds": 0.25
+              },
+              {
+                "path": "/menu",
+                "seconds": 0.25
+              },
+              {
+                "path": "/menu",
+                "seconds": 0.375
+              },
+              {
+                "path": "/menu",
+                "seconds": 0.75
+              }
+            ]
+          },
+          "expected": {
+            "series": 1,
+            "routes": {
+              "/menu": {
+                "count": 5,
+                "buckets": {
+                  "1": 5,
+                  "2": 5,
+                  "4": 5,
+                  "0.125": 1,
+                  "0.25": 3,
+                  "0.5": 4,
+                  "+Inf": 5
+                },
+                "p50": 0.219,
+                "p99": 0.975,
+                "avg": 0.35
+              }
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Checkout: the average looks fast, p99 shows the 2% that wait 3 seconds",
+          "input": {
+            "bounds": [
+              0.125,
+              0.25,
+              0.5,
+              1,
+              2,
+              4
+            ],
+            "requests": [
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 0.0625
+              },
+              {
+                "path": "/checkout",
+                "seconds": 3
+              },
+              {
+                "path": "/checkout",
+                "seconds": 3
+              }
+            ]
+          },
+          "expected": {
+            "series": 1,
+            "routes": {
+              "/checkout": {
+                "count": 100,
+                "buckets": {
+                  "1": 98,
+                  "2": 98,
+                  "4": 100,
+                  "0.125": 98,
+                  "0.25": 98,
+                  "0.5": 98,
+                  "+Inf": 100
+                },
+                "p50": 0.064,
+                "p99": 3,
+                "avg": 0.121
+              }
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Order ids collapse into route templates: three series, not one per order",
+          "input": {
+            "bounds": [
+              0.125,
+              0.25,
+              0.5,
+              1,
+              2,
+              4
+            ],
+            "requests": [
+              {
+                "path": "/orders/1001",
+                "seconds": 1.5
+              },
+              {
+                "path": "/orders/1002",
+                "seconds": 1.5
+              },
+              {
+                "path": "/orders/1003/items",
+                "seconds": 1.5
+              },
+              {
+                "path": "/menu",
+                "seconds": 1.5
+              }
+            ]
+          },
+          "expected": {
+            "series": 3,
+            "routes": {
+              "/orders/{id}": {
+                "count": 2,
+                "buckets": {
+                  "1": 0,
+                  "2": 2,
+                  "4": 2,
+                  "0.125": 0,
+                  "0.25": 0,
+                  "0.5": 0,
+                  "+Inf": 2
+                },
+                "p50": 1.5,
+                "p99": 1.99,
+                "avg": 1.5
+              },
+              "/orders/{id}/items": {
+                "count": 1,
+                "buckets": {
+                  "1": 0,
+                  "2": 1,
+                  "4": 1,
+                  "0.125": 0,
+                  "0.25": 0,
+                  "0.5": 0,
+                  "+Inf": 1
+                },
+                "p50": 1.5,
+                "p99": 1.99,
+                "avg": 1.5
+              },
+              "/menu": {
+                "count": 1,
+                "buckets": {
+                  "1": 0,
+                  "2": 1,
+                  "4": 1,
+                  "0.125": 0,
+                  "0.25": 0,
+                  "0.5": 0,
+                  "+Inf": 1
+                },
+                "p50": 1.5,
+                "p99": 1.99,
+                "avg": 1.5
+              }
+            }
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A request slower than every bucket: p99 reports the highest finite bound",
+          "input": {
+            "bounds": [
+              0.125,
+              0.25,
+              0.5,
+              1,
+              2,
+              4
+            ],
+            "requests": [
+              {
+                "path": "/export",
+                "seconds": 6
+              },
+              {
+                "path": "/export",
+                "seconds": 0.25
+              }
+            ]
+          },
+          "expected": {
+            "series": 1,
+            "routes": {
+              "/export": {
+                "count": 2,
+                "buckets": {
+                  "1": 1,
+                  "2": 1,
+                  "4": 1,
+                  "0.125": 0,
+                  "0.25": 1,
+                  "0.5": 1,
+                  "+Inf": 2
+                },
+                "p50": 0.25,
+                "p99": 4,
+                "avg": 3.125
+              }
+            }
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

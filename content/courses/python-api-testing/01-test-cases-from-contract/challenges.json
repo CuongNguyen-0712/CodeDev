@@ -1,0 +1,527 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pat_111",
+      "name": "test-cases-from-contract-quiz",
+      "type": "quiz",
+      "title": "Read the order API test runs",
+      "description": "Three statements about the first test suite of Rice Rocket's order API, written from a Postman collection. Decide whether each one is true.",
+      "difficulty": "easy",
+      "outcomes": [
+        "test-design"
+      ],
+      "points": 10,
+      "hints": [
+        "List the rules in the OpenAPI schema of the request body (required, minimum, maximum, maxLength, enum). Which of them did any request break on purpose?",
+        "An off-by-one bug moves a boundary by one. Which inputs land on different sides of the boundary in a correct and in a buggy implementation?",
+        "Read the failing test's name in the pytest output. What does it tell you before you open the test file?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team's first suite came from the Postman collection the mobile developers used:\n\n```text\n$ pytest tests/api/test_orders.py -q\n........................................   [100%]\n40 passed in 3.21s\n```\n\n```yaml\n# openapi.yaml (POST /orders request body)\nquantity:\n  type: integer\n  minimum: 1\n  maximum: 20\nnote:\n  type: string\n  maxLength: 200\n```\n\nEvery request in the collection was a real, valid order. The next week production received orders with `quantity: 0` and a 230-character note.\n\nStatement: \"All 40 requests pass, so the endpoint enforces its contract; the bad orders must come from another endpoint.\"",
+          "explanation": "False. Forty valid orders exercise one rule: valid input is accepted. None of them sends `quantity: 0`, 21 or a 201-character note, so the suite says nothing about whether `minimum`, `maximum` or `maxLength` are enforced. A suite tests the contract only when each rule has a case that breaks it. The misconception is that many passing tests mean high coverage of behaviour.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "For `quantity` (integer, minimum 1, maximum 20) a reviewer proposes these values:\n\n```python\n@pytest.mark.parametrize(\"quantity, status\", [\n    (0, 422), (1, 201), (20, 201), (21, 422),\n])\n```\n\nStatement: \"These four values sit on both sides of both boundaries; adding a middle value such as 7 would not catch an off-by-one bug that these miss.\"",
+          "explanation": "True. An off-by-one bug moves a boundary by exactly one, so it changes the outcome only for the values next to the boundary: 0 and 1 at the bottom, 20 and 21 at the top. Any middle value (7) is accepted by the correct and by the buggy code alike. The valid example still belongs in the suite once, as the happy path. The misconception is that more values in the middle add confidence about the edges.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A failing run of the parametrized suite:\n\n```text\nFAILED tests/api/test_orders.py::test_create_order[note-over-max-length] - assert 201 == 422\n1 failed, 23 passed in 2.04s\n```\n\nStatement: \"Because each case is named after the rule it breaks, this output already tells the on-call developer which rule of the contract the API no longer enforces.\"",
+          "explanation": "True. With `pytest.param(..., id=\"note-over-max-length\")` (or `ids=`), the test id carries the rule, so the report reads \"note longer than maxLength was accepted (201, not 422)\" without opening the code. Auto-generated ids like `test_create_order[body17]` force everyone to count cases. The misconception is that test names matter only for the author.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pat_112",
+      "name": "derive-cases-from-schema",
+      "type": "mini_coding",
+      "title": "Generate test cases from the request schema",
+      "description": "Rice Rocket's suite will build its cases from the OpenAPI request schema instead of from a Postman collection. The editor holds `test_cases.py`: `derive_cases(schema)` with its rule blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that each rule of the contract gets the cases described at the top of the file: a missing case per required property, a wrong-type case, both sides of `minimum` / `maximum` and of `minLength` / `maxLength`, every `enum` value and one that is not allowed. Run sends every case to the real validation rules (they must agree with each expectation) and to builds with known bugs (the cases must catch them).",
+      "difficulty": "medium",
+      "outcomes": [
+        "test-design"
+      ],
+      "points": 30,
+      "hints": [
+        "For each kind of rule, ask which input sits just inside it and which just outside: those two cases decide whether the rule is enforced.",
+        "Look at the table in the docstring: ids, values (`minimum - 1`, `maxLength + 1`, the example as a string) and the order of the cases. Each case changes one property of `base` through `case(...)`.",
+        "For a `rating` integer from 1 to 5 the same idea gives `case(\"rating-at-min\", \"rating\", 1, \"accepted\")`, `case(\"rating-below-min\", \"rating\", 0, \"rejected\")`, `case(\"rating-at-max\", \"rating\", 5, \"accepted\")` and `case(\"rating-above-max\", \"rating\", 6, \"rejected\")`; for a `comment` of at most 500 characters, `\"x\" * 500` and `\"x\" * 501`."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "test_cases.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One rule set: quantity is a required integer from 1 to 20",
+          "input": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "quantity"
+              ],
+              "properties": {
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20,
+                  "example": 2
+                }
+              }
+            }
+          },
+          "expected": {
+            "cases": [
+              [
+                "valid-example",
+                "accepted"
+              ],
+              [
+                "missing-quantity",
+                "rejected"
+              ],
+              [
+                "quantity-wrong-type",
+                "rejected"
+              ],
+              [
+                "quantity-at-min",
+                "accepted"
+              ],
+              [
+                "quantity-below-min",
+                "rejected"
+              ],
+              [
+                "quantity-at-max",
+                "accepted"
+              ],
+              [
+                "quantity-above-max",
+                "rejected"
+              ]
+            ],
+            "real_rules_agree": true,
+            "bugs_caught": []
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The order schema: the cases catch the three bugs that reached production",
+          "input": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "restaurant_id",
+                "quantity",
+                "payment_method"
+              ],
+              "properties": {
+                "restaurant_id": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "example": 42
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20,
+                  "example": 2
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "example": "no chili"
+                },
+                "payment_method": {
+                  "type": "string",
+                  "enum": [
+                    "cash",
+                    "momo",
+                    "card"
+                  ],
+                  "example": "momo"
+                }
+              }
+            },
+            "bugs": {
+              "quantity": "min_off_by_one",
+              "note": "max_length_plus_50",
+              "restaurant_id": "not_required"
+            }
+          },
+          "expected": {
+            "cases": [
+              [
+                "valid-example",
+                "accepted"
+              ],
+              [
+                "missing-restaurant_id",
+                "rejected"
+              ],
+              [
+                "restaurant_id-wrong-type",
+                "rejected"
+              ],
+              [
+                "restaurant_id-at-min",
+                "accepted"
+              ],
+              [
+                "restaurant_id-below-min",
+                "rejected"
+              ],
+              [
+                "missing-quantity",
+                "rejected"
+              ],
+              [
+                "quantity-wrong-type",
+                "rejected"
+              ],
+              [
+                "quantity-at-min",
+                "accepted"
+              ],
+              [
+                "quantity-below-min",
+                "rejected"
+              ],
+              [
+                "quantity-at-max",
+                "accepted"
+              ],
+              [
+                "quantity-above-max",
+                "rejected"
+              ],
+              [
+                "note-wrong-type",
+                "rejected"
+              ],
+              [
+                "note-at-max-length",
+                "accepted"
+              ],
+              [
+                "note-over-max-length",
+                "rejected"
+              ],
+              [
+                "missing-payment_method",
+                "rejected"
+              ],
+              [
+                "payment_method-wrong-type",
+                "rejected"
+              ],
+              [
+                "payment_method-is-cash",
+                "accepted"
+              ],
+              [
+                "payment_method-is-momo",
+                "accepted"
+              ],
+              [
+                "payment_method-is-card",
+                "accepted"
+              ],
+              [
+                "payment_method-not-in-enum",
+                "rejected"
+              ]
+            ],
+            "real_rules_agree": true,
+            "bugs_caught": [
+              "note:max_length_plus_50",
+              "quantity:min_off_by_one",
+              "restaurant_id:not_required"
+            ]
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Enum values and wrong types: numeric strings and unchecked enums are caught",
+          "input": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "restaurant_id",
+                "quantity",
+                "payment_method"
+              ],
+              "properties": {
+                "restaurant_id": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "example": 42
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20,
+                  "example": 2
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "example": "no chili"
+                },
+                "payment_method": {
+                  "type": "string",
+                  "enum": [
+                    "cash",
+                    "momo",
+                    "card"
+                  ],
+                  "example": "momo"
+                }
+              }
+            },
+            "bugs": {
+              "quantity": "accepts_numeric_strings",
+              "payment_method": "enum_unchecked"
+            }
+          },
+          "expected": {
+            "cases": [
+              [
+                "valid-example",
+                "accepted"
+              ],
+              [
+                "missing-restaurant_id",
+                "rejected"
+              ],
+              [
+                "restaurant_id-wrong-type",
+                "rejected"
+              ],
+              [
+                "restaurant_id-at-min",
+                "accepted"
+              ],
+              [
+                "restaurant_id-below-min",
+                "rejected"
+              ],
+              [
+                "missing-quantity",
+                "rejected"
+              ],
+              [
+                "quantity-wrong-type",
+                "rejected"
+              ],
+              [
+                "quantity-at-min",
+                "accepted"
+              ],
+              [
+                "quantity-below-min",
+                "rejected"
+              ],
+              [
+                "quantity-at-max",
+                "accepted"
+              ],
+              [
+                "quantity-above-max",
+                "rejected"
+              ],
+              [
+                "note-wrong-type",
+                "rejected"
+              ],
+              [
+                "note-at-max-length",
+                "accepted"
+              ],
+              [
+                "note-over-max-length",
+                "rejected"
+              ],
+              [
+                "missing-payment_method",
+                "rejected"
+              ],
+              [
+                "payment_method-wrong-type",
+                "rejected"
+              ],
+              [
+                "payment_method-is-cash",
+                "accepted"
+              ],
+              [
+                "payment_method-is-momo",
+                "accepted"
+              ],
+              [
+                "payment_method-is-card",
+                "accepted"
+              ],
+              [
+                "payment_method-not-in-enum",
+                "rejected"
+              ]
+            ],
+            "real_rules_agree": true,
+            "bugs_caught": [
+              "payment_method:enum_unchecked",
+              "quantity:accepts_numeric_strings"
+            ]
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A promo code of 4 to 12 characters gets both length boundaries",
+          "input": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "promo_code": {
+                  "type": "string",
+                  "minLength": 4,
+                  "maxLength": 12,
+                  "example": "LUNCH10"
+                }
+              }
+            }
+          },
+          "expected": {
+            "cases": [
+              [
+                "valid-example",
+                "accepted"
+              ],
+              [
+                "promo_code-wrong-type",
+                "rejected"
+              ],
+              [
+                "promo_code-at-min-length",
+                "accepted"
+              ],
+              [
+                "promo_code-under-min-length",
+                "rejected"
+              ],
+              [
+                "promo_code-at-max-length",
+                "accepted"
+              ],
+              [
+                "promo_code-over-max-length",
+                "rejected"
+              ]
+            ],
+            "real_rules_agree": true,
+            "bugs_caught": []
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "An optional tip with a maximum: no missing case, the off-by-one at the top is caught",
+          "input": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "tip": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 500000,
+                  "example": 10000
+                }
+              }
+            },
+            "bugs": {
+              "tip": "max_off_by_one"
+            }
+          },
+          "expected": {
+            "cases": [
+              [
+                "valid-example",
+                "accepted"
+              ],
+              [
+                "tip-wrong-type",
+                "rejected"
+              ],
+              [
+                "tip-at-min",
+                "accepted"
+              ],
+              [
+                "tip-below-min",
+                "rejected"
+              ],
+              [
+                "tip-at-max",
+                "accepted"
+              ],
+              [
+                "tip-above-max",
+                "rejected"
+              ]
+            ],
+            "real_rules_agree": true,
+            "bugs_caught": [
+              "tip:max_off_by_one"
+            ]
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

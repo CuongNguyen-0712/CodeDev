@@ -1,0 +1,67 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_kma_182",
+      "name": "fake-scheduler",
+      "type": "mini_coding",
+      "title": "A virtual clock for view model tests",
+      "description": "The courier signal banner (LIVE, STALE after 2 minutes without a location, OFFLINE after 3 more) was tested with real delays: the suite took four minutes and failed whenever CI was slow. The view model now schedules through a `Scheduler` interface, and the tests need a `FakeScheduler` that moves a virtual clock, the way `TestCoroutineScheduler` does in kotlinx-coroutines-test. The editor holds `FakeScheduler.kt` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: `after(delay, task)` queues the task at now + delay and returns a handle whose `cancel()` stops it for good; `advanceTimeBy(ms)` runs every live task due by now + ms in time order (tasks due at the same moment in the order they were scheduled), sets `now` to each task's own time before running it, also runs tasks that running tasks schedule if they fall due in the window, and leaves the clock at now + ms. The runner drives the real view model and a few labelled tasks on your scheduler and prints what happened at which virtual millisecond.",
+      "difficulty": "medium",
+      "outcomes": [
+        "testable-releases"
+      ],
+      "points": 30,
+      "hints": [
+        "Replay the banner by hand: a location at 0 queues a check at 120000; when it runs, the check queues the offline step at 120000 + 180000. What must `now` be while the check runs for that to come out right?",
+        "Look at how `advanceTimeBy` loops: pick one task, run it, pick again. The pick must skip cancelled tasks, look only at tasks due by the target, and break ties by the order they were queued (`seq`).",
+        "A fake for a timer wheel in a game loop: `fun tick(ms: Long) { val end = clock + ms; while (true) { val t = timers.filter { !it.dead && it.at <= end }.minWithOrNull(compareBy({ it.at }, { it.order })) ?: break; timers.remove(t); clock = t.at; t.fire() }; clock = end }`."
+      ],
+      "coding": {
+        "language": "kotlin",
+        "filePath": "FakeScheduler.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "No location for 2 minutes shows STALE, 5 minutes OFFLINE",
+          "input": "location\nadvance 400000\n",
+          "expected": "[0] LIVE\n[120000] STALE\n[300000] OFFLINE\nnow=400000 banner=OFFLINE",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A new location cancels the pending STALE check",
+          "input": "location\nadvance 100000\nlocation\nadvance 100000\nadvance 30000\n",
+          "expected": "[0] LIVE\n[220000] STALE\nnow=230000 banner=STALE",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Tasks run in time order; equal times run in the order scheduled",
+          "input": "task A 5000\ntask B 5000\ntask C 2000\nadvance 10000\n",
+          "expected": "[2000] C\n[5000] A\n[5000] B\nnow=10000 banner=WAITING",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Tasks scheduled by running tasks run in the same advance when due",
+          "input": "chain D 1000 0\nchain E 1000 500\nadvance 1200\ntask F 0\nadvance 0\nadvance 300\n",
+          "expected": "[1000] D\n[1000] E\n[1000] D-next\n[1200] F\n[1500] E-next\nnow=1500 banner=WAITING",
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Back online exactly when the banner went STALE, then silent again",
+          "input": "location\nadvance 119999\nadvance 1\nlocation\nadvance 300000\n",
+          "expected": "[0] LIVE\n[120000] STALE\n[120000] LIVE\n[240000] STALE\n[420000] OFFLINE\nnow=420000 banner=OFFLINE",
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

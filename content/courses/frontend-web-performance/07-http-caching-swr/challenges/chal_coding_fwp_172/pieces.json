@@ -1,0 +1,40 @@
+[
+  {
+    "id": "hashed-assets",
+    "label": "Build files whose name changes with their content",
+    "code": "if (path.startsWith(\"/_next/static/\")) return { \"Cache-Control\": \"public, max-age=31536000, immutable\" };"
+  },
+  {
+    "id": "menu-api",
+    "label": "Menus: shared, a minute fresh, refreshed in the background",
+    "code": "if (/^\\/api\\/restaurants\\/[^/]+\\/menu$/.test(path)) {\n    return { \"Cache-Control\": \"no-cache\", \"CDN-Cache-Control\": \"max-age=60, stale-while-revalidate=300\" };\n}"
+  },
+  {
+    "id": "cart-api",
+    "label": "The customer's own cart",
+    "code": "if (path === \"/api/cart\") return { \"Cache-Control\": \"private, no-store\" };"
+  },
+  {
+    "id": "html-pages",
+    "label": "Pages: checked on every visit, cheap when unchanged",
+    "code": "if (path.startsWith(\"/restaurants/\")) return { \"Cache-Control\": \"no-cache\" };"
+  },
+  {
+    "id": "cart-api-public",
+    "label": "The customer's own cart",
+    "code": "if (path === \"/api/cart\") return { \"Cache-Control\": \"public, max-age=30\" };",
+    "distractor": true
+  },
+  {
+    "id": "hashed-assets-no-cache",
+    "label": "Build files whose name changes with their content",
+    "code": "if (path.startsWith(\"/_next/static/\")) return { \"Cache-Control\": \"public, no-cache\" };",
+    "distractor": true
+  },
+  {
+    "id": "menu-api-max-age",
+    "label": "Menus: shared, a minute fresh, refreshed in the background",
+    "code": "if (/^\\/api\\/restaurants\\/[^/]+\\/menu$/.test(path)) return { \"Cache-Control\": \"public, max-age=300\" };",
+    "distractor": true
+  }
+]

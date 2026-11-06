@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_kma_192",
+      "key": "challenges/kotlin/chal_coding_kma_192/starter.kt",
+      "contentType": "text/x-kotlin; charset=utf-8",
+      "originalName": "Flags.kt",
+      "size": 2724
+    }
+  ]
+}

@@ -1,0 +1,133 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pas_122",
+      "name": "tracking-screen-taskgroup",
+      "type": "mini_coding",
+      "title": "Load the tracking screen with a TaskGroup",
+      "description": "The courier app's tracking screen needs the order, the courier's position and the restaurant's ETA from three services. The first version awaited them one after another (0.75 s) and, when it switched to `asyncio.gather`, a failing restaurant service left the other two calls running in the background. The editor holds `load_tracking` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that the three calls run together in an `asyncio.TaskGroup`, \"no courier yet\" (`NotAssigned`) shows as `courier: None`, and any `ApiError` cancels the calls still running and raises `TrackingUnavailable` naming the failed services. Run loads the screen on a simulated clock and reports the time it took, the calls still running when `load_tracking` returned and the calls that were cancelled.",
+      "difficulty": "medium",
+      "outcomes": [
+        "structured-concurrency"
+      ],
+      "points": 30,
+      "hints": [
+        "Follow a failure: when the restaurant call raises at 0.1 s, which code cancels the order and courier calls, and what kind of exception reaches the line after the `async with` block?",
+        "Look at `asyncio.TaskGroup` with `tg.create_task(...)`, `except*` for the `ExceptionGroup` a TaskGroup raises, and a small wrapper coroutine that turns one expected exception into `None`.",
+        "A menu page that loads a restaurant and its reviews together: `async with asyncio.TaskGroup() as tg: r = tg.create_task(api.restaurant(rid)); v = tg.create_task(reviews_or_empty(api, rid))` inside `try:`, then `except* ServiceDown as group: down = sorted({e.service for e in group.exceptions})`, and `reviews_or_empty` returns `[]` on `NoReviews`."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "app/tracking.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "All three services answer: the screen loads in 0.3 s",
+          "input": {
+            "order_id": "o1001"
+          },
+          "expected": {
+            "screen": {
+              "status": "cooking",
+              "courier": {
+                "lat": 10.7769,
+                "lng": 106.7009
+              },
+              "eta": 12
+            },
+            "elapsed_s": 0.3,
+            "still_running": [],
+            "cancelled": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "No courier has accepted the order yet: courier is null, nothing fails",
+          "input": {
+            "order_id": "o1002",
+            "unassigned": true
+          },
+          "expected": {
+            "screen": {
+              "status": "cooking",
+              "courier": null,
+              "eta": 12
+            },
+            "elapsed_s": 0.3,
+            "still_running": [],
+            "cancelled": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "The restaurant service fails at 0.1 s: one clear error, the other calls are cancelled",
+          "input": {
+            "order_id": "o1003",
+            "fail": {
+              "restaurant": 0.1
+            }
+          },
+          "expected": {
+            "error": "TrackingUnavailable: restaurant",
+            "elapsed_s": 0.1,
+            "still_running": [],
+            "cancelled": [
+              "courier",
+              "order"
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Two services fail together: both are named, sorted",
+          "input": {
+            "order_id": "o1004",
+            "fail": {
+              "restaurant": 0.1,
+              "courier": 0.05
+            }
+          },
+          "expected": {
+            "error": "TrackingUnavailable: courier",
+            "elapsed_s": 0.05,
+            "still_running": [],
+            "cancelled": [
+              "order",
+              "restaurant"
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "The order service fails last, at 0.2 s: the slow courier call is cancelled",
+          "input": {
+            "order_id": "o1005",
+            "fail": {
+              "order": 0.2
+            }
+          },
+          "expected": {
+            "error": "TrackingUnavailable: order",
+            "elapsed_s": 0.2,
+            "still_running": [],
+            "cancelled": [
+              "courier",
+              "restaurant"
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

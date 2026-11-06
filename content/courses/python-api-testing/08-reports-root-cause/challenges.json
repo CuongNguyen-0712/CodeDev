@@ -1,0 +1,507 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pat_182",
+      "name": "failure-report",
+      "type": "mini_coding",
+      "title": "Build a failure report that points to the cause",
+      "description": "After a bad deploy the CI summary listed 40 failures as `assert 500 == 201`, each with a different order id, nobody could find the matching server logs, and one report pasted a customer's refresh token into a Slack channel. The editor holds `tests/report.py` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so the report keeps, for each failed test, the request, its path template, the status, the server's `X-Request-Id` and the error title; hides every credential in headers and bodies; groups failures by root cause (same endpoint template, status and error), biggest group first; and lists tests that passed on a rerun as flaky, not as failures. The docstring is the exact contract.",
+      "difficulty": "medium",
+      "outcomes": [
+        "reliable-suites"
+      ],
+      "points": 30,
+      "hints": [
+        "Read the report the way the on-call engineer would: which line tells them it is one bug and not forty, and which value lets them find the request in the server logs?",
+        "Look at the path segments that differ between failures (numbers, UUIDs, the query string), at where a token can hide (headers, nested JSON keys, plain-text bodies), and at the outcome of each test's last attempt.",
+        "Grouping log lines of a worker: `key = f\"{job_type} {queue_template} -> {exit_code}\"`, `groups.setdefault(key, []).append(line)`, then `sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))`; a token in `{\"auth\": {\"token\": ...}}` is found by walking dicts and lists recursively."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "tests/report.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Three tests failing on accept with different order ids form one group",
+          "input": {
+            "results": [
+              {
+                "test": "tests/test_courier.py::test_courier_accepts_order",
+                "attempts": [
+                  {
+                    "outcome": "failed",
+                    "exchange": {
+                      "method": "POST",
+                      "url": "/orders/5112/accept",
+                      "request_headers": {
+                        "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.qa-courier.sig",
+                        "Content-Type": "application/json"
+                      },
+                      "status": 500,
+                      "response_headers": {
+                        "X-Request-Id": "req-7f3a01",
+                        "Content-Type": "application/problem+json"
+                      },
+                      "response_body": "{\"type\":\"https://api.ricerocket.vn/problems/internal\",\"title\":\"Courier assignment failed\",\"status\":500,\"detail\":\"column courier_zone does not exist\"}"
+                    }
+                  }
+                ]
+              },
+              {
+                "test": "tests/test_courier.py::test_accept_twice_is_409",
+                "attempts": [
+                  {
+                    "outcome": "failed",
+                    "exchange": {
+                      "method": "POST",
+                      "url": "/orders/5140/accept",
+                      "request_headers": {
+                        "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.qa-courier.sig",
+                        "Content-Type": "application/json"
+                      },
+                      "status": 500,
+                      "response_headers": {
+                        "X-Request-Id": "req-7f3a19",
+                        "Content-Type": "application/problem+json"
+                      },
+                      "response_body": "{\"type\":\"https://api.ricerocket.vn/problems/internal\",\"title\":\"Courier assignment failed\",\"status\":500,\"detail\":\"column courier_zone does not exist\"}"
+                    }
+                  }
+                ]
+              },
+              {
+                "test": "tests/test_courier.py::test_accept_after_cancel",
+                "attempts": [
+                  {
+                    "outcome": "failed",
+                    "exchange": {
+                      "method": "POST",
+                      "url": "/orders/5177/accept?notify=false",
+                      "request_headers": {
+                        "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.qa-courier.sig",
+                        "Content-Type": "application/json"
+                      },
+                      "status": 500,
+                      "response_headers": {
+                        "X-Request-Id": "req-7f3a40",
+                        "Content-Type": "application/problem+json"
+                      },
+                      "response_body": "{\"type\":\"https://api.ricerocket.vn/problems/internal\",\"title\":\"Courier assignment failed\",\"status\":500,\"detail\":\"column courier_zone does not exist\"}"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "groups": [
+              {
+                "signature": "POST /orders/{id}/accept -> 500 Courier assignment failed",
+                "count": 3,
+                "tests": [
+                  "tests/test_courier.py::test_accept_after_cancel",
+                  "tests/test_courier.py::test_accept_twice_is_409",
+                  "tests/test_courier.py::test_courier_accepts_order"
+                ],
+                "request_ids": [
+                  "req-7f3a01",
+                  "req-7f3a19",
+                  "req-7f3a40"
+                ]
+              }
+            ],
+            "flaky": [],
+            "records": [
+              {
+                "test": "tests/test_courier.py::test_courier_accepts_order",
+                "request": "POST /orders/5112/accept",
+                "endpoint": "POST /orders/{id}/accept",
+                "status": 500,
+                "request_id": "req-7f3a01",
+                "error": "Courier assignment failed",
+                "excerpt": "{\"type\":\"https://api.ricerocket.vn/problems/internal\",\"title\":\"Courier assignment failed\",\"status\":500,\"detail\":\"column ",
+                "request_headers": {
+                  "Authorization": "[REDACTED]",
+                  "Content-Type": "application/json"
+                }
+              },
+              {
+                "test": "tests/test_courier.py::test_accept_twice_is_409",
+                "request": "POST /orders/5140/accept",
+                "endpoint": "POST /orders/{id}/accept",
+                "status": 500,
+                "request_id": "req-7f3a19",
+                "error": "Courier assignment failed",
+                "excerpt": "{\"type\":\"https://api.ricerocket.vn/problems/internal\",\"title\":\"Courier assignment failed\",\"status\":500,\"detail\":\"column ",
+                "request_headers": {
+                  "Authorization": "[REDACTED]",
+                  "Content-Type": "application/json"
+                }
+              },
+              {
+                "test": "tests/test_courier.py::test_accept_after_cancel",
+                "request": "POST /orders/5177/accept",
+                "endpoint": "POST /orders/{id}/accept",
+                "status": 500,
+                "request_id": "req-7f3a40",
+                "error": "Courier assignment failed",
+                "excerpt": "{\"type\":\"https://api.ricerocket.vn/problems/internal\",\"title\":\"Courier assignment failed\",\"status\":500,\"detail\":\"column ",
+                "request_headers": {
+                  "Authorization": "[REDACTED]",
+                  "Content-Type": "application/json"
+                }
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Tokens in headers and in a JSON body never reach the report",
+          "input": {
+            "results": [
+              {
+                "test": "tests/test_auth.py::test_refresh_rotates_token",
+                "attempts": [
+                  {
+                    "outcome": "failed",
+                    "exchange": {
+                      "method": "POST",
+                      "url": "/auth/refresh",
+                      "request_headers": {
+                        "Authorization": "Bearer rt-77c1",
+                        "Cookie": "session=s3cr3t",
+                        "X-Api-Key": "k-qa-1",
+                        "Accept": "application/json"
+                      },
+                      "status": 401,
+                      "response_headers": {
+                        "X-Request-Id": "req-11aa02",
+                        "Content-Type": "application/problem+json"
+                      },
+                      "response_body": "{\"title\":\"Refresh token reused\",\"access_token\":\"at-91f2\",\"user\":{\"id\":7,\"otp\":\"482913\"}}"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "groups": [
+              {
+                "signature": "POST /auth/refresh -> 401 Refresh token reused",
+                "count": 1,
+                "tests": [
+                  "tests/test_auth.py::test_refresh_rotates_token"
+                ],
+                "request_ids": [
+                  "req-11aa02"
+                ]
+              }
+            ],
+            "flaky": [],
+            "records": [
+              {
+                "test": "tests/test_auth.py::test_refresh_rotates_token",
+                "request": "POST /auth/refresh",
+                "endpoint": "POST /auth/refresh",
+                "status": 401,
+                "request_id": "req-11aa02",
+                "error": "Refresh token reused",
+                "excerpt": "{\"title\":\"Refresh token reused\",\"access_token\":\"[REDACTED]\",\"user\":{\"id\":7,\"otp\":\"[REDACTED]\"}}",
+                "request_headers": {
+                  "Authorization": "[REDACTED]",
+                  "Cookie": "[REDACTED]",
+                  "X-Api-Key": "[REDACTED]",
+                  "Accept": "application/json"
+                }
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A test that failed and then passed on a rerun is flaky, not a failure",
+          "input": {
+            "results": [
+              {
+                "test": "tests/test_menu.py::test_menu_cache",
+                "attempts": [
+                  {
+                    "outcome": "failed",
+                    "exchange": {
+                      "method": "GET",
+                      "url": "/restaurants/42/menu",
+                      "request_headers": {
+                        "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.qa-courier.sig",
+                        "Content-Type": "application/json"
+                      },
+                      "status": 504,
+                      "response_headers": {},
+                      "response_body": "upstream timed out"
+                    }
+                  },
+                  {
+                    "outcome": "passed"
+                  }
+                ]
+              },
+              {
+                "test": "tests/test_courier.py::test_courier_accepts_order",
+                "attempts": [
+                  {
+                    "outcome": "failed",
+                    "exchange": {
+                      "method": "POST",
+                      "url": "/orders/5112/accept",
+                      "request_headers": {
+                        "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.qa-courier.sig",
+                        "Content-Type": "application/json"
+                      },
+                      "status": 500,
+                      "response_headers": {
+                        "X-Request-Id": "req-7f3a01",
+                        "Content-Type": "application/problem+json"
+                      },
+                      "response_body": "{\"type\":\"https://api.ricerocket.vn/problems/internal\",\"title\":\"Courier assignment failed\",\"status\":500,\"detail\":\"column courier_zone does not exist\"}"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "groups": [
+              {
+                "signature": "POST /orders/{id}/accept -> 500 Courier assignment failed",
+                "count": 1,
+                "tests": [
+                  "tests/test_courier.py::test_courier_accepts_order"
+                ],
+                "request_ids": [
+                  "req-7f3a01"
+                ]
+              }
+            ],
+            "flaky": [
+              "tests/test_menu.py::test_menu_cache"
+            ],
+            "records": [
+              {
+                "test": "tests/test_courier.py::test_courier_accepts_order",
+                "request": "POST /orders/5112/accept",
+                "endpoint": "POST /orders/{id}/accept",
+                "status": 500,
+                "request_id": "req-7f3a01",
+                "error": "Courier assignment failed",
+                "excerpt": "{\"type\":\"https://api.ricerocket.vn/problems/internal\",\"title\":\"Courier assignment failed\",\"status\":500,\"detail\":\"column ",
+                "request_headers": {
+                  "Authorization": "[REDACTED]",
+                  "Content-Type": "application/json"
+                }
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Two root causes, UUID paths, a plain-text body with a bearer token, and a passing test",
+          "input": {
+            "results": [
+              {
+                "test": "tests/test_payments.py::test_refund",
+                "attempts": [
+                  {
+                    "outcome": "failed",
+                    "exchange": {
+                      "method": "POST",
+                      "url": "/payments/3f2b8c1e-9a4d-4c6b-8e2f-1a2b3c4d5e6f/refund",
+                      "request_headers": {
+                        "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.qa-courier.sig",
+                        "Content-Type": "application/json"
+                      },
+                      "status": 502,
+                      "response_headers": {
+                        "X-Request-Id": "req-55e010",
+                        "Content-Type": "application/problem+json"
+                      },
+                      "response_body": "gateway error: Authorization Bearer sk_live_abc123 rejected"
+                    }
+                  }
+                ]
+              },
+              {
+                "test": "tests/test_payments.py::test_refund_twice",
+                "attempts": [
+                  {
+                    "outcome": "failed",
+                    "exchange": {
+                      "method": "POST",
+                      "url": "/payments/0b9c8d7e-6f5a-4b3c-9d2e-8f7a6b5c4d3e/refund",
+                      "request_headers": {
+                        "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.qa-courier.sig",
+                        "Content-Type": "application/json"
+                      },
+                      "status": 502,
+                      "response_headers": {
+                        "X-Request-Id": "req-55e031",
+                        "Content-Type": "application/problem+json"
+                      },
+                      "response_body": "gateway error: Authorization Bearer sk_live_def456 rejected"
+                    }
+                  },
+                  {
+                    "outcome": "failed",
+                    "exchange": {
+                      "method": "POST",
+                      "url": "/payments/0b9c8d7e-6f5a-4b3c-9d2e-8f7a6b5c4d3e/refund",
+                      "request_headers": {
+                        "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.qa-courier.sig",
+                        "Content-Type": "application/json"
+                      },
+                      "status": 502,
+                      "response_headers": {
+                        "X-Request-Id": "req-55e044",
+                        "Content-Type": "application/problem+json"
+                      },
+                      "response_body": "gateway error: Authorization Bearer sk_live_def456 rejected"
+                    }
+                  }
+                ]
+              },
+              {
+                "test": "tests/test_courier.py::test_accept_twice_is_409",
+                "attempts": [
+                  {
+                    "outcome": "failed",
+                    "exchange": {
+                      "method": "POST",
+                      "url": "/orders/5140/accept",
+                      "request_headers": {
+                        "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.qa-courier.sig",
+                        "Content-Type": "application/json"
+                      },
+                      "status": 500,
+                      "response_headers": {
+                        "X-Request-Id": "req-7f3a19",
+                        "Content-Type": "application/problem+json"
+                      },
+                      "response_body": "{\"type\":\"https://api.ricerocket.vn/problems/internal\",\"title\":\"Courier assignment failed\",\"status\":500,\"detail\":\"column courier_zone does not exist\"}"
+                    }
+                  }
+                ]
+              },
+              {
+                "test": "tests/test_orders.py::test_place_order",
+                "attempts": [
+                  {
+                    "outcome": "passed"
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "groups": [
+              {
+                "signature": "POST /payments/{id}/refund -> 502 HTTP 502",
+                "count": 2,
+                "tests": [
+                  "tests/test_payments.py::test_refund",
+                  "tests/test_payments.py::test_refund_twice"
+                ],
+                "request_ids": [
+                  "req-55e010",
+                  "req-55e044"
+                ]
+              },
+              {
+                "signature": "POST /orders/{id}/accept -> 500 Courier assignment failed",
+                "count": 1,
+                "tests": [
+                  "tests/test_courier.py::test_accept_twice_is_409"
+                ],
+                "request_ids": [
+                  "req-7f3a19"
+                ]
+              }
+            ],
+            "flaky": [],
+            "records": [
+              {
+                "test": "tests/test_payments.py::test_refund",
+                "request": "POST /payments/3f2b8c1e-9a4d-4c6b-8e2f-1a2b3c4d5e6f/refund",
+                "endpoint": "POST /payments/{id}/refund",
+                "status": 502,
+                "request_id": "req-55e010",
+                "error": "HTTP 502",
+                "excerpt": "gateway error: Authorization Bearer [REDACTED] rejected",
+                "request_headers": {
+                  "Authorization": "[REDACTED]",
+                  "Content-Type": "application/json"
+                }
+              },
+              {
+                "test": "tests/test_payments.py::test_refund_twice",
+                "request": "POST /payments/0b9c8d7e-6f5a-4b3c-9d2e-8f7a6b5c4d3e/refund",
+                "endpoint": "POST /payments/{id}/refund",
+                "status": 502,
+                "request_id": "req-55e044",
+                "error": "HTTP 502",
+                "excerpt": "gateway error: Authorization Bearer [REDACTED] rejected",
+                "request_headers": {
+                  "Authorization": "[REDACTED]",
+                  "Content-Type": "application/json"
+                }
+              },
+              {
+                "test": "tests/test_courier.py::test_accept_twice_is_409",
+                "request": "POST /orders/5140/accept",
+                "endpoint": "POST /orders/{id}/accept",
+                "status": 500,
+                "request_id": "req-7f3a19",
+                "error": "Courier assignment failed",
+                "excerpt": "{\"type\":\"https://api.ricerocket.vn/problems/internal\",\"title\":\"Courier assignment failed\",\"status\":500,\"detail\":\"column ",
+                "request_headers": {
+                  "Authorization": "[REDACTED]",
+                  "Content-Type": "application/json"
+                }
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A run without failures gives an empty report",
+          "input": {
+            "results": [
+              {
+                "test": "tests/test_orders.py::test_place_order",
+                "attempts": [
+                  {
+                    "outcome": "passed"
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "groups": [],
+            "flaky": [],
+            "records": []
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+[
+  {
+    "id": "after-pivot",
+    "label": "Steps after the pivot only move forward",
+    "code": "if (i > pivotIndex) {\n    if (!retryForward(step, svc)) return \"stuck: \" + step + \" did not succeed after \" + MAX_ATTEMPTS + \" attempts\";\n    continue;\n}"
+  },
+  {
+    "id": "record-step",
+    "label": "Remember every step that may have taken effect",
+    "code": "if (result.equals(\"ok\") || result.equals(\"timeout\")) {\n    done.push(step);\n}"
+  },
+  {
+    "id": "compensate-reverse",
+    "label": "Undo what may have happened, newest first",
+    "code": "static String compensate(Deque<String> done, Services svc) {\n    while (!done.isEmpty()) {\n        String step = done.pop();\n        if (!retryUndo(step, svc)) return \"stuck: undo \" + step + \" failed \" + MAX_ATTEMPTS + \" times\";\n    }\n    return \"compensated\";\n}"
+  },
+  {
+    "id": "retry-undo",
+    "label": "Retry one compensation until it succeeds",
+    "code": "static boolean retryUndo(String step, Services svc) {\n    for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {\n        if (svc.undo(step).equals(\"ok\")) return true;\n    }\n    return false;\n}"
+  },
+  {
+    "id": "after-pivot-compensates",
+    "label": "Steps after the pivot only move forward",
+    "code": "if (i > pivotIndex) {\n    String later = svc.call(step);\n    if (later.equals(\"ok\")) {\n        done.push(step);\n        continue;\n    }\n    return compensate(done, svc);\n}",
+    "distractor": true
+  },
+  {
+    "id": "compensate-oldest-first",
+    "label": "Undo what may have happened, newest first",
+    "code": "static String compensate(Deque<String> done, Services svc) {\n    Iterator<String> oldestFirst = done.descendingIterator();\n    while (oldestFirst.hasNext()) {\n        String step = oldestFirst.next();\n        if (!retryUndo(step, svc)) return \"stuck: undo \" + step + \" failed \" + MAX_ATTEMPTS + \" times\";\n    }\n    return \"compensated\";\n}",
+    "distractor": true
+  },
+  {
+    "id": "record-step-ok-only",
+    "label": "Remember every step that may have taken effect",
+    "code": "if (result.equals(\"ok\")) {\n    done.push(step);\n}",
+    "distractor": true
+  }
+]

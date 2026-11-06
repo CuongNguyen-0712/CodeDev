@@ -1,0 +1,35 @@
+[
+  {
+    "id": "claim-sql",
+    "label": "The query a relay pod uses to claim unsent events",
+    "code": "static final String CLAIM_SQL =\n        \"SELECT id, aggregate_id, type FROM outbox WHERE sent_at IS NULL ORDER BY id LIMIT ? FOR UPDATE SKIP LOCKED\";"
+  },
+  {
+    "id": "place-order-tx",
+    "label": "Save the order and its event as one decision",
+    "code": "Tx tx = db.begin();\ntry {\n    tx.insertOrder(orderId, customer);\n    tx.insertOutbox(orderId, \"OrderPlaced\");\n    tx.commit();\n} catch (DbException e) {\n    tx.rollback();\n    throw e;\n}"
+  },
+  {
+    "id": "publish-then-mark",
+    "label": "Publish one claimed event, then record it as sent",
+    "code": "try {\n    broker.send(TOPIC, row.aggregateId(), row.type());\n} catch (BrokerException e) {\n    break; // Kafka is unavailable: the rest of the batch stays unsent for the next poll\n}\ntx.markSent(row.id());\nsent++;"
+  },
+  {
+    "id": "claim-sql-no-lock",
+    "label": "The query a relay pod uses to claim unsent events",
+    "code": "static final String CLAIM_SQL =\n        \"SELECT id, aggregate_id, type FROM outbox WHERE sent_at IS NULL ORDER BY id LIMIT ?\";",
+    "distractor": true
+  },
+  {
+    "id": "mark-before-publish",
+    "label": "Publish one claimed event, then record it as sent",
+    "code": "tx.markSent(row.id());\ntry {\n    broker.send(TOPIC, row.aggregateId(), row.type());\n} catch (BrokerException e) {\n    break; // Kafka is unavailable: the rest of the batch stays unsent for the next poll\n}\nsent++;",
+    "distractor": true
+  },
+  {
+    "id": "place-order-send-in-transaction",
+    "label": "Save the order and its event as one decision",
+    "code": "Tx tx = db.begin();\ntry {\n    tx.insertOrder(orderId, customer);\n    broker.send(TOPIC, orderId, \"OrderPlaced\");\n    tx.commit();\n} catch (DbException e) {\n    tx.rollback();\n    throw e;\n}",
+    "distractor": true
+  }
+]

@@ -82,7 +82,6 @@
     "interview_prep"
   ],
   "prerequisites": [
-    "web-http-fundamentals",
     "nestjs-modular-monolith"
   ],
   "modules": [

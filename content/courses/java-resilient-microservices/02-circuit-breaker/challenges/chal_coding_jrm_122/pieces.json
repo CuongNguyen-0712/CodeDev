@@ -1,0 +1,40 @@
+[
+  {
+    "id": "open-wait",
+    "label": "While open, reject calls until the wait is over",
+    "code": "if (state == State.OPEN) {\n    if (t < openUntil) {\n        return \"rejected\";\n    }\n    transition(State.HALF_OPEN, t);\n}"
+  },
+  {
+    "id": "classify-call",
+    "label": "Which calls are recorded, as failures or as slow",
+    "code": "if (result.equals(\"bad-request\")) {\n    return \"ignored\";\n}\nOutcome outcome = new Outcome(result.equals(\"error\"), durationMs > c.slowMs());"
+  },
+  {
+    "id": "closed-decision",
+    "label": "Open once enough calls show too many failures",
+    "code": "if (window.size() >= c.minCalls() && tooBad()) {\n    transition(State.OPEN, t);\n}"
+  },
+  {
+    "id": "half-open-decision",
+    "label": "After the trial calls, open again or close",
+    "code": "if (window.size() >= c.halfOpenCalls()) {\n    transition(tooBad() ? State.OPEN : State.CLOSED, t);\n}"
+  },
+  {
+    "id": "classify-bad-request-failure",
+    "label": "Which calls are recorded, as failures or as slow",
+    "code": "Outcome outcome = new Outcome(!result.equals(\"ok\"), durationMs > c.slowMs());",
+    "distractor": true
+  },
+  {
+    "id": "closed-no-minimum",
+    "label": "Open once enough calls show too many failures",
+    "code": "if (tooBad()) {\n    transition(State.OPEN, t);\n}",
+    "distractor": true
+  },
+  {
+    "id": "half-open-first-call",
+    "label": "After the trial calls, open again or close",
+    "code": "transition(window.peekLast().failure() ? State.OPEN : State.CLOSED, t);",
+    "distractor": true
+  }
+]

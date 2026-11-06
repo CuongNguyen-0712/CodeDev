@@ -1,11 +1,11 @@
 {
   "publicId": "java-resilient-microservices",
-  "title": "Resilient Microservices in Java: Retries, Circuit Breakers & Outbox",
-  "concept": "Keep a microservice system up when its dependencies are not: timeouts and retry budgets, circuit breakers, bulkheads, idempotency keys, the transactional outbox, sagas and tracing.",
-  "description": "Keep a microservice system up when its dependencies are not: timeouts and retry budgets, circuit breakers, bulkheads, idempotency keys, the transactional outbox, sagas and tracing. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "title": "Resilient Microservices in Java: Spring Boot, Resilience4j and the Outbox",
+  "concept": "Keep Rice Rocket's Java services up when their dependencies are not: timeouts and retry budgets, Resilience4j circuit breakers and bulkheads, idempotency keys, the transactional outbox, saga compensations, cache stampede protection and W3C trace context. Every lesson shows the Spring Boot configuration; the challenges are plain Java 21 graded in the code runner.",
+  "description": "Keep Rice Rocket's Java services up when their dependencies are not: timeouts and retry budgets, Resilience4j circuit breakers and bulkheads, idempotency keys, the transactional outbox, saga compensations, cache stampede protection and W3C trace context. Every lesson shows the Spring Boot configuration; the challenges are plain Java 21 graded in the code runner. 8 lessons on one project, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594586/codedev/courses/java-resilient-microservices/cover",
   "level": "advanced",
-  "durationMinutes": 180,
+  "durationMinutes": 140,
   "instructor": "CodeDev Engineering Team",
   "language": "Java",
   "category": "Microservices",
@@ -44,29 +44,68 @@
     "ecommerce",
     "logistics"
   ],
-  "prerequisites": [
-    "java21-foundations"
+  "prerequisites": [],
+  "completionRules": {},
+  "domain": "backend",
+  "learningOutcomes": [
+    {
+      "code": "timeouts-retries",
+      "text": "Set timeouts and retry budgets that do not multiply load during an outage."
+    },
+    {
+      "code": "isolation",
+      "text": "Contain a failing dependency with circuit breakers and bulkheads."
+    },
+    {
+      "code": "consistency",
+      "text": "Keep data consistent across services with idempotency keys, the outbox and sagas."
+    },
+    {
+      "code": "operations",
+      "text": "Protect caches from stampedes and follow one request across services with trace context."
+    }
   ],
-  "modules": [],
-  "outline": [
+  "testedVersions": {
+    "Java": "21",
+    "Spring Boot": "3.5 / 4.0 (to verify)",
+    "Resilience4j": "2.x (to verify)"
+  },
+  "lastReviewedAt": "2026-11-06",
+  "sourceLinks": [
+    "https://resilience4j.readme.io/docs/circuitbreaker",
+    "https://resilience4j.readme.io/docs/bulkhead",
+    "https://docs.spring.io/spring-boot/reference/",
+    "https://www.w3.org/TR/trace-context/",
+    "https://microservices.io/patterns/data/transactional-outbox.html"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges are plain Java models of the documented Resilience4j and Spring behaviour, run in the code runner without the libraries.",
+    "testedVersions are not yet re-checked against the live tools."
+  ],
+  "template": "core-first",
+  "modules": [
     {
       "orderIndex": 1,
-      "title": "Failure Handling",
+      "title": "Failure handling",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Timeouts & retry budgets",
-          "challenges": "Q(m) + C(m)"
+          "folder": "01-timeouts-retry-budgets",
+          "title": "Timeouts and retry budgets",
+          "sanityId": "lesson-jrm-1-1"
         },
         {
           "orderIndex": 2,
-          "title": "A circuit breaker state machine",
-          "challenges": "C(h)"
+          "folder": "02-circuit-breaker",
+          "title": "A circuit breaker that opens for the right reasons",
+          "sanityId": "lesson-jrm-1-2"
         },
         {
           "orderIndex": 3,
-          "title": "Bulkheads",
-          "challenges": "Q(m) + C(m)"
+          "folder": "03-bulkheads",
+          "title": "Bulkheads and virtual threads",
+          "sanityId": "lesson-jrm-1-3"
         }
       ]
     },
@@ -76,18 +115,21 @@
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Idempotency keys",
-          "challenges": "C(m)"
+          "folder": "04-idempotency-keys",
+          "title": "Idempotency keys for payment callbacks",
+          "sanityId": "lesson-jrm-2-1"
         },
         {
           "orderIndex": 2,
-          "title": "Transactional outbox & at-least-once delivery",
-          "challenges": "Q(h) + F(m)"
+          "folder": "05-transactional-outbox",
+          "title": "The transactional outbox and at-least-once delivery",
+          "sanityId": "lesson-jrm-2-2"
         },
         {
           "orderIndex": 3,
-          "title": "Saga orchestration & compensations",
-          "challenges": "C(h)"
+          "folder": "06-saga-compensations",
+          "title": "Saga orchestration and compensations",
+          "sanityId": "lesson-jrm-2-3"
         }
       ]
     },
@@ -97,18 +139,15 @@
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Cache-aside & stampede protection",
-          "challenges": "C(m)"
+          "folder": "07-cache-stampede",
+          "title": "Cache-aside and stampede protection",
+          "sanityId": "lesson-jrm-3-1"
         },
         {
           "orderIndex": 2,
-          "title": "Tracing context: parsing W3C traceparent",
-          "challenges": "C(m)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "Mapping the patterns to Spring Boot & Resilience4j",
-          "challenges": "Q(m)"
+          "folder": "08-trace-context",
+          "title": "Trace context across services",
+          "sanityId": "lesson-jrm-3-2"
         }
       ]
     }

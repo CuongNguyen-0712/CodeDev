@@ -69,7 +69,7 @@ FROM (VALUES ('python', 5), ('machine_learning', 4), ('data_structures', 3), ('d
 JOIN catalog.skill s ON s.code = v.code;
 DELETE FROM catalog.course_prerequisite WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch');
 INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
-SELECT (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch'), id FROM catalog.course WHERE public_id = ANY(ARRAY['python-foundations-automation']::text[]);
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch'), id FROM catalog.course WHERE public_id = ANY(ARRAY['']::text[]);
 
 -- module 1: Preparing Documents
 UPDATE course.module SET title = 'Preparing Documents', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'python-rag-from-scratch') AND order_index = 1 AND is_deleted = false LIMIT 1);
@@ -89,7 +89,7 @@ VALUES ('chal_quiz_py_rag_111', (SELECT id FROM catalog.course WHERE public_id =
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_py_rag_111');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_py_rag_111');
 WITH q AS (
@@ -127,13 +127,13 @@ VALUES ('chal_coding_py_rag_112', (SELECT id FROM catalog.course WHERE public_id
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_112');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_112'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_112'), 'stdio', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_112');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_112'), 'Windows of 4 words that share 1 word', '{"text":"a b c d e f g h i j","size":4,"overlap":1}', '["a b c d","d e f g","g h i j"]', 4, true, false, 1),
@@ -163,13 +163,13 @@ VALUES ('chal_fix_py_rag_121', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_121');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_121'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_121'), 'stdio', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_121');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_121'), 'Copies that differ only in case and punctuation', '{"docs":[{"id":"kb-101","text":"Refunds are processed within 30 days of the request."},{"id":"pdf-17","text":"refunds are processed within 30 days of the request"},{"id":"kb-205","text":"Shipping takes 5 business days."}],"k":3,"threshold":0.8}', '["kb-101","kb-205"]', 4, true, false, 1),
@@ -205,7 +205,7 @@ VALUES ('chal_quiz_py_rag_211', (SELECT id FROM catalog.course WHERE public_id =
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_py_rag_211');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_py_rag_211');
 WITH q AS (
@@ -243,13 +243,13 @@ VALUES ('chal_coding_py_rag_212', (SELECT id FROM catalog.course WHERE public_id
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_212');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_212'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_212'), 'stdio', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_212');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_212'), 'Reset password: the precise article wins', '{"docs":[{"id":"kb-reset-password","text":"How to reset your password: open Settings, choose Security and click Reset password. A reset link is sent to your email."},{"id":"kb-2fa","text":"Two-factor authentication (2FA) adds a code from your phone. To reset 2FA, contact support with a backup code."},{"id":"blog-security","text":"Account security matters. Your account, your account settings and your account data are protected by our account team. Account account account."},{"id":"kb-billing","text":"Invoices are sent by email on the first day of each month."},{"id":"kb-login","text":"If you cannot log in, reset your password or check that the two-factor codes on your phone are in sync."}],"query":"reset password","k":3}', '[["kb-reset-password",2.0781],["kb-login",1.3437],["kb-2fa",0.5364]]', 4, true, false, 1),
@@ -279,13 +279,13 @@ VALUES ('chal_coding_py_rag_221', (SELECT id FROM catalog.course WHERE public_id
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_221');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_221'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_221'), 'stdio', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_221');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_221'), 'BM25 and vector results for "sync error E1042"', '{"rankings":[["kb-e1042","kb-errors","blog-launch"],["kb-sync","kb-errors","kb-e1042"]],"top":3}', '[["kb-e1042",0.032266],["kb-errors",0.032258],["kb-sync",0.016393]]', 4, true, false, 1),
@@ -315,7 +315,7 @@ VALUES ('chal_quiz_py_rag_231', (SELECT id FROM catalog.course WHERE public_id =
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_py_rag_231');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_py_rag_231');
 WITH q AS (
@@ -364,17 +364,17 @@ VALUES ('chal_fix_py_rag_232', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_232');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_232'), 1, 'For two vectors that point in exactly the same direction, cosine similarity is 1.0 whatever their lengths. What does the AI''s score give for [0.6, 0.8] against [0.6, 0.8], and against [3.0, 4.0]?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_232'), 2, 'Look at the line that computes `score` and at the comment above it. Which part of the cosine formula is missing - and is it enough to fix only one of the two vectors?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_232'), 3, 'A similar case on different numbers: for q = [1, 0] and v = [5, 5], the dot product is 5, |q| = 1 and |v| = math.hypot(5, 5) = 7.0711, so the cosine is 5 / (1 * 7.0711) = 0.7071. Scaling v to [50, 50] changes the dot product to 50 but leaves the cosine at 0.7071.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_232'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_232'), 'stdio', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_232');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_232'), 'Unit-length vectors: the E1042 article ranks first', '{"query":[0.6,0.8,0,0],"chunks":[{"id":"kb-errors","vector":[0,0.6,0.8,0]},{"id":"kb-sync","vector":[0.8,0.6,0,0]},{"id":"blog-launch","vector":[0,0,0,1]},{"id":"kb-e1042","vector":[0.6,0.8,0,0]}],"top":3}', '[{"id":"kb-e1042","score":1},{"id":"kb-sync","score":0.96},{"id":"kb-errors","score":0.48}]', 4, true, false, 1),
@@ -410,13 +410,13 @@ VALUES ('chal_coding_py_rag_311', (SELECT id FROM catalog.course WHERE public_id
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_311');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_311'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_311'), 'stdio', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_311');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_py_rag_311'), 'Everything fits: one number per source', '{"chunks":[{"id":"c1","source":"kb-refunds","text":"Refunds are processed within 30 days of the request."},{"id":"c2","source":"kb-credit","text":"Store credit is issued instantly."},{"id":"c3","source":"kb-refunds","text":"Partial refunds are possible for annual plans."}],"budget":100,"max_per_source":2}', '{"context":"[1] Refunds are processed within 30 days of the request.\n[2] Store credit is issued instantly.\n[1] Partial refunds are possible for annual plans.","citations":["kb-refunds","kb-credit"],"used":["c1","c2","c3"],"tokens":33}', 4, true, false, 1),
@@ -440,7 +440,7 @@ VALUES ('chal_quiz_py_rag_312', (SELECT id FROM catalog.course WHERE public_id =
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_py_rag_312');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_py_rag_312');
 WITH q AS (
@@ -486,13 +486,13 @@ VALUES ('chal_fix_py_rag_321', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_321');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_321'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_321'), 'stdio', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_321');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_321'), 'Two queries at k = 3', '{"results":[{"query":"how long do refunds take","retrieved":["kb-billing","kb-refunds","kb-plans","kb-payments"],"relevant":["kb-refunds","kb-payments"]},{"query":"reset 2fa","retrieved":["kb-2fa","kb-login"],"relevant":["kb-2fa"]}],"k":3}', '{"recall_at_k":0.75,"mrr":0.75,"hit_rate":1}', 4, true, false, 1),
@@ -522,7 +522,7 @@ VALUES ('chal_quiz_py_rag_331', (SELECT id FROM catalog.course WHERE public_id =
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_py_rag_331');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_py_rag_331');
 WITH q AS (
@@ -674,17 +674,17 @@ VALUES ('chal_fix_py_rag_332', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_332');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_332'), 1, 'In the incident answer, which source does the sentence with "30 days" cite, and in which line of the context does 30 actually appear? Which text does the check search when it decides that a fact is supported?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_332'), 2, 'Look at three places: what parse_context() keeps when two lines share the same number, which sources the "unsupported" branch searches, and how it compares a fact with that text (the `in` operator on a str matches substrings).'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_332'), 3, 'A similar case on different input: context "[1] Shipping takes 10 days.\n[2] Returns are free for 1 month." and the sentence "Shipping takes 1 day [1]." The numbers of the cited source are {"10"}. "1" is not one of them, so the sentence is unsupported - although the string "10" contains "1", and although 1 appears in source [2], which the sentence does not cite.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_332'), 'stdio', 2000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_332'), 'stdio', 2000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_332');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_fix_py_rag_332'), 'The incident answer: 30 days cited to a source that never says it', '{"context":"[1] Store credit is issued instantly.\n[2] Cancel any time from Settings > Billing.\n[3] Refunds are processed within 30 days of the request.\n[4] Annual plans are refunded pro rata for the unused months, minus any discount","answer":"Annual plans are refunded pro rata for the unused months [4]. The refund arrives within 30 days [4]."}', '[{"sentence":2,"problem":"unsupported"}]', 4, true, false, 1),

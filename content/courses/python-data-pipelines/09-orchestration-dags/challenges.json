@@ -1,0 +1,71 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pdp_191",
+      "name": "orchestration-quiz",
+      "type": "quiz",
+      "title": "Read the orchestrator's history",
+      "description": "Three statements about what Rice Rocket's Airflow instance did in the first week after the nightly pipeline moved into a DAG. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "orchestration"
+      ],
+      "points": 10,
+      "hints": [
+        "A retry runs the task again from the top. What did the first attempt already leave behind in the table?",
+        "Read `start_date` and `catchup` together: which intervals has the scheduler never run when the DAG is switched on?",
+        "Look at what the publish task would publish if it ran after a failed quality check, and what the trigger rule `all_success` exists to prevent."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The load task appends, and it has retries:\n\n```python\n@task(retries=3, retry_delay=timedelta(minutes=5))\ndef load(day: str):\n    rows = extract(day)\n    for chunk in batched(rows, 5000):\n        warehouse.execute(\"INSERT INTO orders VALUES ...\", chunk)   # one commit per chunk\n```\n\n```text\n[2026-11-06 02:14:07] load: inserted chunk 1/5\n[2026-11-06 02:14:09] load: inserted chunk 2/5\n[2026-11-06 02:14:10] ERROR connection reset by peer\n[2026-11-06 02:19:10] load: attempt 2 of 4\n[2026-11-06 02:19:15] load: inserted chunk 5/5  -> success\n```\n\nStatement: \"retries=3 makes this task safe: the attempt that failed halfway is simply run again, and the run ends with the right rows.\"",
+          "explanation": "False. The first attempt committed chunks 1 and 2 before the connection dropped; attempt 2 starts from the top and inserts all five chunks, so 10,000 orders are now in the table twice. Retries are only safe for idempotent tasks: delete and rewrite the day (or write to staging and swap) inside one transaction, as in the partition lesson. The misconception is that the orchestrator undoes a failed attempt; it only runs the code again.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The DAG was merged in November and switched on:\n\n```python\n@dag(schedule=\"0 2 * * *\",\n     start_date=pendulum.datetime(2026, 1, 1, tz=\"Asia/Ho_Chi_Minh\"),\n     catchup=True)\ndef nightly_orders(): ...\n```\n\n```text\n$ airflow dags list-runs nightly_orders --state queued | wc -l\n308\n```\n\nStatement: \"With catchup enabled the scheduler creates a run for every interval since start_date that has not run yet; set catchup=False (or a recent start_date) unless that backfill is intended.\"",
+          "explanation": "True. Catchup means \"run every missed interval\": from 1 January to early November is about 308 daily intervals, all queued at once against the production database. If history is wanted, run it as an explicit backfill with limited concurrency; otherwise set `catchup=False` (recent Airflow versions default to False, but say it explicitly) or move `start_date` close to today. The misconception is that `start_date` is only a label.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The quality check failed on Nov 6:\n\n```text\nnightly_orders  run 2026-11-06\n  extract   success\n  stage     success\n  audit     failed          (delivered-total: 6180 rows)\n  publish   upstream_failed\n  notify    success         (trigger_rule=all_done)\n```\n\nStatement: \"`publish` should use `trigger_rule=\\\"all_done\\\"` like `notify`, so the dashboards are refreshed even on nights when the audit fails.\"",
+          "explanation": "False. `upstream_failed` on publish is the default `all_success` rule doing its job: the audit exists precisely so that a failing batch is not published. `all_done` is right for `notify` (it must report every outcome) and for cleanup tasks, never for the step that exposes data. The misconception is that every task should run to keep the pipeline \"green\"; a red run with yesterday's correct data is the intended outcome of a failed audit.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

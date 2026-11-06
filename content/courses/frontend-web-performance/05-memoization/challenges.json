@@ -1,0 +1,920 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_fwp_151",
+      "name": "memoization-quiz",
+      "type": "quiz",
+      "title": "Read the menu page profile",
+      "description": "Three statements about what the React Profiler showed on Rice Rocket's menu page while a customer typed in the search box. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "render-efficiency"
+      ],
+      "points": 10,
+      "hints": [
+        "`memo` compares each prop with `Object.is`. Is an arrow function written inside the parent's render the same object on the next render?",
+        "Look at the cost column: which work takes milliseconds, and which takes microseconds? A memoized value also costs a dependency check on every render.",
+        "Read what the React Compiler documentation says about code that already calls `useMemo` and `useCallback`: does the compiler refuse it, or work alongside it?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Every keystroke in the search box re-renders all 300 menu cards, although `MenuItem` is wrapped in `memo`:\n\n```jsx\nconst MenuItem = memo(function MenuItem({ item, onAdd }) { /* ... */ });\n\n// in MenuPage\n{visible.map((item) => (\n  <MenuItem key={item.id} item={item} onAdd={() => addToCart(item.id)} />\n))}\n```\n\n```text\nReact Profiler, commit 14 (typed \"p\")\nMenuItem (memo)  x300   Why did this render? Props changed: (onAdd)\n```\n\nStatement: \"Since `MenuItem` is wrapped in `memo`, the 300 renders must come from a context or a store it reads, not from its props.\"",
+          "explanation": "False. The Profiler names the prop: `onAdd`. `() => addToCart(item.id)` creates a new function on every render of MenuPage, so `Object.is(prev.onAdd, next.onAdd)` is false for every card and `memo` renders all of them. Pass one stable handler (`useCallback((id) => addToCart(id), [addToCart])`) and let the card call it with its own id. The misconception is that `memo` alone prevents renders; it only skips them when every prop is the same object or value.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The profile of one keystroke on the 300-dish menu:\n\n```text\nMenuPage render              9.4 ms\n  filterMenu(items, query)   8.1 ms\n  formatPrice x 300          0.2 ms   (already wrapped in useMemo per card)\n```\n\nStatement: \"The memoization that pays here is `useMemo` around `filterMenu` keyed on `[items, query]`; wrapping a cheap computation like `formatPrice` in `useMemo` adds a dependency check per render and saves almost nothing.\"",
+          "explanation": "True. `useMemo` is worth its cost when the computation is expensive (8 ms of filtering) or when the result's identity matters to a memoized child. For cheap work, the hook's own bookkeeping (storing the value, comparing dependencies every render) costs about as much as it saves, and it makes the code harder to read. Measure first, then memoize the expensive step.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team turns on the React Compiler in the Next.js app and runs the build:\n\n```js\n// next.config.js\nconst nextConfig = { reactCompiler: true };\n```\n\nStatement: \"With the React Compiler enabled, every hand-written `useMemo`, `useCallback` and `memo` must be deleted first, or the build fails.\"",
+          "explanation": "False. The compiler memoizes components and hooks automatically and works alongside existing manual memoization; it does not reject code that already uses `useMemo`, `useCallback` or `memo`. React's guidance is to keep existing memoization (removing it can change behavior, for example effect dependencies) and to rely on the compiler for new code. The misconception is that automatic and manual memoization conflict. Hedge: check the exact option name for your Next.js version.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_fwp_152",
+      "name": "menu-page-memoization",
+      "type": "fix_bug",
+      "title": "Fix the menu page memoization",
+      "description": "Rice Rocket's menu page re-renders every dish card on each keystroke, a teammate's quick fix shows stale search results, and after a guest logs in the Add button still fills the guest's cart. The editor holds `app/restaurants/[slug]/menu-page.jsx` as plain functions (the grader provides React's `memo`, `useMemo` and `useCallback` with the same rules, and `render()` for writing a `<Component />`), with the four blocks of `MenuPage` missing, each marked by a `// [ ]` line; some pieces are last week's buggy versions. Fill every line so that: the expensive `filterMenu` runs only when the dishes or the query change and the results always match the query; a card renders again only when its own props change (narrowing the search or adding one dish to the cart re-renders nothing else); and Add always calls the `addToCart` of the current customer. Run renders the page through a sequence of updates and counts card renders and filter runs.",
+      "difficulty": "medium",
+      "outcomes": [
+        "render-efficiency"
+      ],
+      "points": 30,
+      "hints": [
+        "For each prop a card receives, ask: is it the same object on the next render when nothing about this dish changed? A new function or a new array each render defeats `memo`.",
+        "Look at the dependency arrays: every value the memoized function reads from the component's scope belongs in them, and nothing else.",
+        "A product list with a stable remove handler looks like: `const visible = useMemo(() => sortProducts(products, sort), [products, sort]); const onRemove = useCallback((id) => removeItem(id), [removeItem]); return visible.map((p) => <Row key={p.id} product={p} selected={selectedIds.has(p.id)} onRemove={onRemove} />);`"
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "app/restaurants/[slug]/menu-page.jsx",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "First render filters once and renders every dish",
+          "input": {
+            "items": [
+              {
+                "id": "d01",
+                "name": "Pho bo tai",
+                "price": 65000,
+                "tags": [
+                  "noodles",
+                  "beef"
+                ]
+              },
+              {
+                "id": "d02",
+                "name": "Pho ga",
+                "price": 60000,
+                "tags": [
+                  "noodles",
+                  "chicken"
+                ]
+              },
+              {
+                "id": "d03",
+                "name": "Bun cha Ha Noi",
+                "price": 55000,
+                "tags": [
+                  "noodles",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d04",
+                "name": "Banh mi thit",
+                "price": 30000,
+                "tags": [
+                  "bread",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d05",
+                "name": "Com tam suon",
+                "price": 50000,
+                "tags": [
+                  "rice",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d06",
+                "name": "Goi cuon",
+                "price": 35000,
+                "tags": [
+                  "rolls",
+                  "shrimp"
+                ]
+              },
+              {
+                "id": "d07",
+                "name": "Bun bo Hue",
+                "price": 60000,
+                "tags": [
+                  "noodles",
+                  "beef",
+                  "spicy"
+                ]
+              },
+              {
+                "id": "d08",
+                "name": "Ca phe sua da",
+                "price": 25000,
+                "tags": [
+                  "drinks"
+                ]
+              },
+              {
+                "id": "d09",
+                "name": "Tra dao",
+                "price": 30000,
+                "tags": [
+                  "drinks"
+                ]
+              },
+              {
+                "id": "d10",
+                "name": "Banh xeo",
+                "price": 45000,
+                "tags": [
+                  "pancake",
+                  "shrimp"
+                ]
+              },
+              {
+                "id": "d11",
+                "name": "Che ba mau",
+                "price": 25000,
+                "tags": [
+                  "dessert"
+                ]
+              },
+              {
+                "id": "d12",
+                "name": "Hu tieu Nam Vang",
+                "price": 55000,
+                "tags": [
+                  "noodles",
+                  "pork",
+                  "shrimp"
+                ]
+              }
+            ],
+            "steps": [
+              {
+                "render": {}
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "cardRenders": 12,
+                "filterRuns": 1,
+                "visible": [
+                  "d01",
+                  "d02",
+                  "d03",
+                  "d04",
+                  "d05",
+                  "d06",
+                  "d07",
+                  "d08",
+                  "d09",
+                  "d10",
+                  "d11",
+                  "d12"
+                ],
+                "inCart": []
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Typing \"pho\" then \"pho b\": right results, one filter run, no card renders again",
+          "input": {
+            "items": [
+              {
+                "id": "d01",
+                "name": "Pho bo tai",
+                "price": 65000,
+                "tags": [
+                  "noodles",
+                  "beef"
+                ]
+              },
+              {
+                "id": "d02",
+                "name": "Pho ga",
+                "price": 60000,
+                "tags": [
+                  "noodles",
+                  "chicken"
+                ]
+              },
+              {
+                "id": "d03",
+                "name": "Bun cha Ha Noi",
+                "price": 55000,
+                "tags": [
+                  "noodles",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d04",
+                "name": "Banh mi thit",
+                "price": 30000,
+                "tags": [
+                  "bread",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d05",
+                "name": "Com tam suon",
+                "price": 50000,
+                "tags": [
+                  "rice",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d06",
+                "name": "Goi cuon",
+                "price": 35000,
+                "tags": [
+                  "rolls",
+                  "shrimp"
+                ]
+              },
+              {
+                "id": "d07",
+                "name": "Bun bo Hue",
+                "price": 60000,
+                "tags": [
+                  "noodles",
+                  "beef",
+                  "spicy"
+                ]
+              },
+              {
+                "id": "d08",
+                "name": "Ca phe sua da",
+                "price": 25000,
+                "tags": [
+                  "drinks"
+                ]
+              },
+              {
+                "id": "d09",
+                "name": "Tra dao",
+                "price": 30000,
+                "tags": [
+                  "drinks"
+                ]
+              },
+              {
+                "id": "d10",
+                "name": "Banh xeo",
+                "price": 45000,
+                "tags": [
+                  "pancake",
+                  "shrimp"
+                ]
+              },
+              {
+                "id": "d11",
+                "name": "Che ba mau",
+                "price": 25000,
+                "tags": [
+                  "dessert"
+                ]
+              },
+              {
+                "id": "d12",
+                "name": "Hu tieu Nam Vang",
+                "price": 55000,
+                "tags": [
+                  "noodles",
+                  "pork",
+                  "shrimp"
+                ]
+              }
+            ],
+            "steps": [
+              {
+                "render": {}
+              },
+              {
+                "render": {
+                  "query": "pho"
+                }
+              },
+              {
+                "render": {
+                  "query": "pho b"
+                }
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "cardRenders": 12,
+                "filterRuns": 1,
+                "visible": [
+                  "d01",
+                  "d02",
+                  "d03",
+                  "d04",
+                  "d05",
+                  "d06",
+                  "d07",
+                  "d08",
+                  "d09",
+                  "d10",
+                  "d11",
+                  "d12"
+                ],
+                "inCart": []
+              },
+              {
+                "cardRenders": 0,
+                "filterRuns": 1,
+                "visible": [
+                  "d01",
+                  "d02"
+                ],
+                "inCart": []
+              },
+              {
+                "cardRenders": 0,
+                "filterRuns": 1,
+                "visible": [
+                  "d01"
+                ],
+                "inCart": []
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A parent re-render with the same props filters nothing and renders no card",
+          "input": {
+            "items": [
+              {
+                "id": "d01",
+                "name": "Pho bo tai",
+                "price": 65000,
+                "tags": [
+                  "noodles",
+                  "beef"
+                ]
+              },
+              {
+                "id": "d02",
+                "name": "Pho ga",
+                "price": 60000,
+                "tags": [
+                  "noodles",
+                  "chicken"
+                ]
+              },
+              {
+                "id": "d03",
+                "name": "Bun cha Ha Noi",
+                "price": 55000,
+                "tags": [
+                  "noodles",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d04",
+                "name": "Banh mi thit",
+                "price": 30000,
+                "tags": [
+                  "bread",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d05",
+                "name": "Com tam suon",
+                "price": 50000,
+                "tags": [
+                  "rice",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d06",
+                "name": "Goi cuon",
+                "price": 35000,
+                "tags": [
+                  "rolls",
+                  "shrimp"
+                ]
+              },
+              {
+                "id": "d07",
+                "name": "Bun bo Hue",
+                "price": 60000,
+                "tags": [
+                  "noodles",
+                  "beef",
+                  "spicy"
+                ]
+              },
+              {
+                "id": "d08",
+                "name": "Ca phe sua da",
+                "price": 25000,
+                "tags": [
+                  "drinks"
+                ]
+              },
+              {
+                "id": "d09",
+                "name": "Tra dao",
+                "price": 30000,
+                "tags": [
+                  "drinks"
+                ]
+              },
+              {
+                "id": "d10",
+                "name": "Banh xeo",
+                "price": 45000,
+                "tags": [
+                  "pancake",
+                  "shrimp"
+                ]
+              },
+              {
+                "id": "d11",
+                "name": "Che ba mau",
+                "price": 25000,
+                "tags": [
+                  "dessert"
+                ]
+              },
+              {
+                "id": "d12",
+                "name": "Hu tieu Nam Vang",
+                "price": 55000,
+                "tags": [
+                  "noodles",
+                  "pork",
+                  "shrimp"
+                ]
+              }
+            ],
+            "steps": [
+              {
+                "render": {}
+              },
+              {
+                "render": {}
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "cardRenders": 12,
+                "filterRuns": 1,
+                "visible": [
+                  "d01",
+                  "d02",
+                  "d03",
+                  "d04",
+                  "d05",
+                  "d06",
+                  "d07",
+                  "d08",
+                  "d09",
+                  "d10",
+                  "d11",
+                  "d12"
+                ],
+                "inCart": []
+              },
+              {
+                "cardRenders": 0,
+                "filterRuns": 0,
+                "visible": [
+                  "d01",
+                  "d02",
+                  "d03",
+                  "d04",
+                  "d05",
+                  "d06",
+                  "d07",
+                  "d08",
+                  "d09",
+                  "d10",
+                  "d11",
+                  "d12"
+                ],
+                "inCart": []
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Adding one dish to the cart renders only that card",
+          "input": {
+            "items": [
+              {
+                "id": "d01",
+                "name": "Pho bo tai",
+                "price": 65000,
+                "tags": [
+                  "noodles",
+                  "beef"
+                ]
+              },
+              {
+                "id": "d02",
+                "name": "Pho ga",
+                "price": 60000,
+                "tags": [
+                  "noodles",
+                  "chicken"
+                ]
+              },
+              {
+                "id": "d03",
+                "name": "Bun cha Ha Noi",
+                "price": 55000,
+                "tags": [
+                  "noodles",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d04",
+                "name": "Banh mi thit",
+                "price": 30000,
+                "tags": [
+                  "bread",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d05",
+                "name": "Com tam suon",
+                "price": 50000,
+                "tags": [
+                  "rice",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d06",
+                "name": "Goi cuon",
+                "price": 35000,
+                "tags": [
+                  "rolls",
+                  "shrimp"
+                ]
+              },
+              {
+                "id": "d07",
+                "name": "Bun bo Hue",
+                "price": 60000,
+                "tags": [
+                  "noodles",
+                  "beef",
+                  "spicy"
+                ]
+              },
+              {
+                "id": "d08",
+                "name": "Ca phe sua da",
+                "price": 25000,
+                "tags": [
+                  "drinks"
+                ]
+              },
+              {
+                "id": "d09",
+                "name": "Tra dao",
+                "price": 30000,
+                "tags": [
+                  "drinks"
+                ]
+              },
+              {
+                "id": "d10",
+                "name": "Banh xeo",
+                "price": 45000,
+                "tags": [
+                  "pancake",
+                  "shrimp"
+                ]
+              },
+              {
+                "id": "d11",
+                "name": "Che ba mau",
+                "price": 25000,
+                "tags": [
+                  "dessert"
+                ]
+              },
+              {
+                "id": "d12",
+                "name": "Hu tieu Nam Vang",
+                "price": 55000,
+                "tags": [
+                  "noodles",
+                  "pork",
+                  "shrimp"
+                ]
+              }
+            ],
+            "steps": [
+              {
+                "render": {
+                  "query": "noodles"
+                }
+              },
+              {
+                "render": {
+                  "cartIds": [
+                    "d03"
+                  ]
+                }
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "cardRenders": 5,
+                "filterRuns": 1,
+                "visible": [
+                  "d01",
+                  "d02",
+                  "d03",
+                  "d07",
+                  "d12"
+                ],
+                "inCart": []
+              },
+              {
+                "cardRenders": 1,
+                "filterRuns": 0,
+                "visible": [
+                  "d01",
+                  "d02",
+                  "d03",
+                  "d07",
+                  "d12"
+                ],
+                "inCart": [
+                  "d03"
+                ]
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "After a guest logs in, Add fills the new customer's cart",
+          "input": {
+            "items": [
+              {
+                "id": "d01",
+                "name": "Pho bo tai",
+                "price": 65000,
+                "tags": [
+                  "noodles",
+                  "beef"
+                ]
+              },
+              {
+                "id": "d02",
+                "name": "Pho ga",
+                "price": 60000,
+                "tags": [
+                  "noodles",
+                  "chicken"
+                ]
+              },
+              {
+                "id": "d03",
+                "name": "Bun cha Ha Noi",
+                "price": 55000,
+                "tags": [
+                  "noodles",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d04",
+                "name": "Banh mi thit",
+                "price": 30000,
+                "tags": [
+                  "bread",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d05",
+                "name": "Com tam suon",
+                "price": 50000,
+                "tags": [
+                  "rice",
+                  "pork"
+                ]
+              },
+              {
+                "id": "d06",
+                "name": "Goi cuon",
+                "price": 35000,
+                "tags": [
+                  "rolls",
+                  "shrimp"
+                ]
+              },
+              {
+                "id": "d07",
+                "name": "Bun bo Hue",
+                "price": 60000,
+                "tags": [
+                  "noodles",
+                  "beef",
+                  "spicy"
+                ]
+              },
+              {
+                "id": "d08",
+                "name": "Ca phe sua da",
+                "price": 25000,
+                "tags": [
+                  "drinks"
+                ]
+              },
+              {
+                "id": "d09",
+                "name": "Tra dao",
+                "price": 30000,
+                "tags": [
+                  "drinks"
+                ]
+              },
+              {
+                "id": "d10",
+                "name": "Banh xeo",
+                "price": 45000,
+                "tags": [
+                  "pancake",
+                  "shrimp"
+                ]
+              },
+              {
+                "id": "d11",
+                "name": "Che ba mau",
+                "price": 25000,
+                "tags": [
+                  "dessert"
+                ]
+              },
+              {
+                "id": "d12",
+                "name": "Hu tieu Nam Vang",
+                "price": 55000,
+                "tags": [
+                  "noodles",
+                  "pork",
+                  "shrimp"
+                ]
+              }
+            ],
+            "steps": [
+              {
+                "render": {}
+              },
+              {
+                "click": "d01"
+              },
+              {
+                "render": {
+                  "owner": "mai"
+                }
+              },
+              {
+                "click": "d01"
+              }
+            ]
+          },
+          "expected": {
+            "steps": [
+              {
+                "cardRenders": 12,
+                "filterRuns": 1,
+                "visible": [
+                  "d01",
+                  "d02",
+                  "d03",
+                  "d04",
+                  "d05",
+                  "d06",
+                  "d07",
+                  "d08",
+                  "d09",
+                  "d10",
+                  "d11",
+                  "d12"
+                ],
+                "inCart": []
+              },
+              {
+                "clickedBy": "guest"
+              },
+              {
+                "cardRenders": 12,
+                "filterRuns": 0,
+                "visible": [
+                  "d01",
+                  "d02",
+                  "d03",
+                  "d04",
+                  "d05",
+                  "d06",
+                  "d07",
+                  "d08",
+                  "d09",
+                  "d10",
+                  "d11",
+                  "d12"
+                ],
+                "inCart": []
+              },
+              {
+                "clickedBy": "mai"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

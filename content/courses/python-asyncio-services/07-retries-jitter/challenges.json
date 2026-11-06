@@ -1,0 +1,172 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pas_172",
+      "name": "retry-backoff-jitter",
+      "type": "fix_bug",
+      "title": "Fix the gateway retry loop",
+      "description": "Rice Rocket's order-status poller asks the payment gateway about 300 pending orders. During a five-minute gateway outage its retry helper made things worse: all 300 pollers retried in lockstep every second and knocked the gateway over again as it came back, `400 order not found` answers were retried until the attempts ran out, a request kept retrying after its deadline, and a cancelled request went on calling the gateway in the background. The editor holds `retry.py` with the repaired helper's key blocks missing, each marked by a `# [ ]` line; the wrong pieces are the old helper's code. Fill every line so that `call_with_retry` retries only TimeoutError, ConnectionError and HTTP 429/502/503/504, waits `rng.uniform(0, min(cap, base * 2 ** attempt))` (Retry-After as a minimum), never sleeps past the deadline, never swallows cancellation, and finally raises the last error. Run plays single calls, a 300-poller outage and a cancellation on asyncio's clock.",
+      "difficulty": "medium",
+      "outcomes": [
+        "production"
+      ],
+      "points": 30,
+      "hints": [
+        "Take the symptoms one by one: which line decides what gets retried, which decides how long to wait, and which one should look at the clock before sleeping?",
+        "Look at the exception classes in the `except` clauses (and what `BaseException` also catches), `rng.uniform` with `base * 2 ** attempt`, and comparing `loop.time() + delay` with the give-up time.",
+        "A retry helper for an S3 upload looks like: `except (TimeoutError, ConnectionError)` and `except ClientError` with a status check that re-raises 4xx; `delay = rng.uniform(0, min(20, 0.2 * 2 ** attempt))`; `if loop.time() + delay > give_up_at: break`; after the loop, `raise last`."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "retry.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Timeouts, a reset and a 503, then success: retried with jittered backoff",
+          "input": {
+            "scenario": "single",
+            "outcomes": [
+              "timeout",
+              "conn",
+              503,
+              "ok"
+            ],
+            "attempts": 5,
+            "base": 0.5,
+            "cap": 8,
+            "deadline": 30
+          },
+          "expected": {
+            "result": "ok",
+            "calls_at": [
+              0,
+              0.167,
+              1.115,
+              2.742
+            ],
+            "finished_at": 2.842
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "400 order not found is raised at once, never retried",
+          "input": {
+            "scenario": "single",
+            "outcomes": [
+              400
+            ],
+            "attempts": 5,
+            "base": 0.5,
+            "cap": 8,
+            "deadline": 30
+          },
+          "expected": {
+            "result": "HTTPError 400",
+            "calls_at": [
+              0
+            ],
+            "finished_at": 0.1
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "429 with Retry-After: 3 waits at least 3 seconds before trying again",
+          "input": {
+            "scenario": "single",
+            "outcomes": [
+              {
+                "status": 429,
+                "retry_after": 3
+              },
+              "ok"
+            ],
+            "attempts": 5,
+            "base": 0.5,
+            "cap": 8,
+            "deadline": 30
+          },
+          "expected": {
+            "result": "ok",
+            "calls_at": [
+              0,
+              3.1
+            ],
+            "finished_at": 3.2
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "With a 6 s deadline the helper gives up instead of sleeping past it",
+          "input": {
+            "scenario": "single",
+            "outcomes": [
+              503,
+              503,
+              503,
+              503,
+              503,
+              503
+            ],
+            "attempts": 6,
+            "base": 1,
+            "cap": 8,
+            "deadline": 6
+          },
+          "expected": {
+            "result": "HTTPError 503",
+            "calls_at": [
+              0,
+              0.234,
+              2.029,
+              5.184
+            ],
+            "finished_at": 5.284
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "300 pollers through a 5 s outage: spread out, no wave when the gateway is back",
+          "input": {
+            "scenario": "herd",
+            "clients": 300,
+            "down_until": 5
+          },
+          "expected": {
+            "ok": 300,
+            "failed": 0,
+            "calls": 1771,
+            "peak_calls_per_second": 830,
+            "calls_in_first_second_back": 92,
+            "all_done_at": 12.43
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A cancelled request stops and never calls the gateway again",
+          "input": {
+            "scenario": "cancelled",
+            "cancel_at": 2
+          },
+          "expected": {
+            "state": "cancelled",
+            "calls_at": [
+              0
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_jrm_162",
+      "name": "checkout-saga",
+      "type": "mini_coding",
+      "title": "Orchestrate the checkout saga",
+      "description": "Rice Rocket's checkout spans four services: payment, courier, restaurant and notifications. When a restaurant rejected an order, the customer's card stayed authorized for days; when the payment provider timed out, nobody voided the authorization it had in fact made; and once a capture failed after the kitchen had already started cooking, the old code tried to undo the whole order. The editor holds `Main.java`, the saga orchestrator, with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: steps up to the pivot (confirm-restaurant) run once and any answer other than ok stops the saga and undoes every step that may have taken effect, newest first, a timed-out step included; each undo is retried up to 5 times; steps after the pivot are only retried forward, up to 5 times, never undone; and the result is completed, compensated or stuck. Run replays scripted service answers and prints every call and what is still in place.",
+      "difficulty": "hard",
+      "outcomes": [
+        "consistency"
+      ],
+      "points": 40,
+      "hints": [
+        "For each scripted answer, ask what is true in the other service afterwards: after a timeout, did the payment provider authorize or not? After the kitchen accepted, can the order still be undone?",
+        "Look at which answers add a step to `done`, at the order in which `compensate` takes steps out of the deque (push and pop work at the same end), and at what the loop does for an index after `pivotIndex`.",
+        "A hotel booking saga reserves a room, then charges a deposit, then confirms with the guest (its pivot), then sends the invoice. When the deposit times out it releases the deposit first and then the room, retrying each release up to three times; once the guest confirmed, a failing invoice is retried, never cancelled."
+      ],
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Every service says yes: the saga completes",
+          "input": "saga authorize-payment reserve-courier confirm-restaurant capture-payment notify-customer\npivot confirm-restaurant\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "authorize-payment: ok\nreserve-courier: ok\nconfirm-restaurant: ok\ncapture-payment: ok\nnotify-customer: ok\nsaga: completed\nleft in place: authorize-payment, reserve-courier, confirm-restaurant, capture-payment, notify-customer"
+        },
+        {
+          "name": "The restaurant rejects: courier released, then the payment voided",
+          "input": "saga authorize-payment reserve-courier confirm-restaurant capture-payment notify-customer\npivot confirm-restaurant\ncall confirm-restaurant rejected\n",
+          "hidden": false,
+          "score": 7,
+          "expected": "authorize-payment: ok\nreserve-courier: ok\nconfirm-restaurant: rejected\nundo reserve-courier: ok\nundo authorize-payment: ok\nsaga: compensated\nleft in place: nothing"
+        },
+        {
+          "name": "The payment provider times out: the authorization may exist, so it is voided",
+          "input": "saga authorize-payment reserve-courier confirm-restaurant capture-payment notify-customer\npivot confirm-restaurant\ncall authorize-payment timeout\n",
+          "hidden": false,
+          "score": 7,
+          "expected": "authorize-payment: timeout\nundo authorize-payment: ok\nsaga: compensated\nleft in place: nothing"
+        },
+        {
+          "name": "Voiding the payment fails twice, then works: the saga still ends compensated",
+          "input": "saga authorize-payment reserve-courier confirm-restaurant capture-payment notify-customer\npivot confirm-restaurant\ncall confirm-restaurant rejected\nundo authorize-payment fail fail ok\n",
+          "hidden": true,
+          "score": 7,
+          "expected": "authorize-payment: ok\nreserve-courier: ok\nconfirm-restaurant: rejected\nundo reserve-courier: ok\nundo authorize-payment: fail\nundo authorize-payment: fail\nundo authorize-payment: ok\nsaga: compensated\nleft in place: nothing"
+        },
+        {
+          "name": "Capture fails after the kitchen accepted: retried forward, nothing undone",
+          "input": "saga authorize-payment reserve-courier confirm-restaurant capture-payment notify-customer\npivot confirm-restaurant\ncall capture-payment timeout rejected\n",
+          "hidden": true,
+          "score": 7,
+          "expected": "authorize-payment: ok\nreserve-courier: ok\nconfirm-restaurant: ok\ncapture-payment: timeout\ncapture-payment: rejected\ncapture-payment: ok\nnotify-customer: ok\nsaga: completed\nleft in place: authorize-payment, reserve-courier, confirm-restaurant, capture-payment, notify-customer"
+        },
+        {
+          "name": "The void keeps failing: the saga stops as stuck after 5 attempts",
+          "input": "saga authorize-payment reserve-courier confirm-restaurant capture-payment notify-customer\npivot confirm-restaurant\ncall reserve-courier rejected\nundo authorize-payment fail fail fail fail fail\n",
+          "hidden": true,
+          "score": 6,
+          "expected": "authorize-payment: ok\nreserve-courier: rejected\nundo authorize-payment: fail\nundo authorize-payment: fail\nundo authorize-payment: fail\nundo authorize-payment: fail\nundo authorize-payment: fail\nsaga: stuck: undo authorize-payment failed 5 times\nleft in place: authorize-payment"
+        }
+      ]
+    }
+  ]
+}

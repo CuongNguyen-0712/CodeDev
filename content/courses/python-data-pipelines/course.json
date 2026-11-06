@@ -1,11 +1,11 @@
 {
   "publicId": "python-data-pipelines",
   "title": "Data Engineering with Python & SQL: Batch Pipelines, Idempotent Loads & Data Quality",
-  "concept": "Build batch pipelines you can rerun at 3 a.m. without fear: incremental extraction, idempotent upserts, slowly changing dimensions, data quality checks, partitioning and backfills, in Python with SQLite.",
-  "description": "Build batch pipelines you can rerun at 3 a.m. without fear: incremental extraction, idempotent upserts, slowly changing dimensions, data quality checks, partitioning and backfills, in Python with SQLite. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "concept": "Build Rice Rocket's nightly order pipelines so they can be rerun at 3 a.m. without fear: incremental extraction with watermarks, idempotent upserts, schema drift, star schemas, slowly changing dimensions, deduplicated event streams, data quality checks, partition backfills and orchestration in Airflow / Dagster terms. Challenges run Python and SQL on SQLite in the code runner.",
+  "description": "Build Rice Rocket's nightly order pipelines so they can be rerun at 3 a.m. without fear: incremental extraction with watermarks, idempotent upserts, schema drift, star schemas, slowly changing dimensions, deduplicated event streams, data quality checks, partition backfills and orchestration in Airflow / Dagster terms. 9 lessons on one project, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594605/codedev/courses/python-data-pipelines/cover",
   "level": "intermediate",
-  "durationMinutes": 180,
+  "durationMinutes": 150,
   "instructor": "CodeDev Engineering Team",
   "language": "Python",
   "category": "Big Data",
@@ -41,30 +41,68 @@
     "grow_in_role",
     "build_projects"
   ],
-  "prerequisites": [
-    "python-foundations-automation",
-    "sql-data-analysis-foundations"
+  "prerequisites": [],
+  "completionRules": {},
+  "domain": "data",
+  "learningOutcomes": [
+    {
+      "code": "extract-load",
+      "text": "Extract incrementally and load idempotently, and survive schema drift."
+    },
+    {
+      "code": "modeling",
+      "text": "Model facts and dimensions, keep history with type 2 dimensions and deduplicate events."
+    },
+    {
+      "code": "data-quality",
+      "text": "Express data quality checks as code that stops a bad load."
+    },
+    {
+      "code": "orchestration",
+      "text": "Backfill partitions and run pipelines as DAGs with retries and SLAs."
+    }
   ],
-  "modules": [],
-  "outline": [
+  "testedVersions": {
+    "Python": "3.13",
+    "SQLite": "3.45+ (challenge runtime)",
+    "Apache Airflow": "3.x (to verify)"
+  },
+  "lastReviewedAt": "2026-11-06",
+  "sourceLinks": [
+    "https://www.sqlite.org/lang_upsert.html",
+    "https://airflow.apache.org/docs/",
+    "https://docs.dagster.io/",
+    "https://docs.getdbt.com/docs/build/data-tests",
+    "https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges use SQLite and Python; the lessons show the same steps in a warehouse and an orchestrator.",
+    "testedVersions are not yet re-checked against the live tools."
+  ],
+  "template": "core-first",
+  "modules": [
     {
       "orderIndex": 1,
-      "title": "Extract & Load",
+      "title": "Extract and load",
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "01-incremental-watermarks",
           "title": "Incremental extraction with watermarks",
-          "challenges": "C(m)"
+          "sanityId": "lesson-pdp-1-1"
         },
         {
           "orderIndex": 2,
-          "title": "Idempotent loads: upserts & natural keys",
-          "challenges": "Q(m) + F(m)"
+          "folder": "02-idempotent-loads",
+          "title": "Idempotent loads: upserts and natural keys",
+          "sanityId": "lesson-pdp-1-2"
         },
         {
           "orderIndex": 3,
-          "title": "Schema drift: detecting new & renamed columns",
-          "challenges": "C(m)"
+          "folder": "03-schema-drift",
+          "title": "Schema drift: new and renamed columns",
+          "sanityId": "lesson-pdp-1-3"
         }
       ]
     },
@@ -74,18 +112,21 @@
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Star schemas: facts & dimensions",
-          "challenges": "Q(m)"
+          "folder": "04-star-schema",
+          "title": "Star schemas: facts and dimensions",
+          "sanityId": "lesson-pdp-2-1"
         },
         {
           "orderIndex": 2,
+          "folder": "05-scd-type-2",
           "title": "Slowly changing dimensions (type 2)",
-          "challenges": "C(h)"
+          "sanityId": "lesson-pdp-2-2"
         },
         {
           "orderIndex": 3,
+          "folder": "06-dedup-events",
           "title": "Deduplicating event streams",
-          "challenges": "C(m)"
+          "sanityId": "lesson-pdp-2-3"
         }
       ]
     },
@@ -95,18 +136,21 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "07-data-quality-checks",
           "title": "Data quality checks as code",
-          "challenges": "Q(m) + C(m)"
+          "sanityId": "lesson-pdp-3-1"
         },
         {
           "orderIndex": 2,
-          "title": "Partitioning & backfills",
-          "challenges": "C(m)"
+          "folder": "08-partition-backfills",
+          "title": "Partitioning and backfills",
+          "sanityId": "lesson-pdp-3-2"
         },
         {
           "orderIndex": 3,
-          "title": "Orchestration: DAGs, retries & SLAs",
-          "challenges": "Q(m)"
+          "folder": "09-orchestration-dags",
+          "title": "Orchestration: DAGs, retries and SLAs",
+          "sanityId": "lesson-pdp-3-3"
         }
       ]
     }

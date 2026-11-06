@@ -1,0 +1,35 @@
+[
+  {
+    "id": "batch-unique",
+    "label": "One row per event from tonight's file",
+    "code": "Q_BATCH_UNIQUE = \"\"\"\nSELECT event_id, order_id, event_type, amount_vnd, event_time, ingested_at\nFROM (\n    SELECT s.*, ROW_NUMBER() OVER (PARTITION BY event_id ORDER BY ingested_at, rowid) AS copy\n    FROM staging s\n)\nWHERE copy = 1\n\"\"\""
+  },
+  {
+    "id": "insert-new",
+    "label": "Add only events the warehouse has not seen",
+    "code": "Q_INSERT_NEW = \"\"\"\nINSERT INTO events (event_id, order_id, event_type, amount_vnd, event_time, ingested_at)\n\"\"\" + Q_BATCH_UNIQUE + \"\"\"\nON CONFLICT (event_id) DO NOTHING\n\"\"\""
+  },
+  {
+    "id": "daily-revenue",
+    "label": "Paid revenue per business day in Ho Chi Minh City",
+    "code": "Q_DAILY_REVENUE = \"\"\"\nSELECT date(event_time, '+7 hours') AS day, SUM(amount_vnd) AS revenue_vnd\nFROM events\nWHERE event_type = 'order_paid'\nGROUP BY day\nORDER BY day\n\"\"\""
+  },
+  {
+    "id": "batch-unique-order-type",
+    "label": "One row per event from tonight's file",
+    "code": "Q_BATCH_UNIQUE = \"\"\"\nSELECT event_id, order_id, event_type, amount_vnd, event_time, ingested_at\nFROM (\n    SELECT s.*, ROW_NUMBER() OVER (PARTITION BY order_id, event_type ORDER BY ingested_at, rowid) AS copy\n    FROM staging s\n)\nWHERE copy = 1\n\"\"\"",
+    "distractor": true
+  },
+  {
+    "id": "insert-plain",
+    "label": "Add only events the warehouse has not seen",
+    "code": "Q_INSERT_NEW = \"\"\"\nINSERT INTO events (event_id, order_id, event_type, amount_vnd, event_time, ingested_at)\n\"\"\" + Q_BATCH_UNIQUE",
+    "distractor": true
+  },
+  {
+    "id": "revenue-ingest-day",
+    "label": "Paid revenue per business day in Ho Chi Minh City",
+    "code": "Q_DAILY_REVENUE = \"\"\"\nSELECT date(ingested_at, '+7 hours') AS day, SUM(amount_vnd) AS revenue_vnd\nFROM events\nWHERE event_type = 'order_paid'\nGROUP BY day\nORDER BY day\n\"\"\"",
+    "distractor": true
+  }
+]

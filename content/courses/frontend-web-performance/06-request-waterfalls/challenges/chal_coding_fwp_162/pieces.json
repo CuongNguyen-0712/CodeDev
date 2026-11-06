@@ -1,0 +1,45 @@
+[
+  {
+    "id": "start-independent",
+    "label": "Start every request that needs only the slug",
+    "code": "const restaurantP = api.restaurant(slug);\nconst menuP = api.menu(slug);\nconst cartP = api.cart();"
+  },
+  {
+    "id": "preload-hero",
+    "label": "Fetch the hero image as soon as its URL is known",
+    "code": "restaurantP.then((restaurant) => api.preload(restaurant.heroImage));"
+  },
+  {
+    "id": "recommendations-after-menu",
+    "label": "Recommendations once the menu's categories are known",
+    "code": "const recommendationsP = menuP.then((menu) => api.recommendations(menu.categories.map((c) => c.id)));"
+  },
+  {
+    "id": "reviews-deferred",
+    "label": "Reviews once the restaurant id is known, not awaited",
+    "code": "const reviewsP = restaurantP.then((restaurant) => api.reviews(restaurant.id));"
+  },
+  {
+    "id": "await-critical",
+    "label": "Wait only for what the first paint needs",
+    "code": "const [restaurant, menu, cart, recommendations] = await Promise.all([restaurantP, menuP, cartP, recommendationsP]);\nreturn { restaurant, menu, cart, recommendations, reviews: reviewsP };"
+  },
+  {
+    "id": "await-critical-with-reviews",
+    "label": "Wait only for what the first paint needs",
+    "code": "const [restaurant, menu, cart, recommendations, reviews] = await Promise.all([restaurantP, menuP, cartP, recommendationsP, reviewsP]);\nreturn { restaurant, menu, cart, recommendations, reviews };",
+    "distractor": true
+  },
+  {
+    "id": "preload-hero-after-menu",
+    "label": "Fetch the hero image as soon as its URL is known",
+    "code": "Promise.all([restaurantP, menuP]).then(([restaurant]) => api.preload(restaurant.heroImage));",
+    "distractor": true
+  },
+  {
+    "id": "start-independent-chained",
+    "label": "Start every request that needs only the slug",
+    "code": "const restaurantP = api.restaurant(slug);\nconst menuP = restaurantP.then(() => api.menu(slug));\nconst cartP = menuP.then(() => api.cart());",
+    "distractor": true
+  }
+]

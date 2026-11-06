@@ -1,0 +1,176 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_fwp_162",
+      "name": "restaurant-page-loader",
+      "type": "mini_coding",
+      "title": "Remove the restaurant page waterfall",
+      "description": "The restaurant page of Rice Rocket's Next.js app awaited five requests one after another (restaurant, menu, cart, reviews, recommendations): about 940 ms before anything could render, and the hero image only started downloading after all of them. The editor holds `app/restaurants/[slug]/load.js` with its blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: every request that needs only the slug starts at once; the recommendations start the moment the menu's category ids are known; the hero image is preloaded the moment the restaurant's data arrives; the reviews start as soon as the restaurant id is known but the loader does not wait for them (it returns them as a promise for a `<Suspense>` boundary); and each endpoint is called once. Run executes the loader against a fake API on a virtual clock and reports when each request started and when the page was ready.",
+      "difficulty": "medium",
+      "outcomes": [
+        "fast-loading"
+      ],
+      "points": 30,
+      "hints": [
+        "Draw the dependency graph: which requests need nothing but the slug, which need data from another response, and which does the first paint not need at all?",
+        "A promise starts its work when you call the function, not when you `await` it. Keep the promises in variables, chain dependent calls with `.then`, and `await Promise.all([...])` only what must be ready.",
+        "A product page with a deferred Q&A section looks like: `const productP = api.product(id); const priceP = api.price(id); const similarP = productP.then((p) => api.similar(p.categoryId)); const qaP = productP.then((p) => api.questions(p.sku)); const [product, price, similar] = await Promise.all([productP, priceP, similarP]); return { product, price, similar, questions: qaP };`"
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "app/restaurants/[slug]/load.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The page is ready at 330 ms with the restaurant, menu, cart and recommendations",
+          "input": {
+            "slug": "com-tam-ba-ghien",
+            "latency": {
+              "restaurant": 120,
+              "menu": 180,
+              "cart": 90,
+              "reviews": 400,
+              "recommendations": 150
+            }
+          },
+          "expected": {
+            "readyAt": 330,
+            "starts": {
+              "restaurant": 0,
+              "menu": 0,
+              "cart": 0,
+              "preload": 120,
+              "reviews": 120,
+              "recommendations": 180
+            },
+            "calls": {
+              "restaurant": 1,
+              "menu": 1,
+              "cart": 1,
+              "preload": 1,
+              "reviews": 1,
+              "recommendations": 1
+            },
+            "page": {
+              "restaurant": "Com Tam Ba Ghien",
+              "dishes": 24,
+              "cartItems": 2,
+              "recommendations": [
+                "d05",
+                "d09"
+              ]
+            },
+            "reviews": {
+              "deferred": true,
+              "readyAt": 520,
+              "count": 3
+            }
+          },
+          "hidden": false,
+          "score": 10
+        },
+        {
+          "name": "A slow menu delays only the menu and recommendations; reviews still stream at 520 ms",
+          "input": {
+            "slug": "com-tam-ba-ghien",
+            "latency": {
+              "restaurant": 120,
+              "menu": 600,
+              "cart": 90,
+              "reviews": 400,
+              "recommendations": 150
+            }
+          },
+          "expected": {
+            "readyAt": 750,
+            "starts": {
+              "restaurant": 0,
+              "menu": 0,
+              "cart": 0,
+              "preload": 120,
+              "reviews": 120,
+              "recommendations": 600
+            },
+            "calls": {
+              "restaurant": 1,
+              "menu": 1,
+              "cart": 1,
+              "preload": 1,
+              "reviews": 1,
+              "recommendations": 1
+            },
+            "page": {
+              "restaurant": "Com Tam Ba Ghien",
+              "dishes": 24,
+              "cartItems": 2,
+              "recommendations": [
+                "d05",
+                "d09"
+              ]
+            },
+            "reviews": {
+              "deferred": true,
+              "readyAt": 520,
+              "count": 3
+            }
+          },
+          "hidden": true,
+          "score": 10
+        },
+        {
+          "name": "Slow reviews (2 s) never hold back the first paint",
+          "input": {
+            "slug": "com-tam-ba-ghien",
+            "latency": {
+              "restaurant": 120,
+              "menu": 180,
+              "cart": 90,
+              "reviews": 2000,
+              "recommendations": 150
+            }
+          },
+          "expected": {
+            "readyAt": 330,
+            "starts": {
+              "restaurant": 0,
+              "menu": 0,
+              "cart": 0,
+              "preload": 120,
+              "reviews": 120,
+              "recommendations": 180
+            },
+            "calls": {
+              "restaurant": 1,
+              "menu": 1,
+              "cart": 1,
+              "preload": 1,
+              "reviews": 1,
+              "recommendations": 1
+            },
+            "page": {
+              "restaurant": "Com Tam Ba Ghien",
+              "dishes": 24,
+              "cartItems": 2,
+              "recommendations": [
+                "d05",
+                "d09"
+              ]
+            },
+            "reviews": {
+              "deferred": true,
+              "readyAt": 2120,
+              "count": 3
+            }
+          },
+          "hidden": true,
+          "score": 10
+        }
+      ]
+    }
+  ]
+}

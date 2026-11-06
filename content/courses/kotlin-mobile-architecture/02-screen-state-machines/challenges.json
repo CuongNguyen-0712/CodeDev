@@ -1,0 +1,74 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_kma_122",
+      "name": "order-history-state-machine",
+      "type": "mini_coding",
+      "title": "Model the Order history screen as a state machine",
+      "description": "The courier app's Order history screen showed the empty illustration while it was still loading, offered Retry while a list was on screen, and once replaced fresh orders with the answer to an older request that arrived late. It now has four states (`Loading`, `Content`, `Empty`, `Error`) and every request carries a number `gen`; answers carry the number of the request they answer. The editor holds `next(state, event)` with its blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: opening the screen starts loading; an answer with orders shows them, an answer with none shows the empty state; a failed first load shows the error screen, but a failed refresh keeps the list and shows a notice; Retry works only on the error screen; refresh keeps the list (reloads an empty screen) and is ignored while loading; and an answer to any request other than the latest changes nothing. Run feeds events and prints the state after each one.",
+      "difficulty": "hard",
+      "outcomes": [
+        "ui-state"
+      ],
+      "points": 40,
+      "hints": [
+        "Draw the four states as boxes and each event as an arrow. Which arrows exist from each box, and which events must leave the state unchanged?",
+        "Look at the order of checks: an answer to an older request must be dropped before any branch looks at it, whatever state the screen is in. `state.gen` is the number of the latest request.",
+        "A media player as a state machine: `if (event is Event.Loaded && event.trackId != state.trackId) return state`, then `when (event) { is Event.Play -> if (state is Player.Paused) Player.Playing(state.trackId) else state; is Event.Error -> if (state is Player.Playing) state.copy(warning = event.reason) else Player.Failed(event.reason, state.trackId) ... }`."
+      ],
+      "coding": {
+        "language": "kotlin",
+        "filePath": "OrderHistoryScreen.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "No orders yet: the empty state, never a spinner-shaped empty list",
+          "input": "start 1\nsuccess 1\nrefresh 2\nsuccess 2 O-1041\n",
+          "hidden": false,
+          "score": 7,
+          "expected": "start 1 -> Loading(gen=1)\nsuccess 1 -> Empty(gen=1)\nrefresh 2 -> Loading(gen=2)\nsuccess 2 O-1041 -> Content(items=[O-1041], refreshing=false, notice=null, gen=2)"
+        },
+        {
+          "name": "Offline first load: error screen, Retry loads again",
+          "input": "start 1\nfailure 1 offline\nretry 2\nsuccess 2 O-1041,O-1042\n",
+          "hidden": false,
+          "score": 7,
+          "expected": "start 1 -> Loading(gen=1)\nfailure 1 offline -> Error(message=offline, gen=1)\nretry 2 -> Loading(gen=2)\nsuccess 2 O-1041,O-1042 -> Content(items=[O-1041, O-1042], refreshing=false, notice=null, gen=2)"
+        },
+        {
+          "name": "The incident: a late answer to the first request does not replace the fresh list",
+          "input": "start 1\nsuccess 1 O-1041\nrefresh 2\nsuccess 1 O-1041\nsuccess 2 O-1041,O-1042\n",
+          "hidden": false,
+          "score": 7,
+          "expected": "start 1 -> Loading(gen=1)\nsuccess 1 O-1041 -> Content(items=[O-1041], refreshing=false, notice=null, gen=1)\nrefresh 2 -> Content(items=[O-1041], refreshing=true, notice=null, gen=2)\nsuccess 1 O-1041 -> Content(items=[O-1041], refreshing=true, notice=null, gen=2)\nsuccess 2 O-1041,O-1042 -> Content(items=[O-1041, O-1042], refreshing=false, notice=null, gen=2)"
+        },
+        {
+          "name": "A failed refresh keeps the list and shows a notice",
+          "input": "start 1\nsuccess 1 O-1041,O-1042\nrefresh 2\nfailure 2 timeout\nrefresh 3\nsuccess 3 O-1043\n",
+          "hidden": true,
+          "score": 7,
+          "expected": "start 1 -> Loading(gen=1)\nsuccess 1 O-1041,O-1042 -> Content(items=[O-1041, O-1042], refreshing=false, notice=null, gen=1)\nrefresh 2 -> Content(items=[O-1041, O-1042], refreshing=true, notice=null, gen=2)\nfailure 2 timeout -> Content(items=[O-1041, O-1042], refreshing=false, notice=timeout, gen=2)\nrefresh 3 -> Content(items=[O-1041, O-1042], refreshing=true, notice=null, gen=3)\nsuccess 3 O-1043 -> Content(items=[O-1043], refreshing=false, notice=null, gen=3)"
+        },
+        {
+          "name": "Refresh while loading and Retry on content are ignored",
+          "input": "start 1\nrefresh 2\nsuccess 1 O-1041\nretry 3\nfailure 0 stale\n",
+          "hidden": true,
+          "score": 6,
+          "expected": "start 1 -> Loading(gen=1)\nrefresh 2 -> Loading(gen=1)\nsuccess 1 O-1041 -> Content(items=[O-1041], refreshing=false, notice=null, gen=1)\nretry 3 -> Content(items=[O-1041], refreshing=false, notice=null, gen=1)\nfailure 0 stale -> Content(items=[O-1041], refreshing=false, notice=null, gen=1)"
+        },
+        {
+          "name": "Reopening the screen drops answers to the earlier visit",
+          "input": "start 1\nsuccess 1 O-1041\nrefresh 2\nstart 3\nsuccess 2 O-1041,O-1042\nfailure 3 timeout\n",
+          "hidden": true,
+          "score": 6,
+          "expected": "start 1 -> Loading(gen=1)\nsuccess 1 O-1041 -> Content(items=[O-1041], refreshing=false, notice=null, gen=1)\nrefresh 2 -> Content(items=[O-1041], refreshing=true, notice=null, gen=2)\nstart 3 -> Loading(gen=3)\nsuccess 2 O-1041,O-1042 -> Loading(gen=3)\nfailure 3 timeout -> Error(message=timeout, gen=3)"
+        }
+      ]
+    }
+  ]
+}

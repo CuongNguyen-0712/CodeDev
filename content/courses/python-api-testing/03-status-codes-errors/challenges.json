@@ -1,0 +1,306 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pat_131",
+      "name": "status-codes-errors-quiz",
+      "type": "quiz",
+      "title": "Read the error responses",
+      "description": "Three statements about status codes and error bodies in Rice Rocket's order API. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "error-cases"
+      ],
+      "points": 10,
+      "hints": [
+        "Ask what a client does with the status code before it reads the body: a mobile app's HTTP client decides success or failure from the code alone.",
+        "Separate the two questions an API answers about a caller: do I know who you are, and are you allowed to do this?",
+        "Read the contract text quoted with the evidence: it decides which of two plausible codes is right for this API."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A test for ordering from a closed restaurant, and what the API answered:\n\n```python\ndef test_order_closed_restaurant(api):\n    response = api.post(\"/orders\", json={**ORDER, \"restaurant_id\": 17})\n    assert response.status_code < 500\n```\n\n```text\nHTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"error\": \"restaurant closed\"}\n```\n\nStatement: \"The test is right to pass: 200 is not a server error, so the API handled the request correctly.\"",
+          "explanation": "False. The order was not created, but the status says it was: every HTTP client, retry layer and dashboard treats 200 as success, and the courier app showed \"order placed\". The contract asks for 409 with a problem type for a closed restaurant, and the test should assert that exact code. `< 500` only proves the server did not crash. The misconception is that the body's text is part of what clients check.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A courier (valid token, role `courier`) calls an admin endpoint:\n\n```text\nGET /admin/payouts\nAuthorization: Bearer eyJhbGciOi... (valid, role=courier)\n\nHTTP/1.1 401 Unauthorized\nWWW-Authenticate: Bearer\n```\n\nStatement: \"401 is the right answer, because the courier is not authorized to see payouts.\"",
+          "explanation": "False. Despite its name, 401 means the request is not authenticated (no or invalid credentials), and it tells the client to log in again; the app would sign the courier out. The token is valid and identifies the courier, who simply lacks the permission: that is 403 Forbidden. The misconception comes from the reason phrase \"Unauthorized\".",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Rice Rocket's contract says: \"400 when the body is not valid JSON; 422 when it is valid JSON that breaks a rule of the schema\". Two requests:\n\n```text\nPOST /orders   {\"quantity\": 2,           -> 400\nPOST /orders   {\"quantity\": 0}            -> 422\n```\n\nStatement: \"Under this contract both answers are right, and a test that accepts any 4xx would miss an API that swaps them.\"",
+          "explanation": "True. The first body cannot be parsed, the second parses but breaks `minimum: 1`, and the contract gives them different codes; clients use the difference (a 400 is a bug in the client, a 422 is a user input to show next to the field). A test asserting `400 <= status < 500` passes when the API swaps them. Some APIs use 400 for both; what matters is that the contract says which and the test asserts it exactly.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pat_132",
+      "name": "fix-response-assertions",
+      "type": "fix_bug",
+      "title": "Fix the response assertions",
+      "description": "Every API test of Rice Rocket goes through `check_response(expected, response)`, and the old version let three bugs reach production: a 400 where the contract says 422 (\"same class\"), a 200 carrying `{\"error\": ...}`, and error bodies in several shapes. It also failed correct responses whose content type carried `; charset=utf-8` or whose field errors came in another order. The editor holds `assertions.py` with its checks missing, each marked by a `# [ ]` line; some pieces are the old buggy checks. Fill every line so the helper follows the rules in the file's docstring: the exact status, no error body on a success, RFC 9457 problem details for errors (media type, members, status, type, field pointers in any order) and Retry-After on 429.",
+      "difficulty": "medium",
+      "outcomes": [
+        "error-cases"
+      ],
+      "points": 30,
+      "hints": [
+        "For each check, think of a correct response that it must accept and a broken one it must reject; the old checks fail one of the two.",
+        "Look at how the status is compared, how the Content-Type header is split before comparing (parameters, case), and whether the field pointers are compared as lists or as sets.",
+        "A similar check for a JSON success response: `media = headers.get(\"content-type\", \"\").split(\";\")[0].strip().lower()` and `assert media == \"application/json\"`, so `application/json; charset=utf-8` passes and `text/html` fails."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "assertions.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A correct 422: charset in the content type and field errors in another order still pass",
+          "input": {
+            "rule_broken": {
+              "expected": {
+                "status": 422,
+                "problem_type": "https://api.ricerocket.vn/problems/validation",
+                "pointers": [
+                  "/quantity",
+                  "/note"
+                ]
+              },
+              "response": {
+                "status": 422,
+                "headers": {
+                  "Content-Type": "application/problem+json; charset=utf-8"
+                },
+                "body": {
+                  "type": "https://api.ricerocket.vn/problems/validation",
+                  "title": "Request failed",
+                  "status": 422,
+                  "errors": [
+                    {
+                      "pointer": "/note",
+                      "detail": "too long"
+                    },
+                    {
+                      "pointer": "/quantity",
+                      "detail": "must be at least 1"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "expected": {
+            "rule_broken": []
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A rule violation answered 400 instead of 422 fails on the status",
+          "input": {
+            "wrong_4xx": {
+              "expected": {
+                "status": 422,
+                "problem_type": "https://api.ricerocket.vn/problems/validation",
+                "pointers": [
+                  "/quantity"
+                ]
+              },
+              "response": {
+                "status": 400,
+                "headers": {
+                  "content-type": "application/problem+json"
+                },
+                "body": {
+                  "type": "https://api.ricerocket.vn/problems/validation",
+                  "title": "Request failed",
+                  "status": 400,
+                  "errors": [
+                    {
+                      "pointer": "/quantity"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "expected": {
+            "wrong_4xx": [
+              "status: expected 422, got 400"
+            ]
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A closed restaurant: 200 with an error body fails, whatever the test expected",
+          "input": {
+            "closed_restaurant": {
+              "expected": {
+                "status": 409,
+                "problem_type": "https://api.ricerocket.vn/problems/restaurant-closed",
+                "pointers": null
+              },
+              "response": {
+                "status": 200,
+                "headers": {
+                  "content-type": "application/json"
+                },
+                "body": {
+                  "error": "restaurant closed"
+                }
+              }
+            },
+            "menu_with_error": {
+              "expected": {
+                "status": 200,
+                "problem_type": null,
+                "pointers": null
+              },
+              "response": {
+                "status": 200,
+                "headers": {
+                  "content-type": "application/json"
+                },
+                "body": {
+                  "error": "menu unavailable"
+                }
+              }
+            }
+          },
+          "expected": {
+            "closed_restaurant": [
+              "status: expected 409, got 200"
+            ],
+            "menu_with_error": [
+              "body: error body on a success status"
+            ]
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A 404 in the old shape: wrong content type and none of the problem members",
+          "input": {
+            "unknown_order": {
+              "expected": {
+                "status": 404,
+                "problem_type": null,
+                "pointers": null
+              },
+              "response": {
+                "status": 404,
+                "headers": {
+                  "Content-Type": "application/json"
+                },
+                "body": {
+                  "message": "Order not found"
+                }
+              }
+            }
+          },
+          "expected": {
+            "unknown_order": [
+              "content-type: expected application/problem+json, got application/json",
+              "body: missing type",
+              "body: missing title",
+              "body: missing status"
+            ]
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A 429 without Retry-After and with a body that claims 500",
+          "input": {
+            "rate_limited": {
+              "expected": {
+                "status": 429,
+                "problem_type": null,
+                "pointers": null
+              },
+              "response": {
+                "status": 429,
+                "headers": {
+                  "CONTENT-TYPE": "application/problem+json"
+                },
+                "body": {
+                  "type": "https://api.ricerocket.vn/problems/rate-limited",
+                  "title": "Request failed",
+                  "status": 500
+                }
+              }
+            },
+            "rate_limited_ok": {
+              "expected": {
+                "status": 429,
+                "problem_type": null,
+                "pointers": null
+              },
+              "response": {
+                "status": 429,
+                "headers": {
+                  "Content-Type": "application/problem+json",
+                  "Retry-After": "30"
+                },
+                "body": {
+                  "type": "https://api.ricerocket.vn/problems/rate-limited",
+                  "title": "Request failed",
+                  "status": 429
+                }
+              }
+            }
+          },
+          "expected": {
+            "rate_limited": [
+              "body.status: expected 429, got 500",
+              "retry-after: missing"
+            ],
+            "rate_limited_ok": []
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

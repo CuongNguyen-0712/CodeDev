@@ -1,0 +1,134 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_jrm_131",
+      "name": "bulkheads-quiz",
+      "type": "quiz",
+      "title": "Read the report export incident",
+      "description": "Three statements about how Rice Rocket's monthly report exports took checkout down, and how bulkheads change that. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "isolation"
+      ],
+      "points": 10,
+      "hints": [
+        "Virtual threads remove one limit (platform threads). Look at the error: which other shared resource ran out?",
+        "Ask on which thread the protected call runs in each kind of bulkhead, and what the caller gets back: a result, or a CompletionStage.",
+        "Compare two ways to handle the third concurrent export: wait in a queue (for how long, holding what?) or fail at once with an answer the client can act on."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "order-service runs on virtual threads, yet checkout failed while finance ran month-end exports:\n\n```yaml\nspring:\n  threads:\n    virtual:\n      enabled: true\n  datasource:\n    hikari:\n      maximum-pool-size: 10\n```\n\n```text\n18:02:11 POST /checkouts 500 HikariPool-1 - Connection is not available, request timed out after 30000ms (total=10, active=10, idle=0, waiting=184)\n18:02:11 GET /reports/orders.csv  ... 10 exports running, each holding a connection for ~4 min\n```\n\nStatement: \"With virtual threads a slow endpoint can no longer starve the others, so a bulkhead around the report exports is unnecessary.\"",
+          "explanation": "False. Virtual threads make waiting cheap, so the platform-thread limit is gone, but the exports still held all 10 database connections; checkout queued for the pool and timed out after 30 s. Any shared, limited resource (connection pool, a partner's rate limit, memory) still needs a bulkhead: here, at most 2 concurrent exports so 8 connections stay for everything else.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team compares the two Resilience4j bulkhead types for the export call:\n\n```java\n@Bulkhead(name = \"reports\")                                   // type = SEMAPHORE (default)\nReport export(Month m) { ... }\n\n@Bulkhead(name = \"reports\", type = Bulkhead.Type.THREADPOOL)\nCompletableFuture<Report> exportAsync(Month m) { ... }\n```\n\nStatement: \"Both types run the export on a separate thread pool, so a slow export never blocks the thread of the request that started it.\"",
+          "explanation": "False. A semaphore bulkhead only limits how many calls run at once; the call runs on the caller's own thread, which is blocked for the whole export. A thread-pool bulkhead hands the call to its own bounded pool and queue, and the method returns a CompletionStage. With virtual threads the semaphore type is usually enough: blocking the caller is cheap, and the limit is what protects the shared resource.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The export bulkhead is configured like this, and a third finance user starts an export while two are running:\n\n```yaml\nresilience4j.bulkhead.instances.reports:\n  max-concurrent-calls: 2\n  max-wait-duration: 0\n```\n\n```text\n18:20:04 GET /reports/orders.csv 503 BulkheadFullException: Bulkhead 'reports' is full and does not permit further calls (2 ms)\n         Retry-After: 120\n```\n\nStatement: \"With max-wait-duration 0 the third export fails at once instead of queueing, which keeps request threads and connections free; the fallback should answer with something the user can act on, such as 503 with Retry-After.\"",
+          "explanation": "True. A wait of 0 rejects immediately when both permits are taken: the request does not hold a thread or a connection while it waits. A short wait (a few hundred ms) smooths small bursts; a long one turns the bulkhead into a slow queue. The fallback decides what the user sees: here a 503 with Retry-After, or an \"export queued, we will email you\" answer.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_jrm_132",
+      "name": "per-dependency-bulkheads",
+      "type": "mini_coding",
+      "title": "One bulkhead per dependency",
+      "description": "order-service calls payments, couriers and the reporting database through one HTTP client and one pool; month-end exports took every slot and checkout failed. The editor holds `Main.java` with semaphore bulkheads modelled on Resilience4j's, their key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: each dependency has its own bulkhead with its own `max` and `wait`; a call takes a free permit, or waits in line for at most `wait` ms (rejected at once when `wait` is 0); a call that has waited `wait` ms without a permit is rejected at that moment; and every finished call, failed or not, gives its permit back so the oldest waiting call of that dependency can start. The test runner replays timed calls and prints when each started, finished or was rejected, and the peak concurrency per dependency.",
+      "difficulty": "medium",
+      "outcomes": [
+        "isolation"
+      ],
+      "points": 30,
+      "hints": [
+        "Draw a timeline per dependency: how many calls hold a permit at each moment, who is waiting since when, and what happens at the moment a call ends or a wait runs out?",
+        "Look at `computeIfAbsent` keyed by the dependency, the three cases in `arrive` (free permit, `maxWaitMs > 0`, reject), an unconditional `b.inUse--` in `finish`, and `w.deadline() > now` in `expire`.",
+        "A per-tenant limit for an export worker: `Limit l = limits.computeIfAbsent(tenant, t -> new Limit(config.get(t)));` then `if (l.active < l.max) { l.active++; run(job); } else if (l.waitMs > 0) l.queue.add(new Queued(job, now + l.waitMs)); else reject(job);`, `finally { l.active--; }`, and `l.queue.removeIf(q -> q.deadline <= now && reject(q.job));`."
+      ],
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Slow report exports fill their own bulkhead; checkout payments are not affected",
+          "input": "bulkhead payments max=4 wait=0\nbulkhead reports max=2 wait=0\ncall r1 reports t=0 ms=5000 ok\ncall r2 reports t=10 ms=5000 ok\ncall r3 reports t=20 ms=5000 ok\ncall r4 reports t=30 ms=5000 ok\ncall r5 reports t=40 ms=5000 ok\ncall p1 payments t=100 ms=200 ok\ncall p2 payments t=150 ms=200 ok\ncall p3 payments t=200 ms=200 ok\ncall p4 payments t=250 ms=200 ok\ncall p5 payments t=300 ms=200 ok\n",
+          "expected": "r1 reports started=0 done=5000 ok\nr2 reports started=10 done=5010 ok\nr3 reports rejected=20\nr4 reports rejected=30\nr5 reports rejected=40\np1 payments started=100 done=300 ok\np2 payments started=150 done=350 ok\np3 payments started=200 done=400 ok\np4 payments started=250 done=450 ok\np5 payments started=300 done=500 ok\npeak payments=4 reports=2",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A call waits up to max-wait for a permit, then is rejected",
+          "input": "bulkhead payments max=2 wait=300\ncall p1 payments t=0 ms=200 ok\ncall p2 payments t=0 ms=200 ok\ncall p3 payments t=0 ms=200 ok\ncall p4 payments t=0 ms=200 ok\ncall p5 payments t=0 ms=200 ok\n",
+          "expected": "p1 payments started=0 done=200 ok\np2 payments started=0 done=200 ok\np3 payments started=200 done=400 ok\np4 payments started=200 done=400 ok\np5 payments rejected=300\npeak payments=2",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A failed call gives its permit back too",
+          "input": "bulkhead payments max=1 wait=0\ncall p1 payments t=0 ms=300 error\ncall p2 payments t=400 ms=100 ok\ncall p3 payments t=450 ms=100 ok\n",
+          "expected": "p1 payments started=0 done=300 error\np2 payments started=400 done=500 ok\np3 payments rejected=450\npeak payments=1",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Waiting calls get freed permits in arrival order",
+          "input": "bulkhead couriers max=1 wait=1000\ncall k1 couriers t=0 ms=400 ok\ncall k3 couriers t=20 ms=100 ok\ncall k2 couriers t=10 ms=100 ok\ncall k4 couriers t=30 ms=100 ok\n",
+          "expected": "k1 couriers started=0 done=400 ok\nk3 couriers started=500 done=600 ok\nk2 couriers started=400 done=500 ok\nk4 couriers started=600 done=700 ok\npeak couriers=1",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Lunch peak: three dependencies, each limited on its own",
+          "input": "bulkhead payments max=3 wait=100\nbulkhead couriers max=2 wait=200\nbulkhead reports max=1 wait=0\ncall r1 reports t=0 ms=3000 ok\ncall r2 reports t=50 ms=3000 error\ncall p1 payments t=0 ms=150 ok\ncall p2 payments t=10 ms=150 error\ncall p3 payments t=20 ms=150 ok\ncall p4 payments t=30 ms=150 ok\ncall p5 payments t=40 ms=400 ok\ncall k1 couriers t=0 ms=500 ok\ncall k2 couriers t=100 ms=500 ok\ncall k3 couriers t=200 ms=100 ok\ncall k4 couriers t=250 ms=100 ok\n",
+          "expected": "r1 reports started=0 done=3000 ok\nr2 reports rejected=50\np1 payments started=0 done=150 ok\np2 payments started=10 done=160 error\np3 payments started=20 done=170 ok\np4 payments rejected=130\np5 payments rejected=140\nk1 couriers started=0 done=500 ok\nk2 couriers started=100 done=600 ok\nk3 couriers rejected=400\nk4 couriers rejected=450\npeak couriers=2 payments=3 reports=1",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

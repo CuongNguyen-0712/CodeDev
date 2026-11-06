@@ -1,0 +1,1098 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_fwp_182",
+      "name": "performance-budgets",
+      "type": "mini_coding",
+      "title": "Fail the build on a performance budget",
+      "description": "Rice Rocket's Lighthouse CI job collected three runs per page on every pull request, but nothing failed: a 600 KB analytics bundle and a hero image without dimensions both reached production. The editor holds `scripts/check-budgets.js` with its blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: each metric is judged on the median of the runs, so one noisy run neither fails nor passes a page on its own; a budget applies to the pages its pattern names (`*` stands for exactly one path segment); a budget at level `error` fails the build and one at level `warn` only warns; a metric listed under `regression` fails the build when it grew more than that fraction since main, even under its budget, and a page that is new on this branch has no baseline to compare with; errors come before warnings, each group sorted. Run checks reports built from real-looking runs.",
+      "difficulty": "hard",
+      "outcomes": [
+        "fast-loading"
+      ],
+      "points": 40,
+      "hints": [
+        "Go through one page at a time: which budgets name it, what single value represents its three runs, and what does main's report say about the same metric?",
+        "Look at how a median differs from a mean on [2200, 2100, 5900], how a pattern with `*` becomes a regular expression anchored at both ends, and at growth as `(now - before) / before`.",
+        "A bundle-size check on another project: `const size = median(runs.map((r) => r.cssKB)); if (size > budget.max) lines.push(...)`, with `matchesPath(\"/blog/*\", \"/blog/2026/post\")` false because `*` must not cross a `/`."
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "scripts/check-budgets.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A clean pull request passes",
+          "input": {
+            "report": {
+              "/": {
+                "runs": [
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  }
+                ]
+              },
+              "/restaurants/com-tam-ba-ghien": {
+                "runs": [
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  }
+                ]
+              },
+              "/checkout": {
+                "runs": [
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  }
+                ]
+              }
+            },
+            "baseline": {
+              "/": {
+                "runs": [
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  }
+                ]
+              },
+              "/restaurants/com-tam-ba-ghien": {
+                "runs": [
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  }
+                ]
+              },
+              "/checkout": {
+                "runs": [
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  }
+                ]
+              }
+            },
+            "config": {
+              "assertions": [
+                {
+                  "match": "/",
+                  "metric": "lcp",
+                  "max": 2500,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "lcp",
+                  "max": 2500,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "cls",
+                  "max": 0.1,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "tbt",
+                  "max": 200,
+                  "level": "warn"
+                },
+                {
+                  "match": "/checkout",
+                  "metric": "scriptKB",
+                  "max": 170,
+                  "level": "error"
+                }
+              ],
+              "regression": {
+                "scriptKB": 0.05
+              }
+            }
+          },
+          "expected": {
+            "status": "pass",
+            "lines": []
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "A slow restaurant page fails on its median LCP; one noisy home run does not",
+          "input": {
+            "report": {
+              "/": {
+                "runs": [
+                  {
+                    "lcp": 2200,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 5900,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  }
+                ]
+              },
+              "/restaurants/com-tam-ba-ghien": {
+                "runs": [
+                  {
+                    "lcp": 2810,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2790,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 3050,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  }
+                ]
+              },
+              "/checkout": {
+                "runs": [
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  }
+                ]
+              }
+            },
+            "baseline": {
+              "/": {
+                "runs": [
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  }
+                ]
+              },
+              "/restaurants/com-tam-ba-ghien": {
+                "runs": [
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  }
+                ]
+              },
+              "/checkout": {
+                "runs": [
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  }
+                ]
+              }
+            },
+            "config": {
+              "assertions": [
+                {
+                  "match": "/",
+                  "metric": "lcp",
+                  "max": 2500,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "lcp",
+                  "max": 2500,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "cls",
+                  "max": 0.1,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "tbt",
+                  "max": 200,
+                  "level": "warn"
+                },
+                {
+                  "match": "/checkout",
+                  "metric": "scriptKB",
+                  "max": 170,
+                  "level": "error"
+                }
+              ],
+              "regression": {
+                "scriptKB": 0.05
+              }
+            }
+          },
+          "expected": {
+            "status": "fail",
+            "lines": [
+              "error /restaurants/com-tam-ba-ghien lcp 2810 > 2500"
+            ]
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Blocking time over its warning budget warns without failing the build",
+          "input": {
+            "report": {
+              "/": {
+                "runs": [
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  }
+                ]
+              },
+              "/restaurants/com-tam-ba-ghien": {
+                "runs": [
+                  {
+                    "lcp": 2300,
+                    "tbt": 240,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 260,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 230,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  }
+                ]
+              },
+              "/checkout": {
+                "runs": [
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  }
+                ]
+              }
+            },
+            "baseline": {
+              "/": {
+                "runs": [
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  }
+                ]
+              },
+              "/restaurants/com-tam-ba-ghien": {
+                "runs": [
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  }
+                ]
+              },
+              "/checkout": {
+                "runs": [
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  }
+                ]
+              }
+            },
+            "config": {
+              "assertions": [
+                {
+                  "match": "/",
+                  "metric": "lcp",
+                  "max": 2500,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "lcp",
+                  "max": 2500,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "cls",
+                  "max": 0.1,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "tbt",
+                  "max": 200,
+                  "level": "warn"
+                },
+                {
+                  "match": "/checkout",
+                  "metric": "scriptKB",
+                  "max": 170,
+                  "level": "error"
+                }
+              ],
+              "regression": {
+                "scriptKB": 0.05
+              }
+            }
+          },
+          "expected": {
+            "status": "warn",
+            "lines": [
+              "warn /restaurants/com-tam-ba-ghien tbt 240 > 200"
+            ]
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Checkout JS grew 8% over main: an error even under its 170 KB budget; a new page has no baseline",
+          "input": {
+            "report": {
+              "/": {
+                "runs": [
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  }
+                ]
+              },
+              "/restaurants/com-tam-ba-ghien": {
+                "runs": [
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  }
+                ]
+              },
+              "/checkout": {
+                "runs": [
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 162,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 162,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 163,
+                    "imageKB": 40
+                  }
+                ]
+              },
+              "/promo": {
+                "runs": [
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 400,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 400,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 400,
+                    "imageKB": 310
+                  }
+                ]
+              }
+            },
+            "baseline": {
+              "/": {
+                "runs": [
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  }
+                ]
+              },
+              "/restaurants/com-tam-ba-ghien": {
+                "runs": [
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  }
+                ]
+              },
+              "/checkout": {
+                "runs": [
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  }
+                ]
+              }
+            },
+            "config": {
+              "assertions": [
+                {
+                  "match": "/",
+                  "metric": "lcp",
+                  "max": 2500,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "lcp",
+                  "max": 2500,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "cls",
+                  "max": 0.1,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "tbt",
+                  "max": 200,
+                  "level": "warn"
+                },
+                {
+                  "match": "/checkout",
+                  "metric": "scriptKB",
+                  "max": 170,
+                  "level": "error"
+                }
+              ],
+              "regression": {
+                "scriptKB": 0.05
+              }
+            }
+          },
+          "expected": {
+            "status": "fail",
+            "lines": [
+              "error /checkout scriptKB +8% vs main (150 -> 162)"
+            ]
+          },
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "Budgets apply only to the pages they name, and a 2% growth is within the limit",
+          "input": {
+            "report": {
+              "/": {
+                "runs": [
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  }
+                ]
+              },
+              "/restaurants/com-tam-ba-ghien": {
+                "runs": [
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  }
+                ]
+              },
+              "/restaurants/com-tam-ba-ghien/reviews": {
+                "runs": [
+                  {
+                    "lcp": 2900,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2900,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2900,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  }
+                ]
+              },
+              "/checkout": {
+                "runs": [
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 153,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 153,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 153,
+                    "imageKB": 40
+                  }
+                ]
+              }
+            },
+            "baseline": {
+              "/": {
+                "runs": [
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  },
+                  {
+                    "lcp": 2100,
+                    "tbt": 120,
+                    "cls": 0.02,
+                    "scriptKB": 140,
+                    "imageKB": 310
+                  }
+                ]
+              },
+              "/restaurants/com-tam-ba-ghien": {
+                "runs": [
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  },
+                  {
+                    "lcp": 2300,
+                    "tbt": 150,
+                    "cls": 0.05,
+                    "scriptKB": 155,
+                    "imageKB": 420
+                  }
+                ]
+              },
+              "/checkout": {
+                "runs": [
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  },
+                  {
+                    "lcp": 1900,
+                    "tbt": 180,
+                    "cls": 0.01,
+                    "scriptKB": 150,
+                    "imageKB": 40
+                  }
+                ]
+              }
+            },
+            "config": {
+              "assertions": [
+                {
+                  "match": "/",
+                  "metric": "lcp",
+                  "max": 2500,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "lcp",
+                  "max": 2500,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "cls",
+                  "max": 0.1,
+                  "level": "error"
+                },
+                {
+                  "match": "/restaurants/*",
+                  "metric": "tbt",
+                  "max": 200,
+                  "level": "warn"
+                },
+                {
+                  "match": "/checkout",
+                  "metric": "scriptKB",
+                  "max": 170,
+                  "level": "error"
+                }
+              ],
+              "regression": {
+                "scriptKB": 0.05
+              }
+            }
+          },
+          "expected": {
+            "status": "pass",
+            "lines": []
+          },
+          "hidden": true,
+          "score": 8
+        }
+      ]
+    }
+  ]
+}

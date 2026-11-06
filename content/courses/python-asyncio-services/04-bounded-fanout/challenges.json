@@ -1,0 +1,123 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pas_142",
+      "name": "menu-refresh-bounded-fanout",
+      "type": "mini_coding",
+      "title": "Refresh 300 partner menus with bounded fan-out",
+      "description": "Every morning Rice Rocket refreshes the menus of its partner restaurants. The first version awaited them one by one (two minutes); the second started all 300 with `asyncio.gather`, the partner gateway answered 429 to everything over 20 open calls, and one broken restaurant failed the whole batch. The editor holds `refresh_menus` with its key lines missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that at most `limit` calls are open at once, all restaurants run concurrently up to that limit, a failing restaurant becomes `{\"error\": ...}` without stopping the others, and the result keeps the input order. Run refreshes the test's restaurants on a simulated clock and reports the most calls open at once, the time it took and the failures.",
+      "difficulty": "medium",
+      "outcomes": [
+        "throughput"
+      ],
+      "points": 30,
+      "hints": [
+        "Count open calls at the busiest moment: which object is shared by all the calls, and where is it created? A limit that every call creates for itself limits nothing.",
+        "Look at `asyncio.Semaphore(limit)` created once, `async with slots:` around exactly the partner call, a `try/except PartnerError` per restaurant, and `asyncio.gather` (results in argument order).",
+        "Thumbnails for 1,000 photos with at most 8 uploads at a time: `slots = asyncio.Semaphore(8)` once; `async def upload(p): async with slots: return await cdn.put(p)`; `async def safe(p): try: return {\"ok\": await upload(p)} except CdnError as e: return {\"error\": str(e)}`; `await asyncio.gather(*(safe(p) for p in photos))`."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "app/menu_refresh.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "25 restaurants, limit 10: never more than 10 open calls, done in 3 rounds",
+          "input": {
+            "count": 25
+          },
+          "expected": {
+            "max_open": 10,
+            "elapsed_s": 1.2,
+            "menus": 25,
+            "errors": {},
+            "order_kept": true
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "All 300 partners: no 429 from the gateway, 30 rounds of 10",
+          "input": {
+            "count": 300
+          },
+          "expected": {
+            "max_open": 10,
+            "elapsed_s": 12,
+            "menus": 300,
+            "errors": {},
+            "order_kept": true
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Two restaurants are down: their errors are listed, the other menus arrive",
+          "input": {
+            "count": 12,
+            "down": [
+              "r004",
+              "r009"
+            ]
+          },
+          "expected": {
+            "max_open": 10,
+            "elapsed_s": 0.5,
+            "menus": 10,
+            "errors": {
+              "r004": "HTTP 503 from r004",
+              "r009": "HTTP 503 from r009"
+            },
+            "order_kept": true
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Limit 1 for a fragile partner: one call at a time",
+          "input": {
+            "count": 4,
+            "limit": 1
+          },
+          "expected": {
+            "max_open": 1,
+            "elapsed_s": 1.6,
+            "menus": 4,
+            "errors": {},
+            "order_kept": true
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A slow first restaurant does not reorder the results",
+          "input": {
+            "restaurants": [
+              "r1",
+              "r2",
+              "r3"
+            ],
+            "slow": {
+              "r1": 1
+            },
+            "limit": 2
+          },
+          "expected": {
+            "max_open": 2,
+            "elapsed_s": 1,
+            "menus": 3,
+            "errors": {},
+            "order_kept": true
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

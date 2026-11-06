@@ -1,0 +1,71 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pdp_141",
+      "name": "star-schema-quiz",
+      "type": "quiz",
+      "title": "Read the revenue dashboard",
+      "description": "Three statements about the first star schema of Rice Rocket's orders and the numbers it produced. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "modeling"
+      ],
+      "points": 10,
+      "hints": [
+        "Count rows before and after the join: how many rows does order 5001 have in `fact_orders`, and how many after joining it to its three order lines?",
+        "Write the weekly average as a sum divided by a count. What does averaging seven daily averages do to a day with 40 orders compared with a day with 900?",
+        "State the grain in one sentence (\"one row per ...\"). Which attributes of an order are left once restaurant, customer and date have their own dimensions?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "An analyst wanted revenue and the number of items per restaurant in one query:\n\n```sql\nSELECT r.name, SUM(o.total_vnd) AS revenue, COUNT(i.item_code) AS items\nFROM fact_orders o\nJOIN fact_order_items i ON i.order_id = o.order_id\nJOIN dim_restaurant r ON r.restaurant_sk = o.restaurant_sk\nWHERE o.date_key = 20261104\nGROUP BY r.name;\n-- Pho Ha Noi | revenue 14,950,000 | items 312\n\nSELECT SUM(total_vnd) FROM fact_orders WHERE restaurant_sk = 17 AND date_key = 20261104;\n-- 5,380,000\n```\n\nStatement: \"The revenue column is still right: the join only adds the item columns, and SUM is not affected by the extra rows.\"",
+          "explanation": "False. `fact_orders` has one row per order, `fact_order_items` one row per order line. Joining them repeats each order's `total_vnd` once per line, so an order with three dishes is counted three times: 14,950,000 against the real 5,380,000. This is the classic fan-out (or chasm) trap: never sum a measure across a join to a finer grain. Aggregate each fact at its own grain first (or sum `line_total_vnd` from the line-level fact) and join the results.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The operations dashboard shows the weekly average delivery time:\n\n```text\nday         orders  avg_minutes\n2026-11-02     900         28.0\n2026-11-03     880         29.0\n...                (5 more days between 850 and 920 orders, 27-30 min)\n2026-11-08      40         65.0      <- storm, most restaurants closed\nweekly avg_minutes = AVG(avg_minutes) = 33.9\n```\n\nStatement: \"Averaging the seven daily averages gives the average delivery time of all orders of the week.\"",
+          "explanation": "False. An average is not additive: the storm day weighs as much as a 900-order day, so 40 slow deliveries pull the weekly figure to 33.9 minutes while the true average over about 5,300 orders is close to 29. Store additive measures in the fact (`delivery_minutes` per order, or a sum and a count per day) and compute `SUM(minutes) / SUM(orders)` at query time. The same applies to ratios and percentiles.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The modeling review proposed this layout:\n\n```text\nfact_order_items   grain: one row per order line\n  date_key         -> dim_date\n  restaurant_sk    -> dim_restaurant\n  customer_sk      -> dim_customer\n  item_sk          -> dim_menu_item\n  order_id         (no dim_order table)\n  quantity, line_total_vnd, discount_vnd\n```\n\nStatement: \"`order_id` stays on the fact as a degenerate dimension: it groups lines into orders for drill-down, and a separate `dim_order` table would only repeat what the other dimensions already describe.\"",
+          "explanation": "True. Once date, restaurant, customer and menu item have their own dimensions, nothing descriptive is left about an order except its number. Kimball calls such a key a degenerate dimension: it lives on the fact row, is used for grouping (`COUNT(DISTINCT order_id)`) and for tracing a figure back to the source, and needs no table of its own. Declaring the grain first (one row per order line) is what makes this decision obvious.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

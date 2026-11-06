@@ -1,0 +1,67 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_kma_172",
+      "name": "earnings-today-fix",
+      "type": "fix_bug",
+      "title": "Fix the earnings card",
+      "description": "The courier app's \"Today\" card was wrong twice a week: deliveries made after 17:00 counted into the next day on phones set to UTC, the unit tests passed or failed depending on the hour CI ran them, and a delivery stamped exactly at midnight showed up in both days. The calculator now receives its data source and a `java.time.Clock` through its constructor, and the editor holds `EarningsCalculator.kt` with the old date logic cut out, each block marked by a `// [ ]` line; some pieces are the old, buggy code. Fill every line so that: today is the date of the injected clock in the business time zone `Asia/Ho_Chi_Minh`, never the phone's zone or the real time; the day runs from local midnight to the next local midnight, end excluded; and only `DELIVERED` orders inside that window count (fee + tip). The runner gives the calculator a fixed clock whose own zone is UTC and a fake source that returns every delivery it holds, and prints the day, its start instant, the count and the total.",
+      "difficulty": "medium",
+      "outcomes": [
+        "testable-releases"
+      ],
+      "points": 30,
+      "hints": [
+        "Write down the instants: 23:40 in Ho Chi Minh City is 16:40Z. Which date is that for the courier, which instant does their day start at, and which pieces would give a different answer on a phone or a CI machine set to UTC?",
+        "Look at `LocalDate.now(clock)` with `clock.withZone(...)`, `LocalDate.atStartOfDay(zone)`, and `Instant.isBefore` for a half-open window `[start, end)`.",
+        "A store that closes its till at local midnight in Tokyo, tested with `Clock.fixed(Instant.parse(\"2026-05-01T15:30:00Z\"), ZoneOffset.UTC)`: `val d = LocalDate.now(clock.withZone(ZoneId.of(\"Asia/Tokyo\")))` gives 2026-05-02, `d.atStartOfDay(ZoneId.of(\"Asia/Tokyo\")).toInstant()` gives 2026-05-01T15:00:00Z, and a sale counts when `!at.isBefore(start) && at.isBefore(end)`."
+      ],
+      "coding": {
+        "language": "kotlin",
+        "filePath": "EarningsCalculator.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Midday: today's delivered orders count, cancelled and yesterday's do not",
+          "input": "now 2026-03-14T05:00:00Z\ndelivery d1 2026-03-14T01:15:00Z 25000 5000 DELIVERED\ndelivery d2 2026-03-14T03:00:00Z 30000 0 CANCELLED\ndelivery d3 2026-03-13T15:00:00Z 20000 2000 DELIVERED\n",
+          "expected": "day 2026-03-14\nsince 2026-03-13T17:00:00Z\ndeliveries 1\nearned 30000",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "23:40 in Ho Chi Minh City is still the same business day",
+          "input": "now 2026-03-14T16:40:00Z\ndelivery d1 2026-03-14T16:30:00Z 40000 10000 DELIVERED\ndelivery d2 2026-03-13T17:05:00Z 15000 0 DELIVERED\ndelivery d3 2026-03-13T16:55:00Z 20000 0 DELIVERED\n",
+          "expected": "day 2026-03-14\nsince 2026-03-13T17:00:00Z\ndeliveries 2\nearned 65000",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Ten past midnight local time starts a new day",
+          "input": "now 2026-03-14T17:10:00Z\ndelivery d1 2026-03-14T16:59:59Z 30000 0 DELIVERED\ndelivery d2 2026-03-14T17:05:00Z 25000 3000 DELIVERED\n",
+          "expected": "day 2026-03-15\nsince 2026-03-14T17:00:00Z\ndeliveries 1\nearned 28000",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A delivery stamped exactly at the next midnight belongs to tomorrow",
+          "input": "now 2026-03-14T10:00:00Z\ndelivery d1 2026-03-14T17:00:00Z 10000 0 DELIVERED\ndelivery d2 2026-03-13T17:00:00Z 12000 0 DELIVERED\n",
+          "expected": "day 2026-03-14\nsince 2026-03-13T17:00:00Z\ndeliveries 1\nearned 12000",
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "No deliveries yet today",
+          "input": "now 2026-03-14T02:00:00Z\n",
+          "expected": "day 2026-03-14\nsince 2026-03-13T17:00:00Z\ndeliveries 0\nearned 0",
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

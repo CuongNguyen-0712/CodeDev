@@ -1,0 +1,35 @@
+[
+  {
+    "id": "business-day",
+    "label": "Today's date on the injected clock, in the business zone",
+    "code": "val day = LocalDate.now(clock.withZone(BUSINESS_ZONE))"
+  },
+  {
+    "id": "day-bounds",
+    "label": "Where today starts and tomorrow starts",
+    "code": "val start = day.atStartOfDay(BUSINESS_ZONE).toInstant()\nval end = day.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant()"
+  },
+  {
+    "id": "count-delivered",
+    "label": "Delivered orders inside [start, end)",
+    "code": "val done = source.deliveriesSince(start)\n    .filter { it.status == \"DELIVERED\" && !it.deliveredAt.isBefore(start) && it.deliveredAt.isBefore(end) }"
+  },
+  {
+    "id": "business-day-device-clock",
+    "label": "Today's date on the injected clock, in the business zone",
+    "code": "val day = LocalDate.now(ZoneId.systemDefault())",
+    "distractor": true
+  },
+  {
+    "id": "count-delivered-inclusive-end",
+    "label": "Delivered orders inside [start, end)",
+    "code": "val done = source.deliveriesSince(start)\n    .filter { it.status == \"DELIVERED\" && !it.deliveredAt.isBefore(start) && !it.deliveredAt.isAfter(end) }",
+    "distractor": true
+  },
+  {
+    "id": "day-bounds-utc-midnight",
+    "label": "Where today starts and tomorrow starts",
+    "code": "val start = day.atStartOfDay(ZoneOffset.UTC).toInstant()\nval end = day.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()",
+    "distractor": true
+  }
+]

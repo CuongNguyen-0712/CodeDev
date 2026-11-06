@@ -1,0 +1,40 @@
+[
+  {
+    "id": "restart",
+    "label": "Start a new trace when the caller's context is unusable",
+    "code": "return \"restart (\" + reason + \") 00-\" + newTraceId + \"-\" + spanId + \"-\" + (sampleNew ? \"01\" : \"00\");"
+  },
+  {
+    "id": "child-header",
+    "label": "The header for the outgoing call",
+    "code": "return \"continue 00-\" + traceId + \"-\" + spanId + \"-\" + (sampled ? \"01\" : \"00\");"
+  },
+  {
+    "id": "check-shape",
+    "label": "Length and version",
+    "code": "if (h.length() < 55) return \"bad length\";\nString version = h.substring(0, 2);\nif (!version.matches(\"[0-9a-f]{2}\") || h.charAt(2) != '-') return \"bad version\";\nif (version.equals(\"ff\")) return \"version ff\";\nif (version.equals(\"00\") ? h.length() != 55 : h.length() > 55 && h.charAt(55) != '-') return \"bad length\";"
+  },
+  {
+    "id": "check-ids",
+    "label": "trace-id and parent-id",
+    "code": "if (!traceId.matches(\"[0-9a-f]{32}\") || h.charAt(35) != '-') return \"bad trace-id\";\nif (traceId.equals(ZERO_TRACE)) return \"zero trace-id\";\nif (!parentId.matches(\"[0-9a-f]{16}\") || h.charAt(52) != '-') return \"bad parent-id\";\nif (parentId.equals(ZERO_SPAN)) return \"zero parent-id\";"
+  },
+  {
+    "id": "check-ids-any-case",
+    "label": "trace-id and parent-id",
+    "code": "if (!traceId.matches(\"[0-9a-fA-F]{32}\") || h.charAt(35) != '-') return \"bad trace-id\";\nif (traceId.equals(ZERO_TRACE)) return \"zero trace-id\";\nif (!parentId.matches(\"[0-9a-fA-F]{16}\") || h.charAt(52) != '-') return \"bad parent-id\";\nif (parentId.equals(ZERO_SPAN)) return \"zero parent-id\";",
+    "distractor": true
+  },
+  {
+    "id": "check-ids-zeros-allowed",
+    "label": "trace-id and parent-id",
+    "code": "if (!traceId.matches(\"[0-9a-f]{32}\") || h.charAt(35) != '-') return \"bad trace-id\";\nif (!parentId.matches(\"[0-9a-f]{16}\") || h.charAt(52) != '-') return \"bad parent-id\";",
+    "distractor": true
+  },
+  {
+    "id": "child-header-forwarded",
+    "label": "The header for the outgoing call",
+    "code": "return \"continue \" + incoming;",
+    "distractor": true
+  }
+]

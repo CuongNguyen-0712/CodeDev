@@ -1,0 +1,40 @@
+[
+  {
+    "id": "drain-delay",
+    "label": "Keep serving while the load balancers forget this pod",
+    "code": "g.Sleep(cfg.DrainDelayMs)"
+  },
+  {
+    "id": "shutdown-deadline",
+    "label": "Stop accepting and wait for requests within the budget",
+    "code": "budget := cfg.GracePeriodMs - cfg.DrainDelayMs - cfg.WorkerStopMs - cfg.ExitMarginMs\nerr := g.Shutdown(budget)"
+  },
+  {
+    "id": "stop-workers",
+    "label": "Stop the background workers and flush the logs",
+    "code": "g.StopWorkers()\ng.FlushLogs()"
+  },
+  {
+    "id": "exit-code",
+    "label": "Exit 0 only when every request finished",
+    "code": "if err != nil {\n\tg.Exit(1)\n\treturn\n}\ng.Exit(0)"
+  },
+  {
+    "id": "drain-delay-none",
+    "label": "Keep serving while the load balancers forget this pod",
+    "code": "g.Sleep(0) // Kubernetes already took the pod out of the Service",
+    "distractor": true
+  },
+  {
+    "id": "shutdown-deadline-whole-grace",
+    "label": "Stop accepting and wait for requests within the budget",
+    "code": "err := g.Shutdown(cfg.GracePeriodMs)",
+    "distractor": true
+  },
+  {
+    "id": "stop-workers-logs-only",
+    "label": "Stop the background workers and flush the logs",
+    "code": "g.FlushLogs()",
+    "distractor": true
+  }
+]

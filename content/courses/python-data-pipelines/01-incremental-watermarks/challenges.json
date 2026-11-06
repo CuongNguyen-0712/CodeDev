@@ -1,0 +1,433 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pdp_112",
+      "name": "incremental-orders-extract",
+      "type": "mini_coding",
+      "title": "Extract orders incrementally with a watermark",
+      "description": "The nightly copy of Rice Rocket's orders into the warehouse took two hours as a full extract. The editor holds `pipelines/orders_incremental.py` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that `run_once` reads the watermark of the job `orders`, extracts every order changed at or after the watermark minus `lookback_minutes` (late commits must not be missed), upserts them into `fact_orders`, moves the watermark to the largest `updated_at` it actually read (never the clock; unchanged when nothing was read), and commits the load and the watermark together so a failed load saves neither. Run replays several nights on SQLite, including a late commit and a failed load, and compares the warehouse with the source.",
+      "difficulty": "medium",
+      "outcomes": [
+        "extract-load"
+      ],
+      "points": 30,
+      "hints": [
+        "Follow one late order: it commits after the extraction started, with an `updated_at` a few minutes before the watermark the run leaves behind. Which query of the next run still sees it, and which watermark makes that possible?",
+        "Look at `datetime.strptime` and `timedelta` for the start of the window, `max(..., default=...)` for the new watermark, and `with wh:` in Python's sqlite3, which commits the whole block or rolls it back.",
+        "A job that copies payments by `paid_at` might do: `start = last - timedelta(minutes=10)`, `rows = SELECT ... WHERE paid_at >= start ORDER BY paid_at`, `last = max([r.paid_at for r in rows], default=last)`, and inside one `with conn:` block both the upsert of the rows and `UPDATE job_state SET last = ?`."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "pipelines/orders_incremental.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The first run copies every order, the second only what changed since",
+          "input": {
+            "lookback_minutes": 15,
+            "initial": [
+              [
+                1,
+                "delivered",
+                120000,
+                "2026-11-05 08:00:00"
+              ],
+              [
+                2,
+                "delivered",
+                85000,
+                "2026-11-05 09:30:00"
+              ],
+              [
+                3,
+                "cancelled",
+                60000,
+                "2026-11-05 10:10:00"
+              ],
+              [
+                4,
+                "delivered",
+                150000,
+                "2026-11-05 11:45:00"
+              ],
+              [
+                5,
+                "cooking",
+                99000,
+                "2026-11-05 12:00:00"
+              ],
+              [
+                6,
+                "placed",
+                45000,
+                "2026-11-05 12:05:00"
+              ]
+            ],
+            "runs": [
+              {},
+              {
+                "before": [
+                  [
+                    5,
+                    "delivered",
+                    99000,
+                    "2026-11-05 12:40:00"
+                  ],
+                  [
+                    7,
+                    "placed",
+                    70000,
+                    "2026-11-05 12:50:00"
+                  ]
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "missing_or_stale": [],
+            "extra": [],
+            "watermark": "2026-11-05 12:50:00",
+            "rows_read": [
+              6,
+              3
+            ],
+            "failed_runs": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "An order committed late, with an updated_at before the watermark, is still copied",
+          "input": {
+            "lookback_minutes": 15,
+            "initial": [
+              [
+                1,
+                "delivered",
+                120000,
+                "2026-11-05 08:00:00"
+              ],
+              [
+                2,
+                "delivered",
+                85000,
+                "2026-11-05 09:30:00"
+              ],
+              [
+                3,
+                "cancelled",
+                60000,
+                "2026-11-05 10:10:00"
+              ],
+              [
+                4,
+                "delivered",
+                150000,
+                "2026-11-05 11:45:00"
+              ],
+              [
+                5,
+                "cooking",
+                99000,
+                "2026-11-05 12:00:00"
+              ],
+              [
+                6,
+                "placed",
+                45000,
+                "2026-11-05 12:05:00"
+              ]
+            ],
+            "runs": [
+              {
+                "after": [
+                  [
+                    8,
+                    "placed",
+                    52000,
+                    "2026-11-05 12:01:00"
+                  ]
+                ]
+              },
+              {
+                "before": [
+                  [
+                    9,
+                    "placed",
+                    61000,
+                    "2026-11-05 12:30:00"
+                  ]
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "missing_or_stale": [],
+            "extra": [],
+            "watermark": "2026-11-05 12:30:00",
+            "rows_read": [
+              6,
+              4
+            ],
+            "failed_runs": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A failed load keeps the old watermark and the next run catches up",
+          "input": {
+            "lookback_minutes": 15,
+            "initial": [
+              [
+                1,
+                "delivered",
+                120000,
+                "2026-11-05 08:00:00"
+              ],
+              [
+                2,
+                "delivered",
+                85000,
+                "2026-11-05 09:30:00"
+              ],
+              [
+                3,
+                "cancelled",
+                60000,
+                "2026-11-05 10:10:00"
+              ],
+              [
+                4,
+                "delivered",
+                150000,
+                "2026-11-05 11:45:00"
+              ],
+              [
+                5,
+                "cooking",
+                99000,
+                "2026-11-05 12:00:00"
+              ],
+              [
+                6,
+                "placed",
+                45000,
+                "2026-11-05 12:05:00"
+              ]
+            ],
+            "runs": [
+              {},
+              {
+                "before": [
+                  [
+                    10,
+                    "placed",
+                    81000,
+                    "2026-11-05 12:06:00"
+                  ],
+                  [
+                    11,
+                    "placed",
+                    39000,
+                    "2026-11-05 12:10:00"
+                  ],
+                  [
+                    12,
+                    "placed",
+                    64000,
+                    "2026-11-05 12:50:00"
+                  ]
+                ],
+                "fail_on_order": 12
+              },
+              {}
+            ]
+          },
+          "expected": {
+            "missing_or_stale": [],
+            "extra": [],
+            "watermark": "2026-11-05 12:50:00",
+            "rows_read": [
+              6,
+              null,
+              5
+            ],
+            "failed_runs": [
+              2
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A late order with the same updated_at as the watermark, then runs with nothing new",
+          "input": {
+            "lookback_minutes": 15,
+            "initial": [
+              [
+                1,
+                "delivered",
+                120000,
+                "2026-11-05 08:00:00"
+              ],
+              [
+                2,
+                "delivered",
+                85000,
+                "2026-11-05 09:30:00"
+              ],
+              [
+                3,
+                "cancelled",
+                60000,
+                "2026-11-05 10:10:00"
+              ],
+              [
+                4,
+                "delivered",
+                150000,
+                "2026-11-05 11:45:00"
+              ],
+              [
+                5,
+                "cooking",
+                99000,
+                "2026-11-05 12:00:00"
+              ],
+              [
+                6,
+                "placed",
+                45000,
+                "2026-11-05 12:05:00"
+              ]
+            ],
+            "runs": [
+              {
+                "after": [
+                  [
+                    13,
+                    "placed",
+                    30000,
+                    "2026-11-05 12:05:00"
+                  ]
+                ]
+              },
+              {},
+              {}
+            ]
+          },
+          "expected": {
+            "missing_or_stale": [],
+            "extra": [],
+            "watermark": "2026-11-05 12:05:00",
+            "rows_read": [
+              6,
+              3,
+              3
+            ],
+            "failed_runs": []
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Four runs in a row each read only the recent changes",
+          "input": {
+            "lookback_minutes": 15,
+            "initial": [
+              [
+                1,
+                "delivered",
+                120000,
+                "2026-11-05 08:00:00"
+              ],
+              [
+                2,
+                "delivered",
+                85000,
+                "2026-11-05 09:30:00"
+              ],
+              [
+                3,
+                "cancelled",
+                60000,
+                "2026-11-05 10:10:00"
+              ],
+              [
+                4,
+                "delivered",
+                150000,
+                "2026-11-05 11:45:00"
+              ],
+              [
+                5,
+                "cooking",
+                99000,
+                "2026-11-05 12:00:00"
+              ],
+              [
+                6,
+                "placed",
+                45000,
+                "2026-11-05 12:05:00"
+              ]
+            ],
+            "runs": [
+              {},
+              {
+                "before": [
+                  [
+                    14,
+                    "placed",
+                    50000,
+                    "2026-11-05 12:35:00"
+                  ]
+                ]
+              },
+              {
+                "before": [
+                  [
+                    14,
+                    "delivered",
+                    50000,
+                    "2026-11-05 13:05:00"
+                  ]
+                ]
+              },
+              {
+                "before": [
+                  [
+                    15,
+                    "placed",
+                    77000,
+                    "2026-11-05 13:40:00"
+                  ]
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "missing_or_stale": [],
+            "extra": [],
+            "watermark": "2026-11-05 13:40:00",
+            "rows_read": [
+              6,
+              3,
+              1,
+              2
+            ],
+            "failed_runs": []
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

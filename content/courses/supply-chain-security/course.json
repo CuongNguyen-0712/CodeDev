@@ -85,7 +85,6 @@
     "interview_prep"
   ],
   "prerequisites": [
-    "devops-foundations-ci-containers",
     "ai-assisted-development"
   ],
   "modules": [

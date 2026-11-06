@@ -1,0 +1,40 @@
+[
+  {
+    "id": "concurrency-limit",
+    "label": "At most `limit` partner calls at a time",
+    "code": "slots = asyncio.Semaphore(limit)"
+  },
+  {
+    "id": "guarded-call",
+    "label": "One partner call, holding a slot",
+    "code": "async with slots:\n    return await partners.menu(restaurant_id)"
+  },
+  {
+    "id": "per-item-errors",
+    "label": "One failed restaurant must not fail the batch",
+    "code": "try:\n    return {\"ok\": await fetch_one(restaurant_id)}\nexcept PartnerError as error:\n    return {\"error\": str(error)}"
+  },
+  {
+    "id": "run-all",
+    "label": "Start every restaurant and keep the input order",
+    "code": "results = await asyncio.gather(*(fetch_or_error(rid) for rid in restaurant_ids))"
+  },
+  {
+    "id": "guarded-call-new-semaphore",
+    "label": "One partner call, holding a slot",
+    "code": "async with asyncio.Semaphore(limit):\n    return await partners.menu(restaurant_id)",
+    "distractor": true
+  },
+  {
+    "id": "per-item-errors-none",
+    "label": "One failed restaurant must not fail the batch",
+    "code": "return {\"ok\": await fetch_one(restaurant_id)}",
+    "distractor": true
+  },
+  {
+    "id": "run-all-one-by-one",
+    "label": "Start every restaurant and keep the input order",
+    "code": "results = [await fetch_or_error(rid) for rid in restaurant_ids]",
+    "distractor": true
+  }
+]

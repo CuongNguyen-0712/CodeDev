@@ -1,0 +1,41 @@
+[
+  {
+    "id": "retryable-errors",
+    "label": "Which failures are worth another try",
+    "code": "except (TimeoutError, ConnectionError) as error:\n    last, retry_after = error, None\nexcept HTTPError as error:\n    if error.status not in RETRYABLE_STATUS:\n        raise\n    last, retry_after = error, error.retry_after"
+  },
+  {
+    "id": "backoff-delay",
+    "label": "Exponential backoff with full jitter, or Retry-After",
+    "code": "delay = rng.uniform(0, min(cap, base * 2 ** attempt))\nif retry_after is not None:\n    delay = max(delay, retry_after)"
+  },
+  {
+    "id": "deadline-check",
+    "label": "Give up instead of sleeping past the deadline",
+    "code": "if loop.time() + delay > give_up_at:\n    break"
+  },
+  {
+    "id": "deadline-before-sleep-only",
+    "label": "Give up instead of sleeping past the deadline",
+    "code": "if loop.time() >= give_up_at:\n    break",
+    "distractor": true
+  },
+  {
+    "id": "fixed-one-second",
+    "label": "Exponential backoff with full jitter, or Retry-After",
+    "code": "delay = 1.0\nif retry_after is not None:\n    delay = max(delay, retry_after)",
+    "distractor": true
+  },
+  {
+    "id": "retry-even-cancel",
+    "label": "Which failures are worth another try",
+    "code": "except BaseException as error:\n    if isinstance(error, HTTPError) and error.status not in RETRYABLE_STATUS:\n        raise\n    last, retry_after = error, getattr(error, \"retry_after\", None)",
+    "distractor": true
+  },
+  {
+    "id": "retry-everything",
+    "label": "Which failures are worth another try",
+    "code": "except Exception as error:\n    last, retry_after = error, getattr(error, \"retry_after\", None)",
+    "distractor": true
+  }
+]

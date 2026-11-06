@@ -1,144 +1,397 @@
 {
   "roadmaps": [
     {
-      "id": 1, "role": "frontend_developer", "level": "beginner",
+      "id": 1,
+      "role": "frontend_developer",
+      "level": "beginner",
       "title": "Frontend Developer",
       "description": "From semantic HTML and accessible CSS to typed React apps that load fast: JavaScript, TypeScript, async UI code, testing and web performance.",
       "nodes": [
-        { "title": "Web Foundations", "description": "Semantic HTML, modern CSS layout, responsive design, accessibility and how the browser talks to the server over HTTP.", "courses": ["web-foundations-html-css-a11y", "web-http-fundamentals"] },
-        { "title": "JavaScript Fundamentals", "description": "Values, arrays and objects, closures, modules, errors and tests in modern JavaScript.", "courses": ["js-modern-foundations"] },
-        { "title": "TypeScript", "description": "Types, narrowing, generics and discriminated unions that catch bugs before users do.", "courses": ["typescript-foundations"] },
-        { "title": "Asynchronous JavaScript", "description": "Promises, cancellation, retries and race conditions in UI code.", "courses": ["javascript-async-architecture_2026100901"] },
-        { "title": "React with TypeScript", "description": "Components, state, effects and data fetching with typed props and hooks.", "courses": ["typescript-react-frontend", "nextjs-rendering-caching"] },
-        { "title": "Testing the Frontend", "description": "Unit, integration and property-based tests that find real bugs.", "courses": ["test-automation-foundations", "typescript-test-design"] },
-        { "title": "Web Performance", "description": "Core Web Vitals, rendering, data loading and performance budgets.", "courses": ["frontend-web-performance"] },
-        { "title": "Working with AI Coding Tools", "description": "Specs, tests and review habits that make code written with an AI assistant or agent safe to ship.", "courses": ["ai-assisted-development", "agentic-coding-practice"] }
+        {
+          "title": "Asynchronous JavaScript",
+          "description": "Promises, cancellation, retries and race conditions in UI code.",
+          "courses": [
+            "javascript-async-architecture_2026100901"
+          ]
+        },
+        {
+          "title": "React with TypeScript",
+          "description": "Components, state, effects and data fetching with typed props and hooks.",
+          "courses": [
+            "typescript-react-frontend",
+            "nextjs-rendering-caching"
+          ]
+        },
+        {
+          "title": "Web Performance",
+          "description": "Core Web Vitals, rendering, data loading and performance budgets.",
+          "courses": [
+            "frontend-web-performance"
+          ]
+        },
+        {
+          "title": "Working with AI Coding Tools",
+          "description": "Specs, tests and review habits that make code written with an AI assistant or agent safe to ship.",
+          "courses": [
+            "ai-assisted-development",
+            "agentic-coding-practice"
+          ]
+        }
       ]
     },
     {
-      "id": 2, "role": "backend_developer", "level": "beginner",
+      "id": 2,
+      "role": "backend_developer",
+      "level": "beginner",
       "title": "Backend Developer",
       "description": "Pick a server language, learn SQL, then build APIs and services that stay correct under concurrency, failures and attacks.",
       "nodes": [
-        { "title": "A Server Language", "description": "Learn one language well first: JavaScript, Python, Java, Go, PHP or C#.", "courses": ["js-modern-foundations", "python-foundations-automation", "java21-foundations", "go-foundations", "php-foundations", "csharp-foundations"] },
-        { "title": "Databases & SQL", "description": "Schemas, keys, constraints and transactions; queries, joins and aggregation without wrong numbers.", "courses": ["sql-data-modeling", "sql-data-analysis-foundations", "postgres-performance", "postgres-in-production", "redis-patterns"] },
-        { "title": "Building APIs", "description": "Routing, validation, errors, pagination and clean service code.", "courses": ["javascript-async-architecture_2026100901", "web-http-fundamentals", "nestjs-modular-monolith", "api-design-production"] },
-        { "title": "Architecture & Testing", "description": "Modules, dependency direction and when to split a service; tests that catch bugs instead of confirming happy paths.", "courses": ["software-architecture-fundamentals", "typescript-test-design"] },
-        { "title": "Concurrency & Async", "description": "Async Python services, background jobs and queues, and the bugs they bring.", "courses": ["python-asyncio-services", "background-jobs-messaging"] },
-        { "title": "Performance", "description": "Profiling, event loop health, caching and backpressure.", "courses": ["nodejs-high-performance"] },
-        { "title": "API Security", "description": "Authentication, authorization, input handling and abuse protection.", "courses": ["nodejs-api-security", "supply-chain-security"] },
-        { "title": "Distributed Systems", "description": "Resilient microservices, timeouts, retries and cloud-native services.", "courses": ["kafka-event-streaming", "java-resilient-microservices", "go-cloud-native", "observability-opentelemetry"] },
-        { "title": "Systems Languages", "description": "Rust for services where memory and latency matter.", "courses": ["rust-foundations"] },
-        { "title": "AI Features", "description": "How LLMs behave, building LLM features with structured output and tools, and evaluating them with guardrails.", "courses": ["ai-llm-foundations", "nodejs-ai-engineering", "llm-evaluation-guardrails"] }
+        {
+          "title": "Databases & SQL",
+          "description": "Schemas, keys, constraints and transactions; queries, joins and aggregation without wrong numbers.",
+          "courses": [
+            "sql-data-modeling",
+            "postgres-in-production",
+            "redis-patterns"
+          ]
+        },
+        {
+          "title": "Building APIs",
+          "description": "Routing, validation, errors, pagination and clean service code.",
+          "courses": [
+            "javascript-async-architecture_2026100901",
+            "nestjs-modular-monolith",
+            "api-design-production"
+          ]
+        },
+        {
+          "title": "Concurrency & Async",
+          "description": "Async Python services, background jobs and queues, and the bugs they bring.",
+          "courses": [
+            "python-asyncio-services",
+            "background-jobs-messaging"
+          ]
+        },
+        {
+          "title": "Performance",
+          "description": "Profiling, event loop health, caching and backpressure.",
+          "courses": [
+            "nodejs-high-performance"
+          ]
+        },
+        {
+          "title": "API Security",
+          "description": "Authentication, authorization, input handling and abuse protection.",
+          "courses": [
+            "nodejs-api-security",
+            "supply-chain-security"
+          ]
+        },
+        {
+          "title": "Distributed Systems",
+          "description": "Resilient microservices, timeouts, retries and cloud-native services.",
+          "courses": [
+            "kafka-event-streaming",
+            "java-resilient-microservices",
+            "go-cloud-native",
+            "observability-opentelemetry"
+          ]
+        },
+        {
+          "title": "AI Features",
+          "description": "How LLMs behave, building LLM features with structured output and tools, and evaluating them with guardrails.",
+          "courses": [
+            "ai-llm-foundations",
+            "nodejs-ai-engineering",
+            "llm-evaluation-guardrails"
+          ]
+        }
       ]
     },
     {
-      "id": 3, "role": "fullstack_developer", "level": "beginner",
+      "id": 3,
+      "role": "fullstack_developer",
+      "level": "beginner",
       "title": "Fullstack Developer",
       "description": "Ship complete features: a typed React frontend, a backend API with a database, tests, deployment and AI features.",
       "nodes": [
-        { "title": "Web & JavaScript Foundations", "description": "HTML, CSS, accessibility, modern JavaScript and HTTP.", "courses": ["web-foundations-html-css-a11y", "js-modern-foundations", "web-http-fundamentals"] },
-        { "title": "TypeScript & React", "description": "Typed components, state and data fetching.", "courses": ["typescript-foundations", "typescript-react-frontend", "nextjs-rendering-caching"] },
-        { "title": "Backend Basics", "description": "Asynchronous server code and a second backend language.", "courses": ["javascript-async-architecture_2026100901", "php-foundations", "csharp-foundations", "nestjs-modular-monolith"] },
-        { "title": "Databases & SQL", "description": "Model and query the data your features need.", "courses": ["sql-data-modeling", "sql-data-analysis-foundations"] },
-        { "title": "APIs & Security", "description": "Design APIs and protect them.", "courses": ["nodejs-api-security", "api-design-production"] },
-        { "title": "Testing", "description": "Automated tests across the stack.", "courses": ["test-automation-foundations", "typescript-test-design"] },
-        { "title": "Delivery", "description": "Containers, CI pipelines and performance in production.", "courses": ["devops-foundations-ci-containers", "docker-nginx-ship-a-service", "github-actions-ci-cd", "nodejs-high-performance", "frontend-web-performance"] },
-        { "title": "AI Features", "description": "LLM calls, retrieval and evaluation inside a product.", "courses": ["ai-llm-foundations", "ai-assisted-development", "nodejs-ai-engineering"] }
+        {
+          "title": "TypeScript & React",
+          "description": "Typed components, state and data fetching.",
+          "courses": [
+            "typescript-react-frontend",
+            "nextjs-rendering-caching"
+          ]
+        },
+        {
+          "title": "Backend Basics",
+          "description": "Asynchronous server code and a second backend language.",
+          "courses": [
+            "javascript-async-architecture_2026100901",
+            "nestjs-modular-monolith"
+          ]
+        },
+        {
+          "title": "Databases & SQL",
+          "description": "Model and query the data your features need.",
+          "courses": [
+            "sql-data-modeling"
+          ]
+        },
+        {
+          "title": "APIs & Security",
+          "description": "Design APIs and protect them.",
+          "courses": [
+            "nodejs-api-security",
+            "api-design-production"
+          ]
+        },
+        {
+          "title": "Delivery",
+          "description": "Containers, CI pipelines and performance in production.",
+          "courses": [
+            "docker-nginx-ship-a-service",
+            "github-actions-ci-cd",
+            "nodejs-high-performance",
+            "frontend-web-performance"
+          ]
+        },
+        {
+          "title": "AI Features",
+          "description": "LLM calls, retrieval and evaluation inside a product.",
+          "courses": [
+            "ai-llm-foundations",
+            "ai-assisted-development",
+            "nodejs-ai-engineering"
+          ]
+        }
       ]
     },
     {
-      "id": 4, "role": "mobile_developer", "level": "beginner",
+      "id": 4,
+      "role": "mobile_developer",
+      "level": "beginner",
       "title": "Mobile Developer",
       "description": "Build Android and cross-platform apps: Kotlin, coroutines and Flow, React Native offline-first data, and an architecture that stays testable.",
       "nodes": [
-        { "title": "Kotlin Foundations", "description": "Null safety, data classes, collections and errors.", "courses": ["kotlin-foundations"] },
-        { "title": "Typed JavaScript for Cross-Platform", "description": "TypeScript for React Native apps.", "courses": ["typescript-foundations"] },
-        { "title": "The JVM & Java", "description": "Java skills most Android codebases still rely on.", "courses": ["java21-foundations"] },
-        { "title": "Cross-Platform & Offline-First", "description": "React Native apps that work without a network.", "courses": ["react-native-offline-first"] },
-        { "title": "App Architecture", "description": "State machines, caching, paging and testable features.", "courses": ["kotlin-mobile-architecture"] },
-        { "title": "Testing & Quality", "description": "Automated tests that keep releases safe.", "courses": ["test-automation-foundations"] }
+        {
+          "title": "Cross-Platform & Offline-First",
+          "description": "React Native apps that work without a network.",
+          "courses": [
+            "react-native-offline-first"
+          ]
+        },
+        {
+          "title": "App Architecture",
+          "description": "State machines, caching, paging and testable features.",
+          "courses": [
+            "kotlin-mobile-architecture"
+          ]
+        }
       ]
     },
     {
-      "id": 5, "role": "devops_engineer", "level": "intermediate",
+      "id": 5,
+      "role": "devops_engineer",
+      "level": "intermediate",
       "title": "DevOps Engineer",
       "description": "Automate delivery and run reliable systems: processes, containers and CI, scripting, Go tooling, cloud-native services and reliability testing.",
       "nodes": [
-        { "title": "Linux, Containers & CI", "description": "Processes, logs, images, environment config and pipelines.", "courses": ["devops-foundations-ci-containers"] },
-        { "title": "Docker & Nginx", "description": "Package a service, run it with Compose and put Nginx in front of it.", "courses": ["docker-nginx-ship-a-service"] },
-        { "title": "CI/CD Pipelines", "description": "Pull-request checks, image builds, environments and deploys with rollback.", "courses": ["github-actions-ci-cd"] },
-        { "title": "Kubernetes", "description": "Deployments, probes, rolling updates, autoscaling and debugging pods.", "courses": ["kubernetes-deploy-and-operate"] },
-        { "title": "Infrastructure as Code", "description": "Terraform resources, state, modules and reviewed plans.", "courses": ["terraform-infra-as-code"] },
-        { "title": "Scripting & Automation", "description": "Python for automation and tooling.", "courses": ["python-foundations-automation"] },
-        { "title": "Go for Tooling", "description": "The language of most cloud infrastructure.", "courses": ["go-foundations"] },
-        { "title": "Cloud-Native Services", "description": "Health checks, graceful shutdown, config and observability.", "courses": ["go-cloud-native", "background-jobs-messaging"] },
-        { "title": "Performance & Reliability", "description": "Load tests, SLOs, error budgets and chaos experiments.", "courses": ["qa-performance-reliability", "nodejs-high-performance", "observability-opentelemetry"] },
-        { "title": "Securing Services", "description": "Hardening the APIs you deploy.", "courses": ["nodejs-api-security", "supply-chain-security"] }
+        {
+          "title": "Docker & Nginx",
+          "description": "Package a service, run it with Compose and put Nginx in front of it.",
+          "courses": [
+            "docker-nginx-ship-a-service"
+          ]
+        },
+        {
+          "title": "CI/CD Pipelines",
+          "description": "Pull-request checks, image builds, environments and deploys with rollback.",
+          "courses": [
+            "github-actions-ci-cd"
+          ]
+        },
+        {
+          "title": "Kubernetes",
+          "description": "Deployments, probes, rolling updates, autoscaling and debugging pods.",
+          "courses": [
+            "kubernetes-deploy-and-operate"
+          ]
+        },
+        {
+          "title": "Infrastructure as Code",
+          "description": "Terraform resources, state, modules and reviewed plans.",
+          "courses": [
+            "terraform-infra-as-code"
+          ]
+        },
+        {
+          "title": "Cloud-Native Services",
+          "description": "Health checks, graceful shutdown, config and observability.",
+          "courses": [
+            "go-cloud-native",
+            "background-jobs-messaging"
+          ]
+        },
+        {
+          "title": "Performance & Reliability",
+          "description": "Load tests, SLOs, error budgets and chaos experiments.",
+          "courses": [
+            "qa-performance-reliability",
+            "nodejs-high-performance",
+            "observability-opentelemetry"
+          ]
+        },
+        {
+          "title": "Securing Services",
+          "description": "Hardening the APIs you deploy.",
+          "courses": [
+            "nodejs-api-security",
+            "supply-chain-security"
+          ]
+        }
       ]
     },
     {
-      "id": 6, "role": "ml_engineer", "level": "intermediate",
+      "id": 6,
+      "role": "ml_engineer",
+      "level": "intermediate",
       "title": "Machine Learning Engineer",
       "description": "From Python and data to models you can trust in production: ML from scratch, evaluation, retrieval-augmented generation and AI services.",
       "nodes": [
-        { "title": "Python", "description": "The language of the ML ecosystem.", "courses": ["python-foundations-automation"] },
-        { "title": "Data & SQL", "description": "Getting and shaping the data a model learns from.", "courses": ["sql-data-analysis-foundations", "python-data-pipelines"] },
-        { "title": "LLM Applications", "description": "Retrieval-augmented generation, embeddings and AI services.", "courses": ["ai-llm-foundations", "python-rag-from-scratch", "nodejs-ai-engineering", "llm-evaluation-guardrails"] },
-        { "title": "Serving Models", "description": "Async Python services around your models.", "courses": ["python-asyncio-services"] }
+        {
+          "title": "Data & SQL",
+          "description": "Getting and shaping the data a model learns from.",
+          "courses": [
+            "python-data-pipelines"
+          ]
+        },
+        {
+          "title": "LLM Applications",
+          "description": "Retrieval-augmented generation, embeddings and AI services.",
+          "courses": [
+            "ai-llm-foundations",
+            "python-rag-from-scratch",
+            "nodejs-ai-engineering",
+            "llm-evaluation-guardrails"
+          ]
+        },
+        {
+          "title": "Serving Models",
+          "description": "Async Python services around your models.",
+          "courses": [
+            "python-asyncio-services"
+          ]
+        }
       ]
     },
     {
-      "id": 7, "role": "qa_engineer", "level": "beginner",
+      "id": 7,
+      "role": "qa_engineer",
+      "level": "beginner",
       "title": "QA Engineer",
       "description": "Become the engineer who finds bugs first: a programming base, test automation, API testing, test design, and performance and reliability testing.",
       "nodes": [
-        { "title": "A Programming Base", "description": "Enough code to automate tests: JavaScript, TypeScript or Python.", "courses": ["js-modern-foundations", "typescript-foundations", "python-foundations-automation"] },
-        { "title": "Test Automation", "description": "Unit and integration tests, fixtures and test doubles.", "courses": ["test-automation-foundations"] },
-        { "title": "API Testing", "description": "Testing HTTP APIs, contracts and data.", "courses": ["web-http-fundamentals", "python-api-testing"] },
-        { "title": "Test Design", "description": "Boundaries, properties, contracts and mutation testing.", "courses": ["typescript-test-design"] },
-        { "title": "Performance & Reliability Testing", "description": "Load, latency percentiles and chaos experiments.", "courses": ["qa-performance-reliability"] },
-        { "title": "Tests in CI", "description": "Pipelines that run your tests on every change.", "courses": ["devops-foundations-ci-containers"] },
-        { "title": "Testing AI-Written Code", "description": "Review AI pull requests, spot tests that cannot fail and keep invented packages and secrets out.", "courses": ["ai-assisted-development"] }
+        {
+          "title": "API Testing",
+          "description": "Testing HTTP APIs, contracts and data.",
+          "courses": [
+            "python-api-testing"
+          ]
+        },
+        {
+          "title": "Performance & Reliability Testing",
+          "description": "Load, latency percentiles and chaos experiments.",
+          "courses": [
+            "qa-performance-reliability"
+          ]
+        },
+        {
+          "title": "Testing AI-Written Code",
+          "description": "Review AI pull requests, spot tests that cannot fail and keep invented packages and secrets out.",
+          "courses": [
+            "ai-assisted-development"
+          ]
+        }
       ]
     },
     {
-      "id": 8, "role": "data_engineer", "level": "intermediate",
+      "id": 8,
+      "role": "data_engineer",
+      "level": "intermediate",
       "title": "Data Engineer",
       "description": "Move and model data reliably: Python and SQL, analytics queries, pipelines with idempotent loads, async services and the ML they feed.",
       "nodes": [
-        { "title": "Python", "description": "Scripting, files and data structures.", "courses": ["python-foundations-automation"] },
-        { "title": "SQL", "description": "Joins, aggregation, correct numbers and the schemas behind them.", "courses": ["sql-data-analysis-foundations", "sql-data-modeling", "postgres-performance"] },
-        { "title": "Data Pipelines", "description": "Extract, validate, transform and load without duplicates.", "courses": ["python-data-pipelines"] },
-        { "title": "Async Services", "description": "High-throughput Python services and workers.", "courses": ["python-asyncio-services", "background-jobs-messaging", "kafka-event-streaming", "redis-patterns"] },
-        { "title": "Containers & CI", "description": "Package and ship pipelines.", "courses": ["devops-foundations-ci-containers"] },
-        { "title": "Feeding Machine Learning", "description": "What models need from the data platform.", "courses": ["python-rag-from-scratch"] }
+        {
+          "title": "SQL",
+          "description": "Joins, aggregation, correct numbers and the schemas behind them.",
+          "courses": [
+            "sql-data-modeling"
+          ]
+        },
+        {
+          "title": "Data Pipelines",
+          "description": "Extract, validate, transform and load without duplicates.",
+          "courses": [
+            "python-data-pipelines"
+          ]
+        },
+        {
+          "title": "Async Services",
+          "description": "High-throughput Python services and workers.",
+          "courses": [
+            "python-asyncio-services",
+            "background-jobs-messaging",
+            "kafka-event-streaming",
+            "redis-patterns"
+          ]
+        },
+        {
+          "title": "Feeding Machine Learning",
+          "description": "What models need from the data platform.",
+          "courses": [
+            "python-rag-from-scratch"
+          ]
+        }
       ]
     },
     {
-      "id": 9, "role": "data_analyst", "level": "beginner",
+      "id": 9,
+      "role": "data_analyst",
+      "level": "beginner",
       "title": "Data Analyst",
       "description": "Answer business questions with data: SQL first, then Python, analytics queries for product metrics, pipelines and model evaluation.",
       "nodes": [
-        { "title": "SQL Foundations", "description": "Filtering, joins, grouping and NULLs.", "courses": ["sql-data-analysis-foundations"] },
-        { "title": "Python for Analysis", "description": "Cleaning and summarising data in Python.", "courses": ["python-foundations-automation"] },
-        { "title": "Data Pipelines", "description": "Reliable data for your dashboards.", "courses": ["python-data-pipelines"] }
+        {
+          "title": "Data Pipelines",
+          "description": "Reliable data for your dashboards.",
+          "courses": [
+            "python-data-pipelines"
+          ]
+        }
       ]
     },
     {
-      "id": 10, "role": "student", "level": "beginner",
+      "id": 10,
+      "role": "student",
+      "level": "beginner",
       "title": "Programming Foundations",
       "description": "Start from zero and try every major language family before choosing a career path: the web, Python and JavaScript, C and C++, typed languages, Go and Rust, SQL and testing.",
       "nodes": [
-        { "title": "The Web", "description": "HTML, CSS and accessibility.", "courses": ["web-foundations-html-css-a11y", "web-http-fundamentals"] },
-        { "title": "Your First Language", "description": "Python or JavaScript.", "courses": ["python-foundations-automation", "js-modern-foundations"] },
-        { "title": "How Computers Run Code", "description": "Memory, pointers and types in C and C++.", "courses": ["c-foundations-memory", "cpp-foundations"] },
-        { "title": "Typed Languages", "description": "Java, C#, Kotlin and TypeScript.", "courses": ["java21-foundations", "csharp-foundations", "kotlin-foundations", "typescript-foundations"] },
-        { "title": "Modern Systems Languages", "description": "Go and Rust.", "courses": ["go-foundations", "rust-foundations"] },
-        { "title": "Server-Side Web", "description": "PHP, still behind a large part of the web.", "courses": ["php-foundations"] },
-        { "title": "Data & SQL", "description": "Ask questions of a database.", "courses": ["sql-data-analysis-foundations", "sql-data-modeling"] },
-        { "title": "Testing Your Code", "description": "Automated tests from day one.", "courses": ["test-automation-foundations", "typescript-test-design"] },
-        { "title": "Software Design & AI", "description": "How the pieces of an application fit together, and how large language models really work before you build with them.", "courses": ["software-architecture-fundamentals", "ai-llm-foundations"] }
+        {
+          "title": "Data & SQL",
+          "description": "Ask questions of a database.",
+          "courses": [
+            "sql-data-modeling"
+          ]
+        },
+        {
+          "title": "Software Design & AI",
+          "description": "How the pieces of an application fit together, and how large language models really work before you build with them.",
+          "courses": [
+            "ai-llm-foundations"
+          ]
+        }
       ]
     }
   ]

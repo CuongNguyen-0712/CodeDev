@@ -1,0 +1,521 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pas_111",
+      "name": "blocking-event-loop-quiz",
+      "type": "quiz",
+      "title": "Read the slow receipt endpoint",
+      "description": "Three statements about the FastAPI service whose receipt endpoint made every request on the pod slow at the lunch peak. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "event-loop"
+      ],
+      "points": 10,
+      "hints": [
+        "Check where FastAPI runs an `async def` path operation and where it runs a plain `def` one.",
+        "Read the debug log line: what does asyncio measure when it says a step \"took 0.812 seconds\", and what is the default threshold for that warning?",
+        "A thread keeps the event loop free, but pure-Python CPU work in that thread still needs the GIL. What gives real parallelism for it?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The receipt endpoint, and what the pod looked like at noon:\n\n```python\n@app.get(\"/orders/{order_id}/receipt\")\nasync def receipt(order_id: str):\n    order = await orders.get(order_id)\n    eta = requests.get(f\"{MAPS}/eta\", params={\"to\": order.address}, timeout=5).json()\n    return await build_pdf(order, eta)\n```\n\n```text\nGET /health            200   1830 ms\nGET /menu/42           200   2410 ms\nGET /orders/9/receipt  200   2655 ms\n```\n\nStatement: \"Because the endpoint is `async def`, FastAPI runs it in its thread pool, so the blocking `requests.get` only slows the receipt requests, not `/health` or `/menu`.\"",
+          "explanation": "False. FastAPI runs `async def` path operations directly on the event loop and only runs plain `def` ones in its thread pool. A blocking call inside `async def` holds the single event loop thread, so every other request on the worker, health checks included, waits behind it; that is why `/health` takes 1.8 s. Use an async client (`httpx.AsyncClient`), or make the endpoint a plain `def` so FastAPI moves it to a thread. The misconception is that `async def` makes code non-blocking by itself.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team ran one pod with `PYTHONASYNCIODEBUG=1`:\n\n```text\nWARNING asyncio: Executing <Task pending name='Task-311' coro=<receipt() running at app/receipts.py:41>> took 0.812 seconds\n```\n\n```python\n41:    pdf = render_receipt(order, eta)   # reportlab, pure Python\n```\n\nStatement: \"Debug mode warns about any step that holds the event loop longer than `slow_callback_duration` (100 ms by default); here the 0.812 s step is the PDF rendering, which belongs in a thread or process pool.\"",
+          "explanation": "True. In debug mode asyncio times every callback and task step and logs the ones slower than `loop.slow_callback_duration`, which defaults to 0.1 s. A task step runs from one `await` that suspends to the next, so 0.812 s without suspending means CPU work on the loop thread: the PDF rendering. Moving it to `await asyncio.to_thread(render_receipt, order, eta)` or a `ProcessPoolExecutor` frees the loop. The misconception is that the warning is about slow I/O; awaited I/O never shows up there.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After moving the rendering to a thread, the loop answers quickly again, but the pod's receipts per second did not grow past one CPU:\n\n```python\npdf = await asyncio.to_thread(render_receipt, order, eta)\n```\n\nStatement: \"`to_thread` keeps the event loop responsive, but pure-Python CPU work in threads still takes turns on the GIL; for real parallel rendering use a `ProcessPoolExecutor` (or a free-threaded Python build).\"",
+          "explanation": "True. `asyncio.to_thread` runs the function in the default thread pool, so the loop thread is free between the GIL hand-offs and requests are served again. On the standard (GIL) build only one thread runs Python bytecode at a time, so several renderings share one core. `loop.run_in_executor(ProcessPoolExecutor(), ...)` renders in separate processes; the free-threaded build (3.13+, experimental at first) removes the GIL. The misconception is that threads make CPU-bound Python faster.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pas_112",
+      "name": "receipt-handler-blocking",
+      "type": "fix_bug",
+      "title": "Fix the receipt handler that blocks the event loop",
+      "description": "Rice Rocket's receipt endpoint (`async def build_receipt(order, deps)`) asks the maps API for the delivery ETA, renders the PDF and stores it. At the lunch peak every request on the pod slowed down and the liveness probe failed: the handler blocked the event loop. The editor holds the fixed handler with its key lines missing, each marked by a `# [ ]` line; the wrong pieces are the original code. Fill every line so that nothing blocks the loop: the ETA comes from the async client, the 0.2 s pause between the 3 attempts is awaited, the CPU-heavy rendering runs in `deps.pool`, and the receipt is stored before the handler returns. Run serves the test's orders concurrently on a simulated clock and reports the receipts, the event loop lag a 50 ms heartbeat sees and the probe failures it would cause.",
+      "difficulty": "medium",
+      "outcomes": [
+        "event-loop"
+      ],
+      "points": 30,
+      "hints": [
+        "Read each line as the event loop thread: which ones hand control back with `await`, and which ones keep the thread busy until they finish?",
+        "Look at the two ETA methods in the docstring, `asyncio.sleep` vs `time.sleep`, and what `deps.pool.run(fn, *args)` does with a sync function.",
+        "A thumbnail step in another service follows the same rules: `size = await storage.head(key)` (async client), `await asyncio.sleep(0.5)` between attempts, `thumb = await pool.run(make_thumbnail, image)` for the CPU work, then `await storage.put(thumb_key, thumb)`."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "app/receipts.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two quiet orders: receipts stored, the loop never stalls",
+          "input": {
+            "orders": [
+              {
+                "id": "o1001",
+                "address": "12 Le Loi"
+              },
+              {
+                "id": "o1002",
+                "address": "7 Pasteur"
+              }
+            ]
+          },
+          "expected": {
+            "receipts": [
+              [
+                "o1001",
+                21
+              ],
+              [
+                "o1002",
+                21
+              ]
+            ],
+            "saved": [
+              "o1001",
+              "o1002"
+            ],
+            "finished_at_s": 1.15,
+            "max_loop_lag_ms": 0,
+            "probe_failures": 0
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Lunch peak, 20 orders at once: no event loop lag, no failed probe",
+          "input": {
+            "orders": [
+              {
+                "id": "o1001",
+                "address": "12 Le Loi"
+              },
+              {
+                "id": "o1002",
+                "address": "7 Pasteur"
+              },
+              {
+                "id": "o1003",
+                "address": "88 Nguyen Hue"
+              },
+              {
+                "id": "o1004",
+                "address": "3 Hai Ba Trung"
+              },
+              {
+                "id": "o1005",
+                "address": "41 Dong Khoi"
+              },
+              {
+                "id": "o1006",
+                "address": "9 Ly Tu Trong"
+              },
+              {
+                "id": "o1007",
+                "address": "150 Tran Hung Dao"
+              },
+              {
+                "id": "o1008",
+                "address": "22 Vo Van Tan"
+              },
+              {
+                "id": "o1009",
+                "address": "5 Ton Duc Thang"
+              },
+              {
+                "id": "o1010",
+                "address": "64 Nam Ky Khoi Nghia"
+              },
+              {
+                "id": "o1011",
+                "address": "12 Le Loi"
+              },
+              {
+                "id": "o1012",
+                "address": "7 Pasteur"
+              },
+              {
+                "id": "o1013",
+                "address": "88 Nguyen Hue"
+              },
+              {
+                "id": "o1014",
+                "address": "3 Hai Ba Trung"
+              },
+              {
+                "id": "o1015",
+                "address": "41 Dong Khoi"
+              },
+              {
+                "id": "o1016",
+                "address": "9 Ly Tu Trong"
+              },
+              {
+                "id": "o1017",
+                "address": "150 Tran Hung Dao"
+              },
+              {
+                "id": "o1018",
+                "address": "22 Vo Van Tan"
+              },
+              {
+                "id": "o1019",
+                "address": "5 Ton Duc Thang"
+              },
+              {
+                "id": "o1020",
+                "address": "64 Nam Ky Khoi Nghia"
+              }
+            ]
+          },
+          "expected": {
+            "receipts": [
+              [
+                "o1001",
+                21
+              ],
+              [
+                "o1002",
+                21
+              ],
+              [
+                "o1003",
+                25
+              ],
+              [
+                "o1004",
+                26
+              ],
+              [
+                "o1005",
+                24
+              ],
+              [
+                "o1006",
+                25
+              ],
+              [
+                "o1007",
+                29
+              ],
+              [
+                "o1008",
+                25
+              ],
+              [
+                "o1009",
+                27
+              ],
+              [
+                "o1010",
+                12
+              ],
+              [
+                "o1011",
+                21
+              ],
+              [
+                "o1012",
+                21
+              ],
+              [
+                "o1013",
+                25
+              ],
+              [
+                "o1014",
+                26
+              ],
+              [
+                "o1015",
+                24
+              ],
+              [
+                "o1016",
+                25
+              ],
+              [
+                "o1017",
+                29
+              ],
+              [
+                "o1018",
+                25
+              ],
+              [
+                "o1019",
+                27
+              ],
+              [
+                "o1020",
+                12
+              ]
+            ],
+            "saved": [
+              "o1001",
+              "o1002",
+              "o1003",
+              "o1004",
+              "o1005",
+              "o1006",
+              "o1007",
+              "o1008",
+              "o1009",
+              "o1010",
+              "o1011",
+              "o1012",
+              "o1013",
+              "o1014",
+              "o1015",
+              "o1016",
+              "o1017",
+              "o1018",
+              "o1019",
+              "o1020"
+            ],
+            "finished_at_s": 4.35,
+            "max_loop_lag_ms": 0,
+            "probe_failures": 0
+          },
+          "hidden": false,
+          "score": 7
+        },
+        {
+          "name": "The maps API answers 429 once for some orders: retried without blocking",
+          "input": {
+            "orders": [
+              {
+                "id": "o1001",
+                "address": "12 Le Loi"
+              },
+              {
+                "id": "o1002",
+                "address": "7 Pasteur"
+              },
+              {
+                "id": "o1003",
+                "address": "88 Nguyen Hue"
+              },
+              {
+                "id": "o1004",
+                "address": "3 Hai Ba Trung"
+              },
+              {
+                "id": "o1005",
+                "address": "41 Dong Khoi"
+              },
+              {
+                "id": "o1006",
+                "address": "9 Ly Tu Trong"
+              }
+            ],
+            "busy": {
+              "7 Pasteur": 1,
+              "41 Dong Khoi": 2
+            }
+          },
+          "expected": {
+            "receipts": [
+              [
+                "o1001",
+                21
+              ],
+              [
+                "o1002",
+                21
+              ],
+              [
+                "o1003",
+                25
+              ],
+              [
+                "o1004",
+                26
+              ],
+              [
+                "o1005",
+                24
+              ],
+              [
+                "o1006",
+                25
+              ]
+            ],
+            "saved": [
+              "o1001",
+              "o1002",
+              "o1003",
+              "o1004",
+              "o1005",
+              "o1006"
+            ],
+            "finished_at_s": 2.15,
+            "max_loop_lag_ms": 0,
+            "probe_failures": 0
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "The maps API stays busy for one order: receipt with eta null, still stored",
+          "input": {
+            "orders": [
+              {
+                "id": "o1001",
+                "address": "12 Le Loi"
+              },
+              {
+                "id": "o1002",
+                "address": "7 Pasteur"
+              },
+              {
+                "id": "o1003",
+                "address": "88 Nguyen Hue"
+              }
+            ],
+            "busy": {
+              "88 Nguyen Hue": 5
+            }
+          },
+          "expected": {
+            "receipts": [
+              [
+                "o1001",
+                21
+              ],
+              [
+                "o1002",
+                21
+              ],
+              [
+                "o1003",
+                null
+              ]
+            ],
+            "saved": [
+              "o1001",
+              "o1002",
+              "o1003"
+            ],
+            "finished_at_s": 2.35,
+            "max_loop_lag_ms": 0,
+            "probe_failures": 0
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "One worker in the pool: renderings queue, the loop still answers",
+          "input": {
+            "orders": [
+              {
+                "id": "o1001",
+                "address": "12 Le Loi"
+              },
+              {
+                "id": "o1002",
+                "address": "7 Pasteur"
+              },
+              {
+                "id": "o1003",
+                "address": "88 Nguyen Hue"
+              },
+              {
+                "id": "o1004",
+                "address": "3 Hai Ba Trung"
+              },
+              {
+                "id": "o1005",
+                "address": "41 Dong Khoi"
+              }
+            ],
+            "workers": 1
+          },
+          "expected": {
+            "receipts": [
+              [
+                "o1001",
+                21
+              ],
+              [
+                "o1002",
+                21
+              ],
+              [
+                "o1003",
+                25
+              ],
+              [
+                "o1004",
+                26
+              ],
+              [
+                "o1005",
+                24
+              ]
+            ],
+            "saved": [
+              "o1001",
+              "o1002",
+              "o1003",
+              "o1004",
+              "o1005"
+            ],
+            "finished_at_s": 4.35,
+            "max_loop_lag_ms": 0,
+            "probe_failures": 0
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

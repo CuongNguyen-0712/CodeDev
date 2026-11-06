@@ -1,0 +1,40 @@
+[
+  {
+    "id": "serve-cached",
+    "label": "Serve a cached menu, refreshing it ahead of expiry",
+    "code": "if (e != null && now < e.refreshAt()) return \"hit\";\nif (e != null && now < e.expiresAt()) {\n    if (!cache.loading(key)) db.startLoad(cache, key, now);\n    return \"stale\";\n}"
+  },
+  {
+    "id": "coalesce",
+    "label": "Join a load of this menu that is already running",
+    "code": "if (cache.loading(key)) return \"wait\";"
+  },
+  {
+    "id": "expiry-with-jitter",
+    "label": "When this copy expires, and when its refresh starts",
+    "code": "long expiresAt = now + TTL_MS + Math.floorMod(key.hashCode() * 0x9E3779B1, JITTER_MS);\ncache.put(key, value, expiresAt - REFRESH_BEFORE_MS, expiresAt);"
+  },
+  {
+    "id": "invalidate-on-write",
+    "label": "Change the price, then drop the cached menu",
+    "code": "db.updatePrice(key, price, now);\ncache.evict(key);"
+  },
+  {
+    "id": "coalesce-load-again",
+    "label": "Join a load of this menu that is already running",
+    "code": "if (cache.loading(key)) {\n    db.startLoad(cache, key, now); // the earlier load may be slow: read it again\n    return \"load\";\n}",
+    "distractor": true
+  },
+  {
+    "id": "evict-before-commit",
+    "label": "Change the price, then drop the cached menu",
+    "code": "cache.evict(key);\ndb.updatePrice(key, price, now);",
+    "distractor": true
+  },
+  {
+    "id": "expiry-same-for-all",
+    "label": "When this copy expires, and when its refresh starts",
+    "code": "long expiresAt = now + TTL_MS;\ncache.put(key, value, expiresAt, expiresAt);",
+    "distractor": true
+  }
+]

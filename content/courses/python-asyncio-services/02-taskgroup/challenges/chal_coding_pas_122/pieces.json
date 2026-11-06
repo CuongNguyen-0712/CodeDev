@@ -1,0 +1,35 @@
+[
+  {
+    "id": "courier-optional",
+    "label": "No courier assigned yet is a normal answer",
+    "code": "try:\n    return await api.courier(order_id)\nexcept NotAssigned:\n    return None"
+  },
+  {
+    "id": "run-together",
+    "label": "Run the three calls together as one group",
+    "code": "try:\n    async with asyncio.TaskGroup() as tg:\n        order = tg.create_task(api.order(order_id))\n        courier = tg.create_task(courier_or_none(api, order_id))\n        eta = tg.create_task(api.restaurant_eta(order_id))"
+  },
+  {
+    "id": "collect-failures",
+    "label": "Note which services failed",
+    "code": "except* ApiError as group:\n    failed = sorted({error.service for error in group.exceptions})"
+  },
+  {
+    "id": "collect-failures-plain-except",
+    "label": "Note which services failed",
+    "code": "except ApiError as error:\n    failed = [error.service]",
+    "distractor": true
+  },
+  {
+    "id": "courier-optional-no-catch",
+    "label": "No courier assigned yet is a normal answer",
+    "code": "return await api.courier(order_id)",
+    "distractor": true
+  },
+  {
+    "id": "run-together-gather",
+    "label": "Run the three calls together as one group",
+    "code": "try:\n    order = asyncio.ensure_future(api.order(order_id))\n    courier = asyncio.ensure_future(courier_or_none(api, order_id))\n    eta = asyncio.ensure_future(api.restaurant_eta(order_id))\n    await asyncio.gather(order, courier, eta)",
+    "distractor": true
+  }
+]

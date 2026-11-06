@@ -1,11 +1,11 @@
 {
   "publicId": "react-native-offline-first",
   "title": "Mobile App Engineering: Offline-First Data, Sync & Performance with React Native",
-  "concept": "Build mobile apps that keep working on a bad network: local-first storage, a sync queue with retries, conflict resolution, background work and smooth lists on low-end phones.",
-  "description": "Build mobile apps that keep working on a bad network: local-first storage, a sync queue with retries, conflict resolution, background work and smooth lists on low-end phones. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "concept": "Build Rice Rocket's courier app with React Native and Expo so it keeps working on a bad network: local-first storage with expo-sqlite and migrations, optimistic updates, an outbox sync queue, conflict resolution, delta sync with cursors, smooth lists on low-end phones, background tasks and staged releases. Challenges are TypeScript modules graded in the code runner.",
+  "description": "Build Rice Rocket's courier app with React Native and Expo so it keeps working on a bad network: local-first storage with expo-sqlite and migrations, optimistic updates, an outbox sync queue, conflict resolution, delta sync with cursors, smooth lists on low-end phones, background tasks and staged releases. 9 lessons on one project, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594611/codedev/courses/react-native-offline-first/cover",
   "level": "intermediate",
-  "durationMinutes": 180,
+  "durationMinutes": 150,
   "instructor": "CodeDev Engineering Team",
   "language": "TypeScript",
   "category": "React Native",
@@ -42,29 +42,70 @@
     "build_projects"
   ],
   "prerequisites": [
-    "javascript-async-architecture_2026100901",
-    "typescript-foundations"
+    "javascript-async-architecture_2026100901"
   ],
-  "modules": [],
-  "outline": [
+  "completionRules": {},
+  "domain": "frontend",
+  "learningOutcomes": [
+    {
+      "code": "local-first",
+      "text": "Store data on the device first, migrate it safely and update the UI optimistically."
+    },
+    {
+      "code": "sync",
+      "text": "Sync through an outbox queue, resolve conflicts and fetch only what changed."
+    },
+    {
+      "code": "device-performance",
+      "text": "Keep lists smooth on low-end phones and background work within battery budgets."
+    },
+    {
+      "code": "safe-releases",
+      "text": "Ship app changes behind flags and staged rollouts."
+    }
+  ],
+  "testedVersions": {
+    "React Native": "0.8x (to verify)",
+    "Expo": "SDK 54 (to verify)",
+    "expo-sqlite": "16.x (to verify)",
+    "TypeScript": "5.x"
+  },
+  "lastReviewedAt": "2026-11-06",
+  "sourceLinks": [
+    "https://docs.expo.dev/versions/latest/sdk/sqlite/",
+    "https://reactnative.dev/docs/optimizing-flatlist-configuration",
+    "https://tanstack.com/query/latest/docs/framework/react/guides/optimistic-updates",
+    "https://docs.expo.dev/versions/latest/sdk/background-task/",
+    "https://docs.expo.dev/eas-update/introduction/"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges are plain TypeScript models of the app's data layer run in the code runner, not on a device.",
+    "testedVersions are not yet re-checked against the live tools."
+  ],
+  "template": "core-first",
+  "modules": [
     {
       "orderIndex": 1,
-      "title": "Local-First Data",
+      "title": "Local-first data",
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "01-why-offline-first",
           "title": "Why offline-first: the network is a cache miss",
-          "challenges": "Q(e)"
+          "sanityId": "lesson-rno-1-1"
         },
         {
           "orderIndex": 2,
-          "title": "Local storage schema & migrations",
-          "challenges": "C(m)"
+          "folder": "02-local-schema-migrations",
+          "title": "Local storage schema and migrations",
+          "sanityId": "lesson-rno-1-2"
         },
         {
           "orderIndex": 3,
-          "title": "Optimistic updates & rollback",
-          "challenges": "F(m)"
+          "folder": "03-optimistic-updates",
+          "title": "Optimistic updates and rollback",
+          "sanityId": "lesson-rno-1-3"
         }
       ]
     },
@@ -74,39 +115,45 @@
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "An outbox queue with retries & backoff",
-          "challenges": "C(m)"
+          "folder": "04-outbox-sync-queue",
+          "title": "An outbox queue with retries and backoff",
+          "sanityId": "lesson-rno-2-1"
         },
         {
           "orderIndex": 2,
+          "folder": "05-conflict-resolution",
           "title": "Conflict resolution: last-write-wins vs field merge",
-          "challenges": "Q(h) + C(h)"
+          "sanityId": "lesson-rno-2-2"
         },
         {
           "orderIndex": 3,
+          "folder": "06-delta-sync-cursors",
           "title": "Delta sync with cursors",
-          "challenges": "C(m)"
+          "sanityId": "lesson-rno-2-3"
         }
       ]
     },
     {
       "orderIndex": 3,
-      "title": "Device Reality",
+      "title": "Device reality",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Lists on low-end phones: windowing & item keys",
-          "challenges": "Q(m) + C(m)"
+          "folder": "07-lists-low-end-phones",
+          "title": "Lists on low-end phones",
+          "sanityId": "lesson-rno-3-1"
         },
         {
           "orderIndex": 2,
-          "title": "Background tasks & battery budgets",
-          "challenges": "Q(m)"
+          "folder": "08-background-tasks",
+          "title": "Background tasks and battery budgets",
+          "sanityId": "lesson-rno-3-2"
         },
         {
           "orderIndex": 3,
-          "title": "Releasing safely: feature flags & staged rollouts",
-          "challenges": "Q(m) + C(m)"
+          "folder": "09-feature-flags-rollouts",
+          "title": "Feature flags and staged rollouts",
+          "sanityId": "lesson-rno-3-3"
         }
       ]
     }

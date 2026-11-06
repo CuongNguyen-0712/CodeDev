@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('kotlin-mobile-architecture', 'Mobile App Architecture in Kotlin: State, Caching & Testable Logic', 'Structure a mobile app so features stay easy to change: unidirectional data flow and reducers, state machines for screens, repositories with cache policies, paging, optimistic updates and rollback, dependency inversion and fast tests for view models.', 'Structure a mobile app so features stay easy to change: unidirectional data flow and reducers, state machines for screens, repositories with cache policies, paging, optimistic updates and rollback, dependency inversion and fast tests for view models. 9 lessons, each starting from a real bug or incident, with graded challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642449/codedev/courses/kotlin-mobile-architecture/cover', 'advanced'::level_enum, 220, 'CodeDev Engineering Team', 0, 0, 150,
+VALUES ('kotlin-mobile-architecture', 'Mobile App Architecture in Kotlin: ViewModel, StateFlow, Paging and Testable Logic', 'Structure the Rice Rocket courier app on Android so features stay easy to change: unidirectional data flow with ViewModel and StateFlow, screen state machines, one-off events, repositories with cache policies (Room), Paging-style cursors, optimistic updates, dependency inversion, view model tests with a fake clock, and feature flags. Challenges are Kotlin programs (with kotlinx.coroutines) graded in the code runner.', 'Structure the Rice Rocket courier app on Android so features stay easy to change: unidirectional data flow with ViewModel and StateFlow, screen state machines, one-off events, repositories with cache policies (Room), Paging-style cursors, optimistic updates, dependency inversion, view model tests with a fake clock, and feature flags. 9 lessons on one project, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642449/codedev/courses/kotlin-mobile-architecture/cover', 'advanced'::level_enum, 150, 'CodeDev Engineering Team', 0, 0, 150,
         (SELECT id FROM catalog.language WHERE name = 'Kotlin'),
         (SELECT id FROM catalog.category WHERE name = 'Android Development'),
         'premium', 'draft', true, false)
@@ -67,9 +67,724 @@ INSERT INTO catalog.course_skill (course_id, skill_id, weight)
 SELECT (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), s.id, v.weight
 FROM (VALUES ('system_design', 4), ('testing', 3), ('async_programming', 2)) AS v(code, weight)
 JOIN catalog.skill s ON s.code = v.code;
+UPDATE catalog.course SET completion_rules = '{}' WHERE id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture');
 DELETE FROM catalog.course_prerequisite WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture');
 INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
-SELECT (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), id FROM catalog.course WHERE public_id = ANY(ARRAY['kotlin-coroutines-flows']::text[]);
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), id FROM catalog.course WHERE public_id = ANY(ARRAY['']::text[]);
+
+-- module 1: State
+UPDATE course.module SET title = 'State', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 1 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), 'State', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 1 AND is_deleted = false);
+
+-- lesson 1.1: Unidirectional data flow and reducers (Sanity lesson-kma-1-1)
+UPDATE course.lesson SET title = 'Unidirectional data flow and reducers', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-1-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Unidirectional data flow and reducers', 'sanity', 'lesson-kma-1-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-kma-1-1' AND is_deleted = false);
+
+-- challenge chal_quiz_kma_111 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_kma_111', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-1-1' AND is_deleted = false LIMIT 1), 'udf-reducers-quiz', 'Read the Deliveries screen bugs', 'Three statements about the courier app''s Deliveries screen before it moved to one state and one reducer. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_111');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_111'), 1, '`state.value = state.value.copy(...)` is two steps: a read and a write. What can another coroutine do between them?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_111'), 2, 'Count the boolean and nullable fields the old ViewModel had, and how many of their combinations the screen can draw sensibly.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_111'), 3, 'StateFlow keeps one value. What happens to a value that is equal to the current one, or that is replaced before the UI collects it?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_111');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_111'), 'Two places update the screen state at the same time: the refresh coroutine and the filter chip handler.
+
+```kotlin
+class DeliveriesViewModel : ViewModel() {
+    val state = MutableStateFlow(DeliveriesState())
+
+    fun onFilter(filter: String) {
+        state.value = state.value.copy(filter = filter)
+    }
+
+    private fun onLoaded(orders: List<Order>) {          // runs on Dispatchers.Default
+        state.value = state.value.copy(orders = orders, refreshing = false)
+    }
+}
+```
+
+```text
+14:02:11.180  onLoaded reads state (filter=all)
+14:02:11.181  onFilter writes filter=picked
+14:02:11.183  onLoaded writes orders=[...], filter=all
+```
+
+Statement: "StateFlow is thread-safe, so two writers that both use `state.value = state.value.copy(...)` cannot lose an update."', 'single_choice'::question_type, 'False. Each assignment is atomic, but read-copy-write is two operations: `onLoaded` read the state before `onFilter` wrote, then wrote its copy with the old filter, so the courier''s chip choice vanished. `MutableStateFlow.update { reduce(it, action) }` retries the function until a compare-and-set succeeds, so concurrent updates are applied one after the other. Keeping the `MutableStateFlow` private and exposing `asStateFlow()` also stops the screen from writing it directly.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_111') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_111'), 'The old ViewModel kept six independent fields:
+
+```kotlin
+val isLoading = MutableLiveData(false)
+val isRefreshing = MutableLiveData(false)
+val error = MutableLiveData<String?>(null)
+val orders = MutableLiveData<List<Order>>(emptyList())
+val filter = MutableLiveData("all")
+val banner = MutableLiveData<String?>(null)
+```
+
+```text
+Bug RR-412: after a failed pull-to-refresh the spinner keeps turning,
+and the next successful load shows fresh orders under the old "timeout" banner.
+```
+
+Statement: "Six independent fields allow combinations the screen should never show; one immutable state class changed only by a reducer makes every transition explicit and testable as a plain function."', 'single_choice'::question_type, 'True. Nine call sites each set some of the six fields, and the bug is two missed writes: refreshing was never reset on failure, and error was never cleared on success. With one `data class` and a pure `reduce(state, action)`, each action lists every field it changes in one place, and a unit test can feed actions and compare states without Android, coroutines or mocks.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_111') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_111'), 'The team wanted a toast for every pickup and put a counter in the state:
+
+```kotlin
+data class DeliveriesState(/* ... */ val lastPickedUp: String? = null)
+
+// screen
+val state by viewModel.state.collectAsStateWithLifecycle()
+LaunchedEffect(state.lastPickedUp) {
+    state.lastPickedUp?.let { toast("Picked up $it") }
+}
+```
+
+```text
+Courier picks up O7, then O7 again after an undo: one toast.
+Two pickups 5 ms apart (O7, O8): one toast, for O8.
+```
+
+Statement: "StateFlow keeps only the latest value and does not emit a value equal to the current one, so a UI that must react to every occurrence cannot rely on a plain state field like this."', 'single_choice'::question_type, 'True. StateFlow is conflated and distinct-until-changed: setting the same value again emits nothing, and a value replaced before the collector runs is never seen. State describes what the screen shows now; things that must happen once each (a toast, a navigation) need either a list of pending messages that the UI acknowledges, or a channel. Lesson 3 covers both.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_111') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_kma_112 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_kma_112', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-1-1' AND is_deleted = false LIMIT 1), 'deliveries-reducer', 'Write the Deliveries reducer', 'The courier app''s Deliveries screen moves to unidirectional data flow: one `DeliveriesState`, one `sealed interface Action`, and a pure `reduce(state, action)` that `DeliveriesViewModel` calls inside `state.update { }`. The editor holds the file with each branch of the reducer missing, marked by a `// [ ]` line; until every branch is in place the compiler reports that `when` is not exhaustive. Some pieces are wrong on purpose. Fill every line so that: the first load shows the spinner and clears an old error; pull-to-refresh keeps the current list on screen; fresh orders replace the list and clear spinner, refresh and error; a failed request stops both spinners and shows the message while keeping the last list; a filter chip only changes the filter; picking up an order changes that order''s status and nothing else. Run feeds actions to `reduce` and prints what the screen would show after each one.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_112');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_112'), 1, 'For each action, list every field the screen reads (spinner, refreshing, error, list, filter) and decide whether this action must change it. A forgotten field is the classic bug.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_112'), 2, 'Every branch returns `state.copy(...)` with the fields it changes; lists are replaced, never mutated (`map` returns a new list).'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_112'), 3, 'A reducer for a chat screen: `is Action.Send -> state.copy(sending = true, error = null)`, `is Action.Sent -> state.copy(messages = state.messages + action.message, sending = false)`, `is Action.SendFailed -> state.copy(sending = false, error = action.reason)`, `is Action.Edit -> state.copy(messages = state.messages.map { if (it.id == action.id) it.copy(text = action.text) else it })`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_112'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"on-load","label":"First load: show the spinner, drop an old error","code":"is Action.Load -> state.copy(loading = true, error = null)"},{"id":"on-refresh","label":"Pull to refresh: keep the list on screen","code":"is Action.Refresh -> state.copy(refreshing = true, error = null)"},{"id":"on-loaded","label":"Fresh orders arrived","code":"is Action.Loaded -> state.copy(orders = action.orders, loading = false, refreshing = false, error = null)"},{"id":"on-failed","label":"The request failed","code":"is Action.LoadFailed -> state.copy(loading = false, refreshing = false, error = action.message)"},{"id":"on-filter","label":"The courier picked a filter chip","code":"is Action.FilterChanged -> state.copy(filter = action.filter)"},{"id":"on-picked-up","label":"The courier picked up one order","code":"is Action.PickedUp -> state.copy(\n    orders = state.orders.map { if (it.id == action.orderId) it.copy(status = \"picked\") else it },\n)"},{"id":"on-failed-keeps-spinner","label":"The request failed","code":"is Action.LoadFailed -> state.copy(loading = false, error = action.message)","distractor":true},{"id":"on-loaded-keeps-error","label":"Fresh orders arrived","code":"is Action.Loaded -> state.copy(orders = action.orders, loading = false, refreshing = false)","distractor":true},{"id":"on-refresh-clears-list","label":"Pull to refresh: keep the list on screen","code":"is Action.Refresh -> state.copy(orders = emptyList(), refreshing = true, error = null)","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_112');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_112'), 'First load: spinner, then the orders', '"load\nloaded O1:new,O2:new,O3:picked\n"', '"load -> spinner=true refreshing=false error=null filter=all list=[]\nloaded O1:new,O2:new,O3:picked -> spinner=false refreshing=false error=null filter=all list=[O1:new,O2:new,O3:picked]"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_112'), 'The incident: a failed refresh stops the spinner; orders from background sync clear the error', '"loaded O1:new,O2:new\nrefresh\nfailed timeout\nloaded O1:new,O2:new,O4:new\n"', '"loaded O1:new,O2:new -> spinner=false refreshing=false error=null filter=all list=[O1:new,O2:new]\nrefresh -> spinner=false refreshing=true error=null filter=all list=[O1:new,O2:new]\nfailed timeout -> spinner=false refreshing=false error=timeout filter=all list=[O1:new,O2:new]\nloaded O1:new,O2:new,O4:new -> spinner=false refreshing=false error=null filter=all list=[O1:new,O2:new,O4:new]"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_112'), 'Filter chips and a pickup change only what they should', '"loaded O1:new,O2:new,O3:picked\nfilter new\npicked O1\nfilter all\n"', '"loaded O1:new,O2:new,O3:picked -> spinner=false refreshing=false error=null filter=all list=[O1:new,O2:new,O3:picked]\nfilter new -> spinner=false refreshing=false error=null filter=new list=[O1:new,O2:new]\npicked O1 -> spinner=false refreshing=false error=null filter=new list=[O2:new]\nfilter all -> spinner=false refreshing=false error=null filter=all list=[O1:picked,O2:new,O3:picked]"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_112'), 'Pull-to-refresh keeps the list on screen while it loads', '"loaded O1:new,O2:picked\nrefresh\nfilter picked\nloaded O1:picked,O2:picked\n"', '"loaded O1:new,O2:picked -> spinner=false refreshing=false error=null filter=all list=[O1:new,O2:picked]\nrefresh -> spinner=false refreshing=true error=null filter=all list=[O1:new,O2:picked]\nfilter picked -> spinner=false refreshing=true error=null filter=picked list=[O2:picked]\nloaded O1:picked,O2:picked -> spinner=false refreshing=false error=null filter=picked list=[O1:picked,O2:picked]"', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_112'), 'A failed first load shows the error; loading again clears it', '"load\nfailed offline\nload\nloaded O9:new\n"', '"load -> spinner=true refreshing=false error=null filter=all list=[]\nfailed offline -> spinner=false refreshing=false error=offline filter=all list=[]\nload -> spinner=true refreshing=false error=null filter=all list=[]\nloaded O9:new -> spinner=false refreshing=false error=null filter=all list=[O9:new]"', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_kma_112_starter', 's3', 'challenges/kotlin/chal_coding_kma_112/starter.kt', 'raw', 'text/x-kotlin', 2559, 'DeliveriesReducer.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_112'), 'kotlin', 'DeliveriesReducer.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_kma_112_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.2: Screen state machines: loading, error and empty (Sanity lesson-kma-1-2)
+UPDATE course.lesson SET title = 'Screen state machines: loading, error and empty', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-1-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Screen state machines: loading, error and empty', 'sanity', 'lesson-kma-1-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-kma-1-2' AND is_deleted = false);
+
+-- challenge chal_coding_kma_122 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_kma_122', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-1-2' AND is_deleted = false LIMIT 1), 'order-history-state-machine', 'Model the Order history screen as a state machine', 'The courier app''s Order history screen showed the empty illustration while it was still loading, offered Retry while a list was on screen, and once replaced fresh orders with the answer to an older request that arrived late. It now has four states (`Loading`, `Content`, `Empty`, `Error`) and every request carries a number `gen`; answers carry the number of the request they answer. The editor holds `next(state, event)` with its blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: opening the screen starts loading; an answer with orders shows them, an answer with none shows the empty state; a failed first load shows the error screen, but a failed refresh keeps the list and shows a notice; Retry works only on the error screen; refresh keeps the list (reloads an empty screen) and is ignored while loading; and an answer to any request other than the latest changes nothing. Run feeds events and prints the state after each one.', 'open', 'hard'::difficulty_question, 'mini_coding', 40, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_122');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_122'), 1, 'Draw the four states as boxes and each event as an arrow. Which arrows exist from each box, and which events must leave the state unchanged?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_122'), 2, 'Look at the order of checks: an answer to an older request must be dropped before any branch looks at it, whatever state the screen is in. `state.gen` is the number of the latest request.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_122'), 3, 'A media player as a state machine: `if (event is Event.Loaded && event.trackId != state.trackId) return state`, then `when (event) { is Event.Play -> if (state is Player.Paused) Player.Playing(state.trackId) else state; is Event.Error -> if (state is Player.Playing) state.copy(warning = event.reason) else Player.Failed(event.reason, state.trackId) ... }`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"stale-guard","label":"Answers to an older request change nothing","code":"if (event is Event.Answer && event.gen != state.gen) return state"},{"id":"start","label":"Opening the screen starts a fresh request","code":"is Event.Start -> Screen.Loading(event.gen)"},{"id":"refresh","label":"Refresh keeps content on screen, reloads an empty one","code":"is Event.Refresh -> when (state) {\n    is Screen.Content -> state.copy(refreshing = true, notice = null, gen = event.gen)\n    is Screen.Empty -> Screen.Loading(event.gen)\n    else -> state\n}"},{"id":"retry","label":"Retry only from the error screen","code":"is Event.Retry -> if (state is Screen.Error) Screen.Loading(event.gen) else state"},{"id":"success","label":"An answer with orders, or with none","code":"is Event.Success -> if (event.items.isEmpty()) Screen.Empty(event.gen) else Screen.Content(event.items, refreshing = false, notice = null, gen = event.gen)"},{"id":"failure","label":"A failed answer","code":"is Event.Failure -> if (state is Screen.Content) state.copy(refreshing = false, notice = event.message) else Screen.Error(event.message, event.gen)"},{"id":"failure-replaces-content","label":"A failed answer","code":"is Event.Failure -> Screen.Error(event.message, event.gen)","distractor":true},{"id":"stale-guard-loading-only","label":"Answers to an older request change nothing","code":"if (state is Screen.Loading && event is Event.Answer && event.gen != state.gen) return state","distractor":true},{"id":"success-empty-as-content","label":"An answer with orders, or with none","code":"is Event.Success -> Screen.Content(event.items, refreshing = false, notice = null, gen = event.gen)","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_122');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_122'), 'No orders yet: the empty state, never a spinner-shaped empty list', '"start 1\nsuccess 1\nrefresh 2\nsuccess 2 O-1041\n"', '"start 1 -> Loading(gen=1)\nsuccess 1 -> Empty(gen=1)\nrefresh 2 -> Loading(gen=2)\nsuccess 2 O-1041 -> Content(items=[O-1041], refreshing=false, notice=null, gen=2)"', 7, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_122'), 'Offline first load: error screen, Retry loads again', '"start 1\nfailure 1 offline\nretry 2\nsuccess 2 O-1041,O-1042\n"', '"start 1 -> Loading(gen=1)\nfailure 1 offline -> Error(message=offline, gen=1)\nretry 2 -> Loading(gen=2)\nsuccess 2 O-1041,O-1042 -> Content(items=[O-1041, O-1042], refreshing=false, notice=null, gen=2)"', 7, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_122'), 'The incident: a late answer to the first request does not replace the fresh list', '"start 1\nsuccess 1 O-1041\nrefresh 2\nsuccess 1 O-1041\nsuccess 2 O-1041,O-1042\n"', '"start 1 -> Loading(gen=1)\nsuccess 1 O-1041 -> Content(items=[O-1041], refreshing=false, notice=null, gen=1)\nrefresh 2 -> Content(items=[O-1041], refreshing=true, notice=null, gen=2)\nsuccess 1 O-1041 -> Content(items=[O-1041], refreshing=true, notice=null, gen=2)\nsuccess 2 O-1041,O-1042 -> Content(items=[O-1041, O-1042], refreshing=false, notice=null, gen=2)"', 7, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_122'), 'A failed refresh keeps the list and shows a notice', '"start 1\nsuccess 1 O-1041,O-1042\nrefresh 2\nfailure 2 timeout\nrefresh 3\nsuccess 3 O-1043\n"', '"start 1 -> Loading(gen=1)\nsuccess 1 O-1041,O-1042 -> Content(items=[O-1041, O-1042], refreshing=false, notice=null, gen=1)\nrefresh 2 -> Content(items=[O-1041, O-1042], refreshing=true, notice=null, gen=2)\nfailure 2 timeout -> Content(items=[O-1041, O-1042], refreshing=false, notice=timeout, gen=2)\nrefresh 3 -> Content(items=[O-1041, O-1042], refreshing=true, notice=null, gen=3)\nsuccess 3 O-1043 -> Content(items=[O-1043], refreshing=false, notice=null, gen=3)"', 7, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_122'), 'Refresh while loading and Retry on content are ignored', '"start 1\nrefresh 2\nsuccess 1 O-1041\nretry 3\nfailure 0 stale\n"', '"start 1 -> Loading(gen=1)\nrefresh 2 -> Loading(gen=1)\nsuccess 1 O-1041 -> Content(items=[O-1041], refreshing=false, notice=null, gen=1)\nretry 3 -> Content(items=[O-1041], refreshing=false, notice=null, gen=1)\nfailure 0 stale -> Content(items=[O-1041], refreshing=false, notice=null, gen=1)"', 6, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_122'), 'Reopening the screen drops answers to the earlier visit', '"start 1\nsuccess 1 O-1041\nrefresh 2\nstart 3\nsuccess 2 O-1041,O-1042\nfailure 3 timeout\n"', '"start 1 -> Loading(gen=1)\nsuccess 1 O-1041 -> Content(items=[O-1041], refreshing=false, notice=null, gen=1)\nrefresh 2 -> Content(items=[O-1041], refreshing=true, notice=null, gen=2)\nstart 3 -> Loading(gen=3)\nsuccess 2 O-1041,O-1042 -> Loading(gen=3)\nfailure 3 timeout -> Error(message=timeout, gen=3)"', 6, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_kma_122_starter', 's3', 'challenges/kotlin/chal_coding_kma_122/starter.kt', 'raw', 'text/x-kotlin', 2209, 'OrderHistoryScreen.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_122'), 'kotlin', 'OrderHistoryScreen.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_kma_122_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.3: One-off events vs state (Sanity lesson-kma-1-3)
+UPDATE course.lesson SET title = 'One-off events vs state', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-1-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 1 AND is_deleted = false LIMIT 1), 'One-off events vs state', 'sanity', 'lesson-kma-1-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-kma-1-3' AND is_deleted = false);
+
+-- challenge chal_quiz_kma_131 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_kma_131', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-1-3' AND is_deleted = false LIMIT 1), 'one-off-events-quiz', 'Read the lost and repeated messages', 'Three statements about how the courier app delivered ''new order'' and ''order cancelled'' messages before the fix. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_131');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_131'), 1, 'On rotation the Activity and its composition are recreated, but the ViewModel survives. What does the new screen read first?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_131'), 2, 'Look up what `MutableSharedFlow()` with no replay and no buffer does with a value emitted while it has zero subscribers.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_131'), 3, 'A `Channel` holds sent elements until someone receives them. How many receivers get each element?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_131');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_131'), 'Navigation to the delivery screen was a field of the UI state:
+
+```kotlin
+data class OrdersState(val navigateTo: String? = null /* ... */)
+
+// screen
+val state by viewModel.state.collectAsStateWithLifecycle()
+LaunchedEffect(state.navigateTo) {
+    state.navigateTo?.let { navController.navigate("delivery/$it") }
+}
+```
+
+```text
+1. Courier accepts O-2231 -> delivery screen opens
+2. Courier presses Back, rotates the phone on the orders screen
+3. The delivery screen for O-2231 opens again
+```
+
+Statement: "Because Compose recreates the screen on rotation, a `navigateTo` value in the state is acted on only once."', 'single_choice'::question_type, 'False. The ViewModel survives rotation and still holds `navigateTo = "O-2231"`; the new composition collects it and `LaunchedEffect` runs again. A value that triggers something must be cleared once handled: the screen calls `viewModel.onNavigated()` (or acknowledges a message by id) and the reducer sets it back to null. Recreating the UI is exactly why handled-but-not-cleared state repeats.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_131') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_131'), 'The first fix moved messages to a SharedFlow:
+
+```kotlin
+private val _messages = MutableSharedFlow<String>()
+val messages = _messages.asSharedFlow()
+
+fun onCancelledByCustomer(id: String) = viewModelScope.launch {
+    _messages.emit("Order $id was cancelled by the customer")
+}
+```
+
+```text
+18:40:02  courier switches to the maps app (screen stops collecting)
+18:40:09  push: O-2231 cancelled -> emit(...)
+18:40:30  courier returns: no message, drives to the restaurant anyway
+```
+
+Statement: "The message waits in the SharedFlow until the screen starts collecting again, so the courier saw it on return."', 'single_choice'::question_type, 'False. `MutableSharedFlow()` defaults to no replay and no buffer; when it has no subscribers, `emit` returns at once and the value is dropped. `collectAsStateWithLifecycle` / `repeatOnLifecycle` stop collecting in the background, so the cancellation was lost. Either keep pending messages in the state until the UI acknowledges them, or use a `Channel` that buffers until received.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_131') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_131'), 'For a UI-only effect (a snackbar that may be skipped if nobody sees it), a teammate proposes:
+
+```kotlin
+private val _effects = Channel<String>(Channel.BUFFERED)
+val effects = _effects.receiveAsFlow()
+
+// screen
+LaunchedEffect(Unit) {
+    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+        viewModel.effects.collect { snackbar.showSnackbar(it) }
+    }
+}
+```
+
+Statement: "Elements sent while the screen is in the background stay in the channel''s buffer and are received when it collects again, and each element goes to one collector only."', 'single_choice'::question_type, 'True. A buffered `Channel` keeps sent elements until a receiver takes them, and `receiveAsFlow` hands each element to exactly one collector, so nothing is replayed after rotation. The remaining gap: an element received just before the collector is cancelled can be lost, which is why Android''s guidance prefers modelling important events as state that the UI acknowledges; a channel is acceptable for effects you can afford to drop.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_131') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_kma_132 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_kma_132', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-1-3' AND is_deleted = false LIMIT 1), 'courier-messages-fix', 'Fix the courier message queue', 'Couriers missed ''order cancelled'' messages and sometimes saw a newer message before an older one. The app now keeps pending messages in `CourierState.messages`; the screen shows `currentMessage(state)` and calls `messageShown(state, id)` when the courier dismisses it. Last week''s version had three bugs. The editor holds the file with the message functions missing, each marked by a `// [ ]` line; the buggy versions are among the pieces. Fill every line so that: every message is queued with its own id, even when two arrive back to back or while the app is in the background; the oldest pending message is shown first; dismissing removes exactly the message that was shown, even if the acknowledgement arrives twice; and a cancellation removes the order and queues its message in one state change. Run simulates the screen going to the background, rotating and the courier tapping, and prints what is shown after each step.', 'open', 'medium'::difficulty_question, 'fix_bug', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_132');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_132'), 1, 'Follow two messages that arrive while the screen is in the background. Which function decides whether the first one survives the second, which one decides the order they are shown in, and which one decides what a repeated acknowledgement removes?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_132'), 2, 'Look at `+` versus `listOf(...)` for queuing, `firstOrNull()` versus `lastOrNull()` for what is shown, and removing by id (`filterNot { it.id == id }`) versus by position (`drop(1)`).'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_132'), 3, 'A download queue that the UI acknowledges: `fun enqueue(s: State, url: String) = s.copy(jobs = s.jobs + Job(s.nextId, url), nextId = s.nextId + 1)`, `fun current(s: State) = s.jobs.firstOrNull()`, `fun done(s: State, id: Long) = s.copy(jobs = s.jobs.filterNot { it.id == id })`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_132'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"add-message","label":"Queue a message with its own id","code":"fun withMessage(state: CourierState, text: String): CourierState =\n    state.copy(messages = state.messages + UserMessage(state.nextId, text), nextId = state.nextId + 1)"},{"id":"order-cancelled","label":"Drop the order and tell the courier, in one change","code":"fun orderCancelled(state: CourierState, orderId: String): CourierState =\n    withMessage(state.copy(orders = state.orders - orderId), \"Order $orderId was cancelled by the customer\")"},{"id":"current-message","label":"The message the screen shows now","code":"fun currentMessage(state: CourierState): UserMessage? = state.messages.firstOrNull()"},{"id":"message-shown","label":"The courier dismissed one message","code":"fun messageShown(state: CourierState, id: Long): CourierState =\n    state.copy(messages = state.messages.filterNot { it.id == id })"},{"id":"add-message-replaces","label":"Queue a message with its own id","code":"fun withMessage(state: CourierState, text: String): CourierState =\n    state.copy(messages = listOf(UserMessage(state.nextId, text)), nextId = state.nextId + 1)","distractor":true},{"id":"current-message-newest","label":"The message the screen shows now","code":"fun currentMessage(state: CourierState): UserMessage? = state.messages.lastOrNull()","distractor":true},{"id":"message-shown-drops-head","label":"The courier dismissed one message","code":"fun messageShown(state: CourierState, id: Long): CourierState =\n    state.copy(messages = state.messages.drop(1))","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_132');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_132'), 'Two messages while in the background are both shown on return, oldest first', '"assigned O-2231\nbackground\nassigned O-2240\ncancelled O-2231\nforeground\ntap\ntap\n"', '"assigned O-2231 -> showing #1 New order O-2231 | orders=[O-2231] | queued=1\nbackground -> showing nothing | orders=[O-2231] | queued=1\nassigned O-2240 -> showing nothing | orders=[O-2231, O-2240] | queued=2\ncancelled O-2231 -> showing nothing | orders=[O-2240] | queued=3\nforeground -> showing #1 New order O-2231 | orders=[O-2240] | queued=3\ntap -> showing #2 New order O-2240 | orders=[O-2240] | queued=2\ntap -> showing #3 Order O-2231 was cancelled by the customer | orders=[O-2240] | queued=1"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_132'), 'Rotation shows an unacknowledged message again; a dismissed one never returns', '"assigned O-2231\nrotate\ntap\nrotate\n"', '"assigned O-2231 -> showing #1 New order O-2231 | orders=[O-2231] | queued=1\nrotate -> showing #1 New order O-2231 | orders=[O-2231] | queued=1\ntap -> showing nothing | orders=[O-2231] | queued=0\nrotate -> showing nothing | orders=[O-2231] | queued=0"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_132'), 'A cancellation removes the order and tells the courier', '"assigned O-2231\nassigned O-2240\ntap\ntap\ncancelled O-2240\n"', '"assigned O-2231 -> showing #1 New order O-2231 | orders=[O-2231] | queued=1\nassigned O-2240 -> showing #1 New order O-2231 | orders=[O-2231, O-2240] | queued=2\ntap -> showing #2 New order O-2240 | orders=[O-2231, O-2240] | queued=1\ntap -> showing nothing | orders=[O-2231, O-2240] | queued=0\ncancelled O-2240 -> showing #3 Order O-2240 was cancelled by the customer | orders=[O-2231] | queued=1"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_132'), 'A repeated acknowledgement does not swallow the next message', '"assigned O-2231\nassigned O-2240\ncancelled O-2231\ntap-twice\ntap\ntap\n"', '"assigned O-2231 -> showing #1 New order O-2231 | orders=[O-2231] | queued=1\nassigned O-2240 -> showing #1 New order O-2231 | orders=[O-2231, O-2240] | queued=2\ncancelled O-2231 -> showing #1 New order O-2231 | orders=[O-2240] | queued=3\ntap-twice -> showing #2 New order O-2240 | orders=[O-2240] | queued=2\ntap -> showing #3 Order O-2231 was cancelled by the customer | orders=[O-2240] | queued=1\ntap -> showing nothing | orders=[O-2240] | queued=0"', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_132'), 'Messages that arrive while one is on screen wait their turn', '"assigned O-3001\nassigned O-3002\nassigned O-3003\ntap\nrotate\ntap\ntap\n"', '"assigned O-3001 -> showing #1 New order O-3001 | orders=[O-3001] | queued=1\nassigned O-3002 -> showing #1 New order O-3001 | orders=[O-3001, O-3002] | queued=2\nassigned O-3003 -> showing #1 New order O-3001 | orders=[O-3001, O-3002, O-3003] | queued=3\ntap -> showing #2 New order O-3002 | orders=[O-3001, O-3002, O-3003] | queued=2\nrotate -> showing #2 New order O-3002 | orders=[O-3001, O-3002, O-3003] | queued=2\ntap -> showing #3 New order O-3003 | orders=[O-3001, O-3002, O-3003] | queued=1\ntap -> showing nothing | orders=[O-3001, O-3002, O-3003] | queued=0"', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_kma_132_starter', 's3', 'challenges/kotlin/chal_coding_kma_132/starter.kt', 'raw', 'text/x-kotlin', 2232, 'CourierMessages.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_132'), 'kotlin', 'CourierMessages.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_kma_132_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 2: Data
+UPDATE course.module SET title = 'Data', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 2 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), 'Data', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 2 AND is_deleted = false);
+
+-- lesson 2.1: Repositories and cache policies (Sanity lesson-kma-2-1)
+UPDATE course.lesson SET title = 'Repositories and cache policies', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-2-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Repositories and cache policies', 'sanity', 'lesson-kma-2-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-kma-2-1' AND is_deleted = false);
+
+-- challenge chal_coding_kma_142 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_kma_142', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-2-1' AND is_deleted = false LIMIT 1), 'repository-cache-policies', 'Give the repository its cache policies', 'The courier app fetched every screen from the network on every open (slow on 3G, useless offline), except restaurant menus, which a teammate cached forever, so couriers quoted week-old prices. The repository now serves three policies: `CACHE_FIRST` for menus (fresh cache, else the network), `STALE_WHILE_REVALIDATE` for the order list (show the cache at once, refresh it in the background when it is older than `TTL`), and `NETWORK_FIRST` for payout amounts (the network, else a cache entry at most `MAX_STALE` minutes old). The editor holds the repository with these blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that each policy emits the right values in order (`cache:<v>`, `cache:<v> (stale)`, `network:<v>`, `error:offline`), only a successful fetch updates the cache and its time, and an entry is fresh only while it is younger than `TTL`. Run plays a timeline of network changes and reads, and prints what each read returned and what the cache holds.', 'open', 'hard'::difficulty_question, 'mini_coding', 40, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_142');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_142'), 1, 'For each policy, write down the order of three questions: is there a cache entry, is it fresh, does the network answer? The answers decide which values are emitted and in which order.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_142'), 2, 'Look at what `fetchAndStore` writes when `fetch` returns null, and at what `isFresh` compares: an entry''s age is `now - fetchedAt`, compared with `TTL`.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_142'), 3, 'A weather repository: `if (cached != null && now - cached.at < TTL) return listOf(cached.temp)`; `val fresh = api(city) ?: return listOfNotNull(cached?.temp, "offline")`; `store[city] = Entry(fresh, now)`; and for stale-while-revalidate, emit the cached value first and then the fetched one.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_142'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"fresh-check","label":"Is a cached entry still fresh?","code":"fun isFresh(entry: Entry, now: Int): Boolean = now - entry.fetchedAt < TTL"},{"id":"fetch-and-store","label":"Fetch; keep the answer only when it arrived","code":"fun fetchAndStore(key: String, now: Int): String? {\n    val value = fetch(key) ?: return null\n    cache[key] = Entry(value, now)\n    return value\n}"},{"id":"cache-first","label":"CACHE_FIRST: the network only when the cache is not fresh","code":"Policy.CACHE_FIRST -> {\n    if (cached != null && isFresh(cached, now)) return listOf(label(cached, now))\n    val value = fetchAndStore(key, now)\n    if (value != null) out += \"network:$value\"\n    else { if (cached != null) out += label(cached, now); out += \"error:offline\" }\n}"},{"id":"stale-while-revalidate","label":"STALE_WHILE_REVALIDATE: show the cache now, refresh if old","code":"Policy.STALE_WHILE_REVALIDATE -> {\n    if (cached != null) out += label(cached, now)\n    if (cached == null || !isFresh(cached, now)) {\n        val value = fetchAndStore(key, now)\n        if (value != null) out += \"network:$value\" else if (cached == null) out += \"error:offline\"\n    }\n}"},{"id":"network-first","label":"NETWORK_FIRST: the network, then a recent cache entry","code":"Policy.NETWORK_FIRST -> {\n    val value = fetchAndStore(key, now)\n    if (value != null) out += \"network:$value\"\n    else {\n        if (cached != null && now - cached.fetchedAt <= MAX_STALE) out += label(cached, now)\n        out += \"error:offline\"\n    }\n}"},{"id":"fetch-touches-on-failure","label":"Fetch; keep the answer only when it arrived","code":"fun fetchAndStore(key: String, now: Int): String? {\n    val value = fetch(key)\n    val old = cache[key]\n    if (value != null) cache[key] = Entry(value, now)\n    else if (old != null) cache[key] = old.copy(fetchedAt = now)\n    return value\n}","distractor":true},{"id":"fresh-check-forever","label":"Is a cached entry still fresh?","code":"fun isFresh(entry: Entry, now: Int): Boolean = entry.value.isNotEmpty()","distractor":true},{"id":"network-first-any-age","label":"NETWORK_FIRST: the network, then a recent cache entry","code":"Policy.NETWORK_FIRST -> {\n    val value = fetchAndStore(key, now)\n    if (value != null) out += \"network:$value\"\n    else {\n        if (cached != null) out += label(cached, now)\n        out += \"error:offline\"\n    }\n}","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_142');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_142'), 'CACHE_FIRST: a fresh menu skips the network, a stale one is refetched', '"seed menu v1 0\nnet up v2\nat 5\nget menu cache_first\nat 15\nget menu cache_first\nat 20\nget menu cache_first\n"', '"@5 get menu cache_first -> [cache:v1] cache=v1@0\n@15 get menu cache_first -> [network:v2] cache=v2@15\n@20 get menu cache_first -> [cache:v2] cache=v2@15"', 8, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_142'), 'Offline: stale data with an error, or just the error when nothing is cached', '"seed menu v1 0\nnet down\nat 30\nget menu cache_first\nget menu swr\nget orders cache_first\nget orders swr\n"', '"@30 get menu cache_first -> [cache:v1 (stale), error:offline] cache=v1@0\n@30 get menu swr -> [cache:v1 (stale)] cache=v1@0\n@30 get orders cache_first -> [error:offline] cache=none\n@30 get orders swr -> [error:offline] cache=none"', 8, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_142'), 'STALE_WHILE_REVALIDATE: the cache at once, the network only when it is old', '"seed orders o1 0\nnet up o2\nat 5\nget orders swr\nat 12\nget orders swr\nat 13\nget orders swr\n"', '"@5 get orders swr -> [cache:o1] cache=o1@0\n@12 get orders swr -> [cache:o1 (stale), network:o2] cache=o2@12\n@13 get orders swr -> [cache:o2] cache=o2@12"', 8, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_142'), 'NETWORK_FIRST: a recent payout from cache when offline, never a very old one', '"seed payout 120k 0\nnet down\nat 30\nget payout network_first\nat 90\nget payout network_first\nnet up 135k\nget payout network_first\n"', '"@30 get payout network_first -> [cache:120k (stale), error:offline] cache=120k@0\n@90 get payout network_first -> [error:offline] cache=120k@0\n@90 get payout network_first -> [network:135k] cache=135k@90"', 8, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_142'), 'A failed refresh does not make old data look fresh', '"seed menu v1 0\nnet down\nat 15\nget menu cache_first\nnet up v3\nat 16\nget menu cache_first\n"', '"@15 get menu cache_first -> [cache:v1 (stale), error:offline] cache=v1@0\n@16 get menu cache_first -> [network:v3] cache=v3@16"', 8, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_kma_142_starter', 's3', 'challenges/kotlin/chal_coding_kma_142/starter.kt', 'raw', 'text/x-kotlin', 2514, 'CourierRepository.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_142'), 'kotlin', 'CourierRepository.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_kma_142_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.2: Paging with cursors (Sanity lesson-kma-2-2)
+UPDATE course.lesson SET title = 'Paging with cursors', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-2-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Paging with cursors', 'sanity', 'lesson-kma-2-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-kma-2-2' AND is_deleted = false);
+
+-- challenge chal_coding_kma_152 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_kma_152', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-2-2' AND is_deleted = false LIMIT 1), 'delivery-history-pager', 'Page the delivery history with cursors', 'The courier''s delivery history (hundreds of orders) used offset paging: new orders arriving at the top shifted the offsets, so couriers saw the same delivery twice; a fast fling requested the same page twice; and a page that arrived after a pull-to-refresh was appended to the fresh list. The list now pages with server cursors (`next` = the cursor for the following page, null at the end), like a Paging 3 `PagingSource`. The editor holds the `Pager` with its blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: refresh starts over from the newest orders, even after the end was reached; a page is requested when the last visible item is within `prefetch` of the end, never while another request is loading and never after the end; a refresh page replaces the list, other pages are appended and update the cursor and the end; and any page requested before the latest refresh changes nothing. Run scrolls, delivers server answers and adds new orders, and prints the list after each step.', 'open', 'hard'::difficulty_question, 'mini_coding', 40, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_152');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_152'), 1, 'Follow the cursor: where does the key of each request come from, what does a page do to it, and what must a refresh reset so that scrolling works again afterwards?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_152'), 2, 'Check the guards: a request while `loading`, a request after `endReached`, and a page whose `gen` is not the current `generation`. Each one is a bug from the old list.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_152'), 3, 'A chat history loader: `fun loadOlder() { if (!loading && hasMore) { loading = true; send(Req(oldestId, gen)) } }`, `fun onBatch(req: Req, batch: Batch) { if (req.gen != gen) return; messages += batch.items; oldestId = batch.next; hasMore = batch.next != null; loading = false }`, `fun reset() { gen++; oldestId = null; hasMore = true; ... }`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_152'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"refresh","label":"Start over from the newest orders","code":"fun refresh() {\n    generation++\n    nextKey = null\n    endReached = false\n    request(null)\n}"},{"id":"should-append","label":"Ask for the next page near the end, once","code":"if (!loading && !endReached && lastVisible >= ids.size - prefetch) request(nextKey)"},{"id":"drop-stale","label":"Pages requested before the last refresh change nothing","code":"if (req.gen != generation) return"},{"id":"apply-page","label":"Replace on refresh, append otherwise, remember the cursor","code":"if (req.key == null) { ids.clear() }\nids += page.ids\nnextKey = page.next\nendReached = page.next == null\nloading = false"},{"id":"drop-stale-while-loading","label":"Pages requested before the last refresh change nothing","code":"if (req.gen != generation && !loading) return","distractor":true},{"id":"refresh-keeps-end","label":"Start over from the newest orders","code":"fun refresh() {\n    generation++\n    nextKey = null\n    request(null)\n}","distractor":true},{"id":"should-append-twice","label":"Ask for the next page near the end, once","code":"if (!endReached && lastVisible >= ids.size - prefetch) request(nextKey)","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_152');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_152'), 'Pages load near the end of the list and stop at the last one', '"refresh\ndeliver\nscroll 2\nscroll 3\ndeliver\nscroll 8\ndeliver\nscroll 11\n"', '"refresh -> items=0 [] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\nscroll 2 -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\nscroll 3 -> items=5 [1000..996] next=996 end=false loading=true pending=1 dupes=0\ndeliver -> items=10 [1000..991] next=991 end=false loading=false pending=0 dupes=0\nscroll 8 -> items=10 [1000..991] next=991 end=false loading=true pending=1 dupes=0\ndeliver -> items=12 [1000..989] next=null end=true loading=false pending=0 dupes=0\nscroll 11 -> items=12 [1000..989] next=null end=true loading=false pending=0 dupes=0"', 8, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_152'), 'A fast fling asks for the next page once', '"refresh\ndeliver\nscroll 3\nscroll 4\ndeliver\ndeliver\n"', '"refresh -> items=0 [] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\nscroll 3 -> items=5 [1000..996] next=996 end=false loading=true pending=1 dupes=0\nscroll 4 -> items=5 [1000..996] next=996 end=false loading=true pending=1 dupes=0\ndeliver -> items=10 [1000..991] next=991 end=false loading=false pending=0 dupes=0\ndeliver -> items=10 [1000..991] next=991 end=false loading=false pending=0 dupes=0"', 8, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_152'), 'New orders at the top do not duplicate rows on later pages', '"refresh\ndeliver\ninsert 3\nscroll 3\ndeliver\n"', '"refresh -> items=0 [] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\ninsert 3 -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\nscroll 3 -> items=5 [1000..996] next=996 end=false loading=true pending=1 dupes=0\ndeliver -> items=10 [1000..991] next=991 end=false loading=false pending=0 dupes=0"', 8, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_152'), 'A page requested before a refresh is dropped', '"refresh\ndeliver\nscroll 3\nrefresh\ndeliver\ndeliver\n"', '"refresh -> items=0 [] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\nscroll 3 -> items=5 [1000..996] next=996 end=false loading=true pending=1 dupes=0\nrefresh -> items=5 [1000..996] next=null end=false loading=true pending=2 dupes=0\ndeliver -> items=5 [1000..996] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0"', 8, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_152'), 'Refresh after the end: new orders, and paging works again', '"refresh\ndeliver\nscroll 3\ndeliver\nscroll 8\ndeliver\ninsert 4\nrefresh\ndeliver\nscroll 3\ndeliver\n"', '"refresh -> items=0 [] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\nscroll 3 -> items=5 [1000..996] next=996 end=false loading=true pending=1 dupes=0\ndeliver -> items=10 [1000..991] next=991 end=false loading=false pending=0 dupes=0\nscroll 8 -> items=10 [1000..991] next=991 end=false loading=true pending=1 dupes=0\ndeliver -> items=12 [1000..989] next=null end=true loading=false pending=0 dupes=0\ninsert 4 -> items=12 [1000..989] next=null end=true loading=false pending=0 dupes=0\nrefresh -> items=12 [1000..989] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1004..1000] next=1000 end=false loading=false pending=0 dupes=0\nscroll 3 -> items=5 [1004..1000] next=1000 end=false loading=true pending=1 dupes=0\ndeliver -> items=10 [1004..995] next=995 end=false loading=false pending=0 dupes=0"', 8, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_kma_152_starter', 's3', 'challenges/kotlin/chal_coding_kma_152/starter.kt', 'raw', 'text/x-kotlin', 2614, 'DeliveryHistoryPager.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_152'), 'kotlin', 'DeliveryHistoryPager.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_kma_152_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.3: Optimistic updates and rollback (Sanity lesson-kma-2-3)
+UPDATE course.lesson SET title = 'Optimistic updates and rollback', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-2-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Optimistic updates and rollback', 'sanity', 'lesson-kma-2-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-kma-2-3' AND is_deleted = false);
+
+-- challenge chal_quiz_kma_161 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_kma_161', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-2-3' AND is_deleted = false LIMIT 1), 'optimistic-rollback-quiz', 'Read the pick-up incidents', 'Three statements about what went wrong after the courier app started showing taps before the api answered. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_161');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_161'), 1, 'Ask what the screen should show once the api has said no: the courier''s wish, or the last thing the server confirmed?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_161'), 2, 'A disabled button stops a second tap. Does it stop the phone from sending the same request again after a timeout, when the first one did reach the server?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_161'), 3, 'A push says what the server knew when it sent it. Has the server seen the courier''s pending change yet at that moment?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_161');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_161'), 'A courier taps Picked up on an order that dispatch had just reassigned:
+
+```text
+12:04:10.120  PickupViewModel   tap m-81 order 5521 PICKED_UP (shown at once)
+12:04:11.930  OkHttp            POST /orders/5521/pickup  -> 409 Conflict {"error":"order reassigned"}
+12:04:11.931  OrderStore        failure for m-81 ignored (no handler)
+12:09:40.000  courier report    "app said picked up, customer says no driver came"
+```
+
+Statement: "The failed change has to be removed from the pending list so the screen falls back to the last server state, and the courier must be told why."', 'single_choice'::question_type, 'True. An optimistic update is a guess shown before the server answers; once the api refuses it, the guess is wrong and must go. Keeping the server snapshot and the pending changes apart makes this a one-line removal: the screen is re-derived from the snapshot plus whatever is still pending, and a message explains the rollback. The bug here is that the failure was dropped, so the guess stayed on screen for five minutes.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_161') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_161'), 'After the incident the team disabled the button while a change is in flight, and removed the client mutation id from the request:
+
+```text
+POST /orders/5521/pickup   (no Idempotency-Key header)
+-> socket timeout after 15 s (the api had already saved the pick-up)
+retry 1: POST /orders/5521/pickup
+-> 200 OK  {"pickupCount": 2}
+```
+
+Statement: "With the button disabled during the request, the server can never receive the same pick-up twice, so the mutation id is no longer needed."', 'single_choice'::question_type, 'False. The disabled button only stops the courier''s second tap. The network can still lose the answer after the server did the work, and the retry then repeats the request; here the pick-up was recorded twice. The client mutation id (sent as an idempotency key) lets the api recognise the retry and answer with the first result. The misconception is that duplicates come only from the user.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_161') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_161'), 'A push from the api arrives while the courier''s Picked up is still pending:
+
+```text
+12:20:01.000  tap m-90 order 5530 PICKED_UP  -> shown PICKED_UP (pending)
+12:20:01.400  push  order 5530 status=ASSIGNED   (sent by the api at 12:20:00.950)
+12:20:01.401  OrderStore.onServer: status ASSIGNED, pending cleared
+12:20:01.402  screen shows ASSIGNED
+12:20:02.100  POST /orders/5530/pickup -> 200 OK, screen shows PICKED_UP
+```
+
+Statement: "The push is the truth, so every pending change for that order should be dropped when a push arrives; the flicker back to ASSIGNED is the price of correctness."', 'single_choice'::question_type, 'False. The push carries what the server knew before it saw the pending change, so it does not answer that change. The store should replace its server snapshot and keep the pending change on top (rebase it); the change leaves the list only when the api confirms or refuses it. Clearing it made the screen jump back to ASSIGNED for 700 ms and invites a second tap. The misconception is that any newer message from the server settles every change in flight.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_161') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_kma_162 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_kma_162', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-2-3' AND is_deleted = false LIMIT 1), 'optimistic-order-store', 'Optimistic updates with a clean rollback', 'The courier app''s `OrderStore` keeps the last server state of each order apart from the changes the courier made that the api has not answered yet. The screen shows the server state with the pending changes applied on top. The editor holds `OrderStore.kt` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a tap is accepted only when it asks for the next status of what the courier sees (so a double tap sends one request); an accepted change goes into the server state; a refused change is removed together with the later changes queued for the same order, and the courier gets `Could not mark <order> <STATUS>: <reason>` (plus ` (dropped N later change)` when any were dropped); and a push from the server replaces the server state but keeps the pending changes. The runner prints every request, rollback message and screen (`*` marks an order with a pending change).', 'open', 'hard'::difficulty_question, 'mini_coding', 40, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_162');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_162'), 1, 'Keep two things: what the server last said, and the list of changes waiting for an answer. Every question (what to show, is this tap the next step) is answered from the server state plus the list, never from one of them alone.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_162'), 2, 'Look at `visible()`: it folds the pending list over a copy of the server map. The tap check, the confirm, the rollback and the push each touch only one of the two structures.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_162'), 3, 'A shopping cart that shows items added offline works the same way: `val shown = serverCart.toMutableMap(); for (p in pendingAdds) shown[p.sku] = (shown[p.sku] ?: 0) + p.qty`; a refused add is removed from `pendingAdds` (and every later add of the same sku), and a cart refresh replaces `serverCart` without touching `pendingAdds`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_162'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"visible-state","label":"Server snapshot with the pending changes on top","code":"val shown = server.toSortedMap()\nfor (p in pending) shown[p.orderId] = p.to\nreturn shown"},{"id":"server-push","label":"Take the server''s status, keep the pending changes","code":"server[orderId] = status"},{"id":"start-mutation","label":"Accept only the next step of what the courier sees","code":"val current = visible()[orderId] ?: return null\nif (to.ordinal != current.ordinal + 1) return null\nval change = Pending(mutationId, orderId, to)\npending += change\nreturn change"},{"id":"confirm","label":"Make the accepted change server state","code":"val change = pending.firstOrNull { it.id == mutationId } ?: return\npending.remove(change)\nserver[change.orderId] = status"},{"id":"rollback","label":"Drop the failed change and the ones queued after it","code":"val i = pending.indexOfFirst { it.id == mutationId }\nif (i < 0) return null\nval failed = pending[i]\nval dropped = pending.filterIndexed { j, p -> j == i || (j > i && p.orderId == failed.orderId) }\npending.removeAll(dropped)\nval later = dropped.size - 1\nreturn \"Could not mark ${failed.orderId} ${failed.to}: $reason\" + if (later > 0) \" (dropped $later later change)\" else \"\""},{"id":"rollback-keeps-optimistic","label":"Drop the failed change and the ones queued after it","code":"val failed = pending.firstOrNull { it.id == mutationId } ?: return null\npending.remove(failed)\nserver[failed.orderId] = failed.to\nreturn \"Could not mark ${failed.orderId} ${failed.to}: $reason\"","distractor":true},{"id":"server-push-clears-pending","label":"Take the server''s status, keep the pending changes","code":"server[orderId] = status\npending.removeAll { it.orderId == orderId }","distractor":true},{"id":"start-mutation-server-state","label":"Accept only the next step of what the courier sees","code":"val current = server[orderId] ?: return null\nif (to.ordinal != current.ordinal + 1) return null\nval change = Pending(mutationId, orderId, to)\npending += change\nreturn change","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_162');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_162'), 'A tap shows at once and the api''s answer makes it final', '"server o1 ASSIGNED\ntap m1 o1 PICKED_UP\nshow\nack m1 PICKED_UP\nshow\n"', '"send m1 o1 PICKED_UP\no1=PICKED_UP*\no1=PICKED_UP"', 8, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_162'), 'A double tap sends one request', '"server o1 ASSIGNED\ntap m1 o1 PICKED_UP\ntap m2 o1 PICKED_UP\nshow\n"', '"send m1 o1 PICKED_UP\nignored m2\no1=PICKED_UP*"', 8, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_162'), 'A refused change rolls back to the server state and says why', '"server o1 ASSIGNED\nserver o2 PICKED_UP\ntap m1 o1 PICKED_UP\ntap m2 o2 DELIVERED\nfail m1 order reassigned to another courier\nshow\n"', '"send m1 o1 PICKED_UP\nsend m2 o2 DELIVERED\nCould not mark o1 PICKED_UP: order reassigned to another courier\no1=ASSIGNED o2=DELIVERED*"', 8, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_162'), 'A server push while a change is pending keeps the change on screen', '"server o1 ASSIGNED\ntap m1 o1 PICKED_UP\nserver o1 ASSIGNED\nshow\nack m1 PICKED_UP\nshow\n"', '"send m1 o1 PICKED_UP\no1=PICKED_UP*\no1=PICKED_UP"', 8, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_162'), 'A failed pick-up also drops the delivery queued after it', '"server o1 ASSIGNED\ntap m1 o1 PICKED_UP\ntap m2 o1 DELIVERED\nshow\nfail m1 timeout\nshow\ntap m3 o1 PICKED_UP\nshow\n"', '"send m1 o1 PICKED_UP\nsend m2 o1 DELIVERED\no1=DELIVERED*\nCould not mark o1 PICKED_UP: timeout (dropped 1 later change)\no1=ASSIGNED\nsend m3 o1 PICKED_UP\no1=PICKED_UP*"', 8, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_kma_162_starter', 's3', 'challenges/kotlin/chal_coding_kma_162/starter.kt', 'raw', 'text/x-kotlin', 2970, 'OrderStore.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_162'), 'kotlin', 'OrderStore.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_kma_162_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 3: Quality
+UPDATE course.module SET title = 'Quality', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 3 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), 'Quality', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 3 AND is_deleted = false);
+
+-- lesson 3.1: Dependency inversion for testable features (Sanity lesson-kma-3-1)
+UPDATE course.lesson SET title = 'Dependency inversion for testable features', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-3-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Dependency inversion for testable features', 'sanity', 'lesson-kma-3-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-kma-3-1' AND is_deleted = false);
+
+-- challenge chal_coding_kma_172 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_kma_172', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-3-1' AND is_deleted = false LIMIT 1), 'earnings-today-fix', 'Fix the earnings card', 'The courier app''s "Today" card was wrong twice a week: deliveries made after 17:00 counted into the next day on phones set to UTC, the unit tests passed or failed depending on the hour CI ran them, and a delivery stamped exactly at midnight showed up in both days. The calculator now receives its data source and a `java.time.Clock` through its constructor, and the editor holds `EarningsCalculator.kt` with the old date logic cut out, each block marked by a `// [ ]` line; some pieces are the old, buggy code. Fill every line so that: today is the date of the injected clock in the business time zone `Asia/Ho_Chi_Minh`, never the phone''s zone or the real time; the day runs from local midnight to the next local midnight, end excluded; and only `DELIVERED` orders inside that window count (fee + tip). The runner gives the calculator a fixed clock whose own zone is UTC and a fake source that returns every delivery it holds, and prints the day, its start instant, the count and the total.', 'open', 'medium'::difficulty_question, 'fix_bug', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_172');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_172'), 1, 'Write down the instants: 23:40 in Ho Chi Minh City is 16:40Z. Which date is that for the courier, which instant does their day start at, and which pieces would give a different answer on a phone or a CI machine set to UTC?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_172'), 2, 'Look at `LocalDate.now(clock)` with `clock.withZone(...)`, `LocalDate.atStartOfDay(zone)`, and `Instant.isBefore` for a half-open window `[start, end)`.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_172'), 3, 'A store that closes its till at local midnight in Tokyo, tested with `Clock.fixed(Instant.parse("2026-05-01T15:30:00Z"), ZoneOffset.UTC)`: `val d = LocalDate.now(clock.withZone(ZoneId.of("Asia/Tokyo")))` gives 2026-05-02, `d.atStartOfDay(ZoneId.of("Asia/Tokyo")).toInstant()` gives 2026-05-01T15:00:00Z, and a sale counts when `!at.isBefore(start) && at.isBefore(end)`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_172'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"business-day","label":"Today''s date on the injected clock, in the business zone","code":"val day = LocalDate.now(clock.withZone(BUSINESS_ZONE))"},{"id":"day-bounds","label":"Where today starts and tomorrow starts","code":"val start = day.atStartOfDay(BUSINESS_ZONE).toInstant()\nval end = day.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant()"},{"id":"count-delivered","label":"Delivered orders inside [start, end)","code":"val done = source.deliveriesSince(start)\n    .filter { it.status == \"DELIVERED\" && !it.deliveredAt.isBefore(start) && it.deliveredAt.isBefore(end) }"},{"id":"business-day-device-clock","label":"Today''s date on the injected clock, in the business zone","code":"val day = LocalDate.now(ZoneId.systemDefault())","distractor":true},{"id":"count-delivered-inclusive-end","label":"Delivered orders inside [start, end)","code":"val done = source.deliveriesSince(start)\n    .filter { it.status == \"DELIVERED\" && !it.deliveredAt.isBefore(start) && !it.deliveredAt.isAfter(end) }","distractor":true},{"id":"day-bounds-utc-midnight","label":"Where today starts and tomorrow starts","code":"val start = day.atStartOfDay(ZoneOffset.UTC).toInstant()\nval end = day.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_172');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_172'), 'Midday: today''s delivered orders count, cancelled and yesterday''s do not', '"now 2026-03-14T05:00:00Z\ndelivery d1 2026-03-14T01:15:00Z 25000 5000 DELIVERED\ndelivery d2 2026-03-14T03:00:00Z 30000 0 CANCELLED\ndelivery d3 2026-03-13T15:00:00Z 20000 2000 DELIVERED\n"', '"day 2026-03-14\nsince 2026-03-13T17:00:00Z\ndeliveries 1\nearned 30000"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_172'), '23:40 in Ho Chi Minh City is still the same business day', '"now 2026-03-14T16:40:00Z\ndelivery d1 2026-03-14T16:30:00Z 40000 10000 DELIVERED\ndelivery d2 2026-03-13T17:05:00Z 15000 0 DELIVERED\ndelivery d3 2026-03-13T16:55:00Z 20000 0 DELIVERED\n"', '"day 2026-03-14\nsince 2026-03-13T17:00:00Z\ndeliveries 2\nearned 65000"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_172'), 'Ten past midnight local time starts a new day', '"now 2026-03-14T17:10:00Z\ndelivery d1 2026-03-14T16:59:59Z 30000 0 DELIVERED\ndelivery d2 2026-03-14T17:05:00Z 25000 3000 DELIVERED\n"', '"day 2026-03-15\nsince 2026-03-14T17:00:00Z\ndeliveries 1\nearned 28000"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_172'), 'A delivery stamped exactly at the next midnight belongs to tomorrow', '"now 2026-03-14T10:00:00Z\ndelivery d1 2026-03-14T17:00:00Z 10000 0 DELIVERED\ndelivery d2 2026-03-13T17:00:00Z 12000 0 DELIVERED\n"', '"day 2026-03-14\nsince 2026-03-13T17:00:00Z\ndeliveries 1\nearned 12000"', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_172'), 'No deliveries yet today', '"now 2026-03-14T02:00:00Z\n"', '"day 2026-03-14\nsince 2026-03-13T17:00:00Z\ndeliveries 0\nearned 0"', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_kma_172_starter', 's3', 'challenges/kotlin/chal_coding_kma_172/starter.kt', 'raw', 'text/x-kotlin', 2490, 'EarningsCalculator.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_172'), 'kotlin', 'EarningsCalculator.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_kma_172_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.2: Testing view models with a fake clock (Sanity lesson-kma-3-2)
+UPDATE course.lesson SET title = 'Testing view models with a fake clock', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-3-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Testing view models with a fake clock', 'sanity', 'lesson-kma-3-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-kma-3-2' AND is_deleted = false);
+
+-- challenge chal_coding_kma_182 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_kma_182', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-3-2' AND is_deleted = false LIMIT 1), 'fake-scheduler', 'A virtual clock for view model tests', 'The courier signal banner (LIVE, STALE after 2 minutes without a location, OFFLINE after 3 more) was tested with real delays: the suite took four minutes and failed whenever CI was slow. The view model now schedules through a `Scheduler` interface, and the tests need a `FakeScheduler` that moves a virtual clock, the way `TestCoroutineScheduler` does in kotlinx-coroutines-test. The editor holds `FakeScheduler.kt` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: `after(delay, task)` queues the task at now + delay and returns a handle whose `cancel()` stops it for good; `advanceTimeBy(ms)` runs every live task due by now + ms in time order (tasks due at the same moment in the order they were scheduled), sets `now` to each task''s own time before running it, also runs tasks that running tasks schedule if they fall due in the window, and leaves the clock at now + ms. The runner drives the real view model and a few labelled tasks on your scheduler and prints what happened at which virtual millisecond.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_182');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_182'), 1, 'Replay the banner by hand: a location at 0 queues a check at 120000; when it runs, the check queues the offline step at 120000 + 180000. What must `now` be while the check runs for that to come out right?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_182'), 2, 'Look at how `advanceTimeBy` loops: pick one task, run it, pick again. The pick must skip cancelled tasks, look only at tasks due by the target, and break ties by the order they were queued (`seq`).'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_182'), 3, 'A fake for a timer wheel in a game loop: `fun tick(ms: Long) { val end = clock + ms; while (true) { val t = timers.filter { !it.dead && it.at <= end }.minWithOrNull(compareBy({ it.at }, { it.order })) ?: break; timers.remove(t); clock = t.at; t.fire() }; clock = end }`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_182'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"schedule","label":"Queue the task at now + delay, numbered in call order","code":"val t = Task(now + delayMs, nextSeq++, task)\nqueue += t"},{"id":"cancel-handle","label":"A handle that stops the task from ever running","code":"return object : Cancellable {\n    override fun cancel() {\n        t.cancelled = true\n    }\n}"},{"id":"next-due","label":"The earliest live task due by the target, first queued first","code":"queue.removeAll { it.cancelled }\nval next = queue.filter { it.at <= target }.minWithOrNull(compareBy<Task>({ it.at }, { it.seq })) ?: break"},{"id":"run-at-its-time","label":"Move the clock to the task''s time, then run it","code":"queue.remove(next)\nnow = next.at\nnext.run()"},{"id":"next-due-ignores-cancel","label":"The earliest live task due by the target, first queued first","code":"val next = queue.filter { it.at <= target }.minWithOrNull(compareBy<Task>({ it.at }, { it.seq })) ?: break","distractor":true},{"id":"next-due-insertion-order","label":"The earliest live task due by the target, first queued first","code":"queue.removeAll { it.cancelled }\nval next = queue.firstOrNull { it.at <= target } ?: break","distractor":true},{"id":"run-without-moving-clock","label":"Move the clock to the task''s time, then run it","code":"queue.remove(next)\nnext.run()","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_182');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_182'), 'No location for 2 minutes shows STALE, 5 minutes OFFLINE', '"location\nadvance 400000\n"', '"[0] LIVE\n[120000] STALE\n[300000] OFFLINE\nnow=400000 banner=OFFLINE"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_182'), 'A new location cancels the pending STALE check', '"location\nadvance 100000\nlocation\nadvance 100000\nadvance 30000\n"', '"[0] LIVE\n[220000] STALE\nnow=230000 banner=STALE"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_182'), 'Tasks run in time order; equal times run in the order scheduled', '"task A 5000\ntask B 5000\ntask C 2000\nadvance 10000\n"', '"[2000] C\n[5000] A\n[5000] B\nnow=10000 banner=WAITING"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_182'), 'Tasks scheduled by running tasks run in the same advance when due', '"chain D 1000 0\nchain E 1000 500\nadvance 1200\ntask F 0\nadvance 0\nadvance 300\n"', '"[1000] D\n[1000] E\n[1000] D-next\n[1200] F\n[1500] E-next\nnow=1500 banner=WAITING"', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_182'), 'Back online exactly when the banner went STALE, then silent again', '"location\nadvance 119999\nadvance 1\nlocation\nadvance 300000\n"', '"[0] LIVE\n[120000] STALE\n[120000] LIVE\n[240000] STALE\n[420000] OFFLINE\nnow=420000 banner=OFFLINE"', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_kma_182_starter', 's3', 'challenges/kotlin/chal_coding_kma_182/starter.kt', 'raw', 'text/x-kotlin', 3243, 'FakeScheduler.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_182'), 'kotlin', 'FakeScheduler.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_kma_182_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.3: Feature flags and safe rollouts (Sanity lesson-kma-3-3)
+UPDATE course.lesson SET title = 'Feature flags and safe rollouts', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-3-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Feature flags and safe rollouts', 'sanity', 'lesson-kma-3-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-kma-3-3' AND is_deleted = false);
+
+-- challenge chal_quiz_kma_191 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_kma_191', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-3-3' AND is_deleted = false LIMIT 1), 'feature-flags-quiz', 'Read the batch-delivery rollout', 'Three statements about how Rice Rocket shipped the batch-delivery screen to its couriers, and what happened when it crashed. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_191');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_191'), 1, 'A staged rollout decides who can download a release. What does it change for a phone that has already installed it?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_191'), 2, 'Run the bucketing twice for the same courier in your head: does the courier land in the same group on the next launch?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_191'), 3, 'Think about the very first launch on a phone with no network: where do the flag values come from before any fetch succeeds?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_191');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_191'), 'Version 2.5.0 had the batch-delivery screen switched on in code. It went out as a 20% staged rollout and crashed on some phones:
+
+```text
+Play Console  2.5.0  Production  staged rollout 20%  -> halted 14:10
+Crashlytics   BatchDeliveryScreen  NullPointerException  1,240 users  (still rising at 16:00)
+```
+
+Statement: "Halting the staged rollout removes 2.5.0 from the phones that already installed it, so the crash count stops rising at once."', 'single_choice'::question_type, 'False. Halting a staged rollout stops new users from getting the release; phones that already updated keep 2.5.0 until a newer version reaches them, which takes a release plus days of update adoption. That is why the crash count kept rising. A feature behind a remote flag with a kill switch could have been turned off for every phone within minutes, without a release.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_191') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_191'), 'The first flag client decided the rollout with a random draw at every launch:
+
+```kotlin
+val batchOn = Random.nextInt(100) < remote.getLong("batch_percent")
+```
+
+```text
+courier c-118: 08:02 launch batch ON, 11:40 launch batch OFF, 13:15 launch batch ON
+support ticket: "the screen keeps changing, where did my batch go?"
+```
+
+Statement: "Bucketing must be stable per courier, for example a hash of the flag key and the courier id mod 100, so a courier stays in the same group on every launch while another flag splits couriers differently."', 'single_choice'::question_type, 'True. A rollout percentage only means something if each courier gets the same answer every time: hash(flagKey + courierId) mod 100 gives a fixed bucket per courier and flag, raising the percentage only adds couriers, and including the flag key keeps different experiments from always picking the same people. A random draw per launch flips couriers between screens mid-shift.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_191') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_191'), 'The in-app defaults for remote config were copied from the console, where the flag was on:
+
+```kotlin
+remoteConfig.setDefaultsAsync(mapOf("batch_enabled" to true))
+```
+
+```text
+first launch after install, no network in the warehouse basement
+remote config fetch failed: no connectivity -> using defaults
+BatchDeliveryScreen shown  (flag was set to false in the console at 14:12)
+```
+
+Statement: "In-app defaults must be the safe value, off for a risky feature, because a phone that cannot fetch runs on its defaults."', 'single_choice'::question_type, 'True. Remote values arrive only after a successful fetch; until then, and on every launch where the fetch fails, the app uses the defaults compiled into it. A default of true turns the kill switch into a no-op for offline couriers. Ship risky features off by default and let the fetched value turn them on.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_kma_191') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_kma_192 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_kma_192', (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'kotlin-mobile-architecture') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-kma-3-3' AND is_deleted = false LIMIT 1), 'feature-flag-evaluation', 'Evaluate feature flags on the phone', 'The courier app decides on the phone which features a courier gets, from flags fetched with remote config. The editor holds `Flags.kt` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that the checks run in this order: a killed flag (`enabled=false`) is off for everyone, QA couriers included; a courier whose app is older than `minVersion` (compared number by number, so 2.10.0 is newer than 2.9.0, and 2.4 equals 2.4.0) or whose Android SDK is below `minSdk` is off; a courier on the QA allowlist is on; everyone else is on when their bucket is below `percent`, where bucket = (FNV-1a 32 of `<flagKey>:<courierId>` and 0x7fffffff) mod 100. The runner prints every flag''s decision for every courier with its reason.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_192');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_192'), 1, 'Take one courier through every check in order and write down which one decides. Then ask what each check is protecting: crashes on old apps and phones, the kill switch, a stable split.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_192'), 2, 'Look at `compareVersions` (split on dots, compare numbers, missing parts count as 0), `bucket` (the hash input decides whether two flags pick the same couriers), and where the allowlist sits relative to the kill switch.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_192'), 3, 'An A/B test of a checkout button in a shop app: `fun group(test: String, user: String) = (fnv1a32("$test:$user") and 0x7fffffff) % 100`, `if (!test.running) return CONTROL`, `if (compareVersions(app, test.minApp) < 0) return CONTROL`, `if (user in test.forced) return VARIANT`, `return if (group(test.key, user) < test.percent) VARIANT else CONTROL`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_192'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"compare-versions","label":"Compare dotted versions number by number","code":"val x = a.split(\".\").map { it.toInt() }\nval y = b.split(\".\").map { it.toInt() }\nfor (i in 0 until maxOf(x.size, y.size)) {\n    val d = x.getOrElse(i) { 0 }.compareTo(y.getOrElse(i) { 0 })\n    if (d != 0) return d\n}\nreturn 0"},{"id":"bucket","label":"A stable bucket per flag and courier","code":"return (fnv1a32(\"$flagKey:$courierId\") and 0x7fffffff) % 100"},{"id":"kill-switch","label":"Off for everyone once the flag is killed","code":"if (!flag.enabled) return Decision(false, \"killed\")"},{"id":"compatibility","label":"Off on app versions and phones that cannot run it","code":"if (compareVersions(c.appVersion, flag.minVersion) < 0) return Decision(false, \"app ${c.appVersion} < ${flag.minVersion}\")\nif (c.sdk < flag.minSdk) return Decision(false, \"sdk ${c.sdk} < ${flag.minSdk}\")"},{"id":"allowlist","label":"QA couriers always get it","code":"if (c.id in flag.allow) return Decision(true, \"allowlist\")"},{"id":"bucket-courier-only","label":"A stable bucket per flag and courier","code":"return (fnv1a32(courierId) and 0x7fffffff) % 100","distractor":true},{"id":"compare-versions-as-text","label":"Compare dotted versions number by number","code":"return a.compareTo(b)","distractor":true},{"id":"kill-switch-spares-allowlist","label":"Off for everyone once the flag is killed","code":"if (!flag.enabled && c.id !in flag.allow) return Decision(false, \"killed\")","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_192');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_192'), 'A 20% rollout picks the same couriers by their stable bucket', '"flag key=batch-delivery enabled=true percent=20 minVersion=2.4.0 minSdk=30 allow=-\ncourier c-001 2.5.0 34\ncourier c-002 2.5.0 34\ncourier c-003 2.5.0 34\ncourier c-004 2.5.0 34\ncourier c-005 2.5.0 34\ncourier c-006 2.5.0 34\ncourier c-007 2.5.0 34\ncourier c-008 2.5.0 34\ncourier c-009 2.5.0 34\ncourier c-010 2.5.0 34\n"', '"batch-delivery c-001 ON rollout bucket 15\nbatch-delivery c-002 OFF outside rollout bucket 34\nbatch-delivery c-003 OFF outside rollout bucket 53\nbatch-delivery c-004 OFF outside rollout bucket 20\nbatch-delivery c-005 OFF outside rollout bucket 39\nbatch-delivery c-006 OFF outside rollout bucket 58\nbatch-delivery c-007 OFF outside rollout bucket 77\nbatch-delivery c-008 OFF outside rollout bucket 44\nbatch-delivery c-009 OFF outside rollout bucket 63\nbatch-delivery c-010 ON rollout bucket 5"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_192'), 'Old apps and old phones never get it; 2.10.0 is newer than 2.4.0', '"flag key=batch-delivery enabled=true percent=100 minVersion=2.4.0 minSdk=30 allow=-\ncourier c-011 2.3.9 34\ncourier c-012 2.10.0 34\ncourier c-013 2.4.0 29\ncourier c-014 2.4 31\n"', '"batch-delivery c-011 OFF app 2.3.9 < 2.4.0\nbatch-delivery c-012 ON rollout bucket 67\nbatch-delivery c-013 OFF sdk 29 < 30\nbatch-delivery c-014 ON rollout bucket 29"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_192'), 'The kill switch turns the feature off for QA couriers too', '"flag key=batch-delivery enabled=false percent=100 minVersion=2.4.0 minSdk=30 allow=c-007\ncourier c-007 2.6.0 34\ncourier c-001 2.6.0 34\n"', '"batch-delivery c-007 OFF killed\nbatch-delivery c-001 OFF killed"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_192'), 'Two 50% flags split the same couriers differently', '"flag key=batch-delivery enabled=true percent=50 minVersion=2.0.0 minSdk=26 allow=-\nflag key=cash-handover enabled=true percent=50 minVersion=2.0.0 minSdk=26 allow=-\ncourier c-001 2.6.0 34\ncourier c-002 2.6.0 34\ncourier c-003 2.6.0 34\ncourier c-004 2.6.0 34\ncourier c-005 2.6.0 34\n"', '"batch-delivery c-001 ON rollout bucket 15\ncash-handover c-001 OFF outside rollout bucket 71\nbatch-delivery c-002 ON rollout bucket 34\ncash-handover c-002 OFF outside rollout bucket 90\nbatch-delivery c-003 OFF outside rollout bucket 53\ncash-handover c-003 ON rollout bucket 9\nbatch-delivery c-004 ON rollout bucket 20\ncash-handover c-004 OFF outside rollout bucket 76\nbatch-delivery c-005 ON rollout bucket 39\ncash-handover c-005 OFF outside rollout bucket 95"', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_192'), 'A 0% flag reaches only the allowlist; a 100% flag reaches everyone', '"flag key=night-shift enabled=true percent=0 minVersion=2.0.0 minSdk=26 allow=c-008\nflag key=tips-v2 enabled=true percent=100 minVersion=2.0.0 minSdk=26 allow=-\ncourier c-008 2.6.0 34\ncourier c-009 2.6.0 34\n"', '"night-shift c-008 ON allowlist\ntips-v2 c-008 ON rollout bucket 56\nnight-shift c-009 OFF outside rollout bucket 45\ntips-v2 c-009 ON rollout bucket 75"', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_kma_192_starter', 's3', 'challenges/kotlin/chal_coding_kma_192/starter.kt', 'raw', 'text/x-kotlin', 2724, 'Flags.kt')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_kma_192'), 'kotlin', 'Flags.kt', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_kma_192_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
 
 -- learners enrolled before these lessons existed
 INSERT INTO learning.history (user_id, course_id, module_id, lesson_id)

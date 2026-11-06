@@ -1,0 +1,45 @@
+[
+  {
+    "id": "refill",
+    "label": "Refill for the time since the last call, capped at the burst",
+    "code": "b.tokens = math.Min(l.burst, b.tokens+now.Sub(b.last).Seconds()*l.rate)\nb.last = now"
+  },
+  {
+    "id": "take-token",
+    "label": "Spend a token, or work out the wait for the next one",
+    "code": "if b.tokens >= 1 {\n\tb.tokens--\n\treturn true, 0\n}\nreturn false, time.Duration((1 - b.tokens) / l.rate * float64(time.Second))"
+  },
+  {
+    "id": "retry-after",
+    "label": "Whole seconds, rounded up",
+    "code": "return fmt.Sprint(int(math.Ceil(wait.Seconds())))"
+  },
+  {
+    "id": "client-address",
+    "label": "Trust X-Forwarded-For only from the LB: its last entry",
+    "code": "if loadBalancers.Contains(peer) && forwardedFor != \"\" {\n\thops := strings.Split(forwardedFor, \",\")\n\treturn \"ip:\" + strings.TrimSpace(hops[len(hops)-1])\n}"
+  },
+  {
+    "id": "evict-idle",
+    "label": "Drop the buckets that are full again",
+    "code": "for key, b := range l.buckets {\n\tif b.tokens+now.Sub(b.last).Seconds()*l.rate >= l.burst {\n\t\tdelete(l.buckets, key)\n\t}\n}"
+  },
+  {
+    "id": "client-address-leftmost",
+    "label": "Trust X-Forwarded-For only from the LB: its last entry",
+    "code": "if forwardedFor != \"\" {\n\thops := strings.Split(forwardedFor, \",\")\n\treturn \"ip:\" + strings.TrimSpace(hops[0])\n}",
+    "distractor": true
+  },
+  {
+    "id": "refill-no-cap",
+    "label": "Refill for the time since the last call, capped at the burst",
+    "code": "b.tokens += now.Sub(b.last).Seconds() * l.rate\nb.last = now",
+    "distractor": true
+  },
+  {
+    "id": "retry-after-floor",
+    "label": "Whole seconds, rounded up",
+    "code": "return fmt.Sprint(int(wait.Seconds()))",
+    "distractor": true
+  }
+]

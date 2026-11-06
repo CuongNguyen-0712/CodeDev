@@ -1,0 +1,50 @@
+[
+  {
+    "id": "stale-guard",
+    "label": "Answers to an older request change nothing",
+    "code": "if (event is Event.Answer && event.gen != state.gen) return state"
+  },
+  {
+    "id": "start",
+    "label": "Opening the screen starts a fresh request",
+    "code": "is Event.Start -> Screen.Loading(event.gen)"
+  },
+  {
+    "id": "refresh",
+    "label": "Refresh keeps content on screen, reloads an empty one",
+    "code": "is Event.Refresh -> when (state) {\n    is Screen.Content -> state.copy(refreshing = true, notice = null, gen = event.gen)\n    is Screen.Empty -> Screen.Loading(event.gen)\n    else -> state\n}"
+  },
+  {
+    "id": "retry",
+    "label": "Retry only from the error screen",
+    "code": "is Event.Retry -> if (state is Screen.Error) Screen.Loading(event.gen) else state"
+  },
+  {
+    "id": "success",
+    "label": "An answer with orders, or with none",
+    "code": "is Event.Success -> if (event.items.isEmpty()) Screen.Empty(event.gen) else Screen.Content(event.items, refreshing = false, notice = null, gen = event.gen)"
+  },
+  {
+    "id": "failure",
+    "label": "A failed answer",
+    "code": "is Event.Failure -> if (state is Screen.Content) state.copy(refreshing = false, notice = event.message) else Screen.Error(event.message, event.gen)"
+  },
+  {
+    "id": "failure-replaces-content",
+    "label": "A failed answer",
+    "code": "is Event.Failure -> Screen.Error(event.message, event.gen)",
+    "distractor": true
+  },
+  {
+    "id": "stale-guard-loading-only",
+    "label": "Answers to an older request change nothing",
+    "code": "if (state is Screen.Loading && event is Event.Answer && event.gen != state.gen) return state",
+    "distractor": true
+  },
+  {
+    "id": "success-empty-as-content",
+    "label": "An answer with orders, or with none",
+    "code": "is Event.Success -> Screen.Content(event.items, refreshing = false, notice = null, gen = event.gen)",
+    "distractor": true
+  }
+]

@@ -1,0 +1,40 @@
+[
+  {
+    "id": "stop-refetch",
+    "label": "Keep an in-flight refetch from overwriting the change",
+    "code": "cache.cancel(KEY);"
+  },
+  {
+    "id": "apply-change",
+    "label": "Show the new status now and remember the old one",
+    "code": "const list = cache.get(KEY);\nconst previous = list.find((d) => d.id === vars.id);\ncache.set(KEY, list.map((d) => (d.id === vars.id ? { ...d, status: vars.status } : d)));\nreturn { previous, snapshot: list };"
+  },
+  {
+    "id": "roll-back",
+    "label": "Undo this delivery's change only",
+    "code": "const previous = ctx.previous;\nif (previous) cache.set(KEY, cache.get(KEY).map((d) => (d.id === previous.id ? previous : d)));"
+  },
+  {
+    "id": "reconcile",
+    "label": "Take the server's version afterwards",
+    "code": "cache.invalidate(KEY);"
+  },
+  {
+    "id": "reconcile-on-success-only",
+    "label": "Take the server's version afterwards",
+    "code": "if (!error) cache.invalidate(KEY);",
+    "distractor": true
+  },
+  {
+    "id": "refresh-before-change",
+    "label": "Keep an in-flight refetch from overwriting the change",
+    "code": "cache.invalidate(KEY);",
+    "distractor": true
+  },
+  {
+    "id": "restore-whole-list",
+    "label": "Undo this delivery's change only",
+    "code": "if (ctx.snapshot) cache.set(KEY, ctx.snapshot);",
+    "distractor": true
+  }
+]

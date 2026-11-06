@@ -15,38 +15,97 @@
   "accessModel": "premium",
   "publishStatus": "draft",
   "offers": [
-    { "priceType": "points", "amount": 300 },
-    { "priceType": "money", "amount": 149000, "currency": "VND" }
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
   ],
-  "careerRoles": ["ml_engineer", "data_engineer", "backend_developer"],
-  "skills": {"python": 5, "machine_learning": 4, "data_structures": 3, "data_analysis": 2},
-  "goals": ["build_projects", "grow_in_role"],
-  "prerequisites": ["python-foundations-automation"],
+  "careerRoles": [
+    "ml_engineer",
+    "data_engineer",
+    "backend_developer"
+  ],
+  "skills": {
+    "python": 5,
+    "machine_learning": 4,
+    "data_structures": 3,
+    "data_analysis": 2
+  },
+  "goals": [
+    "build_projects",
+    "grow_in_role"
+  ],
+  "prerequisites": [],
   "modules": [
     {
       "orderIndex": 1,
       "title": "Preparing Documents",
       "lessons": [
-        { "orderIndex": 1, "folder": "01-chunking-with-overlap", "title": "Chunking documents with overlap", "sanityId": "lesson-py-rag-1-1" },
-        { "orderIndex": 2, "folder": "02-near-duplicate-detection", "title": "Near-duplicate detection with shingles & Jaccard", "sanityId": "lesson-py-rag-1-2" }
+        {
+          "orderIndex": 1,
+          "folder": "01-chunking-with-overlap",
+          "title": "Chunking documents with overlap",
+          "sanityId": "lesson-py-rag-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-near-duplicate-detection",
+          "title": "Near-duplicate detection with shingles & Jaccard",
+          "sanityId": "lesson-py-rag-1-2"
+        }
       ]
     },
     {
       "orderIndex": 2,
       "title": "Retrieval",
       "lessons": [
-        { "orderIndex": 1, "folder": "03-bm25-ranking", "title": "Ranking with BM25", "sanityId": "lesson-py-rag-2-1" },
-        { "orderIndex": 2, "folder": "04-hybrid-search-rrf", "title": "Hybrid search with Reciprocal Rank Fusion", "sanityId": "lesson-py-rag-2-2" },
-        { "orderIndex": 3, "folder": "07-spot-unnormalized-cosine", "title": "Spot the AI mistake: cosine similarity without normalization", "sanityId": "lesson-py-rag-2-3" }
+        {
+          "orderIndex": 1,
+          "folder": "03-bm25-ranking",
+          "title": "Ranking with BM25",
+          "sanityId": "lesson-py-rag-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "04-hybrid-search-rrf",
+          "title": "Hybrid search with Reciprocal Rank Fusion",
+          "sanityId": "lesson-py-rag-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "07-spot-unnormalized-cosine",
+          "title": "Spot the AI mistake: cosine similarity without normalization",
+          "sanityId": "lesson-py-rag-2-3"
+        }
       ]
     },
     {
       "orderIndex": 3,
       "title": "Answers & Evaluation",
       "lessons": [
-        { "orderIndex": 1, "folder": "05-context-packing", "title": "Packing context under a token budget, with citations", "sanityId": "lesson-py-rag-3-1" },
-        { "orderIndex": 2, "folder": "06-retrieval-evaluation", "title": "Measuring retrieval: recall@k & MRR", "sanityId": "lesson-py-rag-3-2" },
-        { "orderIndex": 3, "folder": "08-right-docs-wrong-answer", "title": "Right Docs, Wrong Answer? Retrieval or generation", "sanityId": "lesson-py-rag-3-3" }
+        {
+          "orderIndex": 1,
+          "folder": "05-context-packing",
+          "title": "Packing context under a token budget, with citations",
+          "sanityId": "lesson-py-rag-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "06-retrieval-evaluation",
+          "title": "Measuring retrieval: recall@k & MRR",
+          "sanityId": "lesson-py-rag-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "08-right-docs-wrong-answer",
+          "title": "Right Docs, Wrong Answer? Retrieval or generation",
+          "sanityId": "lesson-py-rag-3-3"
+        }
       ]
     }
   ]

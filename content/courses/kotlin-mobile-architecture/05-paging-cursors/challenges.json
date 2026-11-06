@@ -1,0 +1,67 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_kma_152",
+      "name": "delivery-history-pager",
+      "type": "mini_coding",
+      "title": "Page the delivery history with cursors",
+      "description": "The courier's delivery history (hundreds of orders) used offset paging: new orders arriving at the top shifted the offsets, so couriers saw the same delivery twice; a fast fling requested the same page twice; and a page that arrived after a pull-to-refresh was appended to the fresh list. The list now pages with server cursors (`next` = the cursor for the following page, null at the end), like a Paging 3 `PagingSource`. The editor holds the `Pager` with its blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: refresh starts over from the newest orders, even after the end was reached; a page is requested when the last visible item is within `prefetch` of the end, never while another request is loading and never after the end; a refresh page replaces the list, other pages are appended and update the cursor and the end; and any page requested before the latest refresh changes nothing. Run scrolls, delivers server answers and adds new orders, and prints the list after each step.",
+      "difficulty": "hard",
+      "outcomes": [
+        "data-layer"
+      ],
+      "points": 40,
+      "hints": [
+        "Follow the cursor: where does the key of each request come from, what does a page do to it, and what must a refresh reset so that scrolling works again afterwards?",
+        "Check the guards: a request while `loading`, a request after `endReached`, and a page whose `gen` is not the current `generation`. Each one is a bug from the old list.",
+        "A chat history loader: `fun loadOlder() { if (!loading && hasMore) { loading = true; send(Req(oldestId, gen)) } }`, `fun onBatch(req: Req, batch: Batch) { if (req.gen != gen) return; messages += batch.items; oldestId = batch.next; hasMore = batch.next != null; loading = false }`, `fun reset() { gen++; oldestId = null; hasMore = true; ... }`."
+      ],
+      "coding": {
+        "language": "kotlin",
+        "filePath": "DeliveryHistoryPager.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Pages load near the end of the list and stop at the last one",
+          "input": "refresh\ndeliver\nscroll 2\nscroll 3\ndeliver\nscroll 8\ndeliver\nscroll 11\n",
+          "hidden": false,
+          "score": 8,
+          "expected": "refresh -> items=0 [] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\nscroll 2 -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\nscroll 3 -> items=5 [1000..996] next=996 end=false loading=true pending=1 dupes=0\ndeliver -> items=10 [1000..991] next=991 end=false loading=false pending=0 dupes=0\nscroll 8 -> items=10 [1000..991] next=991 end=false loading=true pending=1 dupes=0\ndeliver -> items=12 [1000..989] next=null end=true loading=false pending=0 dupes=0\nscroll 11 -> items=12 [1000..989] next=null end=true loading=false pending=0 dupes=0"
+        },
+        {
+          "name": "A fast fling asks for the next page once",
+          "input": "refresh\ndeliver\nscroll 3\nscroll 4\ndeliver\ndeliver\n",
+          "hidden": false,
+          "score": 8,
+          "expected": "refresh -> items=0 [] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\nscroll 3 -> items=5 [1000..996] next=996 end=false loading=true pending=1 dupes=0\nscroll 4 -> items=5 [1000..996] next=996 end=false loading=true pending=1 dupes=0\ndeliver -> items=10 [1000..991] next=991 end=false loading=false pending=0 dupes=0\ndeliver -> items=10 [1000..991] next=991 end=false loading=false pending=0 dupes=0"
+        },
+        {
+          "name": "New orders at the top do not duplicate rows on later pages",
+          "input": "refresh\ndeliver\ninsert 3\nscroll 3\ndeliver\n",
+          "hidden": false,
+          "score": 8,
+          "expected": "refresh -> items=0 [] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\ninsert 3 -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\nscroll 3 -> items=5 [1000..996] next=996 end=false loading=true pending=1 dupes=0\ndeliver -> items=10 [1000..991] next=991 end=false loading=false pending=0 dupes=0"
+        },
+        {
+          "name": "A page requested before a refresh is dropped",
+          "input": "refresh\ndeliver\nscroll 3\nrefresh\ndeliver\ndeliver\n",
+          "hidden": true,
+          "score": 8,
+          "expected": "refresh -> items=0 [] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\nscroll 3 -> items=5 [1000..996] next=996 end=false loading=true pending=1 dupes=0\nrefresh -> items=5 [1000..996] next=null end=false loading=true pending=2 dupes=0\ndeliver -> items=5 [1000..996] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0"
+        },
+        {
+          "name": "Refresh after the end: new orders, and paging works again",
+          "input": "refresh\ndeliver\nscroll 3\ndeliver\nscroll 8\ndeliver\ninsert 4\nrefresh\ndeliver\nscroll 3\ndeliver\n",
+          "hidden": true,
+          "score": 8,
+          "expected": "refresh -> items=0 [] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1000..996] next=996 end=false loading=false pending=0 dupes=0\nscroll 3 -> items=5 [1000..996] next=996 end=false loading=true pending=1 dupes=0\ndeliver -> items=10 [1000..991] next=991 end=false loading=false pending=0 dupes=0\nscroll 8 -> items=10 [1000..991] next=991 end=false loading=true pending=1 dupes=0\ndeliver -> items=12 [1000..989] next=null end=true loading=false pending=0 dupes=0\ninsert 4 -> items=12 [1000..989] next=null end=true loading=false pending=0 dupes=0\nrefresh -> items=12 [1000..989] next=null end=false loading=true pending=1 dupes=0\ndeliver -> items=5 [1004..1000] next=1000 end=false loading=false pending=0 dupes=0\nscroll 3 -> items=5 [1004..1000] next=1000 end=false loading=true pending=1 dupes=0\ndeliver -> items=10 [1004..995] next=995 end=false loading=false pending=0 dupes=0"
+        }
+      ]
+    }
+  ]
+}

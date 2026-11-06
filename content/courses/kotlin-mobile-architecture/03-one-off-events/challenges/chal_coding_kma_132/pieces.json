@@ -1,0 +1,40 @@
+[
+  {
+    "id": "add-message",
+    "label": "Queue a message with its own id",
+    "code": "fun withMessage(state: CourierState, text: String): CourierState =\n    state.copy(messages = state.messages + UserMessage(state.nextId, text), nextId = state.nextId + 1)"
+  },
+  {
+    "id": "order-cancelled",
+    "label": "Drop the order and tell the courier, in one change",
+    "code": "fun orderCancelled(state: CourierState, orderId: String): CourierState =\n    withMessage(state.copy(orders = state.orders - orderId), \"Order $orderId was cancelled by the customer\")"
+  },
+  {
+    "id": "current-message",
+    "label": "The message the screen shows now",
+    "code": "fun currentMessage(state: CourierState): UserMessage? = state.messages.firstOrNull()"
+  },
+  {
+    "id": "message-shown",
+    "label": "The courier dismissed one message",
+    "code": "fun messageShown(state: CourierState, id: Long): CourierState =\n    state.copy(messages = state.messages.filterNot { it.id == id })"
+  },
+  {
+    "id": "add-message-replaces",
+    "label": "Queue a message with its own id",
+    "code": "fun withMessage(state: CourierState, text: String): CourierState =\n    state.copy(messages = listOf(UserMessage(state.nextId, text)), nextId = state.nextId + 1)",
+    "distractor": true
+  },
+  {
+    "id": "current-message-newest",
+    "label": "The message the screen shows now",
+    "code": "fun currentMessage(state: CourierState): UserMessage? = state.messages.lastOrNull()",
+    "distractor": true
+  },
+  {
+    "id": "message-shown-drops-head",
+    "label": "The courier dismissed one message",
+    "code": "fun messageShown(state: CourierState, id: Long): CourierState =\n    state.copy(messages = state.messages.drop(1))",
+    "distractor": true
+  }
+]

@@ -70,7 +70,7 @@ JOIN catalog.skill s ON s.code = v.code;
 UPDATE catalog.course SET completion_rules = '{}' WHERE id = (SELECT id FROM catalog.course WHERE public_id = 'nestjs-modular-monolith');
 DELETE FROM catalog.course_prerequisite WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'nestjs-modular-monolith');
 INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
-SELECT (SELECT id FROM catalog.course WHERE public_id = 'nestjs-modular-monolith'), id FROM catalog.course WHERE public_id = ANY(ARRAY['typescript-foundations', 'web-http-fundamentals']::text[]);
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'nestjs-modular-monolith'), id FROM catalog.course WHERE public_id = ANY(ARRAY['']::text[]);
 
 -- module 1: Modules & Dependency Injection
 UPDATE course.module SET title = 'Modules & Dependency Injection', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'nestjs-modular-monolith') AND order_index = 1 AND is_deleted = false LIMIT 1);
@@ -90,7 +90,7 @@ VALUES ('chal_quiz_nmm_111', (SELECT id FROM catalog.course WHERE public_id = 'n
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_111');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_111');
 WITH q AS (
@@ -151,7 +151,7 @@ VALUES ('chal_quiz_nmm_121', (SELECT id FROM catalog.course WHERE public_id = 'n
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_121');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_121');
 WITH q AS (
@@ -231,17 +231,17 @@ VALUES ('chal_coding_nmm_122', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_122');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_122'), 1, 'In each of your three methods, where does the current time come from, and where does the enrollment come from? If either answer is not "from something the constructor received", how could a test running at 10 a.m. check what happens at midnight, or see an enrollment it put into the repository?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_122'), 2, 'Start with the constructor: a parameter property such as private readonly repo: EnrollmentRepository stores the argument as a field in one line. Then in every method call this.repo.findOne(userId, courseId) rather than remembering enrollments yourself, compare this.clock.now().getTime() with Date.parse(expiresAt), and decide what both methods return at exactly expiresAt. daysLeft rounds up, so think about Math.ceil and Math.floor.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_122'), 3, 'A similar service on other data: a CouponService(repo, clock) where a coupon is valid for 7 days. Created at 2026-03-01T10:00:00.000Z, its validUntil is new Date(created.getTime() + 7 * DAY_MS).toISOString() = 2026-03-08T10:00:00.000Z. With a clock at 2026-03-07T12:00:00.000Z, 22 hours are left, so the days left are Math.ceil(22 / 24) = 1; with the clock at exactly 2026-03-08T10:00:00.000Z the coupon is no longer valid and 0 days are left. A test builds it as new CouponService(new InMemoryCouponRepository(), { now: () => new Date("2026-03-07T12:00:00.000Z") }).');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_122');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_122'), 'Enroll at 23:59: 30 days of access, still 30 days left one hour later, after midnight', '{"now":"2026-10-26T23:59:00.000Z","existing":[],"operations":[{"op":"enroll","userId":"u1","courseId":"c42"},{"op":"hasAccess","userId":"u1","courseId":"c42"},{"op":"daysLeft","userId":"u1","courseId":"c42"},{"op":"advance","hours":1},{"op":"hasAccess","userId":"u1","courseId":"c42"},{"op":"daysLeft","userId":"u1","courseId":"c42"},{"op":"hasAccess","userId":"u2","courseId":"c42"},{"op":"daysLeft","userId":"u2","courseId":"c42"}]}', '{"results":["enroll u1/c42: 2026-10-26T23:59:00.000Z -> 2026-11-25T23:59:00.000Z","access u1/c42: true","days u1/c42: 30","access u1/c42: true","days u1/c42: 30","access u2/c42: false","days u2/c42: 0"],"saves":1}', 3, true, false, 1),
@@ -270,7 +270,7 @@ VALUES ('chal_quiz_nmm_131', (SELECT id FROM catalog.course WHERE public_id = 'n
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_131');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_131');
 WITH q AS (
@@ -394,7 +394,7 @@ VALUES ('chal_quiz_nmm_211', (SELECT id FROM catalog.course WHERE public_id = 'n
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_211');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_211');
 WITH q AS (
@@ -472,17 +472,17 @@ VALUES ('chal_coding_nmm_212', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_212');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_212'), 1, 'For each field, which question comes first: is it there at all, is it the right JSON type, or does its content have the right shape? What should happen to the later questions once one of them fails?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_212'), 2, 'Look at typeof and Array.isArray for the body itself (typeof null is "object"), at Number.isInteger for seats, and at the list of plans: a strict equality check against that list rejects "PREMIUM" without any extra code. The coupon rule needs the plan''s result, so check plan before couponCode.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_212'), 3, 'A similar rule set for a lesson rating { lessonId, stars, comment? }: { "lessonId": "l_9", "stars": "5" } gives one error, stars "stars must be an integer" (a string is not a number even when it looks like one); { "lessonId": "l_9", "stars": 4, "comment": null } is valid with no comment; { "stars": 6 } gives lessonId "lessonId is required" and then stars "stars must be between 1 and 5", in that order.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_212'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_212'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_212');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_212'), 'The incident: plan "PREMIUM" and other plans the billing job cannot read are rejected', '{"bodies":[{"courseId":"c_1042","email":"ana@codedev.test","plan":"premium","couponCode":"SPRING25"},{"courseId":"c_1042","email":"ana@codedev.test","plan":"PREMIUM"},{"courseId":"c_1042","email":"ana@codedev.test","plan":"Premium"},{"courseId":"c_1042","email":"ana@codedev.test","plan":"premium "},{"courseId":"c_88","email":"minh.tran@example.com","plan":"gold"},{"courseId":"c_88","email":"minh.tran@example.com","plan":"free","seats":3}]}', '"#1 ok courseId=\"c_1042\" email=\"ana@codedev.test\" plan=\"premium\" seats=1 couponCode=\"SPRING25\"\n#2 rejected plan: plan must be one of: free, premium\n#3 rejected plan: plan must be one of: free, premium\n#4 rejected plan: plan must be one of: free, premium\n#5 rejected plan: plan must be one of: free, premium\n#6 ok courseId=\"c_88\" email=\"minh.tran@example.com\" plan=\"free\" seats=3 couponCode=-"', 3, true, false, 1),
@@ -511,7 +511,7 @@ VALUES ('chal_quiz_nmm_221', (SELECT id FROM catalog.course WHERE public_id = 'n
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_221');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_221');
 WITH q AS (
@@ -580,17 +580,17 @@ VALUES ('chal_coding_nmm_222', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_222');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_222'), 1, 'For each handler, split the work into three questions: what exactly does the service need from this request, what can the request say that the service must never see, and what exactly may the client see from the service''s result?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_222'), 2, 'Look at req.query values: they are always strings, so a page has to pass a digits-only check before you turn it into a number (parseInt accepts "2.5" and "2abc"). Look at where the learner''s id can come from (req.user and req.body) and pick the one the client cannot choose. For the response, build a new object field by field instead of starting from the record and removing things.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_222'), 3, 'A similar handler for GET /lessons/:id/comments?offset=&size=: with { offset: "10" } it calls listComments({ lessonId, offset: 10, size: 25 }) using the default size; { size: "300" } becomes size 100 if 100 is the cap; { offset: "-3" } and { size: "2.0" } are 400 with no call; each comment record { id, text, authorId, ipAddress, flagged } becomes { id, text, authorId } in the response.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_222'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_222'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_222');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_222'), 'GET /courses with no query: page 1, limit 20, published courses with public fields only', '{"courses":[{"id":"c_1042","title":"NestJS Modular Monolith","level":"intermediate","priceVnd":149000,"published":true,"internalNotes":"notes for c_1042: author asked for a rewrite","authorPayoutPercent":70},{"id":"c_88","title":"Web Application Fundamentals","level":"beginner","priceVnd":0,"published":true,"internalNotes":"notes for c_88: author asked for a rewrite","authorPayoutPercent":70},{"id":"c_95","title":"SQL & Data Modeling","level":"beginner","priceVnd":0,"published":true,"internalNotes":"notes for c_95: author asked for a rewrite","authorPayoutPercent":70},{"id":"c_120","title":"Unreleased: Event Sourcing","level":"advanced","priceVnd":199000,"published":false,"internalNotes":"notes for c_120: author asked for a rewrite","authorPayoutPercent":70},{"id":"c_131","title":"React + TypeScript Architecture","level":"intermediate","priceVnd":149000,"published":true,"internalNotes":"notes for c_131: author asked for a rewrite","authorPayoutPercent":70},{"id":"c_140","title":"Distributed Systems Basics","level":"advanced","priceVnd":199000,"published":true,"internalNotes":"notes for c_140: author asked for a rewrite","authorPayoutPercent":70}],"requests":[{"route":"listCourses","query":{}},{"route":"listCourses","query":{"page":"2","limit":"2"}}]}', '"#1 GET /courses\n   -> 200 headers={\"X-Total-Count\":\"5\"} body={\"items\":[{\"id\":\"c_1042\",\"level\":\"intermediate\",\"priceVnd\":149000,\"title\":\"NestJS Modular Monolith\"},{\"id\":\"c_88\",\"level\":\"beginner\",\"priceVnd\":0,\"title\":\"Web Application Fundamentals\"},{\"id\":\"c_95\",\"level\":\"beginner\",\"priceVnd\":0,\"title\":\"SQL & Data Modeling\"},{\"id\":\"c_131\",\"level\":\"intermediate\",\"priceVnd\":149000,\"title\":\"React + TypeScript Architecture\"},{\"id\":\"c_140\",\"level\":\"advanced\",\"priceVnd\":199000,\"title\":\"Distributed Systems Basics\"}],\"limit\":20,\"page\":1,\"total\":5}\n   service: listCourses(page=1, limit=20, level=-)\n#2 GET /courses?page=2&limit=2\n   -> 200 headers={\"X-Total-Count\":\"5\"} body={\"items\":[{\"id\":\"c_95\",\"level\":\"beginner\",\"priceVnd\":0,\"title\":\"SQL & Data Modeling\"},{\"id\":\"c_131\",\"level\":\"intermediate\",\"priceVnd\":149000,\"title\":\"React + TypeScript Architecture\"}],\"limit\":2,\"page\":2,\"total\":5}\n   service: listCourses(page=2, limit=2, level=-)"', 3, true, false, 1),
@@ -620,7 +620,7 @@ VALUES ('chal_quiz_nmm_231', (SELECT id FROM catalog.course WHERE public_id = 'n
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_231');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_231');
 WITH q AS (
@@ -695,17 +695,17 @@ VALUES ('chal_coding_nmm_232', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_232');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_232'), 1, 'Two questions decide every response: which status tells the client whether trying again can help, and which parts of the error is the client allowed to read? What should happen to an error you cannot name?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_232'), 2, 'Look at instanceof for each class in the table (an object with name "CourseNotFound" is not a CourseNotFound), at the order of your checks if you ever add a check for the DomainError base class, and at what you copy from ValidationFailed.errors. Decide the correlation id once, at the top, before you know which branch you will take.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_232'), 3, 'A similar mapping for a submissions API: SubmissionTooLarge(limitKb: 64) -> 413 with detail "The submission is larger than 64 KB." and extension limitKb 64; LanguageNotSupported("cobol") -> 422; new Error("ENOSPC: no space left on device, write ''/var/runner/tmp/abc''") -> 500 with the fixed text "An unexpected error occurred." and no path; header x-correlation-id "ok-12345678" is kept, "ok 1" is replaced by the next generated id.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_232'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_232'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_232');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_232'), 'The incident: AlreadyEnrolled is 409 and CourseNotFound is 404, keeping the request''s correlation id', '{"cases":[{"error":{"kind":"AlreadyEnrolled","userId":"u_1","courseId":"c_1042"},"correlationId":"mob-7f3a9c21"},{"error":{"kind":"CourseNotFound","courseId":"c_9999"},"method":"GET","path":"/courses/c_9999","correlationId":"web-0b5e44d1-2c7a"}]}', '"#1 POST /enrollments AlreadyEnrolled -> 409 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"mob-7f3a9c21\"} body={\"correlationId\":\"mob-7f3a9c21\",\"detail\":\"You are already enrolled in c_1042.\",\"instance\":\"/enrollments\",\"status\":409,\"title\":\"Already enrolled\",\"type\":\"https://api.codedev.test/problems/already-enrolled\"}\n#2 GET /courses/c_9999 CourseNotFound -> 404 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"web-0b5e44d1-2c7a\"} body={\"correlationId\":\"web-0b5e44d1-2c7a\",\"detail\":\"Course c_9999 does not exist.\",\"instance\":\"/courses/c_9999\",\"status\":404,\"title\":\"Course not found\",\"type\":\"https://api.codedev.test/problems/course-not-found\"}"', 3, true, false, 1),
@@ -740,7 +740,7 @@ VALUES ('chal_quiz_nmm_311', (SELECT id FROM catalog.course WHERE public_id = 'n
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_311');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_311');
 WITH q AS (
@@ -810,17 +810,17 @@ Input (stdin): { "courses": [{ id, published, premium, prerequisites }], "comple
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_312');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_312'), 1, 'For each request, ask two questions in this order: has this exact request already succeeded before (then the answer must not change), and if not, would the rules let this learner in right now?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_312'), 2, 'Look at what findByUserAndCourse returns - undefined, an active enrollment or a cancelled one - and at where each of the three cases has to leave the function relative to the published, prerequisite and entitlement checks. For the prerequisites, collect every course that fails instead of stopping at the first. An object from the repository is a copy until it goes through save().'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_312'), 3, 'A similar service for workshop seats: register(userId, workshopId) returns the existing seat for a confirmed registration without checking anything else; a learner missing two of the three required badges [git, sql, docker] gets an error listing [git, docker], not only [git]; a withdrawn registration has its capacity and badges checked again, and only then is { ...registration, status: "confirmed" } saved under the same id.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_312'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_312'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_312');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_312'), 'The incident: a double click and a mobile retry enroll once; the repeats return the existing row', '{"courses":[{"id":"typescript-foundations","published":true,"premium":false,"prerequisites":[]},{"id":"web-http-fundamentals","published":true,"premium":false,"prerequisites":[]},{"id":"nestjs-modular-monolith","published":true,"premium":true,"prerequisites":["typescript-foundations","web-http-fundamentals"]},{"id":"sql-data-modeling","published":true,"premium":false,"prerequisites":["web-http-fundamentals"]},{"id":"event-driven-systems","published":false,"premium":true,"prerequisites":["nestjs-modular-monolith","sql-data-modeling"]},{"id":"angularjs-legacy","published":false,"premium":false,"prerequisites":[]}],"completions":[["u_1842","typescript-foundations"],["u_1842","web-http-fundamentals"],["u_2001","web-http-fundamentals"]],"entitlements":[["u_1842","nestjs-modular-monolith"]],"enrollments":[{"id":"enr_001","userId":"u_1842","courseId":"web-http-fundamentals","status":"active"}],"operations":[{"op":"enroll","userId":"u_1842","courseId":"nestjs-modular-monolith"},{"op":"enroll","userId":"u_1842","courseId":"nestjs-modular-monolith"},{"op":"enroll","userId":"u_1842","courseId":"nestjs-modular-monolith"},{"op":"enroll","userId":"u_2001","courseId":"sql-data-modeling"},{"op":"enroll","userId":"u_2001","courseId":"sql-data-modeling"}]}', '"enroll u_1842 nestjs-modular-monolith -> created enr_002 active\nenroll u_1842 nestjs-modular-monolith -> existing enr_002 active\nenroll u_1842 nestjs-modular-monolith -> existing enr_002 active\nenroll u_2001 sql-data-modeling -> created enr_003 active\nenroll u_2001 sql-data-modeling -> existing enr_003 active\nenrollments:\nenr_001 u_1842 web-http-fundamentals active\nenr_002 u_1842 nestjs-modular-monolith active\nenr_003 u_2001 sql-data-modeling active"', 3, true, false, 1),
@@ -849,7 +849,7 @@ VALUES ('chal_quiz_nmm_321', (SELECT id FROM catalog.course WHERE public_id = 'n
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_321');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_321');
 WITH q AS (
@@ -914,17 +914,17 @@ Input (stdin): { "courses": { courseId: lessonId[] }, "progress"?: [[userId, cou
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_322');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_322'), 1, 'For one incoming event, what has to be true for it to change anything at all - and among the events that do change something, which single one is allowed to announce that the course is finished?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_322'), 2, 'Look at three moments: before anything is stored (is the event valid, has its eventId been seen), the comparison between the incoming percent and the stored one, and the course percentage computed before and after the store. The completion depends on both of those course percentages, not only on the one after.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_322'), 3, 'The same shape for a reading streak: events { eventId, day } where the streak may only grow. Event r1 day 5 on a stored day 3 -> stored 5, applied; r0 day 4 arriving late -> stays 5, stale; r1 again -> duplicate. A 7-day badge is awarded when the streak goes from 6 to 7, so a later event that finds the streak at 9 awards nothing, and neither does a retry.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_322'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_322'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_322');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_322'), 'The incident: a slow older event, a retried request and a late offline event, one completion', '{"courses":{"web-http-fundamentals":["whf-01","whf-02","whf-03","whf-04","whf-05","whf-06","whf-07","whf-08","whf-09","whf-10"],"typescript-foundations":["tsf-01","tsf-02","tsf-03"],"sql-data-modeling":["sql-01","sql-02","sql-03","sql-04"]},"progress":[["u_2290","web-http-fundamentals","whf-01",100],["u_2290","web-http-fundamentals","whf-02",100],["u_2290","web-http-fundamentals","whf-03",100],["u_2290","web-http-fundamentals","whf-04",100],["u_2290","web-http-fundamentals","whf-05",100],["u_2290","web-http-fundamentals","whf-06",100],["u_2290","web-http-fundamentals","whf-07",100],["u_2290","web-http-fundamentals","whf-08",100],["u_2290","web-http-fundamentals","whf-09",100]],"events":[{"eventId":"ev_7f1","userId":"u_2290","courseId":"web-http-fundamentals","lessonId":"whf-10","percent":80},{"eventId":"ev_7e9","userId":"u_2290","courseId":"web-http-fundamentals","lessonId":"whf-10","percent":40},{"eventId":"ev_7f1","userId":"u_2290","courseId":"web-http-fundamentals","lessonId":"whf-10","percent":80},{"eventId":"ev_802","userId":"u_2290","courseId":"web-http-fundamentals","lessonId":"whf-10","percent":100},{"eventId":"ev_802","userId":"u_2290","courseId":"web-http-fundamentals","lessonId":"whf-10","percent":100},{"eventId":"ev_7fa","userId":"u_2290","courseId":"web-http-fundamentals","lessonId":"whf-10","percent":90}]}', '"ev_7f1 u_2290 web-http-fundamentals/whf-10 80 -> applied: lesson 80%, course 98%\nev_7e9 u_2290 web-http-fundamentals/whf-10 40 -> stale: lesson stays 80%, course 98%\nev_7f1 u_2290 web-http-fundamentals/whf-10 80 -> duplicate\nev_802 u_2290 web-http-fundamentals/whf-10 100 -> applied: lesson 100%, course 100%, course completed\nev_802 u_2290 web-http-fundamentals/whf-10 100 -> duplicate\nev_7fa u_2290 web-http-fundamentals/whf-10 90 -> stale: lesson stays 100%, course 100%\npublished: course.completed u_2290 web-http-fundamentals\nu_2290 web-http-fundamentals: whf-01=100 whf-02=100 whf-03=100 whf-04=100 whf-05=100 whf-06=100 whf-07=100 whf-08=100 whf-09=100 whf-10=100"', 3, true, false, 1),
@@ -953,7 +953,7 @@ VALUES ('chal_quiz_nmm_331', (SELECT id FROM catalog.course WHERE public_id = 'n
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_331');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_331');
 WITH q AS (
@@ -1061,7 +1061,7 @@ VALUES ('chal_quiz_nmm_411', (SELECT id FROM catalog.course WHERE public_id = 'n
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_411');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_411');
 WITH q AS (
@@ -1250,17 +1250,17 @@ VALUES ('chal_coding_nmm_412', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_412');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_412'), 1, 'Which of the two imports follows the domain - does an enrollment need a course, or does a course need its enrollments? The other import exists for a single read: which one?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_412'), 2, 'Look at what CourseService really uses from EnrollmentService: one method that only asks EnrollmentRepository for a count. Where could EnrollmentRepository live so that both CourseModule and EnrollmentModule can import it without importing each other?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_412'), 3, 'A similar case: UserModule imports LeaderboardModule to show a user''s rank, and LeaderboardModule imports UserModule to show display names. Moving ScoreRepository into a ScoreDataModule that imports nothing and exports it lets UserModule read the rank from ScoreDataModule, while LeaderboardModule imports UserModule and ScoreDataModule. ScoreRepository stays in the providers of ScoreDataModule only, so there is still one instance.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_412'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_412'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_412');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_412'), 'Boots and lists the catalog with learner counts', '["catalog"]', '"boot: ok, init order CourseModule -> EnrollmentModule -> AppModule\ncatalog: ts-basics 2, nest-intro 0, nest-arch 0, sql-basics 1"', 3, true, false, 1),
@@ -1290,7 +1290,7 @@ VALUES ('chal_quiz_nmm_421', (SELECT id FROM catalog.course WHERE public_id = 'n
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_421');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_421');
 WITH q AS (
@@ -1354,17 +1354,17 @@ VALUES ('chal_coding_nmm_422', (SELECT id FROM catalog.course WHERE public_id = 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_422');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_422'), 1, 'The validator checks displayName, bio and avatarUrl. What happens to a fourth property in the body - which object does the function return, and what does the repository do with it?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_422'), 2, 'Look at the last line of validateUpdateProfile() and at the `as UpdateProfileDto` cast. Does a cast change the object at runtime? Then look at how UsersRepository.updateProfile() copies the changes.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_422'), 3, 'A similar case: validating { title, price } for a product. `Object.keys(input).filter((key) => ![''title'', ''price''].includes(key))` lists the keys to reject, and `const product = {}; if (typeof input.title === ''string'') product.title = input.title;` builds a new object instead of returning the input. An array lookup does not see inherited names such as toString, while `key in { title: true }` does.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_422'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_422'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_422');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_nmm_422'), 'Updates displayName, bio and avatarUrl', '{"userId":"u1","body":"{\"displayName\":\"Lan Tran\",\"bio\":\"Backend learner. NestJS and SQL.\",\"avatarUrl\":\"https://cdn.codedev.test/avatars/u1.png\"}"}', '"status 200: updated\nrepository: updateProfile(u1, {\"displayName\":\"Lan Tran\",\"bio\":\"Backend learner. NestJS and SQL.\",\"avatarUrl\":\"https://cdn.codedev.test/avatars/u1.png\"})\nu1: displayName \"Lan Tran\", bio \"Backend learner. NestJS and SQL.\", avatarUrl \"https://cdn.codedev.test/avatars/u1.png\", role learner, isAdmin false, exp 1240"', 3, true, false, 1),
@@ -1394,7 +1394,7 @@ VALUES ('chal_quiz_nmm_431', (SELECT id FROM catalog.course WHERE public_id = 'n
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_431');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nmm_431');
 WITH q AS (

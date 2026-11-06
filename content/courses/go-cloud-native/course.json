@@ -1,11 +1,11 @@
 {
   "publicId": "go-cloud-native",
   "title": "Cloud-Native Go: Building an API Gateway",
-  "concept": "Build the core of an API gateway in Go: middleware chains, per-client rate limiting, validation, consistent-hash load balancing, health checks, caching, graceful shutdown, structured logs and metrics.",
-  "description": "Build the core of an API gateway in Go: middleware chains, per-client rate limiting, validation, consistent-hash load balancing, health checks, caching, graceful shutdown, structured logs and metrics. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "concept": "Build the core of Rice Rocket's API gateway with Go's net/http: method and path routing (Go 1.22+ ServeMux), middleware chains, per-client rate limiting, RFC 9457 problem details, consistent-hash upstreams, health checks and circuit breaking, a TTL cache with single-flight, graceful shutdown behind Kubernetes probes, log/slog and latency histograms. Challenges are Go programs graded in the code runner.",
+  "description": "Build the core of Rice Rocket's API gateway with Go's net/http: method and path routing (Go 1.22+ ServeMux), middleware chains, per-client rate limiting, RFC 9457 problem details, consistent-hash upstreams, health checks and circuit breaking, a TTL cache with single-flight, graceful shutdown behind Kubernetes probes, log/slog and latency histograms. 8 lessons on one project, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594578/codedev/courses/go-cloud-native/cover",
   "level": "advanced",
-  "durationMinutes": 180,
+  "durationMinutes": 140,
   "instructor": "CodeDev Engineering Team",
   "language": "Go",
   "category": "Microservices",
@@ -40,29 +40,66 @@
     "grow_in_role",
     "build_projects"
   ],
-  "prerequisites": [
-    "go-foundations"
+  "prerequisites": [],
+  "completionRules": {},
+  "domain": "backend",
+  "learningOutcomes": [
+    {
+      "code": "http-middleware",
+      "text": "Route requests and compose middleware with net/http, and answer errors as problem details."
+    },
+    {
+      "code": "traffic-control",
+      "text": "Limit each client fairly and keep upstream choice stable with consistent hashing."
+    },
+    {
+      "code": "resilience",
+      "text": "Stop sending traffic to failing upstreams and collapse duplicate work with caching and single-flight."
+    },
+    {
+      "code": "operability",
+      "text": "Shut down without dropping requests and expose logs and metrics that explain an incident."
+    }
   ],
-  "modules": [],
-  "outline": [
+  "testedVersions": {
+    "Go": "1.25 (to verify)"
+  },
+  "lastReviewedAt": "2026-11-06",
+  "sourceLinks": [
+    "https://pkg.go.dev/net/http",
+    "https://go.dev/blog/routing-enhancements",
+    "https://pkg.go.dev/log/slog",
+    "https://pkg.go.dev/golang.org/x/sync/singleflight",
+    "https://www.rfc-editor.org/rfc/rfc9457"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges run Go programs on test inputs in the code runner, with simulated clocks and upstreams instead of real network calls.",
+    "testedVersions are not yet re-checked against the live tools."
+  ],
+  "template": "core-first",
+  "modules": [
     {
       "orderIndex": 1,
-      "title": "The Gateway",
+      "title": "The gateway",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Routing & middleware chains with net/http",
-          "challenges": "Q(m) + C(m)"
+          "folder": "01-routing-middleware",
+          "title": "Routing and middleware chains with net/http",
+          "sanityId": "lesson-gcn-1-1"
         },
         {
           "orderIndex": 2,
-          "title": "Per-client rate limiting (token bucket)",
-          "challenges": "C(m)"
+          "folder": "02-rate-limiting",
+          "title": "Per-client rate limiting with a token bucket",
+          "sanityId": "lesson-gcn-1-2"
         },
         {
           "orderIndex": 3,
-          "title": "Request validation & JSON error responses",
-          "challenges": "F(m)"
+          "folder": "03-validation-problem-details",
+          "title": "Request validation and problem details",
+          "sanityId": "lesson-gcn-1-3"
         }
       ]
     },
@@ -72,39 +109,39 @@
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Consistent hashing for load balancing",
-          "challenges": "C(h)"
+          "folder": "04-consistent-hashing",
+          "title": "Consistent hashing for upstream selection",
+          "sanityId": "lesson-gcn-2-1"
         },
         {
           "orderIndex": 2,
-          "title": "Health checks & circuit breaking",
-          "challenges": "Q(m) + C(m)"
+          "folder": "05-health-circuit-breaking",
+          "title": "Health checks and circuit breaking",
+          "sanityId": "lesson-gcn-2-2"
         },
         {
           "orderIndex": 3,
-          "title": "TTL cache & single-flight",
-          "challenges": "C(h)"
+          "folder": "06-cache-singleflight",
+          "title": "A TTL cache with single-flight",
+          "sanityId": "lesson-gcn-2-3"
         }
       ]
     },
     {
       "orderIndex": 3,
-      "title": "Running It",
+      "title": "Running it",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Graceful shutdown & Kubernetes probes",
-          "challenges": "Q(m)"
+          "folder": "07-graceful-shutdown",
+          "title": "Graceful shutdown behind Kubernetes probes",
+          "sanityId": "lesson-gcn-3-1"
         },
         {
           "orderIndex": 2,
-          "title": "Structured logging with log/slog",
-          "challenges": "Q(e) + C(m)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "Metrics: histograms & percentiles",
-          "challenges": "C(m)"
+          "folder": "08-slog-metrics",
+          "title": "Structured logs with log/slog and latency histograms",
+          "sanityId": "lesson-gcn-3-2"
         }
       ]
     }

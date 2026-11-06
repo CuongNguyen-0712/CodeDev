@@ -1,0 +1,40 @@
+[
+  {
+    "id": "only-server-changed",
+    "label": "The courier did not touch it: take the api's value",
+    "code": "if (same(local[f], base[f])) {\n    merged[f] = remote[f] ?? null;\n    continue;\n}"
+  },
+  {
+    "id": "only-courier-changed",
+    "label": "Only the courier changed it: keep the edit",
+    "code": "if (same(remote[f], base[f])) {\n    merged[f] = local[f] ?? null;\n    continue;\n}"
+  },
+  {
+    "id": "both-changed",
+    "label": "Both changed it: apply the field's policy",
+    "code": "const rule = policy[f] ?? \"server\";\nif (rule === \"device\") merged[f] = local[f] ?? null;\nelse if (rule === \"union\") merged[f] = unionOf(local[f], remote[f]);\nelse {\n    merged[f] = remote[f] ?? null;\n    conflicts.push(f);\n}"
+  },
+  {
+    "id": "union-lists",
+    "label": "The items of both lists, each once, sorted",
+    "code": "return [...new Set([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])])].sort();"
+  },
+  {
+    "id": "newest-timestamp-wins",
+    "label": "Both changed it: apply the field's policy",
+    "code": "const localNewer = String(local.updatedAt) > String(remote.updatedAt);\nmerged[f] = (localNewer ? local[f] : remote[f]) ?? null;",
+    "distractor": true
+  },
+  {
+    "id": "server-copy-wins",
+    "label": "Only the courier changed it: keep the edit",
+    "code": "if (same(remote[f], base[f])) {\n    merged[f] = remote[f] ?? null;\n    continue;\n}",
+    "distractor": true
+  },
+  {
+    "id": "union-concat",
+    "label": "The items of both lists, each once, sorted",
+    "code": "return [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].sort();",
+    "distractor": true
+  }
+]

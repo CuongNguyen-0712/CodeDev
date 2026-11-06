@@ -1,0 +1,45 @@
+[
+  {
+    "id": "bucket-state",
+    "label": "A full bucket, its clock and one lock for all callers",
+    "code": "self.rate = rate\nself.capacity = capacity\nself.tokens = float(capacity)\nself.updated = asyncio.get_running_loop().time()\nself.paused_until = 0.0\nself.lock = asyncio.Lock()"
+  },
+  {
+    "id": "refill",
+    "label": "Add the tokens earned since the last look, up to capacity",
+    "code": "self.tokens = min(self.capacity, self.tokens + (now - self.updated) * self.rate)\nself.updated = now"
+  },
+  {
+    "id": "take-or-wait",
+    "label": "Take a token, or wait exactly until the next one",
+    "code": "async with self.lock:\n    while loop.time() < self.paused_until:\n        await asyncio.sleep(self.paused_until - loop.time())\n    self._refill(loop.time())\n    if self.tokens < 1:\n        await asyncio.sleep((1 - self.tokens) / self.rate)\n        self._refill(loop.time())\n    self.tokens -= 1"
+  },
+  {
+    "id": "pause-on-429",
+    "label": "Pause every sender for the Retry-After time",
+    "code": "bucket.paused_until = max(bucket.paused_until, loop.time() + retry_after)"
+  },
+  {
+    "id": "fan-out",
+    "label": "Send every message concurrently and wait for all of them",
+    "code": "async with asyncio.TaskGroup() as tg:\n    for message in messages:\n        tg.create_task(one(message))"
+  },
+  {
+    "id": "pause-own-task",
+    "label": "Pause every sender for the Retry-After time",
+    "code": "await asyncio.sleep(retry_after)",
+    "distractor": true
+  },
+  {
+    "id": "refill-no-cap",
+    "label": "Add the tokens earned since the last look, up to capacity",
+    "code": "self.tokens = self.tokens + (now - self.updated) * self.rate\nself.updated = now",
+    "distractor": true
+  },
+  {
+    "id": "take-or-wait-per-task",
+    "label": "Take a token, or wait exactly until the next one",
+    "code": "while loop.time() < self.paused_until:\n    await asyncio.sleep(self.paused_until - loop.time())\nself._refill(loop.time())\nif self.tokens < 1:\n    await asyncio.sleep(1 / self.rate)\nself.tokens -= 1",
+    "distractor": true
+  }
+]

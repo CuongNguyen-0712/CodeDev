@@ -1,0 +1,45 @@
+[
+  {
+    "id": "missing-required",
+    "label": "A case for each required property left out",
+    "code": "if name in required:\n    body = {k: v for k, v in base.items() if k != name}\n    cases.append({\"id\": f\"missing-{name}\", \"body\": body, \"expect\": \"rejected\"})"
+  },
+  {
+    "id": "wrong-type",
+    "label": "The example sent as the wrong JSON type",
+    "code": "wrong = str(spec[\"example\"]) if kind == \"integer\" else 12345\ncase(f\"{name}-wrong-type\", name, wrong, \"rejected\")"
+  },
+  {
+    "id": "integer-bounds",
+    "label": "Both sides of an integer's minimum and maximum",
+    "code": "if kind == \"integer\":\n    if \"minimum\" in spec:\n        case(f\"{name}-at-min\", name, spec[\"minimum\"], \"accepted\")\n        case(f\"{name}-below-min\", name, spec[\"minimum\"] - 1, \"rejected\")\n    if \"maximum\" in spec:\n        case(f\"{name}-at-max\", name, spec[\"maximum\"], \"accepted\")\n        case(f\"{name}-above-max\", name, spec[\"maximum\"] + 1, \"rejected\")"
+  },
+  {
+    "id": "string-lengths",
+    "label": "Both sides of a string's length limits",
+    "code": "if kind == \"string\":\n    if spec.get(\"minLength\", 0) > 0:\n        case(f\"{name}-at-min-length\", name, \"x\" * spec[\"minLength\"], \"accepted\")\n        case(f\"{name}-under-min-length\", name, \"x\" * (spec[\"minLength\"] - 1), \"rejected\")\n    if \"maxLength\" in spec:\n        case(f\"{name}-at-max-length\", name, \"x\" * spec[\"maxLength\"], \"accepted\")\n        case(f\"{name}-over-max-length\", name, \"x\" * (spec[\"maxLength\"] + 1), \"rejected\")"
+  },
+  {
+    "id": "enum-values",
+    "label": "Every allowed value, and one that is not allowed",
+    "code": "if \"enum\" in spec:\n    for value in spec[\"enum\"]:\n        case(f\"{name}-is-{value}\", name, value, \"accepted\")\n    case(f\"{name}-not-in-enum\", name, f\"not-a-{name}\", \"rejected\")"
+  },
+  {
+    "id": "integer-bounds-far-values",
+    "label": "Both sides of an integer's minimum and maximum",
+    "code": "if kind == \"integer\":\n    if \"minimum\" in spec:\n        case(f\"{name}-at-min\", name, spec[\"minimum\"], \"accepted\")\n        case(f\"{name}-below-min\", name, spec[\"minimum\"] - 100, \"rejected\")\n    if \"maximum\" in spec:\n        case(f\"{name}-at-max\", name, spec[\"maximum\"], \"accepted\")\n        case(f\"{name}-above-max\", name, spec[\"maximum\"] + 100, \"rejected\")",
+    "distractor": true
+  },
+  {
+    "id": "missing-required-first-only",
+    "label": "A case for each required property left out",
+    "code": "if required and name == required[0]:\n    body = {k: v for k, v in base.items() if k != name}\n    cases.append({\"id\": f\"missing-{name}\", \"body\": body, \"expect\": \"rejected\"})",
+    "distractor": true
+  },
+  {
+    "id": "string-lengths-far-values",
+    "label": "Both sides of a string's length limits",
+    "code": "if kind == \"string\":\n    if spec.get(\"minLength\", 0) > 0:\n        case(f\"{name}-at-min-length\", name, \"x\" * spec[\"minLength\"], \"accepted\")\n        case(f\"{name}-under-min-length\", name, \"\", \"rejected\")\n    if \"maxLength\" in spec:\n        case(f\"{name}-at-max-length\", name, \"x\" * spec[\"maxLength\"], \"accepted\")\n        case(f\"{name}-over-max-length\", name, \"x\" * (spec[\"maxLength\"] * 2), \"rejected\")",
+    "distractor": true
+  }
+]

@@ -1,0 +1,45 @@
+[
+  {
+    "id": "resolve-columns",
+    "label": "Match each file column to a table column",
+    "code": "names = {}\nfor target, spec in CONTRACT.items():\n    for name in [target, *spec[\"aliases\"]]:\n        names[name] = target\nfor i, raw in enumerate(header):\n    key = raw.strip().lower()\n    mapping[i] = names.get(key, key)"
+  },
+  {
+    "id": "missing-required",
+    "label": "Refuse a file without a required column",
+    "code": "missing = [c for c, spec in CONTRACT.items() if spec[\"required\"] and c not in present]\nif missing:\n    return {\"status\": \"rejected\", \"reason\": \"missing required column: \" + \", \".join(missing)}"
+  },
+  {
+    "id": "convert-row",
+    "label": "Convert one row by the contract, or record why not",
+    "code": "for i, value in enumerate(row):\n    column = mapping[i]\n    spec = CONTRACT.get(column, {\"type\": \"str\", \"required\": False})\n    try:\n        record[column] = convert(spec[\"type\"], value)\n    except ValueError:\n        error = f\"line {line}: {column} is not {spec['type']}: {value!r}\"\n        break\n    if record[column] is None and spec[\"required\"]:\n        error = f\"line {line}: {column} is empty\"\n        break"
+  },
+  {
+    "id": "reject-threshold",
+    "label": "Refuse the file when too many rows are bad",
+    "code": "if rows and len(bad) / len(rows) > 0.05:\n    return {\"status\": \"rejected\", \"reason\": f\"{len(bad)} of {len(rows)} rows failed checks\"}"
+  },
+  {
+    "id": "new-columns",
+    "label": "Add the columns the table does not know yet",
+    "code": "known = {r[1] for r in wh.execute(\"PRAGMA table_info(stg_menu_items)\")}\nadded = [c for c in dict.fromkeys(mapping.values()) if c not in known]\nfor column in added:\n    wh.execute(f'ALTER TABLE stg_menu_items ADD COLUMN \"{column}\" TEXT')"
+  },
+  {
+    "id": "missing-required-as-null",
+    "label": "Refuse a file without a required column",
+    "code": "missing = [c for c, spec in CONTRACT.items() if spec[\"required\"] and c not in present]\nif missing:\n    print(\"warning: missing \" + \", \".join(missing), file=sys.stderr)",
+    "distractor": true
+  },
+  {
+    "id": "new-columns-ignored",
+    "label": "Add the columns the table does not know yet",
+    "code": "known = {r[1] for r in wh.execute(\"PRAGMA table_info(stg_menu_items)\")}\nadded = []",
+    "distractor": true
+  },
+  {
+    "id": "resolve-by-position",
+    "label": "Match each file column to a table column",
+    "code": "order = list(CONTRACT)\nfor i, raw in enumerate(header):\n    mapping[i] = order[i] if i < len(order) else raw.strip().lower()",
+    "distractor": true
+  }
+]

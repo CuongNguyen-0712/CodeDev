@@ -1,0 +1,45 @@
+[
+  {
+    "id": "assert-budgets",
+    "label": "Check every budget that names this page",
+    "code": "for (const a of config.assertions) {\n    if (!matchesPath(a.match, url)) continue;\n    const value = median(runs.map((r) => r[a.metric]));\n    if (value > a.max) lines.push({ level: a.level, text: `${a.level} ${url} ${a.metric} ${fmt(value)} > ${a.max}` });\n}"
+  },
+  {
+    "id": "regression-vs-main",
+    "label": "Fail when a metric grew too much since main",
+    "code": "const base = baseline[url];\nif (base) {\n    for (const [metric, limit] of Object.entries(config.regression || {})) {\n        const before = median(base.runs.map((r) => r[metric]));\n        const now = median(runs.map((r) => r[metric]));\n        const growth = (now - before) / before;\n        if (growth > limit) lines.push({ level: \"error\", text: `error ${url} ${metric} +${fmt(growth * 100)}% vs main (${fmt(before)} -> ${fmt(now)})` });\n    }\n}"
+  },
+  {
+    "id": "final-status",
+    "label": "Fail on any error, warn when there are only warnings",
+    "code": "const status = lines.some((l) => l.level === \"error\") ? \"fail\" : lines.length ? \"warn\" : \"pass\";"
+  },
+  {
+    "id": "median-of-runs",
+    "label": "The middle value of the runs, robust to one noisy run",
+    "code": "function median(values) {\n    const sorted = [...values].sort((a, b) => a - b);\n    const mid = Math.floor(sorted.length / 2);\n    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;\n}"
+  },
+  {
+    "id": "matches-path",
+    "label": "A budget's page pattern, * is one path segment",
+    "code": "function matchesPath(pattern, url) {\n    const parts = pattern.split(\"*\").map((p) => p.replace(/[.+?^${}()|[\\]\\\\]/g, \"\\\\$&\"));\n    return new RegExp(`^${parts.join(\"[^/]+\")}$`).test(url);\n}"
+  },
+  {
+    "id": "final-status-warn-fails",
+    "label": "Fail on any error, warn when there are only warnings",
+    "code": "const status = lines.length ? \"fail\" : \"pass\";",
+    "distractor": true
+  },
+  {
+    "id": "matches-path-prefix",
+    "label": "A budget's page pattern, * is one path segment",
+    "code": "function matchesPath(pattern, url) {\n    return url === pattern || (pattern.endsWith(\"*\") && url.startsWith(pattern.slice(0, -1)));\n}",
+    "distractor": true
+  },
+  {
+    "id": "median-of-runs-mean",
+    "label": "The middle value of the runs, robust to one noisy run",
+    "code": "function median(values) {\n    return values.reduce((sum, v) => sum + v, 0) / values.length;\n}",
+    "distractor": true
+  }
+]

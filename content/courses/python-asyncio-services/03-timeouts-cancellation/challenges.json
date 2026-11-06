@@ -1,0 +1,219 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pas_131",
+      "name": "timeouts-cancellation-quiz",
+      "type": "quiz",
+      "title": "Read the checkout that hung",
+      "description": "Three statements about the checkout that waited 90 seconds on the payment provider, and the timeouts the team added afterwards. Decide whether each one is true.",
+      "difficulty": "hard",
+      "outcomes": [
+        "structured-concurrency"
+      ],
+      "points": 10,
+      "hints": [
+        "Since Python 3.8, which class does `asyncio.CancelledError` inherit from, and does `except Exception` catch it? Where does `asyncio.timeout` turn the cancellation into `TimeoutError`?",
+        "Add up the worst case of each `async with asyncio.timeout(...)` block when they run one after another.",
+        "`asyncio.timeout` cancels the task and then expects that cancellation to come back out of the block. What happens to it if the code inside returns normally instead?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The payment step after the first fix:\n\n```python\nasync with asyncio.timeout(2.0):\n    try:\n        charge = await payments.charge(order_id, amount)\n    except Exception:\n        log.exception(\"charge failed\")\n        return {\"status\": \"failed\"}\n```\n\nStatement: \"`except Exception` swallows the timeout's cancellation, so a payment provider that hangs still makes this request hang.\"",
+          "explanation": "False. Since Python 3.8 `asyncio.CancelledError` inherits from `BaseException`, not `Exception`, so `except Exception` does not catch it. When the 2 s run out, `asyncio.timeout` cancels the task, the `CancelledError` passes through the `except Exception`, and the `async with` turns it into `TimeoutError` at the block's exit. A bare `except:` or `except BaseException:` that does not re-raise would swallow it. The misconception is that every `except` around an `await` breaks timeouts.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The second fix gave every step its own budget:\n\n```python\nasync with asyncio.timeout(2.0):\n    reservation = await stock.reserve(order_id)\nasync with asyncio.timeout(2.0):\n    charge = await payments.charge(order_id, amount)\nasync with asyncio.timeout(2.0):\n    await ledger.record(order_id, charge)\n```\n\nStatement: \"Each step is limited to 2 s, so the checkout as a whole never takes more than 2 s.\"",
+          "explanation": "False. Three blocks one after another allow up to 2 + 2 + 2 = 6 s, and the client's own timeout (or the load balancer's) fires long before. A request needs one budget for the whole operation: one `async with asyncio.timeout(2.0)` around the steps, or `asyncio.timeout_at(deadline)` with a deadline computed once and passed down. The misconception is that per-step limits add up to the request's limit.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A teammate wanted to release the stock when the client disconnects:\n\n```python\ntry:\n    async with asyncio.timeout(2.0):\n        charge = await payments.charge(order_id, amount)\nexcept asyncio.CancelledError:\n    await stock.release(reservation)\n    return {\"status\": \"cancelled\"}\n```\n\nStatement: \"Returning from the `except asyncio.CancelledError` clause swallows the cancellation; the cleanup should run (for example in `finally`) and the `CancelledError` must propagate, or the timeout cannot turn its cancellation into `TimeoutError`.\"",
+          "explanation": "True. `asyncio.timeout` works by cancelling the task and catching that same cancellation at the end of the block. Here the cancellation is caught first and turned into a normal return, so a slow charge returns `{\"status\": \"cancelled\"}` instead of a timeout, and a real client disconnect is reported as a normal result to code that expects the task to be cancelled. The asyncio documentation asks for `CancelledError` to be re-raised after cleanup; `try/finally` (or `except CancelledError: ...; raise`) does that. The misconception is that cancellation is an error you may handle and continue.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pas_132",
+      "name": "checkout-deadline-cancellation",
+      "type": "mini_coding",
+      "title": "Give the checkout one deadline and clean up on cancel",
+      "description": "Rice Rocket's checkout reserves the dishes, charges the card and writes a ledger row. The payment provider once hung for 90 seconds, the first timeout fix gave each step its own 2 s, and a disconnecting client left dishes reserved forever. The editor holds `checkout` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that reserving and charging share one 2.0 s budget (then `{\"status\": \"timeout\"}`), stock of an unpaid checkout is released on a timeout, a declined card and a disconnect, a cancellation keeps propagating after that cleanup, and a successful charge always gets its ledger row even if the client disconnects during the write. Run plays one checkout on a simulated clock and reports what the caller saw, the stock still held and the ledger.",
+      "difficulty": "medium",
+      "outcomes": [
+        "structured-concurrency"
+      ],
+      "points": 30,
+      "hints": [
+        "Walk three timelines: a payment that takes 1.95 s, a client that disconnects at 0.5 s (during the charge), and one that disconnects at 0.7 s (during the ledger write). Where is the task when it is cancelled, and what must still happen?",
+        "Look at one `async with asyncio.timeout(...)` around several awaits, `except TimeoutError`, `try/finally` for cleanup that must run however the block ends, and `asyncio.shield` for a step that must finish.",
+        "A booking flow with the same rules: `async with asyncio.timeout(3): seat = await seats.hold(id); ticket = await tickets.issue(id)` inside `try`, `except TimeoutError: return {\"status\": \"timeout\"}`, a `finally:` that releases the seat when no ticket was issued, and `await asyncio.shield(audit.write(ticket))` after the block."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "app/checkout.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A normal checkout: paid, stock kept for the order, one ledger row",
+          "input": {
+            "order_id": "o2001"
+          },
+          "expected": {
+            "outcome": {
+              "status": "paid",
+              "charge": "ch-o2001"
+            },
+            "ended_s": 0.8,
+            "stock_held": [
+              "r-o2001"
+            ],
+            "released": 0,
+            "ledger": [
+              [
+                "o2001",
+                "ch-o2001"
+              ]
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The provider takes 1.95 s: the shared 2 s budget runs out, the stock is released",
+          "input": {
+            "order_id": "o2002",
+            "payment_s": 1.95
+          },
+          "expected": {
+            "outcome": {
+              "status": "timeout"
+            },
+            "ended_s": 2.05,
+            "stock_held": [],
+            "released": 1,
+            "ledger": []
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A declined card: declined, the stock is released",
+          "input": {
+            "order_id": "o2003",
+            "declined": true
+          },
+          "expected": {
+            "outcome": {
+              "status": "declined"
+            },
+            "ended_s": 0.65,
+            "stock_held": [],
+            "released": 1,
+            "ledger": []
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "The client disconnects during the charge: cancelled, the stock is released",
+          "input": {
+            "order_id": "o2004",
+            "payment_s": 1,
+            "disconnect_at": 0.5
+          },
+          "expected": {
+            "outcome": "cancelled",
+            "ended_s": 0.55,
+            "stock_held": [],
+            "released": 1,
+            "ledger": []
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "The client disconnects during the ledger write: cancelled, but the row is written",
+          "input": {
+            "order_id": "o2005",
+            "payment_s": 0.5,
+            "disconnect_at": 0.7
+          },
+          "expected": {
+            "outcome": "cancelled",
+            "ended_s": 0.7,
+            "stock_held": [
+              "r-o2005"
+            ],
+            "released": 0,
+            "ledger": [
+              [
+                "o2005",
+                "ch-o2005"
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "The provider hangs: timeout at 2 s instead of waiting",
+          "input": {
+            "order_id": "o2006",
+            "payment_s": 90
+          },
+          "expected": {
+            "outcome": {
+              "status": "timeout"
+            },
+            "ended_s": 2.05,
+            "stock_held": [],
+            "released": 1,
+            "ledger": []
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

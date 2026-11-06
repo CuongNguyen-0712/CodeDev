@@ -1,0 +1,46 @@
+[
+  {
+    "id": "namespace",
+    "label": "A prefix unique to this worker and this test",
+    "code": "return f\"{ctx['worker_id']}-{ctx['test_name']}\""
+  },
+  {
+    "id": "own-courier",
+    "label": "A courier no other running test can use",
+    "code": "status, body = api.post(\"/couriers\", {\"name\": f\"QA Courier {namespace(ctx)}\"})\nassert status == 201, f\"POST /couriers -> {status} {body}\"\nreturn body[\"id\"]"
+  },
+  {
+    "id": "count-my-orders",
+    "label": "Count only the orders this test created",
+    "code": "return len(api.get(f\"/orders?customer_id={customer_id}\")[1])"
+  },
+  {
+    "id": "artifact-path",
+    "label": "A file path no other test writes to",
+    "code": "return f\"{ctx['tmp_dir']}/{name}\""
+  },
+  {
+    "id": "count-all-orders",
+    "label": "Count only the orders this test created",
+    "code": "return len(api.get(\"/orders\")[1])",
+    "distractor": true
+  },
+  {
+    "id": "fixed-tmp-path",
+    "label": "A file path no other test writes to",
+    "code": "return f\"/tmp/{name}\"",
+    "distractor": true
+  },
+  {
+    "id": "namespace-test-name-only",
+    "label": "A prefix unique to this worker and this test",
+    "code": "return ctx[\"test_name\"]",
+    "distractor": true
+  },
+  {
+    "id": "seeded-courier",
+    "label": "A courier no other running test can use",
+    "code": "return 1",
+    "distractor": true
+  }
+]

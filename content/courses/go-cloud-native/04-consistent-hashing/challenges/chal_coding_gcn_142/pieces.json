@@ -1,0 +1,40 @@
+[
+  {
+    "id": "add-points",
+    "label": "One point per virtual node, then keep the points sorted",
+    "code": "for i := 0; i < r.vnodes; i++ {\n\tp := hash(upstream + \"#\" + strconv.Itoa(i))\n\tr.points = append(r.points, p)\n\tr.owner[p] = upstream\n}\nsort.Slice(r.points, func(a, b int) bool { return r.points[a] < r.points[b] })"
+  },
+  {
+    "id": "remove-points",
+    "label": "Drop every point the upstream owns",
+    "code": "kept := r.points[:0]\nfor _, p := range r.points {\n\tif r.owner[p] == upstream {\n\t\tdelete(r.owner, p)\n\t} else {\n\t\tkept = append(kept, p)\n\t}\n}\nr.points = kept"
+  },
+  {
+    "id": "first-point",
+    "label": "Find the first point at or after the key's hash",
+    "code": "i := sort.Search(len(r.points), func(j int) bool { return r.points[j] >= h })"
+  },
+  {
+    "id": "walk-clockwise",
+    "label": "Walk clockwise past upstreams that are down, wrapping around",
+    "code": "for n := 0; n < len(r.points); n++ {\n\tif u := r.owner[r.points[(i+n)%len(r.points)]]; !down[u] {\n\t\treturn u\n\t}\n}\nreturn \"\""
+  },
+  {
+    "id": "add-points-one-per-upstream",
+    "label": "One point per virtual node, then keep the points sorted",
+    "code": "p := hash(upstream)\nr.points = append(r.points, p)\nr.owner[p] = upstream\nsort.Slice(r.points, func(a, b int) bool { return r.points[a] < r.points[b] })",
+    "distractor": true
+  },
+  {
+    "id": "first-point-modulo",
+    "label": "Find the first point at or after the key's hash",
+    "code": "i := int(h % uint64(len(r.points)))",
+    "distractor": true
+  },
+  {
+    "id": "walk-no-wrap",
+    "label": "Walk clockwise past upstreams that are down, wrapping around",
+    "code": "for n := i; n < len(r.points); n++ {\n\tif u := r.owner[r.points[n]]; !down[u] {\n\t\treturn u\n\t}\n}\nreturn \"\"",
+    "distractor": true
+  }
+]

@@ -1,0 +1,67 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_jrm_172",
+      "name": "menu-cache-stampede",
+      "type": "mini_coding",
+      "title": "Protect the menu cache from stampedes",
+      "description": "At 11:30 the cached menu of Rice Rocket's busiest restaurant expired and 800 requests went to PostgreSQL at the same moment; p99 latency jumped to 3 s. Earlier fixes made it worse in other ways: every menu loaded at startup expired in the same second an hour later, and a price change was sometimes followed by a minute of old prices. The editor holds `Main.java`, the cache layer's callbacks, with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a fresh copy is a hit; a copy past its refresh time is served while one background load refreshes it; a request for a menu that is already loading waits for that load instead of starting another; each copy expires after 60 s plus a per-key jitter of up to 6 s, with refresh starting 10 s earlier; and a price change is committed before the cached menu is dropped. Run replays request bursts and price changes on a timeline and counts database loads.",
+      "difficulty": "medium",
+      "outcomes": [
+        "operations"
+      ],
+      "points": 30,
+      "hints": [
+        "Follow one menu through time: what happens to the requests that arrive during the 200 ms a load takes, at the moment a copy reaches its refresh time, and in the instant between dropping the cached menu and committing the new price?",
+        "Look at the order of the checks in onRequest (fresh, refresh window, a running load), at how onLoaded computes expiresAt and refreshAt, and at the order of `db.updatePrice` and `cache.evict` in onPriceChange.",
+        "A product page cache in Spring with Caffeine does the same with `Caffeine.newBuilder().refreshAfterWrite(Duration.ofSeconds(50)).expireAfterWrite(Duration.ofSeconds(60)).buildAsync(loader)`: concurrent misses share one future, a copy older than 50 s is served while it reloads, and writes call `cache.synchronous().invalidate(id)` after the transaction commits."
+      ],
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "200 requests hit a cold menu at once: one database load, the rest wait for it",
+          "input": "burst m1 0 200 1\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "requests: 200 (hit 0, stale 0, wait 199, load 1)\ndatabase loads: 1, at most 1 at once\nloads started in the busiest second after the first 30 s: 0\nold price served more than 1 s after a change: 0"
+        },
+        {
+          "name": "Steady traffic for 130 s: the menu is refreshed ahead of expiry, nobody waits after warm-up",
+          "input": "burst m1 0 1300 100\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "requests: 1300 (hit 1294, stale 4, wait 1, load 1)\ndatabase loads: 3, at most 1 at once\nloads started in the busiest second after the first 30 s: 1\nold price served more than 1 s after a change: 0"
+        },
+        {
+          "name": "50 menus loaded together do not all reload in the same second",
+          "input": "keys menu- 50 0 130 1000\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "requests: 6500 (hit 6350, stale 100, wait 0, load 50)\ndatabase loads: 150, at most 50 at once\nloads started in the busiest second after the first 30 s: 19\nold price served more than 1 s after a change: 0"
+        },
+        {
+          "name": "A price change mid-traffic: the new price is served within a second",
+          "input": "burst m1 0 1000 100\nupdate m1 30000 65000\n",
+          "hidden": true,
+          "score": 6,
+          "expected": "requests: 1001 (hit 995, stale 2, wait 2, load 2)\ndatabase loads: 3, at most 1 at once\nloads started in the busiest second after the first 30 s: 1\nold price served more than 1 s after a change: 0"
+        },
+        {
+          "name": "Two cold menus at once: one load each",
+          "input": "burst m1 0 300 1\nburst m2 0 300 1\n",
+          "hidden": true,
+          "score": 6,
+          "expected": "requests: 600 (hit 200, stale 0, wait 398, load 2)\ndatabase loads: 2, at most 2 at once\nloads started in the busiest second after the first 30 s: 0\nold price served more than 1 s after a change: 0"
+        }
+      ]
+    }
+  ]
+}

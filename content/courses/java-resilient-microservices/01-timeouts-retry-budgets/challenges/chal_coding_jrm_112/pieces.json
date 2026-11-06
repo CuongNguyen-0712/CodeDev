@@ -1,0 +1,40 @@
+[
+  {
+    "id": "attempt-timeout",
+    "label": "How long this attempt may wait for an answer",
+    "code": "int limit = Math.min(p.timeoutMs(), p.deadlineMs() - elapsed);"
+  },
+  {
+    "id": "retry-only-transient",
+    "label": "Give up at once on errors a retry cannot fix",
+    "code": "if (status != 0 && status != 429 && status < 500) {\n    return id + \" failed \" + failure + \" attempts=\" + attempt + \" elapsed=\" + elapsed;\n}"
+  },
+  {
+    "id": "backoff-before-deadline",
+    "label": "Back off before retrying, unless it hits the deadline",
+    "code": "int wait = p.backoffMs() << (attempt - 1);\nif (elapsed + wait >= p.deadlineMs()) {\n    return id + \" failed deadline attempts=\" + attempt + \" elapsed=\" + elapsed;\n}"
+  },
+  {
+    "id": "spend-retry-budget",
+    "label": "Retry only while the shared retry budget lasts",
+    "code": "if (budget.tokens < RetryBudget.ONE) {\n    return id + \" failed budget attempts=\" + attempt + \" elapsed=\" + elapsed;\n}\nbudget.tokens -= RetryBudget.ONE;"
+  },
+  {
+    "id": "attempt-timeout-fixed",
+    "label": "How long this attempt may wait for an answer",
+    "code": "int limit = p.timeoutMs();",
+    "distractor": true
+  },
+  {
+    "id": "retry-budget-ignored",
+    "label": "Retry only while the shared retry budget lasts",
+    "code": "budget.tokens -= RetryBudget.ONE;",
+    "distractor": true
+  },
+  {
+    "id": "retry-only-400",
+    "label": "Give up at once on errors a retry cannot fix",
+    "code": "if (status == 400) {\n    return id + \" failed \" + failure + \" attempts=\" + attempt + \" elapsed=\" + elapsed;\n}",
+    "distractor": true
+  }
+]

@@ -1,0 +1,1223 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pdp_132",
+      "name": "menu-file-schema-drift",
+      "type": "mini_coding",
+      "title": "Load menu files that change shape",
+      "description": "Partner restaurants send menu CSV exports from their POS vendor, and the vendor changes the columns without warning: last night `price` became `unit_price`, moved, and a new `discount_vnd` appeared, and the old positional loader put prices in the wrong column. The editor holds `pipelines/load_menu.py` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that columns are matched by name and known aliases, a file missing a required column is refused without changing the table, new columns are added to the table and reported, rows that do not convert are listed with their line, and more than 5% bad rows refuses the file. Run loads a sequence of files on SQLite and prints each result and the table.",
+      "difficulty": "medium",
+      "outcomes": [
+        "extract-load"
+      ],
+      "points": 30,
+      "hints": [
+        "Feed tonight's file to your loader in your head column by column: which table column receives `unit_price`, which receives `discount_vnd`, and what tells you the file is missing something the table cannot do without?",
+        "Look at a dictionary from every accepted name (`CONTRACT` keys plus `aliases`) to its column, `PRAGMA table_info(...)` for the columns a table has, and `ALTER TABLE ... ADD COLUMN`.",
+        "A loader for courier shift files with `courier_id` (alias `driver_id`) and `hours` might build `names = {'courier_id': 'courier_id', 'driver_id': 'courier_id', 'hours': 'hours'}`, map `header[i].strip().lower()` through it, refuse the file when `courier_id` is not among the mapped values, and `ALTER TABLE shifts ADD COLUMN \"bonus\" TEXT` when an unknown `bonus` column shows up."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "pipelines/load_menu.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Yesterday's file loads, every column matched by name",
+          "input": {
+            "files": [
+              {
+                "header": [
+                  "restaurant_id",
+                  "item_code",
+                  "item_name",
+                  "price",
+                  "available"
+                ],
+                "rows": [
+                  [
+                    "101",
+                    "PHO-01",
+                    "Pho bo tai",
+                    "55000",
+                    "true"
+                  ],
+                  [
+                    "101",
+                    "PHO-02",
+                    "Pho ga",
+                    "50000",
+                    "true"
+                  ],
+                  [
+                    "101",
+                    "BUN-01",
+                    "Bun cha",
+                    "60000",
+                    "false"
+                  ]
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "status": "loaded",
+                "loaded": 3,
+                "rejected_rows": [],
+                "new_columns": []
+              }
+            ],
+            "columns": [
+              "restaurant_id",
+              "item_code",
+              "item_name",
+              "price_vnd",
+              "available"
+            ],
+            "rows": [
+              [
+                101,
+                "BUN-01",
+                "Bun cha",
+                60000,
+                0
+              ],
+              [
+                101,
+                "PHO-01",
+                "Pho bo tai",
+                55000,
+                1
+              ],
+              [
+                101,
+                "PHO-02",
+                "Pho ga",
+                50000,
+                1
+              ]
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "price renamed to unit_price and moved: prices still land in price_vnd",
+          "input": {
+            "files": [
+              {
+                "header": [
+                  "restaurant_id",
+                  "item_code",
+                  "item_name",
+                  "price",
+                  "available"
+                ],
+                "rows": [
+                  [
+                    "101",
+                    "PHO-01",
+                    "Pho bo tai",
+                    "55000",
+                    "true"
+                  ],
+                  [
+                    "101",
+                    "PHO-02",
+                    "Pho ga",
+                    "50000",
+                    "true"
+                  ],
+                  [
+                    "101",
+                    "BUN-01",
+                    "Bun cha",
+                    "60000",
+                    "false"
+                  ]
+                ]
+              },
+              {
+                "header": [
+                  "restaurant_id",
+                  "item_code",
+                  "item_name",
+                  "available",
+                  "unit_price"
+                ],
+                "rows": [
+                  [
+                    "101",
+                    "PHO-01",
+                    "Pho bo tai",
+                    "true",
+                    "58000"
+                  ],
+                  [
+                    "101",
+                    "PHO-02",
+                    "Pho ga",
+                    "true",
+                    "52000"
+                  ],
+                  [
+                    "101",
+                    "BUN-01",
+                    "Bun cha",
+                    "true",
+                    "60000"
+                  ]
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "status": "loaded",
+                "loaded": 3,
+                "rejected_rows": [],
+                "new_columns": []
+              },
+              {
+                "status": "loaded",
+                "loaded": 3,
+                "rejected_rows": [],
+                "new_columns": []
+              }
+            ],
+            "columns": [
+              "restaurant_id",
+              "item_code",
+              "item_name",
+              "price_vnd",
+              "available"
+            ],
+            "rows": [
+              [
+                101,
+                "BUN-01",
+                "Bun cha",
+                60000,
+                1
+              ],
+              [
+                101,
+                "PHO-01",
+                "Pho bo tai",
+                58000,
+                1
+              ],
+              [
+                101,
+                "PHO-02",
+                "Pho ga",
+                52000,
+                1
+              ]
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A new column discount_vnd is added to the table, loaded and reported",
+          "input": {
+            "files": [
+              {
+                "header": [
+                  "restaurant_id",
+                  "item_code",
+                  "item_name",
+                  "price",
+                  "available"
+                ],
+                "rows": [
+                  [
+                    "101",
+                    "PHO-01",
+                    "Pho bo tai",
+                    "55000",
+                    "true"
+                  ],
+                  [
+                    "101",
+                    "PHO-02",
+                    "Pho ga",
+                    "50000",
+                    "true"
+                  ],
+                  [
+                    "101",
+                    "BUN-01",
+                    "Bun cha",
+                    "60000",
+                    "false"
+                  ]
+                ]
+              },
+              {
+                "header": [
+                  "restaurant_id",
+                  "item_code",
+                  "item_name",
+                  "available",
+                  "unit_price",
+                  "discount_vnd"
+                ],
+                "rows": [
+                  [
+                    "101",
+                    "PHO-01",
+                    "Pho bo tai",
+                    "true",
+                    "58000",
+                    "5000"
+                  ],
+                  [
+                    "101",
+                    "PHO-02",
+                    "Pho ga",
+                    "true",
+                    "52000",
+                    "0"
+                  ],
+                  [
+                    "101",
+                    "BUN-01",
+                    "Bun cha",
+                    "true",
+                    "60000",
+                    ""
+                  ]
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "status": "loaded",
+                "loaded": 3,
+                "rejected_rows": [],
+                "new_columns": []
+              },
+              {
+                "status": "loaded",
+                "loaded": 3,
+                "rejected_rows": [],
+                "new_columns": [
+                  "discount_vnd"
+                ]
+              }
+            ],
+            "columns": [
+              "restaurant_id",
+              "item_code",
+              "item_name",
+              "price_vnd",
+              "available",
+              "discount_vnd"
+            ],
+            "rows": [
+              [
+                101,
+                "BUN-01",
+                "Bun cha",
+                60000,
+                1,
+                null
+              ],
+              [
+                101,
+                "PHO-01",
+                "Pho bo tai",
+                58000,
+                1,
+                "5000"
+              ],
+              [
+                101,
+                "PHO-02",
+                "Pho ga",
+                52000,
+                1,
+                "0"
+              ]
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A file without any price column is refused and the table is unchanged",
+          "input": {
+            "files": [
+              {
+                "header": [
+                  "restaurant_id",
+                  "item_code",
+                  "item_name",
+                  "price",
+                  "available"
+                ],
+                "rows": [
+                  [
+                    "101",
+                    "PHO-01",
+                    "Pho bo tai",
+                    "55000",
+                    "true"
+                  ],
+                  [
+                    "101",
+                    "PHO-02",
+                    "Pho ga",
+                    "50000",
+                    "true"
+                  ],
+                  [
+                    "101",
+                    "BUN-01",
+                    "Bun cha",
+                    "60000",
+                    "false"
+                  ]
+                ]
+              },
+              {
+                "header": [
+                  "restaurant_id",
+                  "item_code",
+                  "item_name",
+                  "available"
+                ],
+                "rows": [
+                  [
+                    "101",
+                    "PHO-01",
+                    "Pho bo tai",
+                    "true"
+                  ],
+                  [
+                    "101",
+                    "PHO-02",
+                    "Pho ga",
+                    "true"
+                  ],
+                  [
+                    "101",
+                    "BUN-01",
+                    "Bun cha",
+                    "false"
+                  ]
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "status": "loaded",
+                "loaded": 3,
+                "rejected_rows": [],
+                "new_columns": []
+              },
+              {
+                "status": "rejected",
+                "reason": "missing required column: price_vnd"
+              }
+            ],
+            "columns": [
+              "restaurant_id",
+              "item_code",
+              "item_name",
+              "price_vnd",
+              "available"
+            ],
+            "rows": [
+              [
+                101,
+                "BUN-01",
+                "Bun cha",
+                60000,
+                0
+              ],
+              [
+                101,
+                "PHO-01",
+                "Pho bo tai",
+                55000,
+                1
+              ],
+              [
+                101,
+                "PHO-02",
+                "Pho ga",
+                50000,
+                1
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "3 bad prices in 20 rows refuse the file; 1 in 40 loads the rest and lists the line",
+          "input": {
+            "files": [
+              {
+                "header": [
+                  " Restaurant_ID ",
+                  "SKU",
+                  "Name",
+                  "Price",
+                  "Available"
+                ],
+                "rows": [
+                  [
+                    "202",
+                    "COM-01",
+                    "Com tam 1",
+                    "40000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-02",
+                    "Com tam 2",
+                    "41000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-03",
+                    "Com tam 3",
+                    "42000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-04",
+                    "Com tam 4",
+                    "45k",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-05",
+                    "Com tam 5",
+                    "44000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-06",
+                    "Com tam 6",
+                    "45000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-07",
+                    "Com tam 7",
+                    "46000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-08",
+                    "Com tam 8",
+                    "47000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-09",
+                    "Com tam 9",
+                    "48000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-10",
+                    "Com tam 10",
+                    "45k",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-11",
+                    "Com tam 11",
+                    "50000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-12",
+                    "Com tam 12",
+                    "51000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-13",
+                    "Com tam 13",
+                    "52000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-14",
+                    "Com tam 14",
+                    "53000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-15",
+                    "Com tam 15",
+                    "54000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-16",
+                    "Com tam 16",
+                    "45k",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-17",
+                    "Com tam 17",
+                    "56000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-18",
+                    "Com tam 18",
+                    "57000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-19",
+                    "Com tam 19",
+                    "58000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-20",
+                    "Com tam 20",
+                    "59000",
+                    "true"
+                  ]
+                ]
+              },
+              {
+                "header": [
+                  " Restaurant_ID ",
+                  "SKU",
+                  "Name",
+                  "Price",
+                  "Available"
+                ],
+                "rows": [
+                  [
+                    "202",
+                    "COM-01",
+                    "Com tam 1",
+                    "40000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-02",
+                    "Com tam 2",
+                    "41000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-03",
+                    "Com tam 3",
+                    "42000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-04",
+                    "Com tam 4",
+                    "43000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-05",
+                    "Com tam 5",
+                    "44000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-06",
+                    "Com tam 6",
+                    "45000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-07",
+                    "Com tam 7",
+                    "46000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-08",
+                    "Com tam 8",
+                    "45k",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-09",
+                    "Com tam 9",
+                    "48000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-10",
+                    "Com tam 10",
+                    "49000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-11",
+                    "Com tam 11",
+                    "50000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-12",
+                    "Com tam 12",
+                    "51000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-13",
+                    "Com tam 13",
+                    "52000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-14",
+                    "Com tam 14",
+                    "53000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-15",
+                    "Com tam 15",
+                    "54000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-16",
+                    "Com tam 16",
+                    "55000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-17",
+                    "Com tam 17",
+                    "56000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-18",
+                    "Com tam 18",
+                    "57000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-19",
+                    "Com tam 19",
+                    "58000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-20",
+                    "Com tam 20",
+                    "59000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-21",
+                    "Com tam 21",
+                    "60000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-22",
+                    "Com tam 22",
+                    "61000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-23",
+                    "Com tam 23",
+                    "62000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-24",
+                    "Com tam 24",
+                    "63000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-25",
+                    "Com tam 25",
+                    "64000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-26",
+                    "Com tam 26",
+                    "65000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-27",
+                    "Com tam 27",
+                    "66000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-28",
+                    "Com tam 28",
+                    "67000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-29",
+                    "Com tam 29",
+                    "68000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-30",
+                    "Com tam 30",
+                    "69000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-31",
+                    "Com tam 31",
+                    "70000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-32",
+                    "Com tam 32",
+                    "71000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-33",
+                    "Com tam 33",
+                    "72000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-34",
+                    "Com tam 34",
+                    "73000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-35",
+                    "Com tam 35",
+                    "74000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-36",
+                    "Com tam 36",
+                    "75000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-37",
+                    "Com tam 37",
+                    "76000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-38",
+                    "Com tam 38",
+                    "77000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-39",
+                    "Com tam 39",
+                    "78000",
+                    "true"
+                  ],
+                  [
+                    "202",
+                    "COM-40",
+                    "Com tam 40",
+                    "79000",
+                    "true"
+                  ]
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "status": "rejected",
+                "reason": "3 of 20 rows failed checks"
+              },
+              {
+                "status": "loaded",
+                "loaded": 39,
+                "rejected_rows": [
+                  "line 9: price_vnd is not int: '45k'"
+                ],
+                "new_columns": []
+              }
+            ],
+            "columns": [
+              "restaurant_id",
+              "item_code",
+              "item_name",
+              "price_vnd",
+              "available"
+            ],
+            "rows": [
+              [
+                202,
+                "COM-01",
+                "Com tam 1",
+                40000,
+                1
+              ],
+              [
+                202,
+                "COM-02",
+                "Com tam 2",
+                41000,
+                1
+              ],
+              [
+                202,
+                "COM-03",
+                "Com tam 3",
+                42000,
+                1
+              ],
+              [
+                202,
+                "COM-04",
+                "Com tam 4",
+                43000,
+                1
+              ],
+              [
+                202,
+                "COM-05",
+                "Com tam 5",
+                44000,
+                1
+              ],
+              [
+                202,
+                "COM-06",
+                "Com tam 6",
+                45000,
+                1
+              ],
+              [
+                202,
+                "COM-07",
+                "Com tam 7",
+                46000,
+                1
+              ],
+              [
+                202,
+                "COM-09",
+                "Com tam 9",
+                48000,
+                1
+              ],
+              [
+                202,
+                "COM-10",
+                "Com tam 10",
+                49000,
+                1
+              ],
+              [
+                202,
+                "COM-11",
+                "Com tam 11",
+                50000,
+                1
+              ],
+              [
+                202,
+                "COM-12",
+                "Com tam 12",
+                51000,
+                1
+              ],
+              [
+                202,
+                "COM-13",
+                "Com tam 13",
+                52000,
+                1
+              ],
+              [
+                202,
+                "COM-14",
+                "Com tam 14",
+                53000,
+                1
+              ],
+              [
+                202,
+                "COM-15",
+                "Com tam 15",
+                54000,
+                1
+              ],
+              [
+                202,
+                "COM-16",
+                "Com tam 16",
+                55000,
+                1
+              ],
+              [
+                202,
+                "COM-17",
+                "Com tam 17",
+                56000,
+                1
+              ],
+              [
+                202,
+                "COM-18",
+                "Com tam 18",
+                57000,
+                1
+              ],
+              [
+                202,
+                "COM-19",
+                "Com tam 19",
+                58000,
+                1
+              ],
+              [
+                202,
+                "COM-20",
+                "Com tam 20",
+                59000,
+                1
+              ],
+              [
+                202,
+                "COM-21",
+                "Com tam 21",
+                60000,
+                1
+              ],
+              [
+                202,
+                "COM-22",
+                "Com tam 22",
+                61000,
+                1
+              ],
+              [
+                202,
+                "COM-23",
+                "Com tam 23",
+                62000,
+                1
+              ],
+              [
+                202,
+                "COM-24",
+                "Com tam 24",
+                63000,
+                1
+              ],
+              [
+                202,
+                "COM-25",
+                "Com tam 25",
+                64000,
+                1
+              ],
+              [
+                202,
+                "COM-26",
+                "Com tam 26",
+                65000,
+                1
+              ],
+              [
+                202,
+                "COM-27",
+                "Com tam 27",
+                66000,
+                1
+              ],
+              [
+                202,
+                "COM-28",
+                "Com tam 28",
+                67000,
+                1
+              ],
+              [
+                202,
+                "COM-29",
+                "Com tam 29",
+                68000,
+                1
+              ],
+              [
+                202,
+                "COM-30",
+                "Com tam 30",
+                69000,
+                1
+              ],
+              [
+                202,
+                "COM-31",
+                "Com tam 31",
+                70000,
+                1
+              ],
+              [
+                202,
+                "COM-32",
+                "Com tam 32",
+                71000,
+                1
+              ],
+              [
+                202,
+                "COM-33",
+                "Com tam 33",
+                72000,
+                1
+              ],
+              [
+                202,
+                "COM-34",
+                "Com tam 34",
+                73000,
+                1
+              ],
+              [
+                202,
+                "COM-35",
+                "Com tam 35",
+                74000,
+                1
+              ],
+              [
+                202,
+                "COM-36",
+                "Com tam 36",
+                75000,
+                1
+              ],
+              [
+                202,
+                "COM-37",
+                "Com tam 37",
+                76000,
+                1
+              ],
+              [
+                202,
+                "COM-38",
+                "Com tam 38",
+                77000,
+                1
+              ],
+              [
+                202,
+                "COM-39",
+                "Com tam 39",
+                78000,
+                1
+              ],
+              [
+                202,
+                "COM-40",
+                "Com tam 40",
+                79000,
+                1
+              ]
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

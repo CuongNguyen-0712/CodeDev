@@ -1,0 +1,71 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rno_111",
+      "name": "why-offline-first-quiz",
+      "type": "quiz",
+      "title": "Read the basement reports",
+      "description": "Three statements about what went wrong when Rice Rocket's couriers used the online-first app in basements and elevators. Decide whether each one is true.",
+      "difficulty": "easy",
+      "outcomes": [
+        "local-first"
+      ],
+      "points": 10,
+      "hints": [
+        "NetInfo describes the phone's network interface. Ask what it knows about the path from that interface to Rice Rocket's api, and about the next ten seconds.",
+        "A timeout on the phone says the answer did not arrive in time. It says nothing about whether the request arrived. Look at the server log for the same delivery.",
+        "Compare what a courier in a basement sees with each design: a spinner until the request ends, or the list saved on the phone with a note saying when it was last refreshed."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The Delivered button now checks NetInfo first. A courier in the basement car park of a Thu Duc apartment block still sees an error:\n\n```ts\nconst state = await NetInfo.fetch();\nif (state.isConnected) {\n  await api.post(`/deliveries/${id}/complete`);\n}\n```\n\n```text\nNetInfo: { type: \"wifi\", isConnected: true, isInternetReachable: false }\n[api] POST /deliveries/d-8812/complete\nTypeError: Network request failed\n```\n\nStatement: \"If NetInfo reports `isConnected: true`, the request will reach the server, so checking it before every write prevents these failures.\"",
+          "explanation": "False. `isConnected` only says the phone is attached to a network: here a building's Wi-Fi with no working internet behind it (`isInternetReachable: false`), which is common behind captive portals. Even a good reading is stale a second later in an elevator. The reliable test is to send the request, with a timeout, and handle the failure by keeping the action on the phone and retrying later. The misconception is that a connectivity check can predict a request.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The app showed \"Request timed out\" and the courier tapped Delivered again:\n\n```text\n# phone\n12:41:07  POST /deliveries/d-8812/complete  -> timeout after 15 s\n12:41:30  POST /deliveries/d-8812/complete  -> 200\n\n# api log\n12:41:09  POST /deliveries/d-8812/complete  200  courier=c-204  cod=185000\n12:41:31  POST /deliveries/d-8812/complete  200  courier=c-204  cod=185000\n```\n\nStatement: \"The first request reached the server even though the phone timed out; if the app sends a key it generated for this action (for example an `Idempotency-Key` header) and the api remembers it, the second request is recognised as the same action.\"",
+          "explanation": "True. The server processed the first request at 12:41:09; only the answer was lost on the way back, so the phone gave up. A retry without a key looks like a second delivery (and a second cash entry). A key created once per user action, sent with every retry and stored by the api with its first result, turns retries into safe replays. The misconception is that a timeout means nothing happened.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The delivery list screen today:\n\n```tsx\nconst [deliveries, setDeliveries] = useState<Delivery[] | null>(null);\nuseEffect(() => {\n  api.get(\"/couriers/me/deliveries\").then(setDeliveries);\n}, []);\nif (!deliveries) return <Spinner />;\n```\n\nStatement: \"Reading the list from the phone's database first and refreshing it in the background shows the last known deliveries at once in a basement, at the cost of data that may be stale, which the screen should label (for example 'updated 4 min ago').\"",
+          "explanation": "True. Local-first treats the network as a slow, unreliable cache fill: the screen renders what the phone already has, and a background sync replaces it when the api answers. The price is staleness, so the UI shows when the data was last refreshed and the server stays the authority for assignments. The misconception is that offline-first means the phone's copy is always right.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

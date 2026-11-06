@@ -1,0 +1,40 @@
+[
+  {
+    "id": "item-offsets",
+    "label": "Each item's height and its offset from the top",
+    "code": "const heights = items.map((item) => (item.kind === \"slot\" ? SLOT_HEIGHT : ROW_HEIGHT));\nconst offsets: number[] = [];\nlet y = 0;\nfor (const h of heights) {\n    offsets.push(y);\n    y += h;\n}"
+  },
+  {
+    "id": "key-of",
+    "label": "A key that follows the delivery, not its position",
+    "code": "keyOf: (item: Item) => item.id,"
+  },
+  {
+    "id": "row-props",
+    "label": "Props for one row that stay equal between renders",
+    "code": "rowProps: (item: Delivery) => ({ item, onOpen: openDelivery }),"
+  },
+  {
+    "id": "same-row",
+    "label": "When React.memo may skip re-rendering a row",
+    "code": "sameRow: (prev: RowProps, next: RowProps) => prev.item === next.item && prev.onOpen === next.onOpen,"
+  },
+  {
+    "id": "item-offsets-all-rows",
+    "label": "Each item's height and its offset from the top",
+    "code": "const heights = items.map(() => ROW_HEIGHT);\nconst offsets = heights.map((_, i) => i * ROW_HEIGHT);",
+    "distractor": true
+  },
+  {
+    "id": "key-of-index",
+    "label": "A key that follows the delivery, not its position",
+    "code": "keyOf: (_item: Item, index: number) => String(index),",
+    "distractor": true
+  },
+  {
+    "id": "row-props-inline-handler",
+    "label": "Props for one row that stay equal between renders",
+    "code": "rowProps: (item: Delivery) => ({ item, onOpen: () => openDelivery(item.id) }),",
+    "distractor": true
+  }
+]

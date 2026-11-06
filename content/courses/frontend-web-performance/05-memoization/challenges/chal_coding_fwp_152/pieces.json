@@ -1,0 +1,40 @@
+[
+  {
+    "id": "filter-memo",
+    "label": "Filter again only when the dishes or the query change",
+    "code": "const visible = useMemo(() => filterMenu(items, query), [items, query]);"
+  },
+  {
+    "id": "cart-set",
+    "label": "Which dishes are in the cart, rebuilt when the cart changes",
+    "code": "const inCart = useMemo(() => new Set(cartIds), [cartIds]);"
+  },
+  {
+    "id": "stable-add",
+    "label": "One add handler that follows the current addToCart",
+    "code": "const onAdd = useCallback((id) => addToCart(id), [addToCart]);"
+  },
+  {
+    "id": "render-cards",
+    "label": "One card per dish with only the props it needs",
+    "code": "return visible.map((item) => render(MenuItem, { item, inCart: inCart.has(item.id), onAdd }));"
+  },
+  {
+    "id": "filter-memo-items-only",
+    "label": "Filter again only when the dishes or the query change",
+    "code": "const visible = useMemo(() => filterMenu(items, query), [items]);",
+    "distractor": true
+  },
+  {
+    "id": "stable-add-empty-deps",
+    "label": "One add handler that follows the current addToCart",
+    "code": "const onAdd = useCallback((id) => addToCart(id), []);",
+    "distractor": true
+  },
+  {
+    "id": "stable-add-inline",
+    "label": "One add handler that follows the current addToCart",
+    "code": "const onAdd = (id) => addToCart(id);",
+    "distractor": true
+  }
+]

@@ -1,0 +1,40 @@
+[
+  {
+    "id": "wait-turn",
+    "label": "Skip entries that are not due or wait behind an earlier one",
+    "code": "if (waiting.has(entry.deliveryId) || entry.nextAttemptAt > now) {\n    waiting.add(entry.deliveryId);\n    continue;\n}"
+  },
+  {
+    "id": "send",
+    "label": "Send the action so a repeat is recognised",
+    "code": "const answer = api.send({ kind: entry.kind, deliveryId: entry.deliveryId, payload: entry.payload }, entry.id);"
+  },
+  {
+    "id": "retry-later",
+    "label": "Temporary failure: wait longer each time, as asked",
+    "code": "if (answer.status === 408 || answer.status === 429 || answer.status >= 500) {\n    entry.attempts += 1;\n    const backoff = Math.min(1000 * 2 ** (entry.attempts - 1), MAX_BACKOFF_MS);\n    entry.nextAttemptAt = now + Math.max(backoff, (answer.retryAfter ?? 0) * 1000);\n    store.update(entry);\n    waiting.add(entry.deliveryId);\n    continue;\n}"
+  },
+  {
+    "id": "give-up",
+    "label": "Refused for good: report it, hold its delivery",
+    "code": "store.markFailed(entry, `HTTP ${answer.status}`);\nwaiting.add(entry.deliveryId);"
+  },
+  {
+    "id": "retry-ignores-retry-after",
+    "label": "Temporary failure: wait longer each time, as asked",
+    "code": "if (answer.status === 408 || answer.status === 429 || answer.status >= 500) {\n    entry.attempts += 1;\n    entry.nextAttemptAt = now + 1000 * 2 ** (entry.attempts - 1);\n    store.update(entry);\n    waiting.add(entry.deliveryId);\n    continue;\n}",
+    "distractor": true
+  },
+  {
+    "id": "send-without-key",
+    "label": "Send the action so a repeat is recognised",
+    "code": "const answer = api.send({ kind: entry.kind, deliveryId: entry.deliveryId, payload: entry.payload });",
+    "distractor": true
+  },
+  {
+    "id": "skip-only-not-due",
+    "label": "Skip entries that are not due or wait behind an earlier one",
+    "code": "if (entry.nextAttemptAt > now) {\n    continue;\n}",
+    "distractor": true
+  }
+]

@@ -1,0 +1,243 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_gcn_171",
+      "name": "graceful-shutdown-quiz",
+      "type": "quiz",
+      "title": "Read the 502s of every rollout",
+      "description": "Three statements about the burst of 502s the ingress logged each time the gateway was rolled out. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "operability"
+      ],
+      "points": 10,
+      "hints": [
+        "Read the documentation of `http.Server.Shutdown` and `http.Server.Close` side by side: what happens to a request that is half-way through its handler in each case?",
+        "SIGTERM and the removal from the Service's endpoints are both triggered by the pod being deleted. Is one of them guaranteed to happen before the other, everywhere in the cluster?",
+        "Look up what the kubelet does when `terminationGracePeriodSeconds` runs out and the process is still alive."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The gateway's first shutdown handler:\n\n```go\nsig := make(chan os.Signal, 1)\nsignal.Notify(sig, syscall.SIGTERM)\n<-sig\nctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)\ndefer cancel()\nsrv.Shutdown(ctx)\n```\n\nStatement: \"`srv.Shutdown` closes every open connection at once, like `srv.Close`, so requests in flight at that moment fail; the 20-second context only limits how long closing takes.\"",
+          "explanation": "False. `Shutdown` first closes the listeners (no new connections), then closes idle connections and waits for active ones to become idle, that is, for the requests in flight to finish; the context bounds that wait, and when it expires `Shutdown` returns its error so you can decide what to do next. `Close` is the one that cuts active connections at once. (Hijacked connections such as WebSockets are not tracked; `RegisterOnShutdown` is how you tell them to finish.) The misconception is that a graceful shutdown means closing faster.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Ingress logs during a rollout, with the old gateway pod `gateway-7c9f` receiving SIGTERM at 10:04:00.000:\n\n```text\n10:04:00.412 upstream=10.8.1.14:8080 (gateway-7c9f) status=502 connect() failed (111: Connection refused)\n10:04:01.207 upstream=10.8.1.14:8080 (gateway-7c9f) status=502 connect() failed (111: Connection refused)\n10:04:02.950 upstream=10.8.1.14:8080 (gateway-7c9f) status=502 connect() failed (111: Connection refused)\n10:04:03.300 (no more requests routed to 10.8.1.14)\n```\n\nStatement: \"Removing the pod from the endpoints and sending SIGTERM happen in parallel, so for a few seconds after SIGTERM the load balancers still send new connections; the gateway should keep serving for a short delay (or use a preStop sleep) before it closes its listener.\"",
+          "explanation": "True. Deleting a pod starts both the SIGTERM to its containers and its removal from EndpointSlices; kube-proxy, the ingress controller and cloud load balancers learn about the removal at their own pace. A process that closes its listener immediately refuses the connections that still arrive, and the ingress turns them into 502s. A delay before `Shutdown` (in the app or as a `preStop` hook) bridges that window. The misconception is that Kubernetes stops traffic before it sends SIGTERM.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The deployment sets `terminationGracePeriodSeconds: 30`. A stuck report export kept the gateway's `Shutdown` waiting:\n\n```text\n10:04:00  SIGTERM received, draining\n10:04:05  listener closed, waiting for 1 request\n10:04:30  (pod gone)\n$ kubectl -n rice-rocket get events --field-selector involvedObject.name=gateway-7c9f\nNormal  Killing  pod/gateway-7c9f  Stopping container gateway\n```\n\nStatement: \"When the 30 seconds run out, the kubelet sends SIGTERM a second time and waits another grace period, so a shutdown that takes 45 seconds still finishes cleanly.\"",
+          "explanation": "False. When the grace period ends and the container is still running, the kubelet sends SIGKILL: no handler runs, buffered logs are lost and the workers stop mid-job. The shutdown must fit inside the grace period with a margin, which is why the `Shutdown` context gets a budget (grace period minus the drain delay, the time to stop the workers and a margin), and a request that would overrun it is cut on purpose. The misconception is that the grace period is a polite reminder.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_gcn_172",
+      "name": "gateway-graceful-shutdown",
+      "type": "mini_coding",
+      "title": "Shut the gateway down without dropping requests",
+      "description": "Every rollout of the gateway produced a burst of 502s, and once a stuck request kept a pod alive until SIGKILL, losing the last logs and a half-processed job. The editor holds `shutdown.go`, the SIGTERM handler, with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that the gateway: keeps serving for `DrainDelayMs` while the load balancers stop sending traffic; then stops accepting and waits for the requests in flight, but only for the time left in the grace period after the drain delay, the worker stop and a safety margin; stops the background workers and flushes the logs; and exits 0 when every request finished or 1 when one had to be cut. Run replays rollouts against a simulated pod with a virtual clock.",
+      "difficulty": "medium",
+      "outcomes": [
+        "operability"
+      ],
+      "points": 30,
+      "hints": [
+        "Draw the 30 seconds after SIGTERM on a line: when do new requests stop arriving, when may the listener close, and what must still fit after the last request before SIGKILL?",
+        "Look at the order of the calls on `g`, at the timeout passed to `Shutdown` (what is left of `GracePeriodMs`), and at what decides the exit code.",
+        "A queue consumer with the same shape: `g.Sleep(cfg.PauseMs)` to let the broker reassign partitions, `err := g.Drain(cfg.GraceMs - cfg.PauseMs - cfg.CommitMs - cfg.MarginMs)`, `g.CommitOffsets(); g.CloseProducer()`, then `if err != nil { g.Exit(1); return }; g.Exit(0)`."
+      ],
+      "coding": {
+        "language": "go",
+        "filePath": "shutdown.go",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A rollout: every request in flight or still routed to the pod is served",
+          "input": {
+            "config": {
+              "gracePeriodMs": 30000,
+              "propagationMs": 3000,
+              "drainDelayMs": 5000,
+              "workerStopMs": 2000,
+              "exitMarginMs": 1000
+            },
+            "requests": [
+              {
+                "arriveMs": -500,
+                "durationMs": 1200
+              },
+              {
+                "arriveMs": 500,
+                "durationMs": 300
+              },
+              {
+                "arriveMs": 1500,
+                "durationMs": 800
+              },
+              {
+                "arriveMs": 2900,
+                "durationMs": 600
+              }
+            ]
+          },
+          "expected": {
+            "ok": 4,
+            "refused": 0,
+            "cut": 0,
+            "exitCode": 0,
+            "exitAtMs": 7000,
+            "killed": false,
+            "jobLost": false,
+            "logsFlushed": true
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A slow 8-second report export finishes before the pod exits",
+          "input": {
+            "config": {
+              "gracePeriodMs": 30000,
+              "propagationMs": 3000,
+              "drainDelayMs": 5000,
+              "workerStopMs": 2000,
+              "exitMarginMs": 1000
+            },
+            "requests": [
+              {
+                "arriveMs": 2000,
+                "durationMs": 8000
+              }
+            ]
+          },
+          "expected": {
+            "ok": 1,
+            "refused": 0,
+            "cut": 0,
+            "exitCode": 0,
+            "exitAtMs": 12000,
+            "killed": false,
+            "jobLost": false,
+            "logsFlushed": true
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A stuck request is cut at the deadline; the pod still exits 1 before SIGKILL",
+          "input": {
+            "config": {
+              "gracePeriodMs": 30000,
+              "propagationMs": 3000,
+              "drainDelayMs": 5000,
+              "workerStopMs": 2000,
+              "exitMarginMs": 1000
+            },
+            "requests": [
+              {
+                "arriveMs": 1000,
+                "durationMs": 60000
+              }
+            ]
+          },
+          "expected": {
+            "ok": 0,
+            "refused": 0,
+            "cut": 1,
+            "exitCode": 1,
+            "exitAtMs": 29000,
+            "killed": false,
+            "jobLost": false,
+            "logsFlushed": true
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Requests routed in the first 3 seconds after SIGTERM are not refused",
+          "input": {
+            "config": {
+              "gracePeriodMs": 30000,
+              "propagationMs": 3000,
+              "drainDelayMs": 5000,
+              "workerStopMs": 2000,
+              "exitMarginMs": 1000
+            },
+            "requests": [
+              {
+                "arriveMs": 100,
+                "durationMs": 200
+              },
+              {
+                "arriveMs": 1000,
+                "durationMs": 400
+              },
+              {
+                "arriveMs": 2500,
+                "durationMs": 1000
+              },
+              {
+                "arriveMs": 2999,
+                "durationMs": 1500
+              }
+            ]
+          },
+          "expected": {
+            "ok": 4,
+            "refused": 0,
+            "cut": 0,
+            "exitCode": 0,
+            "exitAtMs": 7000,
+            "killed": false,
+            "jobLost": false,
+            "logsFlushed": true
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

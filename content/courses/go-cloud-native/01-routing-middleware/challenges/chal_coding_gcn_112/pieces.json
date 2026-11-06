@@ -1,0 +1,40 @@
+[
+  {
+    "id": "routes",
+    "label": "Routes: method + path patterns; probes need no token",
+    "code": "mux.HandleFunc(\"GET /healthz\", func(w ResponseWriter, r *Request) {\n\tfmt.Fprint(w, \"ok\")\n})\nmux.Handle(\"GET /v1/orders/{id}\", requireToken(HandlerFunc(getOrder)))\nmux.Handle(\"POST /v1/orders\", requireToken(HandlerFunc(createOrder)))\nmux.Handle(\"GET /v1/boom\", requireToken(HandlerFunc(boom)))"
+  },
+  {
+    "id": "chain-order",
+    "label": "Wrap the mux: request id, then logging, then recovery",
+    "code": "return withRequestID(withLogging(log, withRecovery(mux)))"
+  },
+  {
+    "id": "path-value",
+    "label": "Read the order id the pattern matched",
+    "code": "id := r.PathValue(\"id\")"
+  },
+  {
+    "id": "log-status",
+    "label": "Serve through a recorder; 200 if WriteHeader is never called",
+    "code": "rec := &statusRecorder{ResponseWriter: w, status: StatusOK}\nnext.ServeHTTP(rec, r)"
+  },
+  {
+    "id": "chain-recovery-outside",
+    "label": "Wrap the mux: request id, then logging, then recovery",
+    "code": "return withRecovery(withRequestID(withLogging(log, mux)))",
+    "distractor": true
+  },
+  {
+    "id": "log-status-zero",
+    "label": "Serve through a recorder; 200 if WriteHeader is never called",
+    "code": "rec := &statusRecorder{ResponseWriter: w}\nnext.ServeHTTP(rec, r)",
+    "distractor": true
+  },
+  {
+    "id": "routes-any-method",
+    "label": "Routes: method + path patterns; probes need no token",
+    "code": "mux.HandleFunc(\"/healthz\", func(w ResponseWriter, r *Request) {\n\tfmt.Fprint(w, \"ok\")\n})\nmux.Handle(\"/v1/orders/{id}\", requireToken(HandlerFunc(getOrder)))\nmux.Handle(\"/v1/orders\", requireToken(HandlerFunc(createOrder)))\nmux.Handle(\"/v1/boom\", requireToken(HandlerFunc(boom)))",
+    "distractor": true
+  }
+]

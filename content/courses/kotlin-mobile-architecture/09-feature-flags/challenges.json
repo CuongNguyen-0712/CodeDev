@@ -1,0 +1,134 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_kma_191",
+      "name": "feature-flags-quiz",
+      "type": "quiz",
+      "title": "Read the batch-delivery rollout",
+      "description": "Three statements about how Rice Rocket shipped the batch-delivery screen to its couriers, and what happened when it crashed. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "testable-releases"
+      ],
+      "points": 10,
+      "hints": [
+        "A staged rollout decides who can download a release. What does it change for a phone that has already installed it?",
+        "Run the bucketing twice for the same courier in your head: does the courier land in the same group on the next launch?",
+        "Think about the very first launch on a phone with no network: where do the flag values come from before any fetch succeeds?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Version 2.5.0 had the batch-delivery screen switched on in code. It went out as a 20% staged rollout and crashed on some phones:\n\n```text\nPlay Console  2.5.0  Production  staged rollout 20%  -> halted 14:10\nCrashlytics   BatchDeliveryScreen  NullPointerException  1,240 users  (still rising at 16:00)\n```\n\nStatement: \"Halting the staged rollout removes 2.5.0 from the phones that already installed it, so the crash count stops rising at once.\"",
+          "explanation": "False. Halting a staged rollout stops new users from getting the release; phones that already updated keep 2.5.0 until a newer version reaches them, which takes a release plus days of update adoption. That is why the crash count kept rising. A feature behind a remote flag with a kill switch could have been turned off for every phone within minutes, without a release.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The first flag client decided the rollout with a random draw at every launch:\n\n```kotlin\nval batchOn = Random.nextInt(100) < remote.getLong(\"batch_percent\")\n```\n\n```text\ncourier c-118: 08:02 launch batch ON, 11:40 launch batch OFF, 13:15 launch batch ON\nsupport ticket: \"the screen keeps changing, where did my batch go?\"\n```\n\nStatement: \"Bucketing must be stable per courier, for example a hash of the flag key and the courier id mod 100, so a courier stays in the same group on every launch while another flag splits couriers differently.\"",
+          "explanation": "True. A rollout percentage only means something if each courier gets the same answer every time: hash(flagKey + courierId) mod 100 gives a fixed bucket per courier and flag, raising the percentage only adds couriers, and including the flag key keeps different experiments from always picking the same people. A random draw per launch flips couriers between screens mid-shift.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The in-app defaults for remote config were copied from the console, where the flag was on:\n\n```kotlin\nremoteConfig.setDefaultsAsync(mapOf(\"batch_enabled\" to true))\n```\n\n```text\nfirst launch after install, no network in the warehouse basement\nremote config fetch failed: no connectivity -> using defaults\nBatchDeliveryScreen shown  (flag was set to false in the console at 14:12)\n```\n\nStatement: \"In-app defaults must be the safe value, off for a risky feature, because a phone that cannot fetch runs on its defaults.\"",
+          "explanation": "True. Remote values arrive only after a successful fetch; until then, and on every launch where the fetch fails, the app uses the defaults compiled into it. A default of true turns the kill switch into a no-op for offline couriers. Ship risky features off by default and let the fetched value turn them on.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_kma_192",
+      "name": "feature-flag-evaluation",
+      "type": "mini_coding",
+      "title": "Evaluate feature flags on the phone",
+      "description": "The courier app decides on the phone which features a courier gets, from flags fetched with remote config. The editor holds `Flags.kt` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that the checks run in this order: a killed flag (`enabled=false`) is off for everyone, QA couriers included; a courier whose app is older than `minVersion` (compared number by number, so 2.10.0 is newer than 2.9.0, and 2.4 equals 2.4.0) or whose Android SDK is below `minSdk` is off; a courier on the QA allowlist is on; everyone else is on when their bucket is below `percent`, where bucket = (FNV-1a 32 of `<flagKey>:<courierId>` and 0x7fffffff) mod 100. The runner prints every flag's decision for every courier with its reason.",
+      "difficulty": "medium",
+      "outcomes": [
+        "testable-releases"
+      ],
+      "points": 30,
+      "hints": [
+        "Take one courier through every check in order and write down which one decides. Then ask what each check is protecting: crashes on old apps and phones, the kill switch, a stable split.",
+        "Look at `compareVersions` (split on dots, compare numbers, missing parts count as 0), `bucket` (the hash input decides whether two flags pick the same couriers), and where the allowlist sits relative to the kill switch.",
+        "An A/B test of a checkout button in a shop app: `fun group(test: String, user: String) = (fnv1a32(\"$test:$user\") and 0x7fffffff) % 100`, `if (!test.running) return CONTROL`, `if (compareVersions(app, test.minApp) < 0) return CONTROL`, `if (user in test.forced) return VARIANT`, `return if (group(test.key, user) < test.percent) VARIANT else CONTROL`."
+      ],
+      "coding": {
+        "language": "kotlin",
+        "filePath": "Flags.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A 20% rollout picks the same couriers by their stable bucket",
+          "input": "flag key=batch-delivery enabled=true percent=20 minVersion=2.4.0 minSdk=30 allow=-\ncourier c-001 2.5.0 34\ncourier c-002 2.5.0 34\ncourier c-003 2.5.0 34\ncourier c-004 2.5.0 34\ncourier c-005 2.5.0 34\ncourier c-006 2.5.0 34\ncourier c-007 2.5.0 34\ncourier c-008 2.5.0 34\ncourier c-009 2.5.0 34\ncourier c-010 2.5.0 34\n",
+          "expected": "batch-delivery c-001 ON rollout bucket 15\nbatch-delivery c-002 OFF outside rollout bucket 34\nbatch-delivery c-003 OFF outside rollout bucket 53\nbatch-delivery c-004 OFF outside rollout bucket 20\nbatch-delivery c-005 OFF outside rollout bucket 39\nbatch-delivery c-006 OFF outside rollout bucket 58\nbatch-delivery c-007 OFF outside rollout bucket 77\nbatch-delivery c-008 OFF outside rollout bucket 44\nbatch-delivery c-009 OFF outside rollout bucket 63\nbatch-delivery c-010 ON rollout bucket 5",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Old apps and old phones never get it; 2.10.0 is newer than 2.4.0",
+          "input": "flag key=batch-delivery enabled=true percent=100 minVersion=2.4.0 minSdk=30 allow=-\ncourier c-011 2.3.9 34\ncourier c-012 2.10.0 34\ncourier c-013 2.4.0 29\ncourier c-014 2.4 31\n",
+          "expected": "batch-delivery c-011 OFF app 2.3.9 < 2.4.0\nbatch-delivery c-012 ON rollout bucket 67\nbatch-delivery c-013 OFF sdk 29 < 30\nbatch-delivery c-014 ON rollout bucket 29",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "The kill switch turns the feature off for QA couriers too",
+          "input": "flag key=batch-delivery enabled=false percent=100 minVersion=2.4.0 minSdk=30 allow=c-007\ncourier c-007 2.6.0 34\ncourier c-001 2.6.0 34\n",
+          "expected": "batch-delivery c-007 OFF killed\nbatch-delivery c-001 OFF killed",
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Two 50% flags split the same couriers differently",
+          "input": "flag key=batch-delivery enabled=true percent=50 minVersion=2.0.0 minSdk=26 allow=-\nflag key=cash-handover enabled=true percent=50 minVersion=2.0.0 minSdk=26 allow=-\ncourier c-001 2.6.0 34\ncourier c-002 2.6.0 34\ncourier c-003 2.6.0 34\ncourier c-004 2.6.0 34\ncourier c-005 2.6.0 34\n",
+          "expected": "batch-delivery c-001 ON rollout bucket 15\ncash-handover c-001 OFF outside rollout bucket 71\nbatch-delivery c-002 ON rollout bucket 34\ncash-handover c-002 OFF outside rollout bucket 90\nbatch-delivery c-003 OFF outside rollout bucket 53\ncash-handover c-003 ON rollout bucket 9\nbatch-delivery c-004 ON rollout bucket 20\ncash-handover c-004 OFF outside rollout bucket 76\nbatch-delivery c-005 ON rollout bucket 39\ncash-handover c-005 OFF outside rollout bucket 95",
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A 0% flag reaches only the allowlist; a 100% flag reaches everyone",
+          "input": "flag key=night-shift enabled=true percent=0 minVersion=2.0.0 minSdk=26 allow=c-008\nflag key=tips-v2 enabled=true percent=100 minVersion=2.0.0 minSdk=26 allow=-\ncourier c-008 2.6.0 34\ncourier c-009 2.6.0 34\n",
+          "expected": "night-shift c-008 ON allowlist\ntips-v2 c-008 ON rollout bucket 56\nnight-shift c-009 OFF outside rollout bucket 45\ntips-v2 c-009 ON rollout bucket 75",
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

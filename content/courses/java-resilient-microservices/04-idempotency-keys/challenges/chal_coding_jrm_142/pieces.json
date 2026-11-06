@@ -1,0 +1,45 @@
+[
+  {
+    "id": "forget-expired",
+    "label": "Forget keys older than the retention window",
+    "code": "if (kept != null && kept.createdAt() + ttlMs <= now) {\n    keys.remove(key);\n    kept = null;\n}"
+  },
+  {
+    "id": "claim-key",
+    "label": "Claim the key before doing the work",
+    "code": "keys.put(key, new Kept(fingerprint, now, IN_PROGRESS));"
+  },
+  {
+    "id": "same-key-other-request",
+    "label": "Refuse a key reused for a different request",
+    "code": "if (!kept.fingerprint().equals(fingerprint)) {\n    return Decision.answer(422, \"key reused\");\n}"
+  },
+  {
+    "id": "still-running",
+    "label": "Answer a duplicate that arrives while the first runs",
+    "code": "if (kept.status() == IN_PROGRESS) {\n    return Decision.answer(409, \"in progress\");\n}"
+  },
+  {
+    "id": "keep-final-answers",
+    "label": "Keep the answer only when a retry would get the same",
+    "code": "if (status >= 500) {\n    keys.remove(key);\n} else {\n    keys.put(key, new Kept(kept.fingerprint(), kept.createdAt(), status));\n}"
+  },
+  {
+    "id": "compare-with-identity",
+    "label": "Refuse a key reused for a different request",
+    "code": "if (kept.fingerprint() != fingerprint) {\n    return Decision.answer(422, \"key reused\");\n}",
+    "distractor": true
+  },
+  {
+    "id": "keep-every-answer",
+    "label": "Keep the answer only when a retry would get the same",
+    "code": "keys.put(key, new Kept(kept.fingerprint(), kept.createdAt(), status));",
+    "distractor": true
+  },
+  {
+    "id": "running-duplicate-passes",
+    "label": "Answer a duplicate that arrives while the first runs",
+    "code": "if (kept.status() == IN_PROGRESS) {\n    return Decision.PROCESS;\n}",
+    "distractor": true
+  }
+]

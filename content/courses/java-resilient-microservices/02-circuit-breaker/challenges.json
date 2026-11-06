@@ -1,0 +1,74 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_jrm_122",
+      "name": "courier-matching-circuit-breaker",
+      "type": "mini_coding",
+      "title": "A circuit breaker for courier matching",
+      "description": "order-service calls courier-matching for every placed order. When courier-matching degraded last week, order-service kept calling it, every call waited 3 s, and the order page timed out; a hand-written breaker that followed made it worse by opening on the first error and on customers' validation errors. The editor holds `Main.java` with a breaker modelled on Resilience4j's count-based CircuitBreaker, its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: while OPEN, calls are rejected until `openMs` have passed, then the next call moves it to HALF_OPEN; 400 responses go through but are not recorded, errors count as failures and calls longer than `slowMs` as slow; in CLOSED it opens only once at least `minCalls` calls are in the window and the failure rate or slow-call rate reaches its threshold; in HALF_OPEN it decides only after all `halfOpenCalls` trial calls are recorded. The test runner replays timed calls and prints the state before each call, its result and every change of state.",
+      "difficulty": "hard",
+      "outcomes": [
+        "isolation"
+      ],
+      "points": 40,
+      "hints": [
+        "Write the state after each call of a test on paper: which calls enter the window, how many are in it when the breaker decides, and which calls never reach the service at all?",
+        "Look at the order of the blocks in `onCall`: the OPEN check comes first (it may change the state), then the decision whether to record the call, then one decision for CLOSED (needs `minCalls`) and one for HALF_OPEN (needs all trial calls).",
+        "A breaker around a maps API that ignores 404s: `if (now < retryAt) return REJECTED; if (code == 404) return PASS_THROUGH; recent.add(code >= 500);` and in CLOSED `if (recent.size() >= 20 && failurePercent() >= 40) open(now);`, in HALF_OPEN `if (recent.size() >= 5) { if (failurePercent() >= 40) open(now); else close(); }`."
+      ],
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Healthy traffic with a few errors stays closed",
+          "input": "config window=10 minCalls=5 failureRate=50 slowMs=1000 slowRate=80 openMs=5000 halfOpenCalls=3\ncall t=0 ok 120\ncall t=100 ok 90\ncall t=200 error 300\ncall t=300 ok 110\ncall t=400 ok 95\ncall t=500 ok 130\ncall t=600 error 250\ncall t=700 ok 100\ncall t=800 ok 100\ncall t=900 ok 100\n",
+          "expected": "t=0 CLOSED ok\nt=100 CLOSED ok\nt=200 CLOSED error\nt=300 CLOSED ok\nt=400 CLOSED ok\nt=500 CLOSED ok\nt=600 CLOSED error\nt=700 CLOSED ok\nt=800 CLOSED ok\nt=900 CLOSED ok\nstate=CLOSED",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "An error burst opens it once 5 calls are recorded; calls are then rejected",
+          "input": "config window=10 minCalls=5 failureRate=50 slowMs=1000 slowRate=80 openMs=5000 halfOpenCalls=3\ncall t=0 ok 120\ncall t=100 error 300\ncall t=200 error 280\ncall t=300 ok 150\ncall t=400 error 310\ncall t=500 ok 100\ncall t=3000 ok 100\ncall t=5399 ok 100\n",
+          "expected": "t=0 CLOSED ok\nt=100 CLOSED error\nt=200 CLOSED error\nt=300 CLOSED ok\nt=400 CLOSED error\nt=400 CLOSED -> OPEN\nt=500 OPEN rejected\nt=3000 OPEN rejected\nt=5399 OPEN rejected\nstate=OPEN",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "After the 5 s wait, three good trial calls close it",
+          "input": "config window=10 minCalls=5 failureRate=50 slowMs=1000 slowRate=80 openMs=5000 halfOpenCalls=3\ncall t=0 ok 120\ncall t=100 error 300\ncall t=200 error 280\ncall t=300 ok 150\ncall t=400 error 310\ncall t=5400 ok 120\ncall t=5500 ok 110\ncall t=5600 ok 130\ncall t=5700 ok 100\n",
+          "expected": "t=0 CLOSED ok\nt=100 CLOSED error\nt=200 CLOSED error\nt=300 CLOSED ok\nt=400 CLOSED error\nt=400 CLOSED -> OPEN\nt=5400 OPEN ok\nt=5400 OPEN -> HALF_OPEN\nt=5500 HALF_OPEN ok\nt=5600 HALF_OPEN ok\nt=5600 HALF_OPEN -> CLOSED\nt=5700 CLOSED ok\nstate=CLOSED",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Validation errors (400) go through but never open the breaker",
+          "input": "config window=10 minCalls=5 failureRate=50 slowMs=1000 slowRate=80 openMs=5000 halfOpenCalls=3\ncall t=0 ok 100\ncall t=100 bad-request 30\ncall t=200 bad-request 25\ncall t=300 bad-request 40\ncall t=400 ok 100\ncall t=500 bad-request 30\ncall t=600 ok 90\ncall t=700 error 300\ncall t=800 ok 100\ncall t=900 ok 100\n",
+          "expected": "t=0 CLOSED ok\nt=100 CLOSED ignored\nt=200 CLOSED ignored\nt=300 CLOSED ignored\nt=400 CLOSED ok\nt=500 CLOSED ignored\nt=600 CLOSED ok\nt=700 CLOSED error\nt=800 CLOSED ok\nt=900 CLOSED ok\nstate=CLOSED",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Slow successful calls open it on the slow-call rate",
+          "input": "config window=10 minCalls=5 failureRate=50 slowMs=1000 slowRate=80 openMs=5000 halfOpenCalls=3\ncall t=0 ok 1500\ncall t=100 ok 1200\ncall t=200 ok 1300\ncall t=300 ok 200\ncall t=400 ok 1800\ncall t=500 ok 100\n",
+          "expected": "t=0 CLOSED ok slow\nt=100 CLOSED ok slow\nt=200 CLOSED ok slow\nt=300 CLOSED ok\nt=400 CLOSED ok slow\nt=400 CLOSED -> OPEN\nt=500 OPEN rejected\nstate=OPEN",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A trial with failures opens it again; a later trial closes it",
+          "input": "config window=10 minCalls=5 failureRate=50 slowMs=1000 slowRate=80 openMs=5000 halfOpenCalls=3\ncall t=0 ok 120\ncall t=100 error 300\ncall t=200 error 280\ncall t=300 ok 150\ncall t=400 error 310\ncall t=5400 error 300\ncall t=5500 ok 100\ncall t=5600 error 290\ncall t=8000 ok 100\ncall t=10600 ok 100\ncall t=10700 ok 100\ncall t=10800 ok 100\n",
+          "expected": "t=0 CLOSED ok\nt=100 CLOSED error\nt=200 CLOSED error\nt=300 CLOSED ok\nt=400 CLOSED error\nt=400 CLOSED -> OPEN\nt=5400 OPEN error\nt=5400 OPEN -> HALF_OPEN\nt=5500 HALF_OPEN ok\nt=5600 HALF_OPEN error\nt=5600 HALF_OPEN -> OPEN\nt=8000 OPEN rejected\nt=10600 OPEN ok\nt=10600 OPEN -> HALF_OPEN\nt=10700 HALF_OPEN ok\nt=10800 HALF_OPEN ok\nt=10800 HALF_OPEN -> CLOSED\nstate=CLOSED",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

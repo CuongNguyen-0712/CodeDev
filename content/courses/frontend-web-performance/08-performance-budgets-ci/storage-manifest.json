@@ -1,0 +1,21 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_fwp_182",
+      "key": "challenges/javascript/chal_coding_fwp_182/starter.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "scripts/check-budgets.js",
+      "size": 1276
+    },
+    {
+      "role": "harness",
+      "challengePublicId": "chal_coding_fwp_182",
+      "key": "challenges/javascript/chal_coding_fwp_182/harness.js",
+      "contentType": "application/javascript; charset=utf-8",
+      "originalName": "harness.js",
+      "size": 593
+    }
+  ]
+}

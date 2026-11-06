@@ -1,0 +1,40 @@
+[
+  {
+    "id": "content-type",
+    "label": "Accept JSON with or without parameters (415 otherwise)",
+    "code": "mediaType := strings.TrimSpace(strings.Split(contentType, \";\")[0])\nif !strings.EqualFold(mediaType, \"application/json\") {\n\treturn 415, problem(415, \"unsupported-media-type\", \"Unsupported Media Type\", \"send the order as application/json\"), nil\n}"
+  },
+  {
+    "id": "strict-decode",
+    "label": "Decode strictly: unknown fields and broken JSON are 400",
+    "code": "dec := json.NewDecoder(bytes.NewReader(body))\ndec.DisallowUnknownFields()\nif err := dec.Decode(&o); err != nil {\n\treturn 400, problem(400, \"malformed-json\", \"Malformed JSON\", err.Error()), nil\n}"
+  },
+  {
+    "id": "field-errors",
+    "label": "Check every field and report all problems at once (422)",
+    "code": "var errs []FieldError\nif o.RestaurantID == \"\" {\n\terrs = append(errs, FieldError{\"restaurantId\", \"is required\"})\n}\nif len(o.Items) == 0 {\n\terrs = append(errs, FieldError{\"items\", \"needs at least one item\"})\n}\nfor i, it := range o.Items {\n\tif it.Quantity < 1 || it.Quantity > 20 {\n\t\terrs = append(errs, FieldError{fmt.Sprintf(\"items[%d].quantity\", i), \"must be between 1 and 20\"})\n\t}\n}\nif strings.TrimSpace(o.DeliveryAddress) == \"\" {\n\terrs = append(errs, FieldError{\"deliveryAddress\", \"is required\"})\n}\nif len(errs) > 0 {\n\tp := problem(422, \"invalid-order\", \"Invalid order\", fmt.Sprintf(\"%d field(s) are invalid\", len(errs)))\n\tp.Errors = errs\n\treturn 422, p, nil\n}"
+  },
+  {
+    "id": "problem-media-type",
+    "label": "Problem bodies have their own media type",
+    "code": "if p != nil {\n\treturn \"application/problem+json\"\n}\nreturn \"application/json\""
+  },
+  {
+    "id": "content-type-exact",
+    "label": "Accept JSON with or without parameters (415 otherwise)",
+    "code": "if contentType != \"application/json\" {\n\treturn 415, problem(415, \"unsupported-media-type\", \"Unsupported Media Type\", \"send the order as application/json\"), nil\n}",
+    "distractor": true
+  },
+  {
+    "id": "decode-lenient",
+    "label": "Decode strictly: unknown fields and broken JSON are 400",
+    "code": "if err := json.NewDecoder(bytes.NewReader(body)).Decode(&o); err != nil {\n\treturn 400, problem(400, \"malformed-json\", \"Malformed JSON\", err.Error()), nil\n}",
+    "distractor": true
+  },
+  {
+    "id": "field-errors-first-only",
+    "label": "Check every field and report all problems at once (422)",
+    "code": "invalid := func(field, detail string) (int, *Problem, *Order) {\n\tp := problem(422, \"invalid-order\", \"Invalid order\", \"1 field(s) are invalid\")\n\tp.Errors = []FieldError{{field, detail}}\n\treturn 422, p, nil\n}\nif o.RestaurantID == \"\" {\n\treturn invalid(\"restaurantId\", \"is required\")\n}\nif len(o.Items) == 0 {\n\treturn invalid(\"items\", \"needs at least one item\")\n}\nfor i, it := range o.Items {\n\tif it.Quantity < 1 || it.Quantity > 20 {\n\t\treturn invalid(fmt.Sprintf(\"items[%d].quantity\", i), \"must be between 1 and 20\")\n\t}\n}\nif strings.TrimSpace(o.DeliveryAddress) == \"\" {\n\treturn invalid(\"deliveryAddress\", \"is required\")\n}",
+    "distractor": true
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_pat_162",
+      "key": "challenges/python/chal_coding_pat_162/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "tests/test_idempotency.py",
+      "size": 5444
+    }
+  ]
+}

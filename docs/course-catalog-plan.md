@@ -5,6 +5,14 @@ Trạng thái (2026-10-21): **đang triển khai**. Đã có: hạ tầng chấm
 catalog dưới dạng **draft chỉ có đề cương** (`content/courses/<id>/course.json`, `modules: []` + `outline`),
 kèm role, skill, goal và prerequisite (§5.1). Tất cả chỉ ở local.
 
+**Cập nhật 2026-11-06 (xóa course lệch hướng):** 33 course bị xóa hẳn ở mọi nơi (content, seed, DB local và
+Neon, Payload, Sanity, MinIO/S3, Cloudinary; script `db/seeds/remove-courses.sql`): 14 course đề cương thuần ngôn ngữ
+đã archived, 2 course bị thay thế (`devops-foundations-ci-containers`, `postgres-performance`), 11 course foundation
+thuần ngôn ngữ (c, cpp, csharp, go, java21, kotlin, php, rust, python, typescript, js-modern) và 6 course nền tảng chung
+(`software-architecture-fundamentals`, `web-http-fundamentals`, `web-foundations-html-css-a11y`,
+`sql-data-analysis-foundations`, `typescript-test-design`, `test-automation-foundations`). Prerequisite và roadmap trỏ tới
+chúng đã được gỡ. Các mục mô tả những course này bên dưới chỉ còn giá trị lịch sử.
+
 **Cập nhật 2026-11-04 (định hướng framework/engine):**
 - Catalog chuyển sang course áp dụng framework/engine vào tình huống thật (Docker, Nginx, Kubernetes, CI,
   Postgres, Kafka…), khuôn lesson core-first, 1–2 challenge mỗi lesson (`content/README.md`,

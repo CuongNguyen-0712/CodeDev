@@ -1,0 +1,40 @@
+[
+  {
+    "id": "fetch-eta",
+    "label": "Ask the maps API for the delivery ETA",
+    "code": "eta = await deps.maps.eta(order[\"address\"])"
+  },
+  {
+    "id": "retry-wait",
+    "label": "Wait before the next attempt",
+    "code": "await asyncio.sleep(0.2)"
+  },
+  {
+    "id": "render-pdf",
+    "label": "Render the receipt PDF",
+    "code": "pdf = await deps.pool.run(render_receipt, order, eta)"
+  },
+  {
+    "id": "save-receipt",
+    "label": "Store the receipt",
+    "code": "await deps.store.save(order[\"id\"], pdf)"
+  },
+  {
+    "id": "fetch-eta-requests",
+    "label": "Ask the maps API for the delivery ETA",
+    "code": "eta = deps.maps.eta_sync(order[\"address\"])",
+    "distractor": true
+  },
+  {
+    "id": "render-pdf-in-loop",
+    "label": "Render the receipt PDF",
+    "code": "pdf = render_receipt(order, eta)",
+    "distractor": true
+  },
+  {
+    "id": "retry-wait-time-sleep",
+    "label": "Wait before the next attempt",
+    "code": "time.sleep(0.2)",
+    "distractor": true
+  }
+]

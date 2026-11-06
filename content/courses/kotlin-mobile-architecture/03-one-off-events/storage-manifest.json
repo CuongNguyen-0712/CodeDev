@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_kma_132",
+      "key": "challenges/kotlin/chal_coding_kma_132/starter.kt",
+      "contentType": "text/x-kotlin; charset=utf-8",
+      "originalName": "CourierMessages.kt",
+      "size": 2232
+    }
+  ]
+}

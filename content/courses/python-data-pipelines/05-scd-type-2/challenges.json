@@ -1,0 +1,813 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pdp_152",
+      "name": "restaurant-commission-history",
+      "type": "mini_coding",
+      "title": "Keep the history of restaurant commissions",
+      "description": "Finance recomputed September's commission with October's rates because `dim_restaurant` was overwritten every night. The editor holds `pipelines/dim_restaurant_scd2.py` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that a change of `district` or `commission_pct` closes the current version on the snapshot's date and opens a new one, a new `name` corrects every version without creating one, a new restaurant gets its first version, applying the same snapshot twice changes nothing, and `restaurant_sk_at` returns the version valid on a given day (`valid_from <= day < valid_to`). Run applies a series of snapshots on SQLite, then prices orders with the version valid on their day.",
+      "difficulty": "hard",
+      "outcomes": [
+        "modeling"
+      ],
+      "points": 40,
+      "hints": [
+        "Draw one restaurant's timeline: two versions with `valid_from` and `valid_to`, and an order on 30 September and one on 1 October. Which version must each order find, and which date ends the first version?",
+        "Look at the current row (`is_current = 1`), a tuple comparison of only the tracked attributes, an `UPDATE` that ends a version on the snapshot's date, and a lookup with `valid_from <= ? AND ? < valid_to`.",
+        "A product dimension that tracks `category` but not `description` would do: `if new.description != cur.description: UPDATE ... SET description = ? WHERE product_id = ?`, then `if (new.category,) != (cur.category,): UPDATE ... SET valid_to = :day, is_current = 0 WHERE product_sk = :sk` followed by an INSERT with `valid_from = :day`."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "pipelines/dim_restaurant_scd2.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The first snapshot creates one current version per restaurant",
+          "input": {
+            "snapshots": [
+              {
+                "date": "2026-08-01",
+                "rows": [
+                  {
+                    "restaurant_id": 101,
+                    "name": "Pho Ha Noi",
+                    "district": "District 1",
+                    "commission_pct": 15
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "name": "Com Tam Ba Ghien",
+                    "district": "Phu Nhuan",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "name": "Bun Cha 145",
+                    "district": "District 3",
+                    "commission_pct": 20
+                  }
+                ]
+              }
+            ],
+            "orders": []
+          },
+          "expected": {
+            "dim": [
+              [
+                1,
+                101,
+                "Pho Ha Noi",
+                "District 1",
+                15,
+                "2026-08-01",
+                "9999-12-31",
+                1
+              ],
+              [
+                2,
+                102,
+                "Com Tam Ba Ghien",
+                "Phu Nhuan",
+                18,
+                "2026-08-01",
+                "9999-12-31",
+                1
+              ],
+              [
+                3,
+                103,
+                "Bun Cha 145",
+                "District 3",
+                20,
+                "2026-08-01",
+                "9999-12-31",
+                1
+              ]
+            ],
+            "orders": [],
+            "commission_by_month": {}
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Commission 15% to 18% from 1 October: a new version, September orders keep 15%",
+          "input": {
+            "snapshots": [
+              {
+                "date": "2026-08-01",
+                "rows": [
+                  {
+                    "restaurant_id": 101,
+                    "name": "Pho Ha Noi",
+                    "district": "District 1",
+                    "commission_pct": 15
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "name": "Com Tam Ba Ghien",
+                    "district": "Phu Nhuan",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "name": "Bun Cha 145",
+                    "district": "District 3",
+                    "commission_pct": 20
+                  }
+                ]
+              },
+              {
+                "date": "2026-10-01",
+                "rows": [
+                  {
+                    "restaurant_id": 101,
+                    "name": "Pho Ha Noi",
+                    "district": "District 1",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "name": "Com Tam Ba Ghien",
+                    "district": "Phu Nhuan",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "name": "Bun Cha 145",
+                    "district": "District 3",
+                    "commission_pct": 20
+                  }
+                ]
+              }
+            ],
+            "orders": [
+              {
+                "order_id": 9001,
+                "restaurant_id": 101,
+                "day": "2026-09-14",
+                "total_vnd": 200000
+              },
+              {
+                "order_id": 9002,
+                "restaurant_id": 101,
+                "day": "2026-09-30",
+                "total_vnd": 150000
+              },
+              {
+                "order_id": 9003,
+                "restaurant_id": 101,
+                "day": "2026-10-01",
+                "total_vnd": 150000
+              },
+              {
+                "order_id": 9004,
+                "restaurant_id": 102,
+                "day": "2026-09-20",
+                "total_vnd": 120000
+              },
+              {
+                "order_id": 9005,
+                "restaurant_id": 101,
+                "day": "2026-10-12",
+                "total_vnd": 300000
+              }
+            ]
+          },
+          "expected": {
+            "dim": [
+              [
+                1,
+                101,
+                "Pho Ha Noi",
+                "District 1",
+                15,
+                "2026-08-01",
+                "2026-10-01",
+                0
+              ],
+              [
+                4,
+                101,
+                "Pho Ha Noi",
+                "District 1",
+                18,
+                "2026-10-01",
+                "9999-12-31",
+                1
+              ],
+              [
+                2,
+                102,
+                "Com Tam Ba Ghien",
+                "Phu Nhuan",
+                18,
+                "2026-08-01",
+                "9999-12-31",
+                1
+              ],
+              [
+                3,
+                103,
+                "Bun Cha 145",
+                "District 3",
+                20,
+                "2026-08-01",
+                "9999-12-31",
+                1
+              ]
+            ],
+            "orders": [
+              [
+                9001,
+                1,
+                30000
+              ],
+              [
+                9002,
+                1,
+                22500
+              ],
+              [
+                9003,
+                4,
+                27000
+              ],
+              [
+                9004,
+                2,
+                21600
+              ],
+              [
+                9005,
+                4,
+                54000
+              ]
+            ],
+            "commission_by_month": {
+              "2026-09": 74100,
+              "2026-10": 81000
+            }
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "A fixed typo in the name updates every version and creates none",
+          "input": {
+            "snapshots": [
+              {
+                "date": "2026-08-01",
+                "rows": [
+                  {
+                    "restaurant_id": 101,
+                    "name": "Pho Ha Noi",
+                    "district": "District 1",
+                    "commission_pct": 15
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "name": "Com Tam Ba Ghien",
+                    "district": "Phu Nhuan",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "name": "Bun Cha 145",
+                    "district": "District 3",
+                    "commission_pct": 20
+                  }
+                ]
+              },
+              {
+                "date": "2026-10-01",
+                "rows": [
+                  {
+                    "restaurant_id": 101,
+                    "name": "Pho Ha Noi",
+                    "district": "District 1",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "name": "Com Tam Ba Ghien",
+                    "district": "Phu Nhuan",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "name": "Bun Cha 145",
+                    "district": "District 3",
+                    "commission_pct": 20
+                  }
+                ]
+              },
+              {
+                "date": "2026-10-15",
+                "rows": [
+                  {
+                    "restaurant_id": 101,
+                    "name": "Pho Ha Noi",
+                    "district": "District 1",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "name": "Com Tam Ba Ghien",
+                    "district": "Phu Nhuan",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "name": "Bun Cha 145 Hang Manh",
+                    "district": "District 3",
+                    "commission_pct": 20
+                  }
+                ]
+              }
+            ],
+            "orders": []
+          },
+          "expected": {
+            "dim": [
+              [
+                1,
+                101,
+                "Pho Ha Noi",
+                "District 1",
+                15,
+                "2026-08-01",
+                "2026-10-01",
+                0
+              ],
+              [
+                4,
+                101,
+                "Pho Ha Noi",
+                "District 1",
+                18,
+                "2026-10-01",
+                "9999-12-31",
+                1
+              ],
+              [
+                2,
+                102,
+                "Com Tam Ba Ghien",
+                "Phu Nhuan",
+                18,
+                "2026-08-01",
+                "9999-12-31",
+                1
+              ],
+              [
+                3,
+                103,
+                "Bun Cha 145 Hang Manh",
+                "District 3",
+                20,
+                "2026-08-01",
+                "9999-12-31",
+                1
+              ]
+            ],
+            "orders": [],
+            "commission_by_month": {}
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "The same snapshot applied twice changes nothing; a new restaurant joins later",
+          "input": {
+            "snapshots": [
+              {
+                "date": "2026-08-01",
+                "rows": [
+                  {
+                    "restaurant_id": 101,
+                    "name": "Pho Ha Noi",
+                    "district": "District 1",
+                    "commission_pct": 15
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "name": "Com Tam Ba Ghien",
+                    "district": "Phu Nhuan",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "name": "Bun Cha 145",
+                    "district": "District 3",
+                    "commission_pct": 20
+                  }
+                ]
+              },
+              {
+                "date": "2026-08-01",
+                "rows": [
+                  {
+                    "restaurant_id": 101,
+                    "name": "Pho Ha Noi",
+                    "district": "District 1",
+                    "commission_pct": 15
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "name": "Com Tam Ba Ghien",
+                    "district": "Phu Nhuan",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "name": "Bun Cha 145",
+                    "district": "District 3",
+                    "commission_pct": 20
+                  }
+                ]
+              },
+              {
+                "date": "2026-09-10",
+                "rows": [
+                  {
+                    "restaurant_id": 101,
+                    "name": "Pho Ha Noi",
+                    "district": "District 1",
+                    "commission_pct": 15
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "name": "Com Tam Ba Ghien",
+                    "district": "Phu Nhuan",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "name": "Bun Cha 145",
+                    "district": "District 3",
+                    "commission_pct": 20
+                  },
+                  {
+                    "restaurant_id": 104,
+                    "name": "Banh Mi Huynh Hoa",
+                    "district": "District 1",
+                    "commission_pct": 16
+                  }
+                ]
+              },
+              {
+                "date": "2026-09-10",
+                "rows": [
+                  {
+                    "restaurant_id": 101,
+                    "name": "Pho Ha Noi",
+                    "district": "District 1",
+                    "commission_pct": 15
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "name": "Com Tam Ba Ghien",
+                    "district": "Phu Nhuan",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "name": "Bun Cha 145",
+                    "district": "District 3",
+                    "commission_pct": 20
+                  },
+                  {
+                    "restaurant_id": 104,
+                    "name": "Banh Mi Huynh Hoa",
+                    "district": "District 1",
+                    "commission_pct": 16
+                  }
+                ]
+              }
+            ],
+            "orders": [
+              {
+                "order_id": 9101,
+                "restaurant_id": 104,
+                "day": "2026-09-09",
+                "total_vnd": 100000
+              },
+              {
+                "order_id": 9102,
+                "restaurant_id": 104,
+                "day": "2026-09-10",
+                "total_vnd": 100000
+              }
+            ]
+          },
+          "expected": {
+            "dim": [
+              [
+                1,
+                101,
+                "Pho Ha Noi",
+                "District 1",
+                15,
+                "2026-08-01",
+                "9999-12-31",
+                1
+              ],
+              [
+                2,
+                102,
+                "Com Tam Ba Ghien",
+                "Phu Nhuan",
+                18,
+                "2026-08-01",
+                "9999-12-31",
+                1
+              ],
+              [
+                3,
+                103,
+                "Bun Cha 145",
+                "District 3",
+                20,
+                "2026-08-01",
+                "9999-12-31",
+                1
+              ],
+              [
+                4,
+                104,
+                "Banh Mi Huynh Hoa",
+                "District 1",
+                16,
+                "2026-09-10",
+                "9999-12-31",
+                1
+              ]
+            ],
+            "orders": [
+              [
+                9101,
+                null,
+                null
+              ],
+              [
+                9102,
+                4,
+                16000
+              ]
+            ],
+            "commission_by_month": {
+              "2026-09": 16000
+            }
+          },
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "A move and two rate changes: orders on each boundary day use the new version",
+          "input": {
+            "snapshots": [
+              {
+                "date": "2026-08-01",
+                "rows": [
+                  {
+                    "restaurant_id": 101,
+                    "name": "Pho Ha Noi",
+                    "district": "District 1",
+                    "commission_pct": 15
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "name": "Com Tam Ba Ghien",
+                    "district": "Phu Nhuan",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "name": "Bun Cha 145",
+                    "district": "District 3",
+                    "commission_pct": 20
+                  }
+                ]
+              },
+              {
+                "date": "2026-09-01",
+                "rows": [
+                  {
+                    "restaurant_id": 101,
+                    "name": "Pho Ha Noi",
+                    "district": "District 1",
+                    "commission_pct": 15
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "name": "Com Tam Ba Ghien",
+                    "district": "District 10",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "name": "Bun Cha 145",
+                    "district": "District 3",
+                    "commission_pct": 20
+                  }
+                ]
+              },
+              {
+                "date": "2026-10-01",
+                "rows": [
+                  {
+                    "restaurant_id": 101,
+                    "name": "Pho Ha Noi",
+                    "district": "District 1",
+                    "commission_pct": 18
+                  },
+                  {
+                    "restaurant_id": 102,
+                    "name": "Com Tam Ba Ghien",
+                    "district": "District 10",
+                    "commission_pct": 17
+                  },
+                  {
+                    "restaurant_id": 103,
+                    "name": "Bun Cha 145",
+                    "district": "District 3",
+                    "commission_pct": 20
+                  }
+                ]
+              }
+            ],
+            "orders": [
+              {
+                "order_id": 9001,
+                "restaurant_id": 101,
+                "day": "2026-09-14",
+                "total_vnd": 200000
+              },
+              {
+                "order_id": 9002,
+                "restaurant_id": 101,
+                "day": "2026-09-30",
+                "total_vnd": 150000
+              },
+              {
+                "order_id": 9003,
+                "restaurant_id": 101,
+                "day": "2026-10-01",
+                "total_vnd": 150000
+              },
+              {
+                "order_id": 9004,
+                "restaurant_id": 102,
+                "day": "2026-09-20",
+                "total_vnd": 120000
+              },
+              {
+                "order_id": 9005,
+                "restaurant_id": 101,
+                "day": "2026-10-12",
+                "total_vnd": 300000
+              },
+              {
+                "order_id": 9201,
+                "restaurant_id": 102,
+                "day": "2026-08-31",
+                "total_vnd": 90000
+              },
+              {
+                "order_id": 9202,
+                "restaurant_id": 102,
+                "day": "2026-09-01",
+                "total_vnd": 90000
+              },
+              {
+                "order_id": 9203,
+                "restaurant_id": 102,
+                "day": "2026-10-01",
+                "total_vnd": 90000
+              }
+            ]
+          },
+          "expected": {
+            "dim": [
+              [
+                1,
+                101,
+                "Pho Ha Noi",
+                "District 1",
+                15,
+                "2026-08-01",
+                "2026-10-01",
+                0
+              ],
+              [
+                5,
+                101,
+                "Pho Ha Noi",
+                "District 1",
+                18,
+                "2026-10-01",
+                "9999-12-31",
+                1
+              ],
+              [
+                2,
+                102,
+                "Com Tam Ba Ghien",
+                "Phu Nhuan",
+                18,
+                "2026-08-01",
+                "2026-09-01",
+                0
+              ],
+              [
+                4,
+                102,
+                "Com Tam Ba Ghien",
+                "District 10",
+                18,
+                "2026-09-01",
+                "2026-10-01",
+                0
+              ],
+              [
+                6,
+                102,
+                "Com Tam Ba Ghien",
+                "District 10",
+                17,
+                "2026-10-01",
+                "9999-12-31",
+                1
+              ],
+              [
+                3,
+                103,
+                "Bun Cha 145",
+                "District 3",
+                20,
+                "2026-08-01",
+                "9999-12-31",
+                1
+              ]
+            ],
+            "orders": [
+              [
+                9001,
+                1,
+                30000
+              ],
+              [
+                9002,
+                1,
+                22500
+              ],
+              [
+                9003,
+                5,
+                27000
+              ],
+              [
+                9004,
+                4,
+                21600
+              ],
+              [
+                9005,
+                5,
+                54000
+              ],
+              [
+                9201,
+                2,
+                16200
+              ],
+              [
+                9202,
+                4,
+                16200
+              ],
+              [
+                9203,
+                6,
+                15300
+              ]
+            ],
+            "commission_by_month": {
+              "2026-09": 90300,
+              "2026-10": 96300,
+              "2026-08": 16200
+            }
+          },
+          "hidden": true,
+          "score": 8
+        }
+      ]
+    }
+  ]
+}

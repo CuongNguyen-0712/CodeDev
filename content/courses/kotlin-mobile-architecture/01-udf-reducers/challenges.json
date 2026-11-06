@@ -1,0 +1,134 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_kma_111",
+      "name": "udf-reducers-quiz",
+      "type": "quiz",
+      "title": "Read the Deliveries screen bugs",
+      "description": "Three statements about the courier app's Deliveries screen before it moved to one state and one reducer. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "ui-state"
+      ],
+      "points": 10,
+      "hints": [
+        "`state.value = state.value.copy(...)` is two steps: a read and a write. What can another coroutine do between them?",
+        "Count the boolean and nullable fields the old ViewModel had, and how many of their combinations the screen can draw sensibly.",
+        "StateFlow keeps one value. What happens to a value that is equal to the current one, or that is replaced before the UI collects it?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Two places update the screen state at the same time: the refresh coroutine and the filter chip handler.\n\n```kotlin\nclass DeliveriesViewModel : ViewModel() {\n    val state = MutableStateFlow(DeliveriesState())\n\n    fun onFilter(filter: String) {\n        state.value = state.value.copy(filter = filter)\n    }\n\n    private fun onLoaded(orders: List<Order>) {          // runs on Dispatchers.Default\n        state.value = state.value.copy(orders = orders, refreshing = false)\n    }\n}\n```\n\n```text\n14:02:11.180  onLoaded reads state (filter=all)\n14:02:11.181  onFilter writes filter=picked\n14:02:11.183  onLoaded writes orders=[...], filter=all\n```\n\nStatement: \"StateFlow is thread-safe, so two writers that both use `state.value = state.value.copy(...)` cannot lose an update.\"",
+          "explanation": "False. Each assignment is atomic, but read-copy-write is two operations: `onLoaded` read the state before `onFilter` wrote, then wrote its copy with the old filter, so the courier's chip choice vanished. `MutableStateFlow.update { reduce(it, action) }` retries the function until a compare-and-set succeeds, so concurrent updates are applied one after the other. Keeping the `MutableStateFlow` private and exposing `asStateFlow()` also stops the screen from writing it directly.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The old ViewModel kept six independent fields:\n\n```kotlin\nval isLoading = MutableLiveData(false)\nval isRefreshing = MutableLiveData(false)\nval error = MutableLiveData<String?>(null)\nval orders = MutableLiveData<List<Order>>(emptyList())\nval filter = MutableLiveData(\"all\")\nval banner = MutableLiveData<String?>(null)\n```\n\n```text\nBug RR-412: after a failed pull-to-refresh the spinner keeps turning,\nand the next successful load shows fresh orders under the old \"timeout\" banner.\n```\n\nStatement: \"Six independent fields allow combinations the screen should never show; one immutable state class changed only by a reducer makes every transition explicit and testable as a plain function.\"",
+          "explanation": "True. Nine call sites each set some of the six fields, and the bug is two missed writes: refreshing was never reset on failure, and error was never cleared on success. With one `data class` and a pure `reduce(state, action)`, each action lists every field it changes in one place, and a unit test can feed actions and compare states without Android, coroutines or mocks.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team wanted a toast for every pickup and put a counter in the state:\n\n```kotlin\ndata class DeliveriesState(/* ... */ val lastPickedUp: String? = null)\n\n// screen\nval state by viewModel.state.collectAsStateWithLifecycle()\nLaunchedEffect(state.lastPickedUp) {\n    state.lastPickedUp?.let { toast(\"Picked up $it\") }\n}\n```\n\n```text\nCourier picks up O7, then O7 again after an undo: one toast.\nTwo pickups 5 ms apart (O7, O8): one toast, for O8.\n```\n\nStatement: \"StateFlow keeps only the latest value and does not emit a value equal to the current one, so a UI that must react to every occurrence cannot rely on a plain state field like this.\"",
+          "explanation": "True. StateFlow is conflated and distinct-until-changed: setting the same value again emits nothing, and a value replaced before the collector runs is never seen. State describes what the screen shows now; things that must happen once each (a toast, a navigation) need either a list of pending messages that the UI acknowledges, or a channel. Lesson 3 covers both.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_kma_112",
+      "name": "deliveries-reducer",
+      "type": "mini_coding",
+      "title": "Write the Deliveries reducer",
+      "description": "The courier app's Deliveries screen moves to unidirectional data flow: one `DeliveriesState`, one `sealed interface Action`, and a pure `reduce(state, action)` that `DeliveriesViewModel` calls inside `state.update { }`. The editor holds the file with each branch of the reducer missing, marked by a `// [ ]` line; until every branch is in place the compiler reports that `when` is not exhaustive. Some pieces are wrong on purpose. Fill every line so that: the first load shows the spinner and clears an old error; pull-to-refresh keeps the current list on screen; fresh orders replace the list and clear spinner, refresh and error; a failed request stops both spinners and shows the message while keeping the last list; a filter chip only changes the filter; picking up an order changes that order's status and nothing else. Run feeds actions to `reduce` and prints what the screen would show after each one.",
+      "difficulty": "medium",
+      "outcomes": [
+        "ui-state"
+      ],
+      "points": 30,
+      "hints": [
+        "For each action, list every field the screen reads (spinner, refreshing, error, list, filter) and decide whether this action must change it. A forgotten field is the classic bug.",
+        "Every branch returns `state.copy(...)` with the fields it changes; lists are replaced, never mutated (`map` returns a new list).",
+        "A reducer for a chat screen: `is Action.Send -> state.copy(sending = true, error = null)`, `is Action.Sent -> state.copy(messages = state.messages + action.message, sending = false)`, `is Action.SendFailed -> state.copy(sending = false, error = action.reason)`, `is Action.Edit -> state.copy(messages = state.messages.map { if (it.id == action.id) it.copy(text = action.text) else it })`."
+      ],
+      "coding": {
+        "language": "kotlin",
+        "filePath": "DeliveriesReducer.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "First load: spinner, then the orders",
+          "input": "load\nloaded O1:new,O2:new,O3:picked\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "load -> spinner=true refreshing=false error=null filter=all list=[]\nloaded O1:new,O2:new,O3:picked -> spinner=false refreshing=false error=null filter=all list=[O1:new,O2:new,O3:picked]"
+        },
+        {
+          "name": "The incident: a failed refresh stops the spinner; orders from background sync clear the error",
+          "input": "loaded O1:new,O2:new\nrefresh\nfailed timeout\nloaded O1:new,O2:new,O4:new\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "loaded O1:new,O2:new -> spinner=false refreshing=false error=null filter=all list=[O1:new,O2:new]\nrefresh -> spinner=false refreshing=true error=null filter=all list=[O1:new,O2:new]\nfailed timeout -> spinner=false refreshing=false error=timeout filter=all list=[O1:new,O2:new]\nloaded O1:new,O2:new,O4:new -> spinner=false refreshing=false error=null filter=all list=[O1:new,O2:new,O4:new]"
+        },
+        {
+          "name": "Filter chips and a pickup change only what they should",
+          "input": "loaded O1:new,O2:new,O3:picked\nfilter new\npicked O1\nfilter all\n",
+          "hidden": false,
+          "score": 6,
+          "expected": "loaded O1:new,O2:new,O3:picked -> spinner=false refreshing=false error=null filter=all list=[O1:new,O2:new,O3:picked]\nfilter new -> spinner=false refreshing=false error=null filter=new list=[O1:new,O2:new]\npicked O1 -> spinner=false refreshing=false error=null filter=new list=[O2:new]\nfilter all -> spinner=false refreshing=false error=null filter=all list=[O1:picked,O2:new,O3:picked]"
+        },
+        {
+          "name": "Pull-to-refresh keeps the list on screen while it loads",
+          "input": "loaded O1:new,O2:picked\nrefresh\nfilter picked\nloaded O1:picked,O2:picked\n",
+          "hidden": true,
+          "score": 6,
+          "expected": "loaded O1:new,O2:picked -> spinner=false refreshing=false error=null filter=all list=[O1:new,O2:picked]\nrefresh -> spinner=false refreshing=true error=null filter=all list=[O1:new,O2:picked]\nfilter picked -> spinner=false refreshing=true error=null filter=picked list=[O2:picked]\nloaded O1:picked,O2:picked -> spinner=false refreshing=false error=null filter=picked list=[O1:picked,O2:picked]"
+        },
+        {
+          "name": "A failed first load shows the error; loading again clears it",
+          "input": "load\nfailed offline\nload\nloaded O9:new\n",
+          "hidden": true,
+          "score": 6,
+          "expected": "load -> spinner=true refreshing=false error=null filter=all list=[]\nfailed offline -> spinner=false refreshing=false error=offline filter=all list=[]\nload -> spinner=true refreshing=false error=null filter=all list=[]\nloaded O9:new -> spinner=false refreshing=false error=null filter=all list=[O9:new]"
+        }
+      ]
+    }
+  ]
+}

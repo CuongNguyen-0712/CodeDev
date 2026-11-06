@@ -19,7 +19,7 @@ BEGIN
 END $$;
 
 INSERT INTO catalog.course (public_id, title, concept, description, image, level, duration, instructor, cost, point_price, reward, language_id, category_id, access_model, publish_status, is_hidden, is_deleted)
-VALUES ('java-resilient-microservices', 'Resilient Microservices in Java: Retries, Circuit Breakers & Outbox', 'Keep a microservice system up when its dependencies are not: timeouts and retry budgets, circuit breakers, bulkheads, idempotency keys, the transactional outbox, sagas and tracing.', 'Keep a microservice system up when its dependencies are not: timeouts and retry budgets, circuit breakers, bulkheads, idempotency keys, the transactional outbox, sagas and tracing. 9 lessons, each starting from a real bug or incident, with graded challenges.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594586/codedev/courses/java-resilient-microservices/cover', 'advanced'::level_enum, 180, 'CodeDev Engineering Team', 0, 0, 150,
+VALUES ('java-resilient-microservices', 'Resilient Microservices in Java: Spring Boot, Resilience4j and the Outbox', 'Keep Rice Rocket''s Java services up when their dependencies are not: timeouts and retry budgets, Resilience4j circuit breakers and bulkheads, idempotency keys, the transactional outbox, saga compensations, cache stampede protection and W3C trace context. Every lesson shows the Spring Boot configuration; the challenges are plain Java 21 graded in the code runner.', 'Keep Rice Rocket''s Java services up when their dependencies are not: timeouts and retry budgets, Resilience4j circuit breakers and bulkheads, idempotency keys, the transactional outbox, saga compensations, cache stampede protection and W3C trace context. Every lesson shows the Spring Boot configuration; the challenges are plain Java 21 graded in the code runner. 8 lessons on one project, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.', 'https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594586/codedev/courses/java-resilient-microservices/cover', 'advanced'::level_enum, 140, 'CodeDev Engineering Team', 0, 0, 150,
         (SELECT id FROM catalog.language WHERE name = 'Java'),
         (SELECT id FROM catalog.category WHERE name = 'Microservices'),
         'premium', 'draft', true, false)
@@ -74,9 +74,661 @@ INSERT INTO catalog.course_skill (course_id, skill_id, weight)
 SELECT (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), s.id, v.weight
 FROM (VALUES ('system_design', 5), ('api_design', 4), ('concurrency', 3), ('performance', 2)) AS v(code, weight)
 JOIN catalog.skill s ON s.code = v.code;
+UPDATE catalog.course SET completion_rules = '{}' WHERE id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices');
 DELETE FROM catalog.course_prerequisite WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices');
 INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
-SELECT (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), id FROM catalog.course WHERE public_id = ANY(ARRAY['java21-virtual-threads']::text[]);
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), id FROM catalog.course WHERE public_id = ANY(ARRAY['']::text[]);
+
+-- module 1: Failure handling
+UPDATE course.module SET title = 'Failure handling', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 1 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), 'Failure handling', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 1 AND is_deleted = false);
+
+-- lesson 1.1: Timeouts and retry budgets (Sanity lesson-jrm-1-1)
+UPDATE course.lesson SET title = 'Timeouts and retry budgets', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-1-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Timeouts and retry budgets', 'sanity', 'lesson-jrm-1-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-jrm-1-1' AND is_deleted = false);
+
+-- challenge chal_quiz_jrm_111 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_jrm_111', (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-1-1' AND is_deleted = false LIMIT 1), 'timeouts-retry-budgets-quiz', 'Read the payment outage', 'Three statements about what happened to Rice Rocket''s checkout when the payment provider slowed down. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_111');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_111'), 1, 'Count the calls layer by layer: how many times does each layer try, and does every try of the outer layer start a fresh round of tries in the inner one?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_111'), 2, 'Read the thread dump: what is each request thread doing, and what bounds how long it may keep doing it?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_111'), 3, 'Ask what a timeout tells the client about the payment: did the provider charge the card or not, and what would a second POST do?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_111');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_111'), 'The gateway retries failed calls to order-service, and order-service retries its call to payment-service:
+
+```yaml
+# gateway route (order-service)
+retries: 3            # 1 call + 3 retries
+# order-service application.yml
+resilience4j.retry.instances.payment.max-attempts: 3
+```
+
+```text
+payment-service  10:41  requests/s  120 -> 1,410   (checkouts/s unchanged: 95)
+```
+
+Statement: "Each checkout can reach payment-service at most 3 times, because the payment client is limited to 3 attempts."', 'single_choice'::question_type, 'False. Retries multiply across layers: the gateway makes up to 4 calls to order-service, and each of them may make 3 attempts at payment-service, so one checkout can produce 12 payment calls. That is how 95 checkouts/s became more than 1,400 requests/s on a provider that was already slow. Retry in one layer only (usually the one closest to the failing dependency) and give it a budget.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_111') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_111'), 'order-service stopped answering although its CPU was idle. A thread dump during the incident:
+
+```text
+"http-nio-8080-exec-187" ... RUNNABLE
+   at sun.nio.ch.SocketDispatcher.read0(Native Method)
+   at java.net.http...
+   at com.ricerocket.order.payment.PaymentClient.charge(PaymentClient.java:58)
+... 200 of 200 Tomcat worker threads in PaymentClient.charge
+```
+
+The payment `RestClient` was built with no read timeout.
+
+Statement: "Without a read timeout each request thread can wait for the provider indefinitely, so a slow dependency used up all 200 worker threads and the whole service stopped answering, checkout or not."', 'single_choice'::question_type, 'True. A connect timeout only bounds opening the connection; once connected, a client with no read (response) timeout waits as long as the provider takes. Every new checkout took one more worker thread until all 200 were stuck, and requests that never touch payments (menus, order status) had no thread left. A per-attempt timeout, inside an overall deadline, turns that into fast failures.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_111') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_111'), 'The charge call timed out after 800 ms and was retried automatically:
+
+```text
+10:41:07.212 POST /v1/charges order=ORD-88213 amount=185000   -> timeout after 800 ms (retrying)
+10:41:08.115 POST /v1/charges order=ORD-88213 amount=185000   -> 201 Created charge=ch_7Fq2
+# provider dashboard: ORD-88213  ch_7Fp9  185,000 VND  succeeded 10:41:07.950
+#                     ORD-88213  ch_7Fq2  185,000 VND  succeeded 10:41:08.301
+```
+
+Statement: "A timeout does not tell the client whether the charge happened, so a POST may only be retried when it carries an idempotency key the provider uses to return the first result."', 'single_choice'::question_type, 'True. The first request reached the provider and succeeded at 07.950, after the client had already given up at 800 ms; the retry created a second charge. Timeouts are ambiguous for non-idempotent operations. Either do not retry them, or send an Idempotency-Key the provider stores so the retry returns the first charge instead of making a new one (lesson 4).', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_111') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_jrm_112 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_jrm_112', (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-1-1' AND is_deleted = false LIMIT 1), 'payment-call-retry-policy', 'Bound the payment call: deadline, timeouts, retries and a budget', 'order-service''s call to payment-service is a loop in `call(...)` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: each attempt waits at most `timeout` ms and never past the checkout''s `deadline`; only transient failures (no answer, 429, 5xx) are retried, any other 4xx fails at once; retry n waits `backoff * 2^(n-1)` ms, and no retry starts when that wait would reach the deadline; and every retry spends one token from the budget shared by all checkouts (each checkout adds `ratio` tokens, up to the starting amount). The test runner at the bottom reads a policy and the provider''s behaviour per checkout, and prints one line per checkout and the totals.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_112');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_112'), 1, 'Trace one checkout on paper with the elapsed time after every attempt and every wait. Where can the elapsed time pass the deadline, and which statuses are worth a second attempt?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_112'), 2, 'Look at `Math.min` for the attempt limit, a status check that lets only 429, 5xx and timeouts through, the shift `backoff << (attempt - 1)`, and `budget.tokens` (thousandths of a token: `RetryBudget.ONE` is one) before `elapsed += wait`.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_112'), 3, 'A search client that calls an index with a 500 ms overall budget: `limit = Math.min(perTry, budgetMs - spent)`; `if (code >= 400 && code < 500 && code != 429) giveUp();`; `delay = 50 << (tries - 1); if (spent + delay >= budgetMs) giveUp();`; `if (retryMillis < 1000) giveUp(); retryMillis -= 1000;`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_112'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"attempt-timeout","label":"How long this attempt may wait for an answer","code":"int limit = Math.min(p.timeoutMs(), p.deadlineMs() - elapsed);"},{"id":"retry-only-transient","label":"Give up at once on errors a retry cannot fix","code":"if (status != 0 && status != 429 && status < 500) {\n    return id + \" failed \" + failure + \" attempts=\" + attempt + \" elapsed=\" + elapsed;\n}"},{"id":"backoff-before-deadline","label":"Back off before retrying, unless it hits the deadline","code":"int wait = p.backoffMs() << (attempt - 1);\nif (elapsed + wait >= p.deadlineMs()) {\n    return id + \" failed deadline attempts=\" + attempt + \" elapsed=\" + elapsed;\n}"},{"id":"spend-retry-budget","label":"Retry only while the shared retry budget lasts","code":"if (budget.tokens < RetryBudget.ONE) {\n    return id + \" failed budget attempts=\" + attempt + \" elapsed=\" + elapsed;\n}\nbudget.tokens -= RetryBudget.ONE;"},{"id":"attempt-timeout-fixed","label":"How long this attempt may wait for an answer","code":"int limit = p.timeoutMs();","distractor":true},{"id":"retry-budget-ignored","label":"Retry only while the shared retry budget lasts","code":"budget.tokens -= RetryBudget.ONE;","distractor":true},{"id":"retry-only-400","label":"Give up at once on errors a retry cannot fix","code":"if (status == 400) {\n    return id + \" failed \" + failure + \" attempts=\" + attempt + \" elapsed=\" + elapsed;\n}","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_112');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_112'), 'A transient 503 is retried once and the checkout succeeds', '"policy deadline=2000 timeout=800 attempts=3 backoff=100 tokens=10 ratio=0.1\ncall c1 503:120 200:80\n"', '"c1 ok attempts=2 elapsed=300\ntotal checkouts=1 attempts=2"', 5, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_112'), '409 and 422 fail at once: a retry cannot fix them', '"policy deadline=2000 timeout=800 attempts=3 backoff=100 tokens=10 ratio=0.1\ncall c2 409:40\ncall c3 422:30 200:10\ncall c4 429:20 200:30\n"', '"c2 failed status=409 attempts=1 elapsed=40\nc3 failed status=422 attempts=1 elapsed=30\nc4 ok attempts=2 elapsed=150\ntotal checkouts=3 attempts=4"', 5, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_112'), 'Attempts that time out never push a checkout past its 2 s deadline', '"policy deadline=2000 timeout=800 attempts=3 backoff=100 tokens=10 ratio=0.1\ncall c5 timeout timeout timeout\n"', '"c5 failed timeout attempts=3 elapsed=2000\ntotal checkouts=1 attempts=3"', 5, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_112'), 'During an outage the shared retry budget caps the extra calls', '"policy deadline=2000 timeout=800 attempts=3 backoff=100 tokens=2 ratio=0.1\ncall o1 503:50\ncall o2 503:50\ncall o3 503:50\ncall o4 503:50\ncall o5 503:50\ncall o6 503:50\ncall o7 503:50\ncall o8 503:50\ncall o9 503:50\ncall o10 503:50\ncall o11 503:50\ncall o12 503:50\ncall o13 503:50\ncall o14 503:50\ncall o15 503:50\ncall o16 503:50\ncall o17 503:50\ncall o18 503:50\ncall o19 503:50\ncall o20 503:50\n"', '"o1 failed status=503 attempts=3 elapsed=450\no2 failed budget attempts=1 elapsed=50\no3 failed budget attempts=1 elapsed=50\no4 failed budget attempts=1 elapsed=50\no5 failed budget attempts=1 elapsed=50\no6 failed budget attempts=1 elapsed=50\no7 failed budget attempts=1 elapsed=50\no8 failed budget attempts=1 elapsed=50\no9 failed budget attempts=1 elapsed=50\no10 failed budget attempts=1 elapsed=50\no11 failed budget attempts=2 elapsed=200\no12 failed budget attempts=1 elapsed=50\no13 failed budget attempts=1 elapsed=50\no14 failed budget attempts=1 elapsed=50\no15 failed budget attempts=1 elapsed=50\no16 failed budget attempts=1 elapsed=50\no17 failed budget attempts=1 elapsed=50\no18 failed budget attempts=1 elapsed=50\no19 failed budget attempts=1 elapsed=50\no20 failed budget attempts=1 elapsed=50\ntotal checkouts=20 attempts=23"', 5, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_112'), 'No retry starts when its backoff would reach the deadline', '"policy deadline=1000 timeout=450 attempts=4 backoff=100 tokens=10 ratio=0.1\ncall d1 timeout timeout timeout 200:10\n"', '"d1 failed deadline attempts=2 elapsed=1000\ntotal checkouts=1 attempts=2"', 5, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_112'), 'An answer slower than the attempt timeout counts as a timeout', '"policy deadline=2000 timeout=800 attempts=3 backoff=100 tokens=10 ratio=0.1\ncall s1 429:20 503:900 200:30\ncall s2 503:1000\n"', '"s1 ok attempts=3 elapsed=1150\ns2 failed timeout attempts=3 elapsed=2000\ntotal checkouts=2 attempts=6"', 5, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_jrm_112_starter', 's3', 'challenges/java/chal_coding_jrm_112/starter.java', 'raw', 'text/x-java', 5201, 'Main.java')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_112'), 'java', 'Main.java', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_jrm_112_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.2: A circuit breaker that opens for the right reasons (Sanity lesson-jrm-1-2)
+UPDATE course.lesson SET title = 'A circuit breaker that opens for the right reasons', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-1-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 1 AND is_deleted = false LIMIT 1), 'A circuit breaker that opens for the right reasons', 'sanity', 'lesson-jrm-1-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-jrm-1-2' AND is_deleted = false);
+
+-- challenge chal_coding_jrm_122 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_jrm_122', (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-1-2' AND is_deleted = false LIMIT 1), 'courier-matching-circuit-breaker', 'A circuit breaker for courier matching', 'order-service calls courier-matching for every placed order. When courier-matching degraded last week, order-service kept calling it, every call waited 3 s, and the order page timed out; a hand-written breaker that followed made it worse by opening on the first error and on customers'' validation errors. The editor holds `Main.java` with a breaker modelled on Resilience4j''s count-based CircuitBreaker, its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: while OPEN, calls are rejected until `openMs` have passed, then the next call moves it to HALF_OPEN; 400 responses go through but are not recorded, errors count as failures and calls longer than `slowMs` as slow; in CLOSED it opens only once at least `minCalls` calls are in the window and the failure rate or slow-call rate reaches its threshold; in HALF_OPEN it decides only after all `halfOpenCalls` trial calls are recorded. The test runner replays timed calls and prints the state before each call, its result and every change of state.', 'open', 'hard'::difficulty_question, 'mini_coding', 40, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_122');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_122'), 1, 'Write the state after each call of a test on paper: which calls enter the window, how many are in it when the breaker decides, and which calls never reach the service at all?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_122'), 2, 'Look at the order of the blocks in `onCall`: the OPEN check comes first (it may change the state), then the decision whether to record the call, then one decision for CLOSED (needs `minCalls`) and one for HALF_OPEN (needs all trial calls).'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_122'), 3, 'A breaker around a maps API that ignores 404s: `if (now < retryAt) return REJECTED; if (code == 404) return PASS_THROUGH; recent.add(code >= 500);` and in CLOSED `if (recent.size() >= 20 && failurePercent() >= 40) open(now);`, in HALF_OPEN `if (recent.size() >= 5) { if (failurePercent() >= 40) open(now); else close(); }`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"open-wait","label":"While open, reject calls until the wait is over","code":"if (state == State.OPEN) {\n    if (t < openUntil) {\n        return \"rejected\";\n    }\n    transition(State.HALF_OPEN, t);\n}"},{"id":"classify-call","label":"Which calls are recorded, as failures or as slow","code":"if (result.equals(\"bad-request\")) {\n    return \"ignored\";\n}\nOutcome outcome = new Outcome(result.equals(\"error\"), durationMs > c.slowMs());"},{"id":"closed-decision","label":"Open once enough calls show too many failures","code":"if (window.size() >= c.minCalls() && tooBad()) {\n    transition(State.OPEN, t);\n}"},{"id":"half-open-decision","label":"After the trial calls, open again or close","code":"if (window.size() >= c.halfOpenCalls()) {\n    transition(tooBad() ? State.OPEN : State.CLOSED, t);\n}"},{"id":"classify-bad-request-failure","label":"Which calls are recorded, as failures or as slow","code":"Outcome outcome = new Outcome(!result.equals(\"ok\"), durationMs > c.slowMs());","distractor":true},{"id":"closed-no-minimum","label":"Open once enough calls show too many failures","code":"if (tooBad()) {\n    transition(State.OPEN, t);\n}","distractor":true},{"id":"half-open-first-call","label":"After the trial calls, open again or close","code":"transition(window.peekLast().failure() ? State.OPEN : State.CLOSED, t);","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_122');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_122'), 'Healthy traffic with a few errors stays closed', '"config window=10 minCalls=5 failureRate=50 slowMs=1000 slowRate=80 openMs=5000 halfOpenCalls=3\ncall t=0 ok 120\ncall t=100 ok 90\ncall t=200 error 300\ncall t=300 ok 110\ncall t=400 ok 95\ncall t=500 ok 130\ncall t=600 error 250\ncall t=700 ok 100\ncall t=800 ok 100\ncall t=900 ok 100\n"', '"t=0 CLOSED ok\nt=100 CLOSED ok\nt=200 CLOSED error\nt=300 CLOSED ok\nt=400 CLOSED ok\nt=500 CLOSED ok\nt=600 CLOSED error\nt=700 CLOSED ok\nt=800 CLOSED ok\nt=900 CLOSED ok\nstate=CLOSED"', 5, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_122'), 'An error burst opens it once 5 calls are recorded; calls are then rejected', '"config window=10 minCalls=5 failureRate=50 slowMs=1000 slowRate=80 openMs=5000 halfOpenCalls=3\ncall t=0 ok 120\ncall t=100 error 300\ncall t=200 error 280\ncall t=300 ok 150\ncall t=400 error 310\ncall t=500 ok 100\ncall t=3000 ok 100\ncall t=5399 ok 100\n"', '"t=0 CLOSED ok\nt=100 CLOSED error\nt=200 CLOSED error\nt=300 CLOSED ok\nt=400 CLOSED error\nt=400 CLOSED -> OPEN\nt=500 OPEN rejected\nt=3000 OPEN rejected\nt=5399 OPEN rejected\nstate=OPEN"', 5, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_122'), 'After the 5 s wait, three good trial calls close it', '"config window=10 minCalls=5 failureRate=50 slowMs=1000 slowRate=80 openMs=5000 halfOpenCalls=3\ncall t=0 ok 120\ncall t=100 error 300\ncall t=200 error 280\ncall t=300 ok 150\ncall t=400 error 310\ncall t=5400 ok 120\ncall t=5500 ok 110\ncall t=5600 ok 130\ncall t=5700 ok 100\n"', '"t=0 CLOSED ok\nt=100 CLOSED error\nt=200 CLOSED error\nt=300 CLOSED ok\nt=400 CLOSED error\nt=400 CLOSED -> OPEN\nt=5400 OPEN ok\nt=5400 OPEN -> HALF_OPEN\nt=5500 HALF_OPEN ok\nt=5600 HALF_OPEN ok\nt=5600 HALF_OPEN -> CLOSED\nt=5700 CLOSED ok\nstate=CLOSED"', 5, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_122'), 'Validation errors (400) go through but never open the breaker', '"config window=10 minCalls=5 failureRate=50 slowMs=1000 slowRate=80 openMs=5000 halfOpenCalls=3\ncall t=0 ok 100\ncall t=100 bad-request 30\ncall t=200 bad-request 25\ncall t=300 bad-request 40\ncall t=400 ok 100\ncall t=500 bad-request 30\ncall t=600 ok 90\ncall t=700 error 300\ncall t=800 ok 100\ncall t=900 ok 100\n"', '"t=0 CLOSED ok\nt=100 CLOSED ignored\nt=200 CLOSED ignored\nt=300 CLOSED ignored\nt=400 CLOSED ok\nt=500 CLOSED ignored\nt=600 CLOSED ok\nt=700 CLOSED error\nt=800 CLOSED ok\nt=900 CLOSED ok\nstate=CLOSED"', 5, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_122'), 'Slow successful calls open it on the slow-call rate', '"config window=10 minCalls=5 failureRate=50 slowMs=1000 slowRate=80 openMs=5000 halfOpenCalls=3\ncall t=0 ok 1500\ncall t=100 ok 1200\ncall t=200 ok 1300\ncall t=300 ok 200\ncall t=400 ok 1800\ncall t=500 ok 100\n"', '"t=0 CLOSED ok slow\nt=100 CLOSED ok slow\nt=200 CLOSED ok slow\nt=300 CLOSED ok\nt=400 CLOSED ok slow\nt=400 CLOSED -> OPEN\nt=500 OPEN rejected\nstate=OPEN"', 5, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_122'), 'A trial with failures opens it again; a later trial closes it', '"config window=10 minCalls=5 failureRate=50 slowMs=1000 slowRate=80 openMs=5000 halfOpenCalls=3\ncall t=0 ok 120\ncall t=100 error 300\ncall t=200 error 280\ncall t=300 ok 150\ncall t=400 error 310\ncall t=5400 error 300\ncall t=5500 ok 100\ncall t=5600 error 290\ncall t=8000 ok 100\ncall t=10600 ok 100\ncall t=10700 ok 100\ncall t=10800 ok 100\n"', '"t=0 CLOSED ok\nt=100 CLOSED error\nt=200 CLOSED error\nt=300 CLOSED ok\nt=400 CLOSED error\nt=400 CLOSED -> OPEN\nt=5400 OPEN error\nt=5400 OPEN -> HALF_OPEN\nt=5500 HALF_OPEN ok\nt=5600 HALF_OPEN error\nt=5600 HALF_OPEN -> OPEN\nt=8000 OPEN rejected\nt=10600 OPEN ok\nt=10600 OPEN -> HALF_OPEN\nt=10700 HALF_OPEN ok\nt=10800 HALF_OPEN ok\nt=10800 HALF_OPEN -> CLOSED\nstate=CLOSED"', 5, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_jrm_122_starter', 's3', 'challenges/java/chal_coding_jrm_122/starter.java', 'raw', 'text/x-java', 4800, 'Main.java')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_122'), 'java', 'Main.java', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_jrm_122_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 1.3: Bulkheads and virtual threads (Sanity lesson-jrm-1-3)
+UPDATE course.lesson SET title = 'Bulkheads and virtual threads', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 1 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-1-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 1 AND is_deleted = false LIMIT 1), 'Bulkheads and virtual threads', 'sanity', 'lesson-jrm-1-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-jrm-1-3' AND is_deleted = false);
+
+-- challenge chal_quiz_jrm_131 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_jrm_131', (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-1-3' AND is_deleted = false LIMIT 1), 'bulkheads-quiz', 'Read the report export incident', 'Three statements about how Rice Rocket''s monthly report exports took checkout down, and how bulkheads change that. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_131');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_131'), 1, 'Virtual threads remove one limit (platform threads). Look at the error: which other shared resource ran out?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_131'), 2, 'Ask on which thread the protected call runs in each kind of bulkhead, and what the caller gets back: a result, or a CompletionStage.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_131'), 3, 'Compare two ways to handle the third concurrent export: wait in a queue (for how long, holding what?) or fail at once with an answer the client can act on.');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_131');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_131'), 'order-service runs on virtual threads, yet checkout failed while finance ran month-end exports:
+
+```yaml
+spring:
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+```
+
+```text
+18:02:11 POST /checkouts 500 HikariPool-1 - Connection is not available, request timed out after 30000ms (total=10, active=10, idle=0, waiting=184)
+18:02:11 GET /reports/orders.csv  ... 10 exports running, each holding a connection for ~4 min
+```
+
+Statement: "With virtual threads a slow endpoint can no longer starve the others, so a bulkhead around the report exports is unnecessary."', 'single_choice'::question_type, 'False. Virtual threads make waiting cheap, so the platform-thread limit is gone, but the exports still held all 10 database connections; checkout queued for the pool and timed out after 30 s. Any shared, limited resource (connection pool, a partner''s rate limit, memory) still needs a bulkhead: here, at most 2 concurrent exports so 8 connections stay for everything else.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_131') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_131'), 'The team compares the two Resilience4j bulkhead types for the export call:
+
+```java
+@Bulkhead(name = "reports")                                   // type = SEMAPHORE (default)
+Report export(Month m) { ... }
+
+@Bulkhead(name = "reports", type = Bulkhead.Type.THREADPOOL)
+CompletableFuture<Report> exportAsync(Month m) { ... }
+```
+
+Statement: "Both types run the export on a separate thread pool, so a slow export never blocks the thread of the request that started it."', 'single_choice'::question_type, 'False. A semaphore bulkhead only limits how many calls run at once; the call runs on the caller''s own thread, which is blocked for the whole export. A thread-pool bulkhead hands the call to its own bounded pool and queue, and the method returns a CompletionStage. With virtual threads the semaphore type is usually enough: blocking the caller is cheap, and the limit is what protects the shared resource.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_131') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_131'), 'The export bulkhead is configured like this, and a third finance user starts an export while two are running:
+
+```yaml
+resilience4j.bulkhead.instances.reports:
+  max-concurrent-calls: 2
+  max-wait-duration: 0
+```
+
+```text
+18:20:04 GET /reports/orders.csv 503 BulkheadFullException: Bulkhead ''reports'' is full and does not permit further calls (2 ms)
+         Retry-After: 120
+```
+
+Statement: "With max-wait-duration 0 the third export fails at once instead of queueing, which keeps request threads and connections free; the fallback should answer with something the user can act on, such as 503 with Retry-After."', 'single_choice'::question_type, 'True. A wait of 0 rejects immediately when both permits are taken: the request does not hold a thread or a connection while it waits. A short wait (a few hundred ms) smooths small bursts; a long one turns the bulkhead into a slow queue. The fallback decides what the user sees: here a 503 with Retry-After, or an "export queued, we will email you" answer.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_131') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_jrm_132 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_jrm_132', (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 1 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-1-3' AND is_deleted = false LIMIT 1), 'per-dependency-bulkheads', 'One bulkhead per dependency', 'order-service calls payments, couriers and the reporting database through one HTTP client and one pool; month-end exports took every slot and checkout failed. The editor holds `Main.java` with semaphore bulkheads modelled on Resilience4j''s, their key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: each dependency has its own bulkhead with its own `max` and `wait`; a call takes a free permit, or waits in line for at most `wait` ms (rejected at once when `wait` is 0); a call that has waited `wait` ms without a permit is rejected at that moment; and every finished call, failed or not, gives its permit back so the oldest waiting call of that dependency can start. The test runner replays timed calls and prints when each started, finished or was rejected, and the peak concurrency per dependency.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_132');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_132'), 1, 'Draw a timeline per dependency: how many calls hold a permit at each moment, who is waiting since when, and what happens at the moment a call ends or a wait runs out?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_132'), 2, 'Look at `computeIfAbsent` keyed by the dependency, the three cases in `arrive` (free permit, `maxWaitMs > 0`, reject), an unconditional `b.inUse--` in `finish`, and `w.deadline() > now` in `expire`.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_132'), 3, 'A per-tenant limit for an export worker: `Limit l = limits.computeIfAbsent(tenant, t -> new Limit(config.get(t)));` then `if (l.active < l.max) { l.active++; run(job); } else if (l.waitMs > 0) l.queue.add(new Queued(job, now + l.waitMs)); else reject(job);`, `finally { l.active--; }`, and `l.queue.removeIf(q -> q.deadline <= now && reject(q.job));`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_132'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"one-bulkhead-each","label":"Which bulkhead guards a dependency","code":"return bulkheads.computeIfAbsent(dependency, d -> new Bulkhead(limits.get(d)));"},{"id":"acquire-or-wait","label":"Take a permit, queue for one, or reject","code":"if (b.inUse < b.max) {\n    b.inUse++;\n    sim.start(call, now);\n} else if (b.maxWaitMs > 0) {\n    b.waiting.addLast(new Waiter(call, now + b.maxWaitMs));\n} else {\n    sim.reject(call, now);\n}"},{"id":"release-permit","label":"Give the permit back when a call ends","code":"b.inUse--;"},{"id":"give-up-waiting","label":"Reject calls that waited too long","code":"b.waiting.removeIf(w -> {\n    if (w.deadline() > now) {\n        return false;\n    }\n    sim.reject(w.call(), w.deadline());\n    return true;\n});"},{"id":"one-bulkhead-shared","label":"Which bulkhead guards a dependency","code":"return bulkheads.computeIfAbsent(\"http-client\", d -> new Bulkhead(limits.get(dependency)));","distractor":true},{"id":"queue-length-not-time","label":"Reject calls that waited too long","code":"while (b.waiting.size() > b.max) {\n    sim.reject(b.waiting.removeLast().call(), now);\n}","distractor":true},{"id":"release-on-success-only","label":"Give the permit back when a call ends","code":"if (!call.fails()) {\n    b.inUse--;\n}","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_132');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_132'), 'Slow report exports fill their own bulkhead; checkout payments are not affected', '"bulkhead payments max=4 wait=0\nbulkhead reports max=2 wait=0\ncall r1 reports t=0 ms=5000 ok\ncall r2 reports t=10 ms=5000 ok\ncall r3 reports t=20 ms=5000 ok\ncall r4 reports t=30 ms=5000 ok\ncall r5 reports t=40 ms=5000 ok\ncall p1 payments t=100 ms=200 ok\ncall p2 payments t=150 ms=200 ok\ncall p3 payments t=200 ms=200 ok\ncall p4 payments t=250 ms=200 ok\ncall p5 payments t=300 ms=200 ok\n"', '"r1 reports started=0 done=5000 ok\nr2 reports started=10 done=5010 ok\nr3 reports rejected=20\nr4 reports rejected=30\nr5 reports rejected=40\np1 payments started=100 done=300 ok\np2 payments started=150 done=350 ok\np3 payments started=200 done=400 ok\np4 payments started=250 done=450 ok\np5 payments started=300 done=500 ok\npeak payments=4 reports=2"', 5, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_132'), 'A call waits up to max-wait for a permit, then is rejected', '"bulkhead payments max=2 wait=300\ncall p1 payments t=0 ms=200 ok\ncall p2 payments t=0 ms=200 ok\ncall p3 payments t=0 ms=200 ok\ncall p4 payments t=0 ms=200 ok\ncall p5 payments t=0 ms=200 ok\n"', '"p1 payments started=0 done=200 ok\np2 payments started=0 done=200 ok\np3 payments started=200 done=400 ok\np4 payments started=200 done=400 ok\np5 payments rejected=300\npeak payments=2"', 5, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_132'), 'A failed call gives its permit back too', '"bulkhead payments max=1 wait=0\ncall p1 payments t=0 ms=300 error\ncall p2 payments t=400 ms=100 ok\ncall p3 payments t=450 ms=100 ok\n"', '"p1 payments started=0 done=300 error\np2 payments started=400 done=500 ok\np3 payments rejected=450\npeak payments=1"', 5, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_132'), 'Waiting calls get freed permits in arrival order', '"bulkhead couriers max=1 wait=1000\ncall k1 couriers t=0 ms=400 ok\ncall k3 couriers t=20 ms=100 ok\ncall k2 couriers t=10 ms=100 ok\ncall k4 couriers t=30 ms=100 ok\n"', '"k1 couriers started=0 done=400 ok\nk3 couriers started=500 done=600 ok\nk2 couriers started=400 done=500 ok\nk4 couriers started=600 done=700 ok\npeak couriers=1"', 5, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_132'), 'Lunch peak: three dependencies, each limited on its own', '"bulkhead payments max=3 wait=100\nbulkhead couriers max=2 wait=200\nbulkhead reports max=1 wait=0\ncall r1 reports t=0 ms=3000 ok\ncall r2 reports t=50 ms=3000 error\ncall p1 payments t=0 ms=150 ok\ncall p2 payments t=10 ms=150 error\ncall p3 payments t=20 ms=150 ok\ncall p4 payments t=30 ms=150 ok\ncall p5 payments t=40 ms=400 ok\ncall k1 couriers t=0 ms=500 ok\ncall k2 couriers t=100 ms=500 ok\ncall k3 couriers t=200 ms=100 ok\ncall k4 couriers t=250 ms=100 ok\n"', '"r1 reports started=0 done=3000 ok\nr2 reports rejected=50\np1 payments started=0 done=150 ok\np2 payments started=10 done=160 error\np3 payments started=20 done=170 ok\np4 payments rejected=130\np5 payments rejected=140\nk1 couriers started=0 done=500 ok\nk2 couriers started=100 done=600 ok\nk3 couriers rejected=400\nk4 couriers rejected=450\npeak couriers=2 payments=3 reports=1"', 5, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_jrm_132_starter', 's3', 'challenges/java/chal_coding_jrm_132/starter.java', 'raw', 'text/x-java', 6350, 'Main.java')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_132'), 'java', 'Main.java', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_jrm_132_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 2: Consistency
+UPDATE course.module SET title = 'Consistency', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 2 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), 'Consistency', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 2 AND is_deleted = false);
+
+-- lesson 2.1: Idempotency keys for payment callbacks (Sanity lesson-jrm-2-1)
+UPDATE course.lesson SET title = 'Idempotency keys for payment callbacks', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-2-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Idempotency keys for payment callbacks', 'sanity', 'lesson-jrm-2-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-jrm-2-1' AND is_deleted = false);
+
+-- challenge chal_coding_jrm_142 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_jrm_142', (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-2-1' AND is_deleted = false LIMIT 1), 'payment-idempotency-keys', 'Idempotency keys for payments and callbacks', 'Customers on a flaky network were charged twice when the app retried POST /payments, and the provider''s duplicated callbacks marked one refund twice. The editor holds `Main.java` with payment-service''s idempotency store, its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a key older than `ttl` ms is forgotten; the first request with a key claims it before the work starts; the same key with a different request body gets 422; a duplicate that arrives while the first request still runs gets 409; a finished request''s answer is kept and replayed to later duplicates, except 5xx answers, which are dropped so the client''s retry runs the work again. The test runner replays timed requests and prints each answer and how many charges succeeded.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_142');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_142'), 1, 'Follow one key through time: what is stored when the first request starts, while it runs, after it answers 201, after it answers 503, and a day later?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_142'), 2, 'Look at the order of the checks in `begin` (expired, absent, other body, still running, replay), at `equals` vs `==` for the body fingerprint, and at the `status >= 500` case in `complete`.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_142'), 3, 'A coupon redemption keyed by (user, coupon): `if (old != null && old.at + ttl <= now) old = null; if (old == null) { store.put(k, running(now, hash)); return RUN; } if (!old.hash.equals(hash)) return reply(422); if (old.running) return reply(409); return reply(old.status);` and on finish `if (status >= 500) store.remove(k); else store.put(k, done(status));`.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_142'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"forget-expired","label":"Forget keys older than the retention window","code":"if (kept != null && kept.createdAt() + ttlMs <= now) {\n    keys.remove(key);\n    kept = null;\n}"},{"id":"claim-key","label":"Claim the key before doing the work","code":"keys.put(key, new Kept(fingerprint, now, IN_PROGRESS));"},{"id":"same-key-other-request","label":"Refuse a key reused for a different request","code":"if (!kept.fingerprint().equals(fingerprint)) {\n    return Decision.answer(422, \"key reused\");\n}"},{"id":"still-running","label":"Answer a duplicate that arrives while the first runs","code":"if (kept.status() == IN_PROGRESS) {\n    return Decision.answer(409, \"in progress\");\n}"},{"id":"keep-final-answers","label":"Keep the answer only when a retry would get the same","code":"if (status >= 500) {\n    keys.remove(key);\n} else {\n    keys.put(key, new Kept(kept.fingerprint(), kept.createdAt(), status));\n}"},{"id":"compare-with-identity","label":"Refuse a key reused for a different request","code":"if (kept.fingerprint() != fingerprint) {\n    return Decision.answer(422, \"key reused\");\n}","distractor":true},{"id":"keep-every-answer","label":"Keep the answer only when a retry would get the same","code":"keys.put(key, new Kept(kept.fingerprint(), kept.createdAt(), status));","distractor":true},{"id":"running-duplicate-passes","label":"Answer a duplicate that arrives while the first runs","code":"if (kept.status() == IN_PROGRESS) {\n    return Decision.PROCESS;\n}","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_142');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_142'), 'A retried payment gets the first answer without a second charge', '"store ttl=86400000\nreq r1 t=0 key=k1 body=order-881:185000 ms=200 status=201\nreq r2 t=500 key=k1 body=order-881:185000 ms=200 status=201\n"', '"r1 key=k1 -> 201 processed\nr2 key=k1 -> 201 replayed\ncharges=1"', 5, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_142'), 'A duplicate that arrives while the first is still running gets 409', '"store ttl=86400000\nreq r1 t=0 key=k1 body=order-882:96000 ms=300 status=201\nreq r2 t=100 key=k1 body=order-882:96000 ms=300 status=201\nreq r3 t=400 key=k1 body=order-882:96000 ms=300 status=201\n"', '"r1 key=k1 -> 201 processed\nr2 key=k1 -> 409 in progress\nr3 key=k1 -> 201 replayed\ncharges=1"', 5, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_142'), 'A 5xx answer is not kept, so the client''s retry runs the payment again', '"store ttl=86400000\nreq r1 t=0 key=k2 body=order-883:40000 ms=100 status=503\nreq r2 t=200 key=k2 body=order-883:40000 ms=100 status=201\nreq r3 t=500 key=k2 body=order-883:40000 ms=100 status=201\n"', '"r1 key=k2 -> 503 processed\nr2 key=k2 -> 201 processed\nr3 key=k2 -> 201 replayed\ncharges=1"', 5, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_142'), 'The same key with a different body is refused; the original body still replays', '"store ttl=86400000\nreq r1 t=0 key=k3 body=order-884:120000 ms=100 status=201\nreq r2 t=300 key=k3 body=order-885:75000 ms=100 status=201\nreq r3 t=600 key=k3 body=order-884:120000 ms=100 status=201\n"', '"r1 key=k3 -> 201 processed\nr2 key=k3 -> 422 key reused\nr3 key=k3 -> 201 replayed\ncharges=1"', 5, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_142'), 'Client errors are kept, and keys are forgotten after 24 hours', '"store ttl=86400000\nreq r1 t=0 key=k4 body=order-886:50000 ms=100 status=402\nreq r2 t=1000 key=k4 body=order-886:50000 ms=100 status=201\nreq r3 t=86400000 key=k4 body=order-886:50000 ms=100 status=201\nreq r4 t=86400500 key=k4 body=order-886:50000 ms=100 status=201\n"', '"r1 key=k4 -> 402 processed\nr2 key=k4 -> 402 replayed\nr3 key=k4 -> 201 processed\nr4 key=k4 -> 201 replayed\ncharges=1"', 5, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_142'), 'Provider callbacks delivered twice at once, and calls without a key', '"store ttl=86400000\nreq e1 t=0 key=evt_1QxA body=charge.succeeded:ch_7Fp9 ms=150 status=200\nreq e2 t=0 key=evt_1QxA body=charge.succeeded:ch_7Fp9 ms=150 status=200\nreq e3 t=50 key=evt_1QxB body=charge.refunded:ch_7Fp9 ms=150 status=200\nreq e4 t=120 key=evt_1QxB body=charge.refunded:ch_7Fp9 ms=150 status=200\nreq e5 t=400 key=evt_1QxA body=charge.succeeded:ch_7Fp9 ms=150 status=200\nreq n1 t=0 key=- body=order-887:30000 ms=100 status=201\nreq n2 t=50 key=- body=order-887:30000 ms=100 status=201\n"', '"e1 key=evt_1QxA -> 200 processed\ne2 key=evt_1QxA -> 409 in progress\ne3 key=evt_1QxB -> 200 processed\ne4 key=evt_1QxB -> 409 in progress\ne5 key=evt_1QxA -> 200 replayed\nn1 key=- -> 201 processed\nn2 key=- -> 201 processed\ncharges=4"', 5, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_jrm_142_starter', 's3', 'challenges/java/chal_coding_jrm_142/starter.java', 'raw', 'text/x-java', 5608, 'Main.java')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_142'), 'java', 'Main.java', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_jrm_142_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.2: The transactional outbox and at-least-once delivery (Sanity lesson-jrm-2-2)
+UPDATE course.lesson SET title = 'The transactional outbox and at-least-once delivery', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-2-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 2 AND is_deleted = false LIMIT 1), 'The transactional outbox and at-least-once delivery', 'sanity', 'lesson-jrm-2-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-jrm-2-2' AND is_deleted = false);
+
+-- challenge chal_quiz_jrm_151 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_jrm_151', (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-2-2' AND is_deleted = false LIMIT 1), 'transactional-outbox-quiz', 'Read the order events incident', 'Three statements about what went wrong between Rice Rocket''s order-service, its database and Kafka. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_151');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_151'), 1, 'Put the two writes on a timeline: when does Kafka accept the record, and when does PostgreSQL decide whether the order exists?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_151'), 2, 'An outbox relay is at-least-once by design. What makes two pods pick the same rows, and what does PostgreSQL offer so a pod skips rows another pod already holds?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_151'), 3, 'Two pods each claim a different batch. Can two events of the same order end up in different batches, and who publishes first then?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_151');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_151'), 'The courier-matcher received OrderPlaced for order `o-88213`, but the order does not exist:
+
+```java
+@Transactional
+public Order place(PlaceOrder cmd) {
+    Order order = orders.save(Order.from(cmd));
+    kafka.send("orders.v1", order.id(), new OrderPlaced(order.id()));
+    return order;
+}
+```
+
+```text
+10:42:07.118 KafkaProducer  sent orders.v1 key=o-88213 offset=91822
+10:42:07.131 SqlExceptionHelper  ERROR: duplicate key value violates unique constraint "orders_idempotency_key"
+10:42:07.132 TransactionInterceptor  rolling back order placement
+```
+
+Statement: "Kafka accepted the event before PostgreSQL decided at commit, and a rollback cannot recall it; writing the event to an outbox table in the same transaction makes ''the order exists'' and ''its event will be sent'' one atomic decision."', 'single_choice'::question_type, 'True. The INSERT is flushed at commit, after `kafka.send` already returned: the unique violation rolls the order back, but the record is in the topic for good. With an outbox row written in the same transaction, the order and the event either both commit or both roll back; a relay publishes committed rows afterwards. The misconception is that `@Transactional` covers Kafka too: it covers only the database (Kafka transactions are a separate mechanism and do not make the two atomic).', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_151') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_151'), 'After scaling the relay to two pods, consumers see every event twice:
+
+```sql
+-- each relay pod, every 500 ms
+SELECT id, aggregate_id, type FROM outbox
+WHERE sent_at IS NULL ORDER BY id LIMIT 100;
+```
+
+```text
+relay-7c9f  published ids 4101-4200
+relay-5d2a  published ids 4101-4200
+```
+
+Statement: "The duplicates prove the outbox pattern does not work with more than one pod; publishing from the request transaction again is the safer design."', 'single_choice'::question_type, 'False. Both pods read the same unsent rows because the query takes no row locks. `FOR UPDATE SKIP LOCKED` makes each pod claim its own rows and skip rows another pod holds, without waiting. Even then the relay is at-least-once (a crash between publish and commit re-sends), so consumers dedupe by event id. Publishing from the request transaction brings back events for rolled-back orders and lost events when Kafka is down.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_151') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_151'), 'The relay now claims with `FOR UPDATE SKIP LOCKED`, batch size 100, on three pods. Order `o-90001` wrote OrderPlaced (outbox id 5100) and OrderCancelled (id 5101) a few milliseconds apart; they landed in different batches.
+
+Statement: "Because every pod publishes its batch in id order, two events of the same order can never reach Kafka out of order."', 'single_choice'::question_type, 'False. Id order holds inside one batch, not across pods: pod A can hold 5001-5100 and pod B 5101-5200, and B may publish OrderCancelled before A publishes OrderPlaced. Per-order ordering needs one publisher per key (one active relay, or relays that claim by hash of `aggregate_id`), or consumers that check a per-aggregate version. The misconception is that a global id order survives parallel publishers.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_151') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_jrm_152 (fix_bug)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_jrm_152', (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-2-2' AND is_deleted = false LIMIT 1), 'order-outbox-relay', 'Fix the order outbox relay', 'Last week''s order-service published OrderPlaced from inside the request transaction, and its first outbox relay was rushed. Symptoms: couriers were offered orders that had been rolled back; while Kafka was down for an upgrade, checkout failed for every customer; after an outage some orders never got their event; and with two relay pods every event went out twice. The editor holds `Main.java` with the three places to fix missing, each marked by a `// [ ]` line; some pieces repeat last week''s bugs. Fill every line so that placeOrder saves the order and its event in one transaction and sends nothing itself, CLAIM_SQL lets two pods share the work without doubles or waiting, and relayOnce marks an event sent only after Kafka acknowledged it. Run replays scripted incidents against a PostgreSQL and Kafka stand-in and reports what reached Kafka.', 'open', 'medium'::difficulty_question, 'fix_bug', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_152');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_152'), 1, 'For each symptom, find the moment two systems disagree: the order rolled back but the event exists, the event marked sent but never published, two pods holding the same row.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_152'), 2, 'Look at what placeOrder does between begin and commit, at the lock clause of CLAIM_SQL (PostgreSQL''s FOR UPDATE and its SKIP LOCKED option), and at the order of `broker.send` and `tx.markSent` in relayOnce.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_152'), 3, 'A billing job that several workers drain from a jobs table claims work like this: `SELECT id FROM jobs WHERE done_at IS NULL ORDER BY id LIMIT ? FOR UPDATE SKIP LOCKED`, calls the provider for each row, and only after the provider confirmed runs `UPDATE jobs SET done_at = now() WHERE id = ?`, all in the transaction that holds the locks.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_152'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"claim-sql","label":"The query a relay pod uses to claim unsent events","code":"static final String CLAIM_SQL =\n        \"SELECT id, aggregate_id, type FROM outbox WHERE sent_at IS NULL ORDER BY id LIMIT ? FOR UPDATE SKIP LOCKED\";"},{"id":"place-order-tx","label":"Save the order and its event as one decision","code":"Tx tx = db.begin();\ntry {\n    tx.insertOrder(orderId, customer);\n    tx.insertOutbox(orderId, \"OrderPlaced\");\n    tx.commit();\n} catch (DbException e) {\n    tx.rollback();\n    throw e;\n}"},{"id":"publish-then-mark","label":"Publish one claimed event, then record it as sent","code":"try {\n    broker.send(TOPIC, row.aggregateId(), row.type());\n} catch (BrokerException e) {\n    break; // Kafka is unavailable: the rest of the batch stays unsent for the next poll\n}\ntx.markSent(row.id());\nsent++;"},{"id":"claim-sql-no-lock","label":"The query a relay pod uses to claim unsent events","code":"static final String CLAIM_SQL =\n        \"SELECT id, aggregate_id, type FROM outbox WHERE sent_at IS NULL ORDER BY id LIMIT ?\";","distractor":true},{"id":"mark-before-publish","label":"Publish one claimed event, then record it as sent","code":"tx.markSent(row.id());\ntry {\n    broker.send(TOPIC, row.aggregateId(), row.type());\n} catch (BrokerException e) {\n    break; // Kafka is unavailable: the rest of the batch stays unsent for the next poll\n}\nsent++;","distractor":true},{"id":"place-order-send-in-transaction","label":"Save the order and its event as one decision","code":"Tx tx = db.begin();\ntry {\n    tx.insertOrder(orderId, customer);\n    broker.send(TOPIC, orderId, \"OrderPlaced\");\n    tx.commit();\n} catch (DbException e) {\n    tx.rollback();\n    throw e;\n}","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_152');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_152'), 'Two orders and one relay poll: each OrderPlaced reaches Kafka once', '"place o1 lan\nplace o2 minh\nrelay 10\n"', '"orders: o1 o2\npublished: o1:OrderPlaced o2:OrderPlaced\nevents for orders that do not exist: 0\norders whose event is lost: 0\nevents still waiting in the outbox: 0\nduplicate events: 0\nrelay waits on another pod''s locks: 0"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_152'), 'Orders that fail at commit produce no event', '"place o1 lan\nplace o2 -\nplace o1 lan\nrelay 10\n"', '"place o2: ERROR: null value in column \"customer_id\" of relation \"orders\" violates not-null constraint\nplace o1: ERROR: duplicate key value violates unique constraint \"orders_pkey\"\norders: o1\npublished: o1:OrderPlaced\nevents for orders that do not exist: 0\norders whose event is lost: 0\nevents still waiting in the outbox: 0\nduplicate events: 0\nrelay waits on another pod''s locks: 0"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_152'), 'Kafka down while customers order: orders are saved, events go out once Kafka is back', '"kafka down\nplace o1 lan\nplace o2 minh\nrelay 10\nkafka up\nrelay 10\n"', '"orders: o1 o2\npublished: o1:OrderPlaced o2:OrderPlaced\nevents for orders that do not exist: 0\norders whose event is lost: 0\nevents still waiting in the outbox: 0\nduplicate events: 0\nrelay waits on another pod''s locks: 0"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_152'), 'Kafka fails in the middle of a batch: nothing is lost, the rest goes out on the next poll', '"place o1 lan\nplace o2 minh\nplace o3 an\nplace o4 binh\nplace o5 chi\nkafka fail-after 2\nrelay 10\nkafka up\nrelay 10\n"', '"orders: o1 o2 o3 o4 o5\npublished: o1:OrderPlaced o2:OrderPlaced o3:OrderPlaced o4:OrderPlaced o5:OrderPlaced\nevents for orders that do not exist: 0\norders whose event is lost: 0\nevents still waiting in the outbox: 0\nduplicate events: 0\nrelay waits on another pod''s locks: 0"', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_152'), 'Two relay pods poll at the same time: every event published exactly once, no waiting', '"place o1 lan\nplace o2 minh\nplace o3 an\nplace o4 binh\nplace o5 chi\nplace o6 dung\nrelay-pair 3\n"', '"orders: o1 o2 o3 o4 o5 o6\npublished: o4:OrderPlaced o5:OrderPlaced o6:OrderPlaced o1:OrderPlaced o2:OrderPlaced o3:OrderPlaced\nevents for orders that do not exist: 0\norders whose event is lost: 0\nevents still waiting in the outbox: 0\nduplicate events: 0\nrelay waits on another pod''s locks: 0"', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_jrm_152_starter', 's3', 'challenges/java/chal_coding_jrm_152/starter.java', 'raw', 'text/x-java', 10159, 'Main.java')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_152'), 'java', 'Main.java', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_jrm_152_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 2.3: Saga orchestration and compensations (Sanity lesson-jrm-2-3)
+UPDATE course.lesson SET title = 'Saga orchestration and compensations', order_index = 3, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 2 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-2-3' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 2 AND is_deleted = false LIMIT 1), 'Saga orchestration and compensations', 'sanity', 'lesson-jrm-2-3', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-jrm-2-3' AND is_deleted = false);
+
+-- challenge chal_coding_jrm_162 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_jrm_162', (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 2 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-2-3' AND is_deleted = false LIMIT 1), 'checkout-saga', 'Orchestrate the checkout saga', 'Rice Rocket''s checkout spans four services: payment, courier, restaurant and notifications. When a restaurant rejected an order, the customer''s card stayed authorized for days; when the payment provider timed out, nobody voided the authorization it had in fact made; and once a capture failed after the kitchen had already started cooking, the old code tried to undo the whole order. The editor holds `Main.java`, the saga orchestrator, with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: steps up to the pivot (confirm-restaurant) run once and any answer other than ok stops the saga and undoes every step that may have taken effect, newest first, a timed-out step included; each undo is retried up to 5 times; steps after the pivot are only retried forward, up to 5 times, never undone; and the result is completed, compensated or stuck. Run replays scripted service answers and prints every call and what is still in place.', 'open', 'hard'::difficulty_question, 'mini_coding', 40, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_162');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_162'), 1, 'For each scripted answer, ask what is true in the other service afterwards: after a timeout, did the payment provider authorize or not? After the kitchen accepted, can the order still be undone?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_162'), 2, 'Look at which answers add a step to `done`, at the order in which `compensate` takes steps out of the deque (push and pop work at the same end), and at what the loop does for an index after `pivotIndex`.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_162'), 3, 'A hotel booking saga reserves a room, then charges a deposit, then confirms with the guest (its pivot), then sends the invoice. When the deposit times out it releases the deposit first and then the room, retrying each release up to three times; once the guest confirmed, a failing invoice is retried, never cancelled.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_162'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"after-pivot","label":"Steps after the pivot only move forward","code":"if (i > pivotIndex) {\n    if (!retryForward(step, svc)) return \"stuck: \" + step + \" did not succeed after \" + MAX_ATTEMPTS + \" attempts\";\n    continue;\n}"},{"id":"record-step","label":"Remember every step that may have taken effect","code":"if (result.equals(\"ok\") || result.equals(\"timeout\")) {\n    done.push(step);\n}"},{"id":"compensate-reverse","label":"Undo what may have happened, newest first","code":"static String compensate(Deque<String> done, Services svc) {\n    while (!done.isEmpty()) {\n        String step = done.pop();\n        if (!retryUndo(step, svc)) return \"stuck: undo \" + step + \" failed \" + MAX_ATTEMPTS + \" times\";\n    }\n    return \"compensated\";\n}"},{"id":"retry-undo","label":"Retry one compensation until it succeeds","code":"static boolean retryUndo(String step, Services svc) {\n    for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {\n        if (svc.undo(step).equals(\"ok\")) return true;\n    }\n    return false;\n}"},{"id":"after-pivot-compensates","label":"Steps after the pivot only move forward","code":"if (i > pivotIndex) {\n    String later = svc.call(step);\n    if (later.equals(\"ok\")) {\n        done.push(step);\n        continue;\n    }\n    return compensate(done, svc);\n}","distractor":true},{"id":"compensate-oldest-first","label":"Undo what may have happened, newest first","code":"static String compensate(Deque<String> done, Services svc) {\n    Iterator<String> oldestFirst = done.descendingIterator();\n    while (oldestFirst.hasNext()) {\n        String step = oldestFirst.next();\n        if (!retryUndo(step, svc)) return \"stuck: undo \" + step + \" failed \" + MAX_ATTEMPTS + \" times\";\n    }\n    return \"compensated\";\n}","distractor":true},{"id":"record-step-ok-only","label":"Remember every step that may have taken effect","code":"if (result.equals(\"ok\")) {\n    done.push(step);\n}","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_162');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_162'), 'Every service says yes: the saga completes', '"saga authorize-payment reserve-courier confirm-restaurant capture-payment notify-customer\npivot confirm-restaurant\n"', '"authorize-payment: ok\nreserve-courier: ok\nconfirm-restaurant: ok\ncapture-payment: ok\nnotify-customer: ok\nsaga: completed\nleft in place: authorize-payment, reserve-courier, confirm-restaurant, capture-payment, notify-customer"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_162'), 'The restaurant rejects: courier released, then the payment voided', '"saga authorize-payment reserve-courier confirm-restaurant capture-payment notify-customer\npivot confirm-restaurant\ncall confirm-restaurant rejected\n"', '"authorize-payment: ok\nreserve-courier: ok\nconfirm-restaurant: rejected\nundo reserve-courier: ok\nundo authorize-payment: ok\nsaga: compensated\nleft in place: nothing"', 7, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_162'), 'The payment provider times out: the authorization may exist, so it is voided', '"saga authorize-payment reserve-courier confirm-restaurant capture-payment notify-customer\npivot confirm-restaurant\ncall authorize-payment timeout\n"', '"authorize-payment: timeout\nundo authorize-payment: ok\nsaga: compensated\nleft in place: nothing"', 7, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_162'), 'Voiding the payment fails twice, then works: the saga still ends compensated', '"saga authorize-payment reserve-courier confirm-restaurant capture-payment notify-customer\npivot confirm-restaurant\ncall confirm-restaurant rejected\nundo authorize-payment fail fail ok\n"', '"authorize-payment: ok\nreserve-courier: ok\nconfirm-restaurant: rejected\nundo reserve-courier: ok\nundo authorize-payment: fail\nundo authorize-payment: fail\nundo authorize-payment: ok\nsaga: compensated\nleft in place: nothing"', 7, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_162'), 'Capture fails after the kitchen accepted: retried forward, nothing undone', '"saga authorize-payment reserve-courier confirm-restaurant capture-payment notify-customer\npivot confirm-restaurant\ncall capture-payment timeout rejected\n"', '"authorize-payment: ok\nreserve-courier: ok\nconfirm-restaurant: ok\ncapture-payment: timeout\ncapture-payment: rejected\ncapture-payment: ok\nnotify-customer: ok\nsaga: completed\nleft in place: authorize-payment, reserve-courier, confirm-restaurant, capture-payment, notify-customer"', 7, false, true, 5),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_162'), 'The void keeps failing: the saga stops as stuck after 5 attempts', '"saga authorize-payment reserve-courier confirm-restaurant capture-payment notify-customer\npivot confirm-restaurant\ncall reserve-courier rejected\nundo authorize-payment fail fail fail fail fail\n"', '"authorize-payment: ok\nreserve-courier: rejected\nundo authorize-payment: fail\nundo authorize-payment: fail\nundo authorize-payment: fail\nundo authorize-payment: fail\nundo authorize-payment: fail\nsaga: stuck: undo authorize-payment failed 5 times\nleft in place: authorize-payment"', 6, false, true, 6);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_jrm_162_starter', 's3', 'challenges/java/chal_coding_jrm_162/starter.java', 'raw', 'text/x-java', 5561, 'Main.java')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_162'), 'java', 'Main.java', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_jrm_162_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- module 3: Operations
+UPDATE course.module SET title = 'Operations', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 3 AND is_deleted = false LIMIT 1);
+INSERT INTO course.module (course_id, title, order_index)
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), 'Operations', 3
+WHERE NOT EXISTS (SELECT 1 FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 3 AND is_deleted = false);
+
+-- lesson 3.1: Cache-aside and stampede protection (Sanity lesson-jrm-3-1)
+UPDATE course.lesson SET title = 'Cache-aside and stampede protection', order_index = 1, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-3-1' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Cache-aside and stampede protection', 'sanity', 'lesson-jrm-3-1', 1
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-jrm-3-1' AND is_deleted = false);
+
+-- challenge chal_coding_jrm_172 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_jrm_172', (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-3-1' AND is_deleted = false LIMIT 1), 'menu-cache-stampede', 'Protect the menu cache from stampedes', 'At 11:30 the cached menu of Rice Rocket''s busiest restaurant expired and 800 requests went to PostgreSQL at the same moment; p99 latency jumped to 3 s. Earlier fixes made it worse in other ways: every menu loaded at startup expired in the same second an hour later, and a price change was sometimes followed by a minute of old prices. The editor holds `Main.java`, the cache layer''s callbacks, with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a fresh copy is a hit; a copy past its refresh time is served while one background load refreshes it; a request for a menu that is already loading waits for that load instead of starting another; each copy expires after 60 s plus a per-key jitter of up to 6 s, with refresh starting 10 s earlier; and a price change is committed before the cached menu is dropped. Run replays request bursts and price changes on a timeline and counts database loads.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_172');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_172'), 1, 'Follow one menu through time: what happens to the requests that arrive during the 200 ms a load takes, at the moment a copy reaches its refresh time, and in the instant between dropping the cached menu and committing the new price?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_172'), 2, 'Look at the order of the checks in onRequest (fresh, refresh window, a running load), at how onLoaded computes expiresAt and refreshAt, and at the order of `db.updatePrice` and `cache.evict` in onPriceChange.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_172'), 3, 'A product page cache in Spring with Caffeine does the same with `Caffeine.newBuilder().refreshAfterWrite(Duration.ofSeconds(50)).expireAfterWrite(Duration.ofSeconds(60)).buildAsync(loader)`: concurrent misses share one future, a copy older than 50 s is served while it reloads, and writes call `cache.synchronous().invalidate(id)` after the transaction commits.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_172'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"serve-cached","label":"Serve a cached menu, refreshing it ahead of expiry","code":"if (e != null && now < e.refreshAt()) return \"hit\";\nif (e != null && now < e.expiresAt()) {\n    if (!cache.loading(key)) db.startLoad(cache, key, now);\n    return \"stale\";\n}"},{"id":"coalesce","label":"Join a load of this menu that is already running","code":"if (cache.loading(key)) return \"wait\";"},{"id":"expiry-with-jitter","label":"When this copy expires, and when its refresh starts","code":"long expiresAt = now + TTL_MS + Math.floorMod(key.hashCode() * 0x9E3779B1, JITTER_MS);\ncache.put(key, value, expiresAt - REFRESH_BEFORE_MS, expiresAt);"},{"id":"invalidate-on-write","label":"Change the price, then drop the cached menu","code":"db.updatePrice(key, price, now);\ncache.evict(key);"},{"id":"coalesce-load-again","label":"Join a load of this menu that is already running","code":"if (cache.loading(key)) {\n    db.startLoad(cache, key, now); // the earlier load may be slow: read it again\n    return \"load\";\n}","distractor":true},{"id":"evict-before-commit","label":"Change the price, then drop the cached menu","code":"cache.evict(key);\ndb.updatePrice(key, price, now);","distractor":true},{"id":"expiry-same-for-all","label":"When this copy expires, and when its refresh starts","code":"long expiresAt = now + TTL_MS;\ncache.put(key, value, expiresAt, expiresAt);","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_172');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_172'), '200 requests hit a cold menu at once: one database load, the rest wait for it', '"burst m1 0 200 1\n"', '"requests: 200 (hit 0, stale 0, wait 199, load 1)\ndatabase loads: 1, at most 1 at once\nloads started in the busiest second after the first 30 s: 0\nold price served more than 1 s after a change: 0"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_172'), 'Steady traffic for 130 s: the menu is refreshed ahead of expiry, nobody waits after warm-up', '"burst m1 0 1300 100\n"', '"requests: 1300 (hit 1294, stale 4, wait 1, load 1)\ndatabase loads: 3, at most 1 at once\nloads started in the busiest second after the first 30 s: 1\nold price served more than 1 s after a change: 0"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_172'), '50 menus loaded together do not all reload in the same second', '"keys menu- 50 0 130 1000\n"', '"requests: 6500 (hit 6350, stale 100, wait 0, load 50)\ndatabase loads: 150, at most 50 at once\nloads started in the busiest second after the first 30 s: 19\nold price served more than 1 s after a change: 0"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_172'), 'A price change mid-traffic: the new price is served within a second', '"burst m1 0 1000 100\nupdate m1 30000 65000\n"', '"requests: 1001 (hit 995, stale 2, wait 2, load 2)\ndatabase loads: 3, at most 1 at once\nloads started in the busiest second after the first 30 s: 1\nold price served more than 1 s after a change: 0"', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_172'), 'Two cold menus at once: one load each', '"burst m1 0 300 1\nburst m2 0 300 1\n"', '"requests: 600 (hit 200, stale 0, wait 398, load 2)\ndatabase loads: 2, at most 2 at once\nloads started in the busiest second after the first 30 s: 0\nold price served more than 1 s after a change: 0"', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_jrm_172_starter', 's3', 'challenges/java/chal_coding_jrm_172/starter.java', 'raw', 'text/x-java', 8528, 'Main.java')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_172'), 'java', 'Main.java', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_jrm_172_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
+
+-- lesson 3.2: Trace context across services (Sanity lesson-jrm-3-2)
+UPDATE course.lesson SET title = 'Trace context across services', order_index = 2, module_id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 3 AND is_deleted = false LIMIT 1), updated_at = now() WHERE id = (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-3-2' AND is_deleted = false LIMIT 1);
+INSERT INTO course.lesson (module_id, title, content_type, content_source, order_index)
+SELECT (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 3 AND is_deleted = false LIMIT 1), 'Trace context across services', 'sanity', 'lesson-jrm-3-2', 2
+WHERE NOT EXISTS (SELECT 1 FROM course.lesson WHERE content_source = 'lesson-jrm-3-2' AND is_deleted = false);
+
+-- challenge chal_quiz_jrm_181 (quiz)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_quiz_jrm_181', (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-3-2' AND is_deleted = false LIMIT 1), 'trace-context-quiz', 'Read the broken traces', 'Three statements about why one checkout request showed up as several unrelated traces in Rice Rocket''s tracing backend. Decide whether each one is true.', 'open', 'medium'::difficulty_question, 'quiz', 10, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_181');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_181'), 1, 'Trace context travels in a header. Which code writes that header on an outgoing call, and does a hand-made HTTP client run that code?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_181'), 2, 'Read the last two hex digits of the traceparent: which bit means sampled, and what does a service that follows its parent''s decision do when the bit is 0?'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_181'), 3, 'A Kafka record has headers too. What can a consumer continue from if the producer wrote nothing there?');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_181');
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_181'), 'One checkout, two traces. order-service and payment-service both run Spring Boot with Micrometer Tracing (OpenTelemetry bridge); payment-service calls the card processor through an old helper:
+
+```java
+HttpURLConnection conn = (HttpURLConnection) new URL(processorUrl).openConnection();
+conn.setRequestMethod("POST");
+conn.getOutputStream().write(body);
+```
+
+```text
+order-service    traceId=4bf92f3577b34da6a3ce929d0e0e4736  POST /checkout
+payment-service  traceId=4bf92f3577b34da6a3ce929d0e0e4736  POST /payments
+card-processor   traceId=9c1e0d7a2b4f6e8d0a1c3e5f7b9d1f3a  POST /authorize
+```
+
+Statement: "With Micrometer Tracing on the classpath every outgoing HTTP call carries the trace context automatically, so the new trace at the card processor must come from sampling."', 'single_choice'::question_type, 'False. Context crosses a hop only when the client that makes the call is instrumented and writes `traceparent`. Spring Boot instruments the `RestClient`, `RestTemplate` and `WebClient` built from its auto-configured builders; a raw `HttpURLConnection` sends no trace header, so the processor starts a new trace. Sampling decides whether spans are recorded, not whether the trace id is passed on. Replace the helper with an instrumented client, or inject the header yourself through the tracer''s propagator.', 1, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_181') AND order_index = 1)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', false),
+        ('False', true)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_181'), 'The ids match in the logs, but the payment spans are missing in the tracing backend. The incoming header at payment-service:
+
+```text
+traceparent: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00
+```
+
+Statement: "The trace flags 00 mean the caller decided not to sample this request; a service that follows its parent''s decision records no spans for it, so the backend shows nothing although the trace id is logged."', 'single_choice'::question_type, 'True. The last field is trace-flags; bit 0x01 is sampled, and `00` says the caller did not record this trace. With a parent-based sampler (the default in OpenTelemetry and Micrometer Tracing) downstream services follow that decision, so no spans reach the backend, while logging still prints the propagated trace id. Raise the sampling probability at the edge, or sample errors and slow requests with tail-based sampling in the collector.', 2, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_181') AND order_index = 2)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+WITH q AS (
+    INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_181'), 'After order-service publishes OrderPlaced, the courier-matcher''s spans always start a new trace:
+
+```text
+$ kafka-console-consumer --topic orders.v1 --property print.headers=true --max-messages 1
+NO_HEADERS	{"orderId":"o-90412"}
+```
+
+Statement: "For messaging the producer has to put traceparent into the record headers; without that header the consumer cannot continue the trace and can only start a new one (or link to nothing)."', 'single_choice'::question_type, 'True. Kafka carries no trace context by itself: an instrumented producer (KafkaTemplate with observation enabled, or the OpenTelemetry agent) writes `traceparent` into the record headers, and the consumer continues from it or creates a span link to it. `NO_HEADERS` shows the producer wrote nothing, so every consumer span is a new root. Enable observation on the KafkaTemplate and the listener container.', 3, 5
+    WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_jrm_181') AND order_index = 3)
+    RETURNING id
+)
+INSERT INTO challenge.question_options (question_id, option_text, is_correct)
+SELECT q.id, o.option_text, o.is_correct
+FROM q, (VALUES
+        ('True', true),
+        ('False', false)
+    ) AS o(option_text, is_correct);
+
+-- challenge chal_coding_jrm_182 (mini_coding)
+INSERT INTO challenge.challenges (public_id, course_id, module_id, lesson_id, name, title, description, status, difficulty, type, points, is_published, is_deleted)
+VALUES ('chal_coding_jrm_182', (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices'), (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'java-resilient-microservices') AND order_index = 3 AND is_deleted = false LIMIT 1), (SELECT id FROM course.lesson WHERE content_source = 'lesson-jrm-3-2' AND is_deleted = false LIMIT 1), 'traceparent-propagation', 'Continue the trace across a hand-written client', 'payment-service calls the card processor through a hand-written HTTP client, so no library writes the trace header for it. The editor holds `Main.java` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that outgoing() continues a valid W3C traceparent (same trace-id, this call''s span id as parent, version 00, the caller''s sampled flag) and starts a new trace, with the reason, for a missing or invalid one: wrong length, a bad or ff version, ids that are not lowercase hex of the right length, all-zero ids, or bad flags. Future versions are read by their first four fields. Run sends a list of incoming headers and checks the line printed for each.', 'open', 'medium'::difficulty_question, 'mini_coding', 30, true, false)
+ON CONFLICT (public_id) DO UPDATE SET
+    course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
+    title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
+DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_182');
+INSERT INTO challenge.challenge_hints (challenge_id, level, body)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_182'), 1, 'Write down the exact layout of the 55 characters (where each field starts and ends, where the dashes are) and go through the reasons in the order the description lists them.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_182'), 2, 'Look at what the outgoing header keeps from the incoming one (trace-id, sampled bit) and what it replaces (version, parent-id), and at which character classes and lengths the id checks accept.'),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_182'), 3, 'A B3 single header (`{traceId}-{spanId}-{sampled}`) is continued the same way: keep the trace id, put the current span id in place of the caller''s, keep the sampling decision, and reject ids that are not lowercase hex of 16 or 32 digits or that are all zeros.');
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_182'), 'stdio', 3000, 128, NULL, 'all_or_nothing', '[{"id":"restart","label":"Start a new trace when the caller''s context is unusable","code":"return \"restart (\" + reason + \") 00-\" + newTraceId + \"-\" + spanId + \"-\" + (sampleNew ? \"01\" : \"00\");"},{"id":"child-header","label":"The header for the outgoing call","code":"return \"continue 00-\" + traceId + \"-\" + spanId + \"-\" + (sampled ? \"01\" : \"00\");"},{"id":"check-shape","label":"Length and version","code":"if (h.length() < 55) return \"bad length\";\nString version = h.substring(0, 2);\nif (!version.matches(\"[0-9a-f]{2}\") || h.charAt(2) != ''-'') return \"bad version\";\nif (version.equals(\"ff\")) return \"version ff\";\nif (version.equals(\"00\") ? h.length() != 55 : h.length() > 55 && h.charAt(55) != ''-'') return \"bad length\";"},{"id":"check-ids","label":"trace-id and parent-id","code":"if (!traceId.matches(\"[0-9a-f]{32}\") || h.charAt(35) != ''-'') return \"bad trace-id\";\nif (traceId.equals(ZERO_TRACE)) return \"zero trace-id\";\nif (!parentId.matches(\"[0-9a-f]{16}\") || h.charAt(52) != ''-'') return \"bad parent-id\";\nif (parentId.equals(ZERO_SPAN)) return \"zero parent-id\";"},{"id":"check-ids-any-case","label":"trace-id and parent-id","code":"if (!traceId.matches(\"[0-9a-fA-F]{32}\") || h.charAt(35) != ''-'') return \"bad trace-id\";\nif (traceId.equals(ZERO_TRACE)) return \"zero trace-id\";\nif (!parentId.matches(\"[0-9a-fA-F]{16}\") || h.charAt(52) != ''-'') return \"bad parent-id\";\nif (parentId.equals(ZERO_SPAN)) return \"zero parent-id\";","distractor":true},{"id":"check-ids-zeros-allowed","label":"trace-id and parent-id","code":"if (!traceId.matches(\"[0-9a-f]{32}\") || h.charAt(35) != ''-'') return \"bad trace-id\";\nif (!parentId.matches(\"[0-9a-f]{16}\") || h.charAt(52) != ''-'') return \"bad parent-id\";","distractor":true},{"id":"child-header-forwarded","label":"The header for the outgoing call","code":"return \"continue \" + incoming;","distractor":true}]'::jsonb)
+ON CONFLICT (challenge_id) DO UPDATE SET
+    execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
+DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_182');
+INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_182'), 'A valid header is continued: same trace, this call as the parent, the caller''s sampling', '"span 53995c3f42cd8ad8\nnew-trace 4bf92f3577b34da6a3ce929d0e0e4736\nsample-new true\nin 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\nin 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00\n"', '"continue 00-0af7651916cd43dd8448eb211c80319c-53995c3f42cd8ad8-01\ncontinue 00-0af7651916cd43dd8448eb211c80319c-53995c3f42cd8ad8-00"', 6, true, false, 1),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_182'), 'Missing, uppercase and version ff headers start a new trace', '"span 53995c3f42cd8ad8\nnew-trace 4bf92f3577b34da6a3ce929d0e0e4736\nsample-new true\nin -\nin 00-0AF7651916CD43DD8448EB211C80319C-B7AD6B7169203331-01\nin ff-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\n"', '"restart (missing) 00-4bf92f3577b34da6a3ce929d0e0e4736-53995c3f42cd8ad8-01\nrestart (bad trace-id) 00-4bf92f3577b34da6a3ce929d0e0e4736-53995c3f42cd8ad8-01\nrestart (version ff) 00-4bf92f3577b34da6a3ce929d0e0e4736-53995c3f42cd8ad8-01"', 6, true, false, 2),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_182'), 'All-zero ids and a truncated header start a new trace', '"span 53995c3f42cd8ad8\nnew-trace 4bf92f3577b34da6a3ce929d0e0e4736\nsample-new true\nin 00-00000000000000000000000000000000-b7ad6b7169203331-01\nin 00-0af7651916cd43dd8448eb211c80319c-0000000000000000-01\nin 00-0af7651916cd43dd8448eb211c80319c-b7ad6b71692033-01\n"', '"restart (zero trace-id) 00-4bf92f3577b34da6a3ce929d0e0e4736-53995c3f42cd8ad8-01\nrestart (zero parent-id) 00-4bf92f3577b34da6a3ce929d0e0e4736-53995c3f42cd8ad8-01\nrestart (bad length) 00-4bf92f3577b34da6a3ce929d0e0e4736-53995c3f42cd8ad8-01"', 6, true, false, 3),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_182'), 'A future version is read by its first four fields; bad flags and extra 00 fields restart', '"span 00f067aa0ba902b7\nnew-trace 5a8c1d2e3f4b5c6d7e8f9a0b1c2d3e4f\nsample-new false\nin 01-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-09-x1y2\nin 01-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01x\nin 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-0g\nin 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01-extra\n"', '"continue 00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01\nrestart (bad length) 00-5a8c1d2e3f4b5c6d7e8f9a0b1c2d3e4f-00f067aa0ba902b7-00\nrestart (bad flags) 00-5a8c1d2e3f4b5c6d7e8f9a0b1c2d3e4f-00f067aa0ba902b7-00\nrestart (bad length) 00-5a8c1d2e3f4b5c6d7e8f9a0b1c2d3e4f-00f067aa0ba902b7-00"', 6, false, true, 4),
+       ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_182'), 'Each hop names itself as the parent of the next call', '"span 1111111111111111\nnew-trace 22222222222222222222222222222222\nsample-new false\nin 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\nspan 3333333333333333\nin 00-0af7651916cd43dd8448eb211c80319c-1111111111111111-01\n"', '"continue 00-0af7651916cd43dd8448eb211c80319c-1111111111111111-01\ncontinue 00-0af7651916cd43dd8448eb211c80319c-3333333333333333-01"', 6, false, true, 5);
+INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
+VALUES ('ast_chal_coding_jrm_182_starter', 's3', 'challenges/java/chal_coding_jrm_182/starter.java', 'raw', 'text/x-java', 3971, 'Main.java')
+ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
+INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_jrm_182'), 'java', 'Main.java', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_jrm_182_starter'))
+ON CONFLICT ON CONSTRAINT uq_coding_files_path DO UPDATE SET file_role = EXCLUDED.file_role, asset_id = EXCLUDED.asset_id, updated_at = now();
 
 -- learners enrolled before these lessons existed
 INSERT INTO learning.history (user_id, course_id, module_id, lesson_id)

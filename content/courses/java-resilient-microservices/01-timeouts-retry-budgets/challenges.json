@@ -1,0 +1,141 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_jrm_111",
+      "name": "timeouts-retry-budgets-quiz",
+      "type": "quiz",
+      "title": "Read the payment outage",
+      "description": "Three statements about what happened to Rice Rocket's checkout when the payment provider slowed down. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "timeouts-retries"
+      ],
+      "points": 10,
+      "hints": [
+        "Count the calls layer by layer: how many times does each layer try, and does every try of the outer layer start a fresh round of tries in the inner one?",
+        "Read the thread dump: what is each request thread doing, and what bounds how long it may keep doing it?",
+        "Ask what a timeout tells the client about the payment: did the provider charge the card or not, and what would a second POST do?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The gateway retries failed calls to order-service, and order-service retries its call to payment-service:\n\n```yaml\n# gateway route (order-service)\nretries: 3            # 1 call + 3 retries\n# order-service application.yml\nresilience4j.retry.instances.payment.max-attempts: 3\n```\n\n```text\npayment-service  10:41  requests/s  120 -> 1,410   (checkouts/s unchanged: 95)\n```\n\nStatement: \"Each checkout can reach payment-service at most 3 times, because the payment client is limited to 3 attempts.\"",
+          "explanation": "False. Retries multiply across layers: the gateway makes up to 4 calls to order-service, and each of them may make 3 attempts at payment-service, so one checkout can produce 12 payment calls. That is how 95 checkouts/s became more than 1,400 requests/s on a provider that was already slow. Retry in one layer only (usually the one closest to the failing dependency) and give it a budget.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "order-service stopped answering although its CPU was idle. A thread dump during the incident:\n\n```text\n\"http-nio-8080-exec-187\" ... RUNNABLE\n   at sun.nio.ch.SocketDispatcher.read0(Native Method)\n   at java.net.http...\n   at com.ricerocket.order.payment.PaymentClient.charge(PaymentClient.java:58)\n... 200 of 200 Tomcat worker threads in PaymentClient.charge\n```\n\nThe payment `RestClient` was built with no read timeout.\n\nStatement: \"Without a read timeout each request thread can wait for the provider indefinitely, so a slow dependency used up all 200 worker threads and the whole service stopped answering, checkout or not.\"",
+          "explanation": "True. A connect timeout only bounds opening the connection; once connected, a client with no read (response) timeout waits as long as the provider takes. Every new checkout took one more worker thread until all 200 were stuck, and requests that never touch payments (menus, order status) had no thread left. A per-attempt timeout, inside an overall deadline, turns that into fast failures.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The charge call timed out after 800 ms and was retried automatically:\n\n```text\n10:41:07.212 POST /v1/charges order=ORD-88213 amount=185000   -> timeout after 800 ms (retrying)\n10:41:08.115 POST /v1/charges order=ORD-88213 amount=185000   -> 201 Created charge=ch_7Fq2\n# provider dashboard: ORD-88213  ch_7Fp9  185,000 VND  succeeded 10:41:07.950\n#                     ORD-88213  ch_7Fq2  185,000 VND  succeeded 10:41:08.301\n```\n\nStatement: \"A timeout does not tell the client whether the charge happened, so a POST may only be retried when it carries an idempotency key the provider uses to return the first result.\"",
+          "explanation": "True. The first request reached the provider and succeeded at 07.950, after the client had already given up at 800 ms; the retry created a second charge. Timeouts are ambiguous for non-idempotent operations. Either do not retry them, or send an Idempotency-Key the provider stores so the retry returns the first charge instead of making a new one (lesson 4).",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_jrm_112",
+      "name": "payment-call-retry-policy",
+      "type": "mini_coding",
+      "title": "Bound the payment call: deadline, timeouts, retries and a budget",
+      "description": "order-service's call to payment-service is a loop in `call(...)` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: each attempt waits at most `timeout` ms and never past the checkout's `deadline`; only transient failures (no answer, 429, 5xx) are retried, any other 4xx fails at once; retry n waits `backoff * 2^(n-1)` ms, and no retry starts when that wait would reach the deadline; and every retry spends one token from the budget shared by all checkouts (each checkout adds `ratio` tokens, up to the starting amount). The test runner at the bottom reads a policy and the provider's behaviour per checkout, and prints one line per checkout and the totals.",
+      "difficulty": "medium",
+      "outcomes": [
+        "timeouts-retries"
+      ],
+      "points": 30,
+      "hints": [
+        "Trace one checkout on paper with the elapsed time after every attempt and every wait. Where can the elapsed time pass the deadline, and which statuses are worth a second attempt?",
+        "Look at `Math.min` for the attempt limit, a status check that lets only 429, 5xx and timeouts through, the shift `backoff << (attempt - 1)`, and `budget.tokens` (thousandths of a token: `RetryBudget.ONE` is one) before `elapsed += wait`.",
+        "A search client that calls an index with a 500 ms overall budget: `limit = Math.min(perTry, budgetMs - spent)`; `if (code >= 400 && code < 500 && code != 429) giveUp();`; `delay = 50 << (tries - 1); if (spent + delay >= budgetMs) giveUp();`; `if (retryMillis < 1000) giveUp(); retryMillis -= 1000;`."
+      ],
+      "coding": {
+        "language": "java",
+        "filePath": "Main.java",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A transient 503 is retried once and the checkout succeeds",
+          "input": "policy deadline=2000 timeout=800 attempts=3 backoff=100 tokens=10 ratio=0.1\ncall c1 503:120 200:80\n",
+          "expected": "c1 ok attempts=2 elapsed=300\ntotal checkouts=1 attempts=2",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "409 and 422 fail at once: a retry cannot fix them",
+          "input": "policy deadline=2000 timeout=800 attempts=3 backoff=100 tokens=10 ratio=0.1\ncall c2 409:40\ncall c3 422:30 200:10\ncall c4 429:20 200:30\n",
+          "expected": "c2 failed status=409 attempts=1 elapsed=40\nc3 failed status=422 attempts=1 elapsed=30\nc4 ok attempts=2 elapsed=150\ntotal checkouts=3 attempts=4",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Attempts that time out never push a checkout past its 2 s deadline",
+          "input": "policy deadline=2000 timeout=800 attempts=3 backoff=100 tokens=10 ratio=0.1\ncall c5 timeout timeout timeout\n",
+          "expected": "c5 failed timeout attempts=3 elapsed=2000\ntotal checkouts=1 attempts=3",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "During an outage the shared retry budget caps the extra calls",
+          "input": "policy deadline=2000 timeout=800 attempts=3 backoff=100 tokens=2 ratio=0.1\ncall o1 503:50\ncall o2 503:50\ncall o3 503:50\ncall o4 503:50\ncall o5 503:50\ncall o6 503:50\ncall o7 503:50\ncall o8 503:50\ncall o9 503:50\ncall o10 503:50\ncall o11 503:50\ncall o12 503:50\ncall o13 503:50\ncall o14 503:50\ncall o15 503:50\ncall o16 503:50\ncall o17 503:50\ncall o18 503:50\ncall o19 503:50\ncall o20 503:50\n",
+          "expected": "o1 failed status=503 attempts=3 elapsed=450\no2 failed budget attempts=1 elapsed=50\no3 failed budget attempts=1 elapsed=50\no4 failed budget attempts=1 elapsed=50\no5 failed budget attempts=1 elapsed=50\no6 failed budget attempts=1 elapsed=50\no7 failed budget attempts=1 elapsed=50\no8 failed budget attempts=1 elapsed=50\no9 failed budget attempts=1 elapsed=50\no10 failed budget attempts=1 elapsed=50\no11 failed budget attempts=2 elapsed=200\no12 failed budget attempts=1 elapsed=50\no13 failed budget attempts=1 elapsed=50\no14 failed budget attempts=1 elapsed=50\no15 failed budget attempts=1 elapsed=50\no16 failed budget attempts=1 elapsed=50\no17 failed budget attempts=1 elapsed=50\no18 failed budget attempts=1 elapsed=50\no19 failed budget attempts=1 elapsed=50\no20 failed budget attempts=1 elapsed=50\ntotal checkouts=20 attempts=23",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "No retry starts when its backoff would reach the deadline",
+          "input": "policy deadline=1000 timeout=450 attempts=4 backoff=100 tokens=10 ratio=0.1\ncall d1 timeout timeout timeout 200:10\n",
+          "expected": "d1 failed deadline attempts=2 elapsed=1000\ntotal checkouts=1 attempts=2",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "An answer slower than the attempt timeout counts as a timeout",
+          "input": "policy deadline=2000 timeout=800 attempts=3 backoff=100 tokens=10 ratio=0.1\ncall s1 429:20 503:900 200:30\ncall s2 503:1000\n",
+          "expected": "s1 ok attempts=3 elapsed=1150\ns2 failed timeout attempts=3 elapsed=2000\ntotal checkouts=2 attempts=6",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

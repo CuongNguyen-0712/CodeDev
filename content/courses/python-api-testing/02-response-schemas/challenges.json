@@ -1,0 +1,687 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pat_122",
+      "name": "response-schema-validator",
+      "type": "mini_coding",
+      "title": "Check whole responses against their schema",
+      "description": "The courier app crashed twice on responses the suite called fine: `total` sent as a string, and `courier` null on an unassigned order. The editor holds `schema_check.py`: `validate(schema, value)` with its rule blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that a response is checked against the whole schema (a JSON Schema / OpenAPI 3.1 subset): JSON types (true is a boolean, not an integer; nullable types), required properties (null is present, not missing), nested properties and arrays, properties that are not allowed, enums, minimums and RFC 3339 date-times with an offset. Every problem is reported with its path, in the order the file's docstring gives. Run checks real and broken order responses.",
+      "difficulty": "medium",
+      "outcomes": [
+        "test-design"
+      ],
+      "points": 30,
+      "hints": [
+        "Walk one response by hand: the path grows by `.name` for properties and `[i]` for array elements, and a value of the wrong type ends the checks for that value.",
+        "Look at the order of the `isinstance` checks in `json_type` (Python's `bool` is a subclass of `int`), at the difference between a key that is absent and a key whose value is `None`, and at what the date-time pattern requires after the seconds.",
+        "A check of a `rating` object with a nullable comment looks like: `validate({\"type\": \"object\", \"required\": [\"stars\", \"comment\"], \"properties\": {\"stars\": {\"type\": \"integer\", \"minimum\": 1}, \"comment\": {\"type\": [\"string\", \"null\"]}}}, {\"stars\": 0, \"comment\": None})` -> `[\"$.stars: 0 is below the minimum 1\"]`."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "schema_check.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A complete order and an order nobody has picked up yet (courier null) both pass",
+          "input": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "id",
+                "status",
+                "total",
+                "items",
+                "courier",
+                "placed_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "placed",
+                    "cooking",
+                    "on_the_way",
+                    "delivered",
+                    "cancelled"
+                  ]
+                },
+                "total": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "quantity",
+                      "price"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "quantity": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "price": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    }
+                  }
+                },
+                "courier": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "placed_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "responses": {
+              "assigned": {
+                "id": 91822,
+                "status": "on_the_way",
+                "total": 125000,
+                "items": [
+                  {
+                    "name": "Com tam suon",
+                    "quantity": 2,
+                    "price": 55000
+                  },
+                  {
+                    "name": "Tra da",
+                    "quantity": 1,
+                    "price": 15000
+                  }
+                ],
+                "courier": {
+                  "id": 3107,
+                  "name": "Tran Van Binh"
+                },
+                "placed_at": "2026-11-06T11:30:00+07:00"
+              },
+              "unassigned": {
+                "id": 91822,
+                "status": "placed",
+                "total": 125000,
+                "items": [
+                  {
+                    "name": "Com tam suon",
+                    "quantity": 2,
+                    "price": 55000
+                  },
+                  {
+                    "name": "Tra da",
+                    "quantity": 1,
+                    "price": 15000
+                  }
+                ],
+                "courier": null,
+                "placed_at": "2026-11-06T11:30:00+07:00"
+              }
+            }
+          },
+          "expected": {
+            "assigned": [],
+            "unassigned": []
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "The serializer change: total arrives as a string",
+          "input": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "id",
+                "status",
+                "total",
+                "items",
+                "courier",
+                "placed_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "placed",
+                    "cooking",
+                    "on_the_way",
+                    "delivered",
+                    "cancelled"
+                  ]
+                },
+                "total": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "quantity",
+                      "price"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "quantity": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "price": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    }
+                  }
+                },
+                "courier": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "placed_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "responses": {
+              "total_as_string": {
+                "id": 91822,
+                "status": "on_the_way",
+                "total": "125000",
+                "items": [
+                  {
+                    "name": "Com tam suon",
+                    "quantity": 2,
+                    "price": 55000
+                  },
+                  {
+                    "name": "Tra da",
+                    "quantity": 1,
+                    "price": 15000
+                  }
+                ],
+                "courier": {
+                  "id": 3107,
+                  "name": "Tran Van Binh"
+                },
+                "placed_at": "2026-11-06T11:30:00+07:00"
+              }
+            }
+          },
+          "expected": {
+            "total_as_string": [
+              "$.total: expected integer, got string"
+            ]
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Every problem is reported, with its path: status, an item quantity and a time without offset",
+          "input": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "id",
+                "status",
+                "total",
+                "items",
+                "courier",
+                "placed_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "placed",
+                    "cooking",
+                    "on_the_way",
+                    "delivered",
+                    "cancelled"
+                  ]
+                },
+                "total": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "quantity",
+                      "price"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "quantity": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "price": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    }
+                  }
+                },
+                "courier": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "placed_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "responses": {
+              "several": {
+                "id": 91822,
+                "status": "COOKING",
+                "total": 125000,
+                "items": [
+                  {
+                    "name": "Com tam suon",
+                    "quantity": 2,
+                    "price": 55000
+                  },
+                  {
+                    "name": "Tra da",
+                    "quantity": 0,
+                    "price": 15000
+                  }
+                ],
+                "courier": {
+                  "id": 3107,
+                  "name": "Tran Van Binh"
+                },
+                "placed_at": "2026-11-06T11:30:00"
+              }
+            }
+          },
+          "expected": {
+            "several": [
+              "$.status: \"COOKING\" is not one of [\"placed\", \"cooking\", \"on_the_way\", \"delivered\", \"cancelled\"]",
+              "$.items[1].quantity: 0 is below the minimum 1",
+              "$.placed_at: not a date-time with an offset"
+            ]
+          },
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A leaked courier phone, a missing field and a boolean price",
+          "input": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "id",
+                "status",
+                "total",
+                "items",
+                "courier",
+                "placed_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "placed",
+                    "cooking",
+                    "on_the_way",
+                    "delivered",
+                    "cancelled"
+                  ]
+                },
+                "total": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "quantity",
+                      "price"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "quantity": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "price": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    }
+                  }
+                },
+                "courier": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "placed_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "responses": {
+              "leaks": {
+                "id": 91822,
+                "status": "on_the_way",
+                "total": 125000,
+                "items": [
+                  {
+                    "name": "Com tam suon",
+                    "quantity": 2,
+                    "price": true
+                  }
+                ],
+                "courier": {
+                  "id": 3107,
+                  "name": "Tran Van Binh",
+                  "phone": "0901234567"
+                }
+              }
+            }
+          },
+          "expected": {
+            "leaks": [
+              "$.placed_at: missing",
+              "$.items[0].price: expected integer, got boolean",
+              "$.courier.phone: not allowed"
+            ]
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Integer, number and nullable object types follow JSON, not Python",
+          "input": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "id",
+                "status",
+                "total",
+                "items",
+                "courier",
+                "placed_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "placed",
+                    "cooking",
+                    "on_the_way",
+                    "delivered",
+                    "cancelled"
+                  ]
+                },
+                "total": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "quantity",
+                      "price"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "quantity": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "price": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    }
+                  }
+                },
+                "courier": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "placed_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "responses": {
+              "float_total": {
+                "id": 91822,
+                "status": "on_the_way",
+                "total": 125000,
+                "items": [
+                  {
+                    "name": "Com tam suon",
+                    "quantity": 2,
+                    "price": 55000
+                  },
+                  {
+                    "name": "Tra da",
+                    "quantity": 1,
+                    "price": 15000
+                  }
+                ],
+                "courier": {
+                  "id": 3107,
+                  "name": "Tran Van Binh"
+                },
+                "placed_at": "2026-11-06T11:30:00+07:00"
+              },
+              "fraction": {
+                "id": 91822,
+                "status": "on_the_way",
+                "total": 99.5,
+                "items": [
+                  {
+                    "name": "Com tam suon",
+                    "quantity": 2,
+                    "price": 55000
+                  },
+                  {
+                    "name": "Tra da",
+                    "quantity": 1,
+                    "price": 15000
+                  }
+                ],
+                "courier": {
+                  "id": 3107,
+                  "name": "Tran Van Binh"
+                },
+                "placed_at": "2026-11-06T11:30:00+07:00"
+              },
+              "courier_list": {
+                "id": 91822,
+                "status": "on_the_way",
+                "total": 125000,
+                "items": [
+                  {
+                    "name": "Com tam suon",
+                    "quantity": 2,
+                    "price": 55000
+                  },
+                  {
+                    "name": "Tra da",
+                    "quantity": 1,
+                    "price": 15000
+                  }
+                ],
+                "courier": [],
+                "placed_at": "2026-11-06T11:30:00+07:00"
+              },
+              "utc": {
+                "id": 91822,
+                "status": "on_the_way",
+                "total": 125000,
+                "items": [
+                  {
+                    "name": "Com tam suon",
+                    "quantity": 2,
+                    "price": 55000
+                  },
+                  {
+                    "name": "Tra da",
+                    "quantity": 1,
+                    "price": 15000
+                  }
+                ],
+                "courier": {
+                  "id": 3107,
+                  "name": "Tran Van Binh"
+                },
+                "placed_at": "2026-11-06T04:30:00.250Z"
+              }
+            }
+          },
+          "expected": {
+            "float_total": [],
+            "fraction": [
+              "$.total: expected integer, got number"
+            ],
+            "courier_list": [
+              "$.courier: expected object or null, got array"
+            ],
+            "utc": []
+          },
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

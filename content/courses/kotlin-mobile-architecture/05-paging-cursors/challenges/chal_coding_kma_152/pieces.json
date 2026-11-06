@@ -1,0 +1,40 @@
+[
+  {
+    "id": "refresh",
+    "label": "Start over from the newest orders",
+    "code": "fun refresh() {\n    generation++\n    nextKey = null\n    endReached = false\n    request(null)\n}"
+  },
+  {
+    "id": "should-append",
+    "label": "Ask for the next page near the end, once",
+    "code": "if (!loading && !endReached && lastVisible >= ids.size - prefetch) request(nextKey)"
+  },
+  {
+    "id": "drop-stale",
+    "label": "Pages requested before the last refresh change nothing",
+    "code": "if (req.gen != generation) return"
+  },
+  {
+    "id": "apply-page",
+    "label": "Replace on refresh, append otherwise, remember the cursor",
+    "code": "if (req.key == null) { ids.clear() }\nids += page.ids\nnextKey = page.next\nendReached = page.next == null\nloading = false"
+  },
+  {
+    "id": "drop-stale-while-loading",
+    "label": "Pages requested before the last refresh change nothing",
+    "code": "if (req.gen != generation && !loading) return",
+    "distractor": true
+  },
+  {
+    "id": "refresh-keeps-end",
+    "label": "Start over from the newest orders",
+    "code": "fun refresh() {\n    generation++\n    nextKey = null\n    request(null)\n}",
+    "distractor": true
+  },
+  {
+    "id": "should-append-twice",
+    "label": "Ask for the next page near the end, once",
+    "code": "if (!endReached && lastVisible >= ids.size - prefetch) request(nextKey)",
+    "distractor": true
+  }
+]

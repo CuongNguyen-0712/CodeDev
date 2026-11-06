@@ -1,0 +1,45 @@
+[
+  {
+    "id": "check-replay",
+    "label": "A repeated request returns the first answer again",
+    "code": "first = api.post(\"/orders\", json=ORDER, headers={\"Idempotency-Key\": \"k-replay\"})\nagain = api.post(\"/orders\", json=ORDER, headers={\"Idempotency-Key\": \"k-replay\"})\nassert first.status_code == 201, f\"first request -> {first.status_code}\"\nassert again.status_code == first.status_code and again.json() == first.json(), f\"replay -> {again.status_code} {again.json()}\"\nassert again.headers.get(\"Idempotent-Replayed\") == \"true\", \"replay is not marked Idempotent-Replayed\""
+  },
+  {
+    "id": "check-reused-key",
+    "label": "The same key with another body is refused",
+    "code": "api.post(\"/orders\", json=ORDER, headers={\"Idempotency-Key\": \"k-reused\"})\nother = dict(ORDER, items=[{\"dish\": \"pho-bo\", \"qty\": 1}])\nresponse = api.post(\"/orders\", json=other, headers={\"Idempotency-Key\": \"k-reused\"})\nassert response.status_code == 422, f\"reused key with another body -> {response.status_code}\""
+  },
+  {
+    "id": "check-in-flight",
+    "label": "A duplicate while the first is in progress waits",
+    "code": "handle = api.start(\"/orders\", json=ORDER, headers={\"Idempotency-Key\": \"k-flight\"})\nduplicate = api.post(\"/orders\", json=ORDER, headers={\"Idempotency-Key\": \"k-flight\"})\nfirst = api.finish(handle)\nassert duplicate.status_code == 409, f\"duplicate during processing -> {duplicate.status_code}\"\nassert first.status_code == 201, f\"first request -> {first.status_code}\""
+  },
+  {
+    "id": "check-lost-response",
+    "label": "A retry after a timeout creates no second order",
+    "code": "try:\n    api.post(\"/orders\", json=ORDER, headers={\"Idempotency-Key\": \"k-lost\"}, lose_response=True)\nexcept TimeoutError:\n    pass\nretry = api.post(\"/orders\", json=ORDER, headers={\"Idempotency-Key\": \"k-lost\"})\norders = api.get(f\"/orders?customer_id={ORDER['customer_id']}\").json()\nassert retry.status_code == 201 and len(orders) == 1, f\"retry -> {retry.status_code}, {len(orders)} orders\"\nassert retry.json()[\"id\"] == orders[0][\"id\"], \"retry returned another order\""
+  },
+  {
+    "id": "check-missing-key",
+    "label": "A request without a key is refused",
+    "code": "response = api.post(\"/orders\", json=ORDER)\nassert response.status_code == 400, f\"no Idempotency-Key -> {response.status_code}\""
+  },
+  {
+    "id": "lost-response-new-key",
+    "label": "A retry after a timeout creates no second order",
+    "code": "try:\n    api.post(\"/orders\", json=ORDER, headers={\"Idempotency-Key\": \"k-lost\"}, lose_response=True)\nexcept TimeoutError:\n    pass\nretry = api.post(\"/orders\", json=ORDER, headers={\"Idempotency-Key\": \"k-lost-retry\"})\nassert retry.status_code == 201, f\"retry -> {retry.status_code}\"",
+    "distractor": true
+  },
+  {
+    "id": "replay-status-only",
+    "label": "A repeated request returns the first answer again",
+    "code": "first = api.post(\"/orders\", json=ORDER, headers={\"Idempotency-Key\": \"k-replay\"})\nagain = api.post(\"/orders\", json=ORDER, headers={\"Idempotency-Key\": \"k-replay\"})\nassert first.status_code == 201, f\"first request -> {first.status_code}\"\nassert again.status_code == first.status_code, f\"replay -> {again.status_code}\"",
+    "distractor": true
+  },
+  {
+    "id": "reused-key-expects-replay",
+    "label": "The same key with another body is refused",
+    "code": "first = api.post(\"/orders\", json=ORDER, headers={\"Idempotency-Key\": \"k-reused\"})\nother = dict(ORDER, items=[{\"dish\": \"pho-bo\", \"qty\": 1}])\nresponse = api.post(\"/orders\", json=other, headers={\"Idempotency-Key\": \"k-reused\"})\nassert response.status_code == 201 and response.json() == first.json(), f\"reused key -> {response.status_code}\"",
+    "distractor": true
+  }
+]

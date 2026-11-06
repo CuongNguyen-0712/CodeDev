@@ -1,0 +1,45 @@
+[
+  {
+    "id": "prefix-tops",
+    "label": "Top position of every row, and the total height",
+    "code": "const tops = new Array(rows.length + 1);\ntops[0] = 0;\nfor (let i = 0; i < rows.length; i++) tops[i + 1] = tops[i] + rows[i].height;"
+  },
+  {
+    "id": "first-visible",
+    "label": "First row whose bottom is below the scroll position",
+    "code": "let lo = 0;\nlet hi = rows.length;\nwhile (lo < hi) {\n    const mid = (lo + hi) >> 1;\n    if (tops[mid + 1] <= viewport.scrollTop) lo = mid + 1;\n    else hi = mid;\n}\nconst first = lo;"
+  },
+  {
+    "id": "past-last-visible",
+    "label": "First row that starts at or below the viewport's bottom edge",
+    "code": "const bottom = viewport.scrollTop + viewport.height;\nlet last = first;\nwhile (last < rows.length && tops[last] < bottom) last++;"
+  },
+  {
+    "id": "add-overscan",
+    "label": "Extra rows above and below, kept inside the list",
+    "code": "const start = Math.max(0, first - overscan);\nconst end = Math.min(rows.length, last + overscan);"
+  },
+  {
+    "id": "row-keys",
+    "label": "Keys that follow the row, not its position",
+    "code": "const keys = rows.slice(start, end).map((row) => row.id);"
+  },
+  {
+    "id": "overscan-unclamped",
+    "label": "Extra rows above and below, kept inside the list",
+    "code": "const start = first - overscan;\nconst end = last + overscan;",
+    "distractor": true
+  },
+  {
+    "id": "past-last-inclusive",
+    "label": "First row that starts at or below the viewport's bottom edge",
+    "code": "const bottom = viewport.scrollTop + viewport.height;\nlet last = first;\nwhile (last < rows.length && tops[last] <= bottom) last++;",
+    "distractor": true
+  },
+  {
+    "id": "row-keys-index",
+    "label": "Keys that follow the row, not its position",
+    "code": "const keys = rows.slice(start, end).map((row, i) => String(start + i));",
+    "distractor": true
+  }
+]

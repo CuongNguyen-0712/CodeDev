@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_gcn_152",
+      "key": "challenges/go/chal_coding_gcn_152/starter.go",
+      "contentType": "text/x-go; charset=utf-8",
+      "originalName": "breaker.go",
+      "size": 3865
+    }
+  ]
+}

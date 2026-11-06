@@ -1,0 +1,45 @@
+[
+  {
+    "id": "endpoint-template",
+    "label": "Turn ids in the path into one template",
+    "code": "path = path.split(\"?\", 1)[0]\nreturn \"/\".join(\"{id}\" if s.isdigit() or UUID.match(s) else s for s in path.split(\"/\"))"
+  },
+  {
+    "id": "redact-secrets",
+    "label": "Hide credentials in headers and in the body",
+    "code": "clean_headers = {k: \"[REDACTED]\" if k.lower() in SECRET_HEADERS else v for k, v in headers.items()}\n\ndef scrub(value):\n    if isinstance(value, dict):\n        return {k: \"[REDACTED]\" if k in SECRET_KEYS else scrub(v) for k, v in value.items()}\n    if isinstance(value, list):\n        return [scrub(v) for v in value]\n    return value\n\ntry:\n    clean_body = json.dumps(scrub(json.loads(body)), separators=(\",\", \":\"))\nexcept ValueError:\n    clean_body = re.sub(r\"Bearer\\s+\\S+\", \"Bearer [REDACTED]\", body)\nreturn clean_headers, clean_body"
+  },
+  {
+    "id": "failure-record",
+    "label": "Request, request id and error of a failure",
+    "code": "try:\n    error = json.loads(exchange[\"response_body\"]).get(\"title\") or f\"HTTP {exchange['status']}\"\nexcept (ValueError, AttributeError):\n    error = f\"HTTP {exchange['status']}\"\nresponse_headers = {k.lower(): v for k, v in exchange[\"response_headers\"].items()}\nreturn {\n    \"test\": test,\n    \"request\": f\"{exchange['method']} {exchange['url'].split('?', 1)[0]}\",\n    \"endpoint\": f\"{exchange['method']} {endpoint_template(exchange['url'])}\",\n    \"status\": exchange[\"status\"],\n    \"request_id\": response_headers.get(\"x-request-id\"),\n    \"error\": error,\n    \"excerpt\": body[:120],\n    \"request_headers\": headers,\n}"
+  },
+  {
+    "id": "flaky-tests",
+    "label": "Tell flaky tests from failing ones",
+    "code": "if attempts[-1][\"outcome\"] == \"passed\":\n    if any(a[\"outcome\"] == \"failed\" for a in attempts):\n        flaky.append(result[\"test\"])\n    continue"
+  },
+  {
+    "id": "group-failures",
+    "label": "One group per root cause, biggest first",
+    "code": "groups = {}\nfor r in records:\n    groups.setdefault(f\"{r['endpoint']} -> {r['status']} {r['error']}\", []).append(r)\nordered = sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))\ngroup_list = [{\n    \"signature\": signature,\n    \"count\": len(rs),\n    \"tests\": sorted(r[\"test\"] for r in rs),\n    \"request_ids\": sorted(r[\"request_id\"] for r in rs if r[\"request_id\"]),\n} for signature, rs in ordered]"
+  },
+  {
+    "id": "endpoint-raw-path",
+    "label": "Turn ids in the path into one template",
+    "code": "return path.split(\"?\", 1)[0]",
+    "distractor": true
+  },
+  {
+    "id": "flaky-any-failure",
+    "label": "Tell flaky tests from failing ones",
+    "code": "if any(a[\"outcome\"] == \"failed\" for a in attempts) and len(attempts) > 1:\n    flaky.append(result[\"test\"])\nif attempts[-1][\"outcome\"] == \"passed\":\n    continue",
+    "distractor": true
+  },
+  {
+    "id": "redact-headers-only",
+    "label": "Hide credentials in headers and in the body",
+    "code": "clean_headers = {k: \"[REDACTED]\" if k.lower() in SECRET_HEADERS else v for k, v in headers.items()}\nreturn clean_headers, body",
+    "distractor": true
+  }
+]

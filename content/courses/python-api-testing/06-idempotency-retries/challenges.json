@@ -1,0 +1,118 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_pat_162",
+      "name": "idempotency-checks",
+      "type": "mini_coding",
+      "title": "Write the idempotency checks for POST /orders",
+      "description": "Couriers' phones retry `POST /orders` after a timeout, and last month some customers were charged twice. The API team says idempotency keys are implemented; the only test sent each request once. The editor holds `tests/test_idempotency.py` with the five checks missing, each marked by a `# [ ]` line; some pieces test the wrong thing on purpose. Fill every line so that the suite proves the contract in the docstring: a replay returns the first answer marked `Idempotent-Replayed: true`, a reused key with another body gets 422, a duplicate during processing gets 409, a retry after a lost response never creates a second order, and a request without a key gets 400. Run plays your checks against a correct API and against APIs with one known defect each: every defect must be caught by the right checks, and the correct API must pass them all.",
+      "difficulty": "medium",
+      "outcomes": [
+        "error-cases"
+      ],
+      "points": 30,
+      "hints": [
+        "A check is only as good as the defect it catches. For each check, name the broken API that would pass it, then add the assertion that makes it fail.",
+        "Compare more than the status: the replay's body (same order id) and its header, the number of orders the customer has after a retry, and the status of the request that arrives while the first one is still running.",
+        "A check for a refund endpoint: `first = api.post(\"/refunds\", json=R, headers={\"Idempotency-Key\": \"r1\"})`, `again = api.post(...same...)`, then `assert again.json() == first.json()` and `assert len(api.get(\"/refunds?order_id=5\").json()) == 1`."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "tests/test_idempotency.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The API that follows the contract passes every check",
+          "input": {
+            "variants": [
+              "correct"
+            ]
+          },
+          "expected": {
+            "correct": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "An API that ignores the key fails every check that sends one key twice",
+          "input": {
+            "variants": [
+              "no-idempotency"
+            ]
+          },
+          "expected": {
+            "no-idempotency": [
+              "check_in_flight",
+              "check_lost_response",
+              "check_replay",
+              "check_reused_key"
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Replays without the Idempotent-Replayed header, and a reused key that is not refused",
+          "input": {
+            "variants": [
+              "replay-without-header",
+              "ignores-body"
+            ]
+          },
+          "expected": {
+            "replay-without-header": [
+              "check_replay"
+            ],
+            "ignores-body": [
+              "check_reused_key"
+            ]
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A duplicate processed during the first request, and a key stored only after responding",
+          "input": {
+            "variants": [
+              "no-in-flight-lock",
+              "store-after-response"
+            ]
+          },
+          "expected": {
+            "no-in-flight-lock": [
+              "check_in_flight"
+            ],
+            "store-after-response": [
+              "check_lost_response"
+            ]
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Requests without a key accepted, next to the correct API",
+          "input": {
+            "variants": [
+              "missing-key-accepted",
+              "correct"
+            ]
+          },
+          "expected": {
+            "missing-key-accepted": [
+              "check_missing_key"
+            ],
+            "correct": []
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

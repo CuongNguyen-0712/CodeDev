@@ -1,0 +1,309 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pas_191",
+      "name": "graceful-shutdown-quiz",
+      "type": "quiz",
+      "title": "Read the deploy that lost locations",
+      "description": "Three statements about what happened to Rice Rocket's courier-location worker during a rolling deploy. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "production"
+      ],
+      "points": 10,
+      "hints": [
+        "Which signals does `asyncio.run` turn into cancellation of the main task, and what does the Python default handler do with SIGTERM?",
+        "Follow the pod's termination timeline in the Kubernetes docs: what is sent first, how long the kubelet waits, and what comes after the wait.",
+        "Who receives SIGTERM in a FastAPI pod started with `uvicorn api.main:app`: your code or the server? Which part of your app runs after the server stops taking requests?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The worker's main function wraps its loop in try/finally, yet a deploy shows no flush at all:\n\n```python\nasync def main():\n    try:\n        await consume_forever()\n    finally:\n        await flush_batch()          # writes the buffered locations\n        log.info(\"worker stopped cleanly\")\n\nasyncio.run(main())\n```\n\n```text\n$ kubectl -n rice-rocket logs courier-worker-7f9c-x2 --previous | tail -2\n12:30:58 wrote 50 locations\n12:31:00 wrote 50 locations\n$ kubectl -n rice-rocket get events --field-selector involvedObject.name=courier-worker-7f9c-x2 | tail -1\nNormal  Killing  pod/courier-worker-7f9c-x2  Stopping container worker\n```\n\nStatement: \"`asyncio.run` turns SIGTERM into a cancellation of `main()`, so the `finally` block ran and the log line is just missing.\"",
+          "explanation": "False. `asyncio.run` handles SIGINT (Ctrl+C): since Python 3.11 it cancels the main task so `finally` blocks run. SIGTERM keeps Python's default action, which ends the process at once: no cancellation, no `finally`, no flush. A worker that must clean up registers its own handler, `loop.add_signal_handler(signal.SIGTERM, stop.set)` (Unix only), and lets the main loop finish its work.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The cleanup handler is now installed, but long batches still end mid-write:\n\n```yaml\n# deployment courier-worker\nspec:\n  template:\n    spec:\n      terminationGracePeriodSeconds: 30\n```\n\n```text\n12:45:00.010 SIGTERM received, draining 3 handlers\n12:45:30.012 (no more log lines)\n$ kubectl -n rice-rocket get pod courier-worker-7f9c-k8 -o jsonpath='{.status.containerStatuses[0].lastState.terminated.exitCode}'\n137\n```\n\nStatement: \"Kubernetes sends SIGTERM, waits terminationGracePeriodSeconds (30 s here), then sends SIGKILL; a drain that takes longer than that is cut off, which the exit code 137 (128 + 9) confirms.\"",
+          "explanation": "True. After SIGTERM the kubelet waits the grace period (default 30 s, counted from the start of termination, preStop hook included) and then kills the container with SIGKILL, which no handler can catch. Exit code 137 means killed by signal 9. The worker's own drain timeout must be shorter than the grace period, with room for the final flush; cancelled work stays unacknowledged and is redelivered to the next pod.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The api pod runs FastAPI under uvicorn and closes its database pool in the lifespan handler:\n\n```python\n@asynccontextmanager\nasync def lifespan(app):\n    app.state.db = await create_pool()\n    yield\n    await app.state.db.close()\n```\n\n```text\n$ uvicorn api.main:app --timeout-graceful-shutdown 20\n... SIGTERM\nINFO:     Shutting down\nINFO:     Waiting for connections to close. (CTRL+C to force quit)\nINFO:     Waiting for application shutdown.\nINFO:     Application shutdown complete.\n```\n\nStatement: \"uvicorn handles SIGTERM itself: it stops accepting connections, waits up to the graceful-shutdown timeout for open requests, and only then runs the code after `yield` in the lifespan handler.\"",
+          "explanation": "True. The server owns the signal: uvicorn installs SIGINT and SIGTERM handlers, stops accepting new connections, waits for in-flight requests (bounded by `--timeout-graceful-shutdown`), and then runs the application's lifespan shutdown, where the pool is closed. Your code should not install a competing SIGTERM handler in a uvicorn app; put cleanup after `yield`. Keep the timeout below the pod's terminationGracePeriodSeconds.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pas_192",
+      "name": "graceful-worker-shutdown",
+      "type": "mini_coding",
+      "title": "Drain the location worker on SIGTERM",
+      "description": "Rice Rocket's courier-location worker loses or duplicates updates on every deploy. The editor holds `worker.py` with the shutdown-aware consumer's key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. The SIGTERM handler only sets `stop`. Fill every line so that `run_worker` stops fetching as soon as `stop` is set (it never waits for another message after that), runs at most `concurrency` handlers at once, acknowledges a message only after its handler finished, and on stop gives running handlers up to `grace` seconds, then cancels the rest, waits until they stopped and returns the ids it cancelled. Unacknowledged messages are redelivered to the next pod; Kubernetes kills the process `kill_after` seconds after SIGTERM. Run plays deploys on asyncio's clock.",
+      "difficulty": "hard",
+      "outcomes": [
+        "production"
+      ],
+      "points": 40,
+      "hints": [
+        "Walk through a deploy second by second: what is the loop waiting on when SIGTERM arrives, which handlers are running, and what must be true about acknowledgements when the process exits?",
+        "Look at `asyncio.wait({get, stop_wait}, return_when=asyncio.FIRST_COMPLETED)`, `asyncio.Semaphore`, `asyncio.wait(tasks, timeout=...)`, `task.cancel()` followed by `asyncio.gather(..., return_exceptions=True)`.",
+        "A crawler that stops on Ctrl+C looks like: race `queue.get()` against `stop.wait()` with `asyncio.wait(..., FIRST_COMPLETED)` and cancel the losing `get`; start each page under a semaphore; on stop `done, pending = await asyncio.wait(running, timeout=10)`, cancel `pending` and `await asyncio.gather(*pending, return_exceptions=True)`; save a page as visited only after it was stored."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "worker.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "SIGTERM when everything is done: all acknowledged, clean exit at once",
+          "input": {
+            "messages": [
+              {
+                "id": "loc-1",
+                "at": 0,
+                "duration": 1
+              },
+              {
+                "id": "loc-2",
+                "at": 1,
+                "duration": 2
+              },
+              {
+                "id": "loc-3",
+                "at": 2,
+                "duration": 1
+              },
+              {
+                "id": "loc-4",
+                "at": 4,
+                "duration": 1
+              }
+            ],
+            "concurrency": 4,
+            "grace": 20,
+            "kill_after": 30,
+            "sigterm_at": 10
+          },
+          "expected": {
+            "acked": [
+              "loc-1",
+              "loc-2",
+              "loc-3",
+              "loc-4"
+            ],
+            "cancelled": [],
+            "lost": [],
+            "redelivered": [],
+            "fetched_after_sigterm": [],
+            "killed": false,
+            "exited_at": 10
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "SIGTERM mid-run: running handlers finish, later messages stay for the next pod",
+          "input": {
+            "messages": [
+              {
+                "id": "loc-1",
+                "at": 0,
+                "duration": 2
+              },
+              {
+                "id": "loc-2",
+                "at": 1,
+                "duration": 4
+              },
+              {
+                "id": "loc-3",
+                "at": 5,
+                "duration": 1
+              },
+              {
+                "id": "loc-4",
+                "at": 6,
+                "duration": 1
+              }
+            ],
+            "concurrency": 4,
+            "grace": 20,
+            "kill_after": 30,
+            "sigterm_at": 3
+          },
+          "expected": {
+            "acked": [
+              "loc-1",
+              "loc-2"
+            ],
+            "cancelled": [],
+            "lost": [],
+            "redelivered": [
+              "loc-3",
+              "loc-4"
+            ],
+            "fetched_after_sigterm": [],
+            "killed": false,
+            "exited_at": 5
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "A 60 s handler is cancelled after the grace period, unacknowledged, before SIGKILL",
+          "input": {
+            "messages": [
+              {
+                "id": "loc-1",
+                "at": 0,
+                "duration": 60
+              },
+              {
+                "id": "loc-2",
+                "at": 1,
+                "duration": 2
+              }
+            ],
+            "concurrency": 4,
+            "grace": 20,
+            "kill_after": 30,
+            "sigterm_at": 5
+          },
+          "expected": {
+            "acked": [
+              "loc-2"
+            ],
+            "cancelled": [
+              "loc-1"
+            ],
+            "lost": [],
+            "redelivered": [
+              "loc-1"
+            ],
+            "fetched_after_sigterm": [],
+            "killed": false,
+            "exited_at": 25
+          },
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "Two at a time: queued messages and a short grace period",
+          "input": {
+            "messages": [
+              {
+                "id": "loc-1",
+                "at": 0,
+                "duration": 3
+              },
+              {
+                "id": "loc-2",
+                "at": 0,
+                "duration": 3
+              },
+              {
+                "id": "loc-3",
+                "at": 0,
+                "duration": 3
+              },
+              {
+                "id": "loc-4",
+                "at": 0,
+                "duration": 3
+              },
+              {
+                "id": "loc-5",
+                "at": 0,
+                "duration": 3
+              }
+            ],
+            "concurrency": 2,
+            "grace": 2,
+            "kill_after": 30,
+            "sigterm_at": 4
+          },
+          "expected": {
+            "acked": [
+              "loc-1",
+              "loc-2",
+              "loc-3",
+              "loc-4"
+            ],
+            "cancelled": [
+              "loc-5"
+            ],
+            "lost": [],
+            "redelivered": [
+              "loc-5"
+            ],
+            "fetched_after_sigterm": [],
+            "killed": false,
+            "exited_at": 8
+          },
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "An idle worker exits as soon as SIGTERM arrives",
+          "input": {
+            "messages": [],
+            "concurrency": 4,
+            "grace": 20,
+            "kill_after": 30,
+            "sigterm_at": 5
+          },
+          "expected": {
+            "acked": [],
+            "cancelled": [],
+            "lost": [],
+            "redelivered": [],
+            "fetched_after_sigterm": [],
+            "killed": false,
+            "exited_at": 5
+          },
+          "hidden": true,
+          "score": 8
+        }
+      ]
+    }
+  ]
+}

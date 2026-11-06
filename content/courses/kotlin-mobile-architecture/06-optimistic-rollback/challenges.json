@@ -1,0 +1,134 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_kma_161",
+      "name": "optimistic-rollback-quiz",
+      "type": "quiz",
+      "title": "Read the pick-up incidents",
+      "description": "Three statements about what went wrong after the courier app started showing taps before the api answered. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "data-layer"
+      ],
+      "points": 10,
+      "hints": [
+        "Ask what the screen should show once the api has said no: the courier's wish, or the last thing the server confirmed?",
+        "A disabled button stops a second tap. Does it stop the phone from sending the same request again after a timeout, when the first one did reach the server?",
+        "A push says what the server knew when it sent it. Has the server seen the courier's pending change yet at that moment?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A courier taps Picked up on an order that dispatch had just reassigned:\n\n```text\n12:04:10.120  PickupViewModel   tap m-81 order 5521 PICKED_UP (shown at once)\n12:04:11.930  OkHttp            POST /orders/5521/pickup  -> 409 Conflict {\"error\":\"order reassigned\"}\n12:04:11.931  OrderStore        failure for m-81 ignored (no handler)\n12:09:40.000  courier report    \"app said picked up, customer says no driver came\"\n```\n\nStatement: \"The failed change has to be removed from the pending list so the screen falls back to the last server state, and the courier must be told why.\"",
+          "explanation": "True. An optimistic update is a guess shown before the server answers; once the api refuses it, the guess is wrong and must go. Keeping the server snapshot and the pending changes apart makes this a one-line removal: the screen is re-derived from the snapshot plus whatever is still pending, and a message explains the rollback. The bug here is that the failure was dropped, so the guess stayed on screen for five minutes.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the incident the team disabled the button while a change is in flight, and removed the client mutation id from the request:\n\n```text\nPOST /orders/5521/pickup   (no Idempotency-Key header)\n-> socket timeout after 15 s (the api had already saved the pick-up)\nretry 1: POST /orders/5521/pickup\n-> 200 OK  {\"pickupCount\": 2}\n```\n\nStatement: \"With the button disabled during the request, the server can never receive the same pick-up twice, so the mutation id is no longer needed.\"",
+          "explanation": "False. The disabled button only stops the courier's second tap. The network can still lose the answer after the server did the work, and the retry then repeats the request; here the pick-up was recorded twice. The client mutation id (sent as an idempotency key) lets the api recognise the retry and answer with the first result. The misconception is that duplicates come only from the user.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A push from the api arrives while the courier's Picked up is still pending:\n\n```text\n12:20:01.000  tap m-90 order 5530 PICKED_UP  -> shown PICKED_UP (pending)\n12:20:01.400  push  order 5530 status=ASSIGNED   (sent by the api at 12:20:00.950)\n12:20:01.401  OrderStore.onServer: status ASSIGNED, pending cleared\n12:20:01.402  screen shows ASSIGNED\n12:20:02.100  POST /orders/5530/pickup -> 200 OK, screen shows PICKED_UP\n```\n\nStatement: \"The push is the truth, so every pending change for that order should be dropped when a push arrives; the flicker back to ASSIGNED is the price of correctness.\"",
+          "explanation": "False. The push carries what the server knew before it saw the pending change, so it does not answer that change. The store should replace its server snapshot and keep the pending change on top (rebase it); the change leaves the list only when the api confirms or refuses it. Clearing it made the screen jump back to ASSIGNED for 700 ms and invites a second tap. The misconception is that any newer message from the server settles every change in flight.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_kma_162",
+      "name": "optimistic-order-store",
+      "type": "mini_coding",
+      "title": "Optimistic updates with a clean rollback",
+      "description": "The courier app's `OrderStore` keeps the last server state of each order apart from the changes the courier made that the api has not answered yet. The screen shows the server state with the pending changes applied on top. The editor holds `OrderStore.kt` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a tap is accepted only when it asks for the next status of what the courier sees (so a double tap sends one request); an accepted change goes into the server state; a refused change is removed together with the later changes queued for the same order, and the courier gets `Could not mark <order> <STATUS>: <reason>` (plus ` (dropped N later change)` when any were dropped); and a push from the server replaces the server state but keeps the pending changes. The runner prints every request, rollback message and screen (`*` marks an order with a pending change).",
+      "difficulty": "hard",
+      "outcomes": [
+        "data-layer"
+      ],
+      "points": 40,
+      "hints": [
+        "Keep two things: what the server last said, and the list of changes waiting for an answer. Every question (what to show, is this tap the next step) is answered from the server state plus the list, never from one of them alone.",
+        "Look at `visible()`: it folds the pending list over a copy of the server map. The tap check, the confirm, the rollback and the push each touch only one of the two structures.",
+        "A shopping cart that shows items added offline works the same way: `val shown = serverCart.toMutableMap(); for (p in pendingAdds) shown[p.sku] = (shown[p.sku] ?: 0) + p.qty`; a refused add is removed from `pendingAdds` (and every later add of the same sku), and a cart refresh replaces `serverCart` without touching `pendingAdds`."
+      ],
+      "coding": {
+        "language": "kotlin",
+        "filePath": "OrderStore.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A tap shows at once and the api's answer makes it final",
+          "input": "server o1 ASSIGNED\ntap m1 o1 PICKED_UP\nshow\nack m1 PICKED_UP\nshow\n",
+          "expected": "send m1 o1 PICKED_UP\no1=PICKED_UP*\no1=PICKED_UP",
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "A double tap sends one request",
+          "input": "server o1 ASSIGNED\ntap m1 o1 PICKED_UP\ntap m2 o1 PICKED_UP\nshow\n",
+          "expected": "send m1 o1 PICKED_UP\nignored m2\no1=PICKED_UP*",
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "A refused change rolls back to the server state and says why",
+          "input": "server o1 ASSIGNED\nserver o2 PICKED_UP\ntap m1 o1 PICKED_UP\ntap m2 o2 DELIVERED\nfail m1 order reassigned to another courier\nshow\n",
+          "expected": "send m1 o1 PICKED_UP\nsend m2 o2 DELIVERED\nCould not mark o1 PICKED_UP: order reassigned to another courier\no1=ASSIGNED o2=DELIVERED*",
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "A server push while a change is pending keeps the change on screen",
+          "input": "server o1 ASSIGNED\ntap m1 o1 PICKED_UP\nserver o1 ASSIGNED\nshow\nack m1 PICKED_UP\nshow\n",
+          "expected": "send m1 o1 PICKED_UP\no1=PICKED_UP*\no1=PICKED_UP",
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "A failed pick-up also drops the delivery queued after it",
+          "input": "server o1 ASSIGNED\ntap m1 o1 PICKED_UP\ntap m2 o1 DELIVERED\nshow\nfail m1 timeout\nshow\ntap m3 o1 PICKED_UP\nshow\n",
+          "expected": "send m1 o1 PICKED_UP\nsend m2 o1 DELIVERED\no1=DELIVERED*\nCould not mark o1 PICKED_UP: timeout (dropped 1 later change)\no1=ASSIGNED\nsend m3 o1 PICKED_UP\no1=PICKED_UP*",
+          "hidden": true,
+          "score": 8
+        }
+      ]
+    }
+  ]
+}

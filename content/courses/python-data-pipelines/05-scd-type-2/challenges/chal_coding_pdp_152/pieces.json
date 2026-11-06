@@ -1,0 +1,45 @@
+[
+  {
+    "id": "first-version",
+    "label": "A restaurant seen for the first time",
+    "code": "if current is None:\n    wh.execute(INSERT_VERSION, {**row, \"valid_from\": snapshot_date})\n    continue"
+  },
+  {
+    "id": "type-1-name",
+    "label": "A new name, without a new version",
+    "code": "if row[\"name\"] != name:\n    wh.execute(\"UPDATE dim_restaurant SET name = ? WHERE restaurant_id = ?\", (row[\"name\"], row[\"restaurant_id\"]))"
+  },
+  {
+    "id": "detect-change",
+    "label": "Has a tracked attribute changed?",
+    "code": "changed = (row[\"district\"], row[\"commission_pct\"]) != (district, pct)"
+  },
+  {
+    "id": "close-current",
+    "label": "End the version that was valid until now",
+    "code": "wh.execute(\"UPDATE dim_restaurant SET valid_to = ?, is_current = 0 WHERE restaurant_sk = ?\", (snapshot_date, sk))"
+  },
+  {
+    "id": "version-on-day",
+    "label": "The version that was valid on a given day",
+    "code": "row = wh.execute(\n    \"SELECT restaurant_sk FROM dim_restaurant WHERE restaurant_id = ? AND valid_from <= ? AND ? < valid_to\",\n    (restaurant_id, day, day)).fetchone()"
+  },
+  {
+    "id": "close-current-load-day",
+    "label": "End the version that was valid until now",
+    "code": "wh.execute(\"UPDATE dim_restaurant SET valid_to = ?, is_current = 0 WHERE restaurant_sk = ?\", (date.today().isoformat(), sk))",
+    "distractor": true
+  },
+  {
+    "id": "detect-change-all-columns",
+    "label": "Has a tracked attribute changed?",
+    "code": "changed = (row[\"name\"], row[\"district\"], row[\"commission_pct\"]) != (name, district, pct)",
+    "distractor": true
+  },
+  {
+    "id": "version-on-day-current",
+    "label": "The version that was valid on a given day",
+    "code": "row = wh.execute(\n    \"SELECT restaurant_sk FROM dim_restaurant WHERE restaurant_id = ? AND is_current = 1\",\n    (restaurant_id,)).fetchone()",
+    "distractor": true
+  }
+]

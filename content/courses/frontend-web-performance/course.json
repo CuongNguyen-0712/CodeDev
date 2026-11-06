@@ -1,11 +1,11 @@
 {
   "publicId": "frontend-web-performance",
   "title": "Frontend Performance: Core Web Vitals, Rendering & Data Loading",
-  "concept": "Make web apps fast where users feel it: Core Web Vitals and how they are measured, long tasks and scheduling, debounce and throttle, list virtualisation, memoisation, request waterfalls and caching, image and bundle budgets, and regressions caught before release.",
-  "description": "Make web apps fast where users feel it: Core Web Vitals and how they are measured, long tasks and scheduling, debounce and throttle, list virtualisation, memoisation, request waterfalls and caching, image and bundle budgets, and regressions caught before release. 8 lessons, each starting from a real bug or incident, with graded challenges.",
+  "concept": "Make a React / Next.js app fast where users feel it: Core Web Vitals from real users (web-vitals), long tasks and scheduler.yield, debounce and throttle, list virtualization, memoization in the React Compiler era, request waterfalls, HTTP caching with stale-while-revalidate, and Lighthouse CI budgets. Challenges are JavaScript modules graded against a simulated browser main thread and network.",
+  "description": "Make a React / Next.js app fast where users feel it: Core Web Vitals from real users (web-vitals), long tasks and scheduler.yield, debounce and throttle, list virtualization, memoization in the React Compiler era, request waterfalls, HTTP caching with stale-while-revalidate, and Lighthouse CI budgets. 8 lessons on one project, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642669/codedev/courses/frontend-web-performance/cover",
   "level": "advanced",
-  "durationMinutes": 220,
+  "durationMinutes": 140,
   "instructor": "CodeDev Engineering Team",
   "language": "JavaScript",
   "category": "Web Performance",
@@ -38,25 +38,63 @@
     "grow_in_role",
     "performance"
   ],
-  "prerequisites": [
-    "js-modern-foundations",
-    "web-foundations-html-css-a11y"
+  "prerequisites": [],
+  "completionRules": {},
+  "domain": "frontend",
+  "learningOutcomes": [
+    {
+      "code": "measure-vitals",
+      "text": "Measure LCP, INP and CLS from real users and find the element or interaction behind a bad score."
+    },
+    {
+      "code": "responsive-input",
+      "text": "Keep the main thread free for input: yield in long tasks, debounce and throttle event handlers."
+    },
+    {
+      "code": "render-efficiency",
+      "text": "Render only what changes: virtualized lists and memoization that pays for itself."
+    },
+    {
+      "code": "fast-loading",
+      "text": "Remove request waterfalls, cache with the right HTTP headers and stop regressions with budgets in CI."
+    }
   ],
-  "modules": [],
-  "outline": [
+  "testedVersions": {
+    "web-vitals": "5.x (to verify)",
+    "React": "19",
+    "Next.js": "16 (to verify)",
+    "Lighthouse CI": "0.15 (to verify)"
+  },
+  "lastReviewedAt": "2026-11-06",
+  "sourceLinks": [
+    "https://web.dev/articles/vitals",
+    "https://web.dev/articles/inp",
+    "https://developer.chrome.com/blog/use-scheduler-yield",
+    "https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching",
+    "https://github.com/GoogleChrome/lighthouse-ci"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges grade JavaScript against a simulated main thread, network and render counter, not a real browser.",
+    "testedVersions are not yet re-checked against the live tools."
+  ],
+  "template": "core-first",
+  "modules": [
     {
       "orderIndex": 1,
       "title": "Measure",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Core Web Vitals: LCP, INP & CLS",
-          "challenges": "Q(m) + C(m)"
+          "folder": "01-core-web-vitals",
+          "title": "Core Web Vitals from real users: LCP, INP and CLS",
+          "sanityId": "lesson-fwp-1-1"
         },
         {
           "orderIndex": 2,
-          "title": "Long tasks & yielding to the main thread",
-          "challenges": "C(h)"
+          "folder": "02-long-tasks-yielding",
+          "title": "Long tasks and yielding to the main thread",
+          "sanityId": "lesson-fwp-1-2"
         }
       ]
     },
@@ -66,18 +104,21 @@
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Debounce, throttle & input responsiveness",
-          "challenges": "Q(m) + F(m)"
+          "folder": "03-debounce-throttle",
+          "title": "Debounce, throttle and input responsiveness",
+          "sanityId": "lesson-fwp-2-1"
         },
         {
           "orderIndex": 2,
-          "title": "Virtualising long lists",
-          "challenges": "C(h)"
+          "folder": "04-list-virtualization",
+          "title": "Virtualizing long lists",
+          "sanityId": "lesson-fwp-2-2"
         },
         {
           "orderIndex": 3,
-          "title": "Memoisation that actually helps",
-          "challenges": "Q(m) + F(m)"
+          "folder": "05-memoization",
+          "title": "Memoization that actually helps",
+          "sanityId": "lesson-fwp-2-3"
         }
       ]
     },
@@ -87,18 +128,21 @@
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Request waterfalls & parallel loading",
-          "challenges": "C(m)"
+          "folder": "06-request-waterfalls",
+          "title": "Request waterfalls and parallel loading",
+          "sanityId": "lesson-fwp-3-1"
         },
         {
           "orderIndex": 2,
-          "title": "HTTP caching & stale-while-revalidate",
-          "challenges": "Q(m) + C(m)"
+          "folder": "07-http-caching-swr",
+          "title": "HTTP caching and stale-while-revalidate",
+          "sanityId": "lesson-fwp-3-2"
         },
         {
           "orderIndex": 3,
+          "folder": "08-performance-budgets-ci",
           "title": "Performance budgets in CI",
-          "challenges": "C(h)"
+          "sanityId": "lesson-fwp-3-3"
         }
       ]
     }

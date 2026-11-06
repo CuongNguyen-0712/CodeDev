@@ -1,0 +1,45 @@
+[
+  {
+    "id": "status-exact",
+    "label": "The status code the contract promises",
+    "code": "if status != expected[\"status\"]:\n    return [f\"status: expected {expected['status']}, got {status}\"]"
+  },
+  {
+    "id": "success-error-body",
+    "label": "No error hidden in a success response",
+    "code": "if status < 400:\n    if isinstance(body, dict) and \"error\" in body:\n        failures.append(\"body: error body on a success status\")\n    return failures"
+  },
+  {
+    "id": "problem-content-type",
+    "label": "Error bodies are application/problem+json",
+    "code": "media_type = headers.get(\"content-type\", \"\").split(\";\")[0].strip().lower()\nif media_type != \"application/problem+json\":\n    failures.append(f\"content-type: expected application/problem+json, got {headers.get('content-type', 'none')}\")"
+  },
+  {
+    "id": "field-pointers",
+    "label": "The fields the error names, in any order",
+    "code": "if expected.get(\"pointers\") is not None:\n    got = sorted(e.get(\"pointer\") for e in problem.get(\"errors\", []))\n    if got != sorted(expected[\"pointers\"]):\n        failures.append(f\"body.errors: expected {sorted(expected['pointers'])}, got {got}\")"
+  },
+  {
+    "id": "retry-after",
+    "label": "A 429 says when to come back",
+    "code": "if status == 429 and not str(headers.get(\"retry-after\", \"\")).isdigit():\n    failures.append(\"retry-after: missing\")"
+  },
+  {
+    "id": "content-type-exact-string",
+    "label": "Error bodies are application/problem+json",
+    "code": "if headers.get(\"content-type\") != \"application/problem+json\":\n    failures.append(f\"content-type: expected application/problem+json, got {headers.get('content-type', 'none')}\")",
+    "distractor": true
+  },
+  {
+    "id": "field-pointers-in-order",
+    "label": "The fields the error names, in any order",
+    "code": "if expected.get(\"pointers\") is not None:\n    got = [e.get(\"pointer\") for e in problem.get(\"errors\", [])]\n    if got != expected[\"pointers\"]:\n        failures.append(f\"body.errors: expected {sorted(expected['pointers'])}, got {sorted(got)}\")",
+    "distractor": true
+  },
+  {
+    "id": "status-same-class",
+    "label": "The status code the contract promises",
+    "code": "if status // 100 != expected[\"status\"] // 100:\n    return [f\"status: expected {expected['status']}, got {status}\"]",
+    "distractor": true
+  }
+]

@@ -1,0 +1,45 @@
+[
+  {
+    "id": "match-like",
+    "label": "Same type as the example, not the same value",
+    "code": "if isinstance(expected, dict) and \"$like\" in expected:\n    return like(expected[\"$like\"], actual, path)"
+  },
+  {
+    "id": "match-regex",
+    "label": "A string that fully matches the pattern",
+    "code": "if isinstance(expected, dict) and \"$regex\" in expected:\n    if not isinstance(actual, str) or not re.fullmatch(expected[\"$regex\"], actual):\n        return [f\"{path}: {json.dumps(actual)} does not match {expected['$regex']}\"]\n    return []"
+  },
+  {
+    "id": "match-each-like",
+    "label": "Enough elements, each like the example",
+    "code": "if isinstance(expected, dict) and \"$eachLike\" in expected:\n    minimum = expected.get(\"min\", 1)\n    if not isinstance(actual, list):\n        return [f\"{path}: expected array, got {json_type(actual)}\"]\n    if len(actual) < minimum:\n        return [f\"{path}: expected at least {minimum} elements, got {len(actual)}\"]\n    problems = []\n    for i, item in enumerate(actual):\n        problems += like(expected[\"$eachLike\"], item, f\"{path}[{i}]\")\n    return problems"
+  },
+  {
+    "id": "object-members",
+    "label": "Only the keys the consumer reads",
+    "code": "if isinstance(expected, dict):\n    if not isinstance(actual, dict):\n        return [f\"{path}: expected object, got {json_type(actual)}\"]\n    problems = []\n    for key, sub in expected.items():\n        if key not in actual:\n            problems.append(f\"{path}.{key}: missing\")\n        else:\n            problems += verify(sub, actual[key], f\"{path}.{key}\")\n    return problems"
+  },
+  {
+    "id": "match-literal",
+    "label": "Exactly the value in the pact",
+    "code": "if json_type(actual) != json_type(expected) or actual != expected:\n    return [f\"{path}: expected {json.dumps(expected)}, got {json.dumps(actual)}\"]"
+  },
+  {
+    "id": "match-each-like-no-min",
+    "label": "Enough elements, each like the example",
+    "code": "if isinstance(expected, dict) and \"$eachLike\" in expected:\n    if not isinstance(actual, list):\n        return [f\"{path}: expected array, got {json_type(actual)}\"]\n    problems = []\n    for i, item in enumerate(actual):\n        problems += like(expected[\"$eachLike\"], item, f\"{path}[{i}]\")\n    return problems",
+    "distractor": true
+  },
+  {
+    "id": "match-like-same-value",
+    "label": "Same type as the example, not the same value",
+    "code": "if isinstance(expected, dict) and \"$like\" in expected:\n    if actual != expected[\"$like\"]:\n        return [f\"{path}: expected {json.dumps(expected['$like'])}, got {json.dumps(actual)}\"]\n    return []",
+    "distractor": true
+  },
+  {
+    "id": "object-members-strict",
+    "label": "Only the keys the consumer reads",
+    "code": "if isinstance(expected, dict):\n    if not isinstance(actual, dict):\n        return [f\"{path}: expected object, got {json_type(actual)}\"]\n    problems = []\n    for key, sub in expected.items():\n        if key not in actual:\n            problems.append(f\"{path}.{key}: missing\")\n        else:\n            problems += verify(sub, actual[key], f\"{path}.{key}\")\n    problems += [f\"{path}.{key}: not in the pact\" for key in actual if key not in expected]\n    return problems",
+    "distractor": true
+  }
+]

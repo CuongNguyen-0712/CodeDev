@@ -1,0 +1,411 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_rno_162",
+      "name": "delta-sync-cursor",
+      "type": "mini_coding",
+      "title": "Sync only what changed",
+      "description": "The courier app used to download all of a courier's deliveries on every resume; the first delta version asked for \"changes since\" the phone's clock, missed updates and never removed cancelled deliveries. The server now keeps a change log and hands out an opaque cursor. The editor holds `syncDeltas(api, store)` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a sync starts from the cursor saved by the last finished page; it keeps asking for pages until the server has nothing more; each page's upserts, deletions and its cursor are written together or not at all, so an app killed mid-page simply fetches that page again; deleted changes remove the delivery; and when the server answers 410 (cursor too old) the app clears its copy and downloads everything once. Run plays a day of server changes and app starts, sometimes kills the app during a page, and prints what is on the phone.",
+      "difficulty": "medium",
+      "outcomes": [
+        "sync"
+      ],
+      "points": 30,
+      "hints": [
+        "Follow one page through a kill: which rows and which cursor are on disk afterwards, and what will the next start ask the server for? Anything the cursor says you have must really be in the table.",
+        "Look at what goes inside `store.transaction` (the rows and `tx.setCursor`) versus `store.setCursor`, at `change.deleted`, at `page.hasMore`, and at catching `HttpError` with status 410.",
+        "A news app syncs saved articles the same way: `let c = db.cursor(); for (;;) { const p = feed.since(c); db.tx((t) => { p.items.forEach((a) => (a.removed ? t.del(a.id) : t.put(a))); t.cursor(p.next); }); c = p.next; if (!p.more) break; }`, and on 410 it wipes the table in one transaction and starts again from null."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "src/sync/deltaSync.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A fresh install downloads every delivery, page by page, and stops at the end",
+          "input": {
+            "serverPageSize": 3,
+            "steps": [
+              {
+                "server": [
+                  {
+                    "id": "d-1",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-2",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-3",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-4",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-5",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-6",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-7",
+                    "version": 1
+                  }
+                ]
+              },
+              {
+                "sync": true
+              }
+            ]
+          },
+          "expected": {
+            "rows": [
+              "d-1@1",
+              "d-2@1",
+              "d-3@1",
+              "d-4@1",
+              "d-5@1",
+              "d-6@1",
+              "d-7@1"
+            ],
+            "cursorAtEnd": true,
+            "pagesServed": 3,
+            "resyncs": 0,
+            "kills": 0,
+            "errors": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "The next sync gets only the changes since the cursor, deletions included",
+          "input": {
+            "serverPageSize": 3,
+            "steps": [
+              {
+                "server": [
+                  {
+                    "id": "d-1",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-2",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-3",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-4",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-5",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-6",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-7",
+                    "version": 1
+                  }
+                ]
+              },
+              {
+                "sync": true
+              },
+              {
+                "server": [
+                  {
+                    "id": "d-2",
+                    "version": 2
+                  },
+                  {
+                    "id": "d-5",
+                    "version": 2,
+                    "deleted": true
+                  },
+                  {
+                    "id": "d-8",
+                    "version": 1
+                  }
+                ]
+              },
+              {
+                "sync": true
+              }
+            ]
+          },
+          "expected": {
+            "rows": [
+              "d-1@1",
+              "d-2@2",
+              "d-3@1",
+              "d-4@1",
+              "d-6@1",
+              "d-7@1",
+              "d-8@1"
+            ],
+            "cursorAtEnd": true,
+            "pagesServed": 4,
+            "resyncs": 0,
+            "kills": 0,
+            "errors": []
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Killed while applying a page: the next start fetches that page again, nothing lost",
+          "input": {
+            "serverPageSize": 3,
+            "steps": [
+              {
+                "server": [
+                  {
+                    "id": "d-1",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-2",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-3",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-4",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-5",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-6",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-7",
+                    "version": 1
+                  }
+                ]
+              },
+              {
+                "sync": true,
+                "killAt": {
+                  "page": 2,
+                  "afterWrites": 1
+                }
+              },
+              {
+                "sync": true
+              }
+            ]
+          },
+          "expected": {
+            "rows": [
+              "d-1@1",
+              "d-2@1",
+              "d-3@1",
+              "d-4@1",
+              "d-5@1",
+              "d-6@1",
+              "d-7@1"
+            ],
+            "cursorAtEnd": true,
+            "pagesServed": 4,
+            "resyncs": 0,
+            "kills": 1,
+            "errors": []
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A cursor older than the server keeps (410): the app clears its copy and downloads once",
+          "input": {
+            "serverPageSize": 4,
+            "local": {
+              "rows": [
+                {
+                  "id": "d-1",
+                  "version": 1,
+                  "data": "d-1 v1"
+                },
+                {
+                  "id": "d-99",
+                  "version": 3,
+                  "data": "stale"
+                }
+              ],
+              "cursorSeq": 0
+            },
+            "steps": [
+              {
+                "server": [
+                  {
+                    "id": "d-1",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-2",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-3",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-99",
+                    "version": 4,
+                    "deleted": true
+                  },
+                  {
+                    "id": "d-4",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-2",
+                    "version": 2
+                  }
+                ]
+              },
+              {
+                "expireBefore": 4
+              },
+              {
+                "sync": true
+              }
+            ]
+          },
+          "expected": {
+            "rows": [
+              "d-1@1",
+              "d-2@2",
+              "d-3@1",
+              "d-4@1"
+            ],
+            "cursorAtEnd": true,
+            "pagesServed": 2,
+            "resyncs": 1,
+            "kills": 0,
+            "errors": []
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Killed on a deletion, then the server changes again: the phone still ends up exact",
+          "input": {
+            "serverPageSize": 2,
+            "steps": [
+              {
+                "server": [
+                  {
+                    "id": "d-1",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-2",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-3",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-4",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-5",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-6",
+                    "version": 1
+                  },
+                  {
+                    "id": "d-7",
+                    "version": 1
+                  }
+                ]
+              },
+              {
+                "sync": true
+              },
+              {
+                "server": [
+                  {
+                    "id": "d-3",
+                    "version": 2,
+                    "deleted": true
+                  },
+                  {
+                    "id": "d-4",
+                    "version": 2
+                  },
+                  {
+                    "id": "d-6",
+                    "version": 2,
+                    "deleted": true
+                  }
+                ]
+              },
+              {
+                "sync": true,
+                "killAt": {
+                  "page": 1,
+                  "afterWrites": 0
+                }
+              },
+              {
+                "server": [
+                  {
+                    "id": "d-9",
+                    "version": 1
+                  }
+                ]
+              },
+              {
+                "sync": true
+              }
+            ]
+          },
+          "expected": {
+            "rows": [
+              "d-1@1",
+              "d-2@1",
+              "d-4@2",
+              "d-5@1",
+              "d-7@1",
+              "d-9@1"
+            ],
+            "cursorAtEnd": true,
+            "pagesServed": 7,
+            "resyncs": 0,
+            "kills": 1,
+            "errors": []
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

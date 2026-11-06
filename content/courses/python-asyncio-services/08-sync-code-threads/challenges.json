@@ -1,0 +1,71 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pas_181",
+      "name": "sync-code-threads-quiz",
+      "type": "quiz",
+      "title": "Read the slow receipts",
+      "description": "Three statements about the week Rice Rocket's api slowed down every endpoint while it generated receipt PDFs. Decide whether each one is true.",
+      "difficulty": "hard",
+      "outcomes": [
+        "event-loop"
+      ],
+      "points": 10,
+      "hints": [
+        "Check which Python build the pod runs (`sys._is_gil_enabled()` exists from 3.13). With the GIL, how many threads can execute Python bytecode at the same moment?",
+        "Ask where the call runs: an `async def` endpoint runs on the event loop thread itself; where does FastAPI run a plain `def` endpoint?",
+        "Look up the default `max_workers` of `ThreadPoolExecutor` in the docs, then read the timestamps: do the 64 calls start together or in groups?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Receipts are now rendered off the event loop, on a pod with 8 cores running the standard CPython 3.13 build:\n\n```python\nasync def render_all(orders):\n    return await asyncio.gather(*(asyncio.to_thread(render_pdf, o) for o in orders))\n```\n\n```text\nrender_pdf alone:            310 ms  (pure Python, CPU-bound)\nrender_all, 8 orders:       2480 ms\n$ python -c 'import sys; print(sys._is_gil_enabled())'\nTrue\n```\n\nStatement: \"`asyncio.to_thread` runs the 8 renders in parallel on the 8 cores, so the batch should take about 310 ms; 2480 ms means the thread pool is misconfigured.\"",
+          "explanation": "False. On the standard (GIL) build only one thread executes Python bytecode at a time, so 8 CPU-bound renders in threads take about 8 x 310 ms. `to_thread` still helps: the event loop keeps serving other requests between bytecode slices, and threads do overlap blocking I/O. CPU-bound parallelism needs processes (`loop.run_in_executor(ProcessPoolExecutor(), ...)`), C code that releases the GIL, or the free-threaded build (`python3.14t`), where pure-Python threads can run in parallel.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The receipt endpoint uploads the PDF with a synchronous SDK, and the p99 of every endpoint jumps while it runs:\n\n```python\n@app.post(\"/orders/{order_id}/receipt\")\nasync def receipt(order_id: int):\n    pdf = await render(order_id)\n    s3.put_object(Bucket=\"rr-receipts\", Key=f\"{order_id}.pdf\", Body=pdf)   # boto3, ~400 ms\n    return {\"ok\": True}\n```\n\n```text\nasyncio WARNING Executing <Task pending name='Task-91' coro=<receipt() running at api/receipts.py:7>> took 0.412 seconds\n```\n\nStatement: \"`put_object` blocks the event loop thread, so every other request waits; declaring the endpoint as plain `def` (FastAPI then runs it in its threadpool) or wrapping the call in `await asyncio.to_thread(...)` fixes it.\"",
+          "explanation": "True. An `async def` endpoint runs on the event loop thread; a blocking call inside it stops every other coroutine for its whole duration, which asyncio's debug mode reports as a slow callback. FastAPI runs plain `def` endpoints in a worker threadpool, and `asyncio.to_thread` moves one call there; an async SDK (aioboto3) avoids the thread entirely. The misconception is that `async def` makes the code inside it non-blocking.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A batch job pushes 64 blocking webhook calls through the default executor on a 4-core pod:\n\n```python\nloop = asyncio.get_running_loop()\nresults = await asyncio.gather(*(loop.run_in_executor(None, post_webhook, h) for h in hooks))   # 64 hooks, ~1 s each\n```\n\n```text\nstarted 8 calls at 0.00s, 8 more at 1.01s, 8 more at 2.02s ... finished at 8.07s\n```\n\nStatement: \"The default executor starts one thread per submitted call, so all 64 webhooks run at once; the 8-second run means the webhook server is slow.\"",
+          "explanation": "False. The default executor is a `ThreadPoolExecutor` with `min(32, os.cpu_count() + 4)` workers: 8 on a 4-core pod, so the calls run in batches of 8, exactly as the timestamps show. For I/O-bound work, size a dedicated executor (`ThreadPoolExecutor(max_workers=32)` passed to `run_in_executor`, or `loop.set_default_executor`) or, better, use an async HTTP client with a semaphore. The misconception is that executors are unbounded.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+[
+  {
+    "id": "open-cool-down",
+    "label": "Open: refuse until the cool-down is over, then try",
+    "code": "if b.state == \"open\" {\n\tif now-b.openedAt < b.cfg.OpenForMs {\n\t\treturn false\n\t}\n\tb.moveTo(\"half-open\", now)\n\tb.successes = 0\n}"
+  },
+  {
+    "id": "record-half-open",
+    "label": "Half-open: reopen on a failure, close after enough successes",
+    "code": "if b.state == \"half-open\" {\n\tif failed {\n\t\tb.moveTo(\"open\", now)\n\t\tb.openedAt = now\n\t\treturn\n\t}\n\tb.successes++\n\tif b.successes >= b.cfg.SuccessThreshold {\n\t\tb.moveTo(\"closed\", now)\n\t\tb.failures = 0\n\t}\n\treturn\n}"
+  },
+  {
+    "id": "record-closed",
+    "label": "Closed: count failures in a row, open at the threshold",
+    "code": "if !failed {\n\tb.failures = 0\n\treturn\n}\nb.failures++\nif b.failures >= b.cfg.FailureThreshold {\n\tb.moveTo(\"open\", now)\n\tb.openedAt = now\n}"
+  },
+  {
+    "id": "call-with-timeout",
+    "label": "Call the menu service, cut the call at the timeout",
+    "code": "if up.LatencyMs > b.cfg.TimeoutMs {\n\tstatus, waitedMs = 504, b.cfg.TimeoutMs\n} else if up.Status >= 500 {\n\tstatus, waitedMs = 502, up.LatencyMs\n} else {\n\tstatus, waitedMs = up.Status, up.LatencyMs\n}"
+  },
+  {
+    "id": "classify-failure",
+    "label": "Tell the breaker whether the menu service failed",
+    "code": "b.record(now+waitedMs, status == 502 || status == 504)"
+  },
+  {
+    "id": "classify-failure-any-4xx",
+    "label": "Tell the breaker whether the menu service failed",
+    "code": "b.record(now+waitedMs, status >= 400)",
+    "distractor": true
+  },
+  {
+    "id": "record-closed-total",
+    "label": "Closed: count failures in a row, open at the threshold",
+    "code": "if !failed {\n\treturn\n}\nb.failures++\nif b.failures >= b.cfg.FailureThreshold {\n\tb.moveTo(\"open\", now)\n\tb.openedAt = now\n}",
+    "distractor": true
+  },
+  {
+    "id": "record-half-open-keep-trying",
+    "label": "Half-open: reopen on a failure, close after enough successes",
+    "code": "if b.state == \"half-open\" {\n\tif failed {\n\t\tb.successes = 0\n\t\treturn\n\t}\n\tb.successes++\n\tif b.successes >= b.cfg.SuccessThreshold {\n\t\tb.moveTo(\"closed\", now)\n\t\tb.failures = 0\n\t}\n\treturn\n}",
+    "distractor": true
+  }
+]

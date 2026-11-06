@@ -1,0 +1,71 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rno_181",
+      "name": "background-tasks-quiz",
+      "type": "quiz",
+      "title": "Read the battery complaints",
+      "description": "Three statements about what Rice Rocket found when couriers complained that the app drained their battery and still showed stale deliveries. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "device-performance"
+      ],
+      "points": 10,
+      "hints": [
+        "Who decides when a background task runs on Android and iOS: your code, or the operating system's scheduler? What does a \"minimum\" interval promise?",
+        "Compare what wakes the GPS: an update every second at the highest accuracy, or an update only after the courier moved some distance.",
+        "Think about what happens to the JavaScript runtime when the app goes to the background and the OS suspends it."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The sync was registered as a background task:\n\n```ts\nawait BackgroundTask.registerTaskAsync(\"sync-outbox\", { minimumInterval: 1 }); // minutes\n```\n\n```text\nadb logcat (2 hours, phone idle in a pocket)\n10:02 sync-outbox ran\n10:19 sync-outbox ran\n10:51 sync-outbox ran\n11:40 sync-outbox ran\n```\n\nStatement: \"`minimumInterval: 1` makes the operating system run the sync every minute; the gaps in the log mean the task registration is broken.\"",
+          "explanation": "False. Background tasks are scheduled by the OS (WorkManager on Android, BGTaskScheduler on iOS): the interval is a lower bound, not a schedule. Android's periodic work does not run more often than every 15 minutes, and both systems delay work further for battery saving, Doze and app usage patterns. The log shows a working registration. Anything that must happen within seconds needs the app in the foreground or a push from the server.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Couriers report 20% battery per hour with the app open. The location setup:\n\n```ts\nawait Location.startLocationUpdatesAsync(\"courier-location\", {\n  accuracy: Location.Accuracy.BestForNavigation,\n  timeInterval: 1000,\n  distanceInterval: 0,\n});\n```\n\nStatement: \"Asking for best accuracy every second keeps the GPS awake all the time; a balanced accuracy and a distance interval (for example 50 m) cut the wake-ups, and the battery drain with them.\"",
+          "explanation": "True. Continuous high-accuracy GPS is one of the most expensive things a phone does. A distance interval sends an update only after the courier actually moved, and a balanced accuracy lets the OS use cheaper sources when they are good enough. Dispatch needs a position every few dozen meters, not every second at standstill.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "To retry failed uploads, the app starts a timer when it goes to the background:\n\n```ts\nAppState.addEventListener(\"change\", (state) => {\n  if (state === \"background\") setInterval(() => outbox.flush(), 10_000);\n});\n```\n\nStatement: \"The interval keeps retrying the outbox every 10 seconds while the app is in the background, so photos uploaded offline reach the server within seconds of the network coming back.\"",
+          "explanation": "False. When the app is backgrounded the OS suspends it shortly after, and JavaScript timers stop with it; they resume only when the app comes back (or a background task wakes it). Retries in the background belong in a scheduled background task, and the reliable moment to flush the outbox is when the app returns to the foreground or the network comes back while it runs.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

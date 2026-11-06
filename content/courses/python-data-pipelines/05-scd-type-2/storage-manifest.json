@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_pdp_152",
+      "key": "challenges/python/chal_coding_pdp_152/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "pipelines/dim_restaurant_scd2.py",
+      "size": 4132
+    }
+  ]
+}

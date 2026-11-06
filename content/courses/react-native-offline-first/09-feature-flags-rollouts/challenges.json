@@ -1,0 +1,641 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rno_191",
+      "name": "feature-flags-rollouts-quiz",
+      "type": "quiz",
+      "title": "Read the 2.4 release",
+      "description": "Three statements about how Rice Rocket shipped, halted and fixed the batch pickup screen in courier app 2.4. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "safe-releases"
+      ],
+      "points": 10,
+      "hints": [
+        "An over-the-air update replaces the JavaScript bundle and assets. What part of the app does it not replace?",
+        "Halting a staged rollout in the store controls who can download the new version from now on. What about phones that already installed it?",
+        "If each courier's bucket is a fixed number from 0 to 99, what happens to the couriers below 10 when the threshold moves to 25?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "2.4 added a native barcode scanner module. To ship it faster, the team published an update over the air:\n\n```text\n$ eas update --branch production --message \"batch pickup + scanner\"\n...\nCrash reports after 20 minutes (2.3 binaries that received the update):\n  Invariant Violation: Native module \"BarcodeScanner\" cannot be found\n```\n\nStatement: \"An OTA update can ship any change, including a new native module, as long as the JavaScript bundle compiles; the crash must come from a bug in the scanner code.\"",
+          "explanation": "False. An OTA update (EAS Update) replaces the JavaScript bundle and assets only; native code lives in the store binary. A 2.3 binary has no BarcodeScanner native module, so the new JavaScript crashes when it calls it. Expo's runtime version exists to stop that: an update is delivered only to binaries with a matching runtime version, which must change whenever native code changes. New native modules need a store release.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The store build of 2.4 crashed on some Android 10 phones. The team halted the staged rollout:\n\n```text\nGoogle Play Console - production track\n  2.4.0 (240)   staged rollout 10%  -> halted\n  installs of 2.4.0 before the halt: 1,180 couriers\n```\n\nStatement: \"Halting the rollout stops new installs of 2.4.0 but does not remove it from the 1,180 phones that already updated; a remote kill switch is what turns the crashing screen off for them.\"",
+          "explanation": "True. A halted staged rollout means no more users get the update from the store; it does not downgrade anyone. Couriers already on 2.4.0 keep it until a fixed version ships. A feature flag that the app checks on start (with the batch pickup screen behind it) can switch the feature off for them within minutes, which is why risky screens ship behind a flag even in a staged rollout.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Flags are evaluated on the phone with a stable hash:\n\n```ts\nconst bucket = fnv1a(`${flagKey}:${courierId}`) % 100;   // 0-99, the same every time\nreturn bucket < flag.rollout;                             // rollout 10 -> 25\n```\n\nStatement: \"Raising the rollout from 10% to 25% keeps every courier who already had the feature, because each courier's bucket number does not change.\"",
+          "explanation": "True. The bucket depends only on the flag key and the courier id, so it is the same on every start and every phone. Couriers below 10 are also below 25; raising the threshold only adds couriers. With a random number per start, couriers would see the feature appear and disappear, and a rollout could not be compared before and after.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_rno_192",
+      "name": "feature-flag-evaluation",
+      "type": "mini_coding",
+      "title": "Evaluate feature flags on the phone",
+      "description": "Batch pickup ships in 2.4 behind a remote flag: Android first, app version 2.4.0 and newer, rolled out to a growing share of couriers, with a kill switch. The first flag client turned features off whenever a courier was offline, compared versions as text (so 2.10.0 counted as older than 2.4.0) and gave every flag at 25% to the same quarter of the couriers. The editor holds `isEnabled(key, user, remote, cache)` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: the app uses the newest config it can get and saves it, and offline it uses the saved one (defaults only when it never got one); a killed or disabled flag is off; rules match the platform, a minimum app version compared number by number, and a maximum OS version; and the rollout keeps the same couriers in as the percentage grows, with each flag picking its own couriers. Run starts the app for 30 to 60 couriers, online and offline, and lists who gets each flag.",
+      "difficulty": "medium",
+      "outcomes": [
+        "safe-releases"
+      ],
+      "points": 30,
+      "hints": [
+        "Evaluate one courier by hand: which config is used on an offline start, does any rule match, and which bucket number does the hash give for this flag and this courier?",
+        "Look at `remote.fetch()` and the cache, the `killed` / `enabled` fields, `compareVersions` versus comparing strings, and what text goes into `bucket(...)`.",
+        "A shop app gating a new checkout does: `const cfg = remote.get() ?? store.last(); if (!cfg?.flags.checkout || cfg.flags.checkout.off) return DEFAULTS.checkout; if (semverCmp(app.version, \"5.2.0\") < 0) return false; return hash(`checkout:${account.id}`) % 100 < cfg.flags.checkout.percent;`, saving `cfg` whenever the download worked."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "src/flags/isEnabled.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Batch pickup reaches 25% of Android couriers on 2.4.0 and newer (2.10.0 included)",
+          "input": {
+            "couriers": 60,
+            "flags": [
+              "batch-pickup"
+            ],
+            "starts": [
+              {
+                "online": true,
+                "config": {
+                  "version": 1,
+                  "flags": {
+                    "batch-pickup": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": [
+                        {
+                          "platform": "android",
+                          "minAppVersion": "2.4.0"
+                        }
+                      ]
+                    },
+                    "new-map": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": []
+                    },
+                    "voice-notes": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": []
+                    },
+                    "cash-summary": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 100,
+                      "rules": [
+                        {
+                          "maxOsVersion": 11
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "expected": [
+            {
+              "batch-pickup": [
+                "u-5",
+                "u-10",
+                "u-17",
+                "u-23",
+                "u-28",
+                "u-38",
+                "u-46",
+                "u-52",
+                "u-53",
+                "u-59"
+              ]
+            }
+          ],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "The kill switch turns batch pickup off for everyone on the next start",
+          "input": {
+            "couriers": 40,
+            "flags": [
+              "batch-pickup"
+            ],
+            "starts": [
+              {
+                "online": true,
+                "config": {
+                  "version": 1,
+                  "flags": {
+                    "batch-pickup": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": [
+                        {
+                          "platform": "android",
+                          "minAppVersion": "2.4.0"
+                        }
+                      ]
+                    },
+                    "new-map": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": []
+                    },
+                    "voice-notes": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": []
+                    },
+                    "cash-summary": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 100,
+                      "rules": [
+                        {
+                          "maxOsVersion": 11
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "online": true,
+                "config": {
+                  "version": 2,
+                  "flags": {
+                    "batch-pickup": {
+                      "enabled": true,
+                      "killed": true,
+                      "rollout": 25,
+                      "rules": [
+                        {
+                          "platform": "android",
+                          "minAppVersion": "2.4.0"
+                        }
+                      ]
+                    },
+                    "new-map": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": []
+                    },
+                    "voice-notes": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": []
+                    },
+                    "cash-summary": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 100,
+                      "rules": [
+                        {
+                          "maxOsVersion": 11
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "expected": [
+            {
+              "batch-pickup": [
+                "u-5",
+                "u-10",
+                "u-17",
+                "u-23",
+                "u-28",
+                "u-38"
+              ]
+            },
+            {
+              "batch-pickup": []
+            }
+          ],
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Raising new-map from 10% to 25% keeps every courier who already had it",
+          "input": {
+            "couriers": 60,
+            "flags": [
+              "new-map"
+            ],
+            "starts": [
+              {
+                "online": true,
+                "config": {
+                  "version": 1,
+                  "flags": {
+                    "batch-pickup": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": [
+                        {
+                          "platform": "android",
+                          "minAppVersion": "2.4.0"
+                        }
+                      ]
+                    },
+                    "new-map": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 10,
+                      "rules": []
+                    },
+                    "voice-notes": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": []
+                    },
+                    "cash-summary": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 100,
+                      "rules": [
+                        {
+                          "maxOsVersion": 11
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "online": true,
+                "config": {
+                  "version": 2,
+                  "flags": {
+                    "batch-pickup": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": [
+                        {
+                          "platform": "android",
+                          "minAppVersion": "2.4.0"
+                        }
+                      ]
+                    },
+                    "new-map": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": []
+                    },
+                    "voice-notes": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": []
+                    },
+                    "cash-summary": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 100,
+                      "rules": [
+                        {
+                          "maxOsVersion": 11
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "expected": [
+            {
+              "new-map": [
+                "u-18",
+                "u-20",
+                "u-30",
+                "u-48",
+                "u-56"
+              ]
+            },
+            {
+              "new-map": [
+                "u-5",
+                "u-8",
+                "u-16",
+                "u-18",
+                "u-20",
+                "u-21",
+                "u-24",
+                "u-30",
+                "u-35",
+                "u-42",
+                "u-48",
+                "u-49",
+                "u-53",
+                "u-56",
+                "u-59"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Offline starts use the last downloaded config; offline on a fresh install uses defaults",
+          "input": {
+            "couriers": 30,
+            "flags": [
+              "batch-pickup",
+              "cash-summary"
+            ],
+            "starts": [
+              {
+                "online": false
+              },
+              {
+                "online": true,
+                "config": {
+                  "version": 1,
+                  "flags": {
+                    "batch-pickup": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": [
+                        {
+                          "platform": "android",
+                          "minAppVersion": "2.4.0"
+                        }
+                      ]
+                    },
+                    "new-map": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": []
+                    },
+                    "voice-notes": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": []
+                    },
+                    "cash-summary": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 100,
+                      "rules": [
+                        {
+                          "maxOsVersion": 11
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "online": false
+              }
+            ]
+          },
+          "expected": [
+            {
+              "batch-pickup": [],
+              "cash-summary": [
+                "u-1",
+                "u-2",
+                "u-3",
+                "u-4",
+                "u-5",
+                "u-6",
+                "u-7",
+                "u-8",
+                "u-9",
+                "u-10",
+                "u-11",
+                "u-12",
+                "u-13",
+                "u-14",
+                "u-15",
+                "u-16",
+                "u-17",
+                "u-18",
+                "u-19",
+                "u-20",
+                "u-21",
+                "u-22",
+                "u-23",
+                "u-24",
+                "u-25",
+                "u-26",
+                "u-27",
+                "u-28",
+                "u-29",
+                "u-30"
+              ]
+            },
+            {
+              "batch-pickup": [
+                "u-5",
+                "u-10",
+                "u-17",
+                "u-23",
+                "u-28"
+              ],
+              "cash-summary": [
+                "u-1",
+                "u-2",
+                "u-5",
+                "u-6",
+                "u-7",
+                "u-10",
+                "u-11",
+                "u-12",
+                "u-15",
+                "u-16",
+                "u-17",
+                "u-20",
+                "u-21",
+                "u-22",
+                "u-25",
+                "u-26",
+                "u-27",
+                "u-30"
+              ]
+            },
+            {
+              "batch-pickup": [
+                "u-5",
+                "u-10",
+                "u-17",
+                "u-23",
+                "u-28"
+              ],
+              "cash-summary": [
+                "u-1",
+                "u-2",
+                "u-5",
+                "u-6",
+                "u-7",
+                "u-10",
+                "u-11",
+                "u-12",
+                "u-15",
+                "u-16",
+                "u-17",
+                "u-20",
+                "u-21",
+                "u-22",
+                "u-25",
+                "u-26",
+                "u-27",
+                "u-30"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Two flags at 25% each pick their own couriers",
+          "input": {
+            "couriers": 40,
+            "flags": [
+              "new-map",
+              "voice-notes"
+            ],
+            "starts": [
+              {
+                "online": true,
+                "config": {
+                  "version": 1,
+                  "flags": {
+                    "batch-pickup": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": [
+                        {
+                          "platform": "android",
+                          "minAppVersion": "2.4.0"
+                        }
+                      ]
+                    },
+                    "new-map": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": []
+                    },
+                    "voice-notes": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 25,
+                      "rules": []
+                    },
+                    "cash-summary": {
+                      "enabled": true,
+                      "killed": false,
+                      "rollout": 100,
+                      "rules": [
+                        {
+                          "maxOsVersion": 11
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "expected": [
+            {
+              "new-map": [
+                "u-5",
+                "u-8",
+                "u-16",
+                "u-18",
+                "u-20",
+                "u-21",
+                "u-24",
+                "u-30",
+                "u-35"
+              ],
+              "voice-notes": [
+                "u-7",
+                "u-12",
+                "u-13",
+                "u-16",
+                "u-19",
+                "u-21",
+                "u-24",
+                "u-30",
+                "u-35"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

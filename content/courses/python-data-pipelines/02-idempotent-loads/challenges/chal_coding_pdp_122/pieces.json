@@ -1,0 +1,35 @@
+[
+  {
+    "id": "natural-key",
+    "label": "The table, keyed by what makes a payout unique",
+    "code": "SCHEMA = \"\"\"\nCREATE TABLE restaurant_payouts (\n    restaurant_id INTEGER NOT NULL,\n    business_date TEXT    NOT NULL,\n    amount_vnd    INTEGER NOT NULL,\n    orders        INTEGER NOT NULL,\n    computed_at   TEXT    NOT NULL,\n    paid_at       TEXT,\n    PRIMARY KEY (restaurant_id, business_date)\n)\n\"\"\""
+  },
+  {
+    "id": "upsert",
+    "label": "Insert a payout, or update the existing one",
+    "code": "UPSERT = \"\"\"\nINSERT INTO restaurant_payouts (restaurant_id, business_date, amount_vnd, orders, computed_at)\nVALUES (:restaurant_id, :business_date, :amount_vnd, :orders, :computed_at)\nON CONFLICT (restaurant_id, business_date) DO UPDATE SET\n    amount_vnd  = excluded.amount_vnd,\n    orders      = excluded.orders,\n    computed_at = excluded.computed_at\nWHERE excluded.computed_at > restaurant_payouts.computed_at\n\"\"\""
+  },
+  {
+    "id": "all-or-nothing",
+    "label": "Write the rows as one unit",
+    "code": "with wh:\n    wh.executemany(UPSERT, rows)"
+  },
+  {
+    "id": "replace-row",
+    "label": "Insert a payout, or update the existing one",
+    "code": "UPSERT = \"\"\"\nINSERT OR REPLACE INTO restaurant_payouts (restaurant_id, business_date, amount_vnd, orders, computed_at)\nVALUES (:restaurant_id, :business_date, :amount_vnd, :orders, :computed_at)\n\"\"\"",
+    "distractor": true
+  },
+  {
+    "id": "schema-surrogate-key",
+    "label": "The table, keyed by what makes a payout unique",
+    "code": "SCHEMA = \"\"\"\nCREATE TABLE restaurant_payouts (\n    id            INTEGER PRIMARY KEY AUTOINCREMENT,\n    restaurant_id INTEGER NOT NULL,\n    business_date TEXT    NOT NULL,\n    amount_vnd    INTEGER NOT NULL,\n    orders        INTEGER NOT NULL,\n    computed_at   TEXT    NOT NULL,\n    paid_at       TEXT\n)\n\"\"\"",
+    "distractor": true
+  },
+  {
+    "id": "upsert-no-guard",
+    "label": "Insert a payout, or update the existing one",
+    "code": "UPSERT = \"\"\"\nINSERT INTO restaurant_payouts (restaurant_id, business_date, amount_vnd, orders, computed_at)\nVALUES (:restaurant_id, :business_date, :amount_vnd, :orders, :computed_at)\nON CONFLICT (restaurant_id, business_date) DO UPDATE SET\n    amount_vnd  = excluded.amount_vnd,\n    orders      = excluded.orders,\n    computed_at = excluded.computed_at\n\"\"\"",
+    "distractor": true
+  }
+]

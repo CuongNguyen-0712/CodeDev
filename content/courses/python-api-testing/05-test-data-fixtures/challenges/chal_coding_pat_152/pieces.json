@@ -1,0 +1,35 @@
+[
+  {
+    "id": "unique-email",
+    "label": "An email no other test, run or retry can hold",
+    "code": "email = f\"qa+{run['run_id']}-{run['seq']()}@ricerocket.test\""
+  },
+  {
+    "id": "customer-teardown",
+    "label": "Remove the customer and its orders, even on failure",
+    "code": "try:\n    yield created\nfinally:\n    for order in api.get(f\"/orders?customer_id={created['id']}\")[1]:\n        api.delete(f\"/orders/{order['id']}\")\n    api.delete(f\"/customers/{created['id']}\")"
+  },
+  {
+    "id": "own-restaurant",
+    "label": "A restaurant only this test uses, removed after it",
+    "code": "status, body = api.post(\"/restaurants\", {\"name\": f\"QA Kitchen {run['run_id']}-{run['seq']()}\", \"open\": True})\nassert status == 201, f\"POST /restaurants -> {status} {body}\"\ncreated = {\"id\": body[\"id\"]}\ntry:\n    yield created\nfinally:\n    for order in api.get(f\"/orders?restaurant_id={created['id']}\")[1]:\n        api.delete(f\"/orders/{order['id']}\")\n    api.delete(f\"/restaurants/{created['id']}\")"
+  },
+  {
+    "id": "customer-deleted-first",
+    "label": "Remove the customer and its orders, even on failure",
+    "code": "try:\n    yield created\nfinally:\n    api.delete(f\"/customers/{created['id']}\")\n    for order in api.get(f\"/orders?customer_id={created['id']}\")[1]:\n        api.delete(f\"/orders/{order['id']}\")",
+    "distractor": true
+  },
+  {
+    "id": "shared-seed-restaurant",
+    "label": "A restaurant only this test uses, removed after it",
+    "code": "created = {\"id\": 1}\ntry:\n    yield created\nfinally:\n    for order in api.get(f\"/orders?restaurant_id={created['id']}\")[1]:\n        api.delete(f\"/orders/{order['id']}\")",
+    "distractor": true
+  },
+  {
+    "id": "unique-email-fixed",
+    "label": "An email no other test, run or retry can hold",
+    "code": "email = \"qa@ricerocket.test\"",
+    "distractor": true
+  }
+]

@@ -251,7 +251,7 @@ Ràng buộc thêm: {{CONSTRAINTS}}
 ```
 
 Ví dụ:
-1. `Nhiệm vụ: course outline · Course: A1 (web-http-fundamentals, mới) · Format: O1.`
+1. `Nhiệm vụ: course outline · Course: go-cloud-native (mới) · Format: O1.`
 2. `Nhiệm vụ: quiz · Course: sql-data-modeling · Phạm vi: lesson 04, 5 câu Đ/S về transaction boundary · Format: O3.`
 3. `Nhiệm vụ: coding challenge · Course: C2 · Phạm vi: fix bug "Duplicate & Out-of-order Events" (hard) · Format: O4 · Ràng buộc: TypeScript, sorted set in-memory.`
 

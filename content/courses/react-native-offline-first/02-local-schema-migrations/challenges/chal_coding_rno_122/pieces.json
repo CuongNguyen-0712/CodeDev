@@ -1,0 +1,40 @@
+[
+  {
+    "id": "refuse-newer",
+    "label": "Stop if the database is newer than this build",
+    "code": "if (current > appVersion) {\n    throw new Error(`database version ${current} is newer than this app (${appVersion}): update the app`);\n}"
+  },
+  {
+    "id": "pending-steps",
+    "label": "The migrations this database has not run yet",
+    "code": "const pending = MIGRATIONS\n    .filter((m) => m.version > current && m.version <= appVersion)\n    .sort((a, b) => a.version - b.version);"
+  },
+  {
+    "id": "atomic-step",
+    "label": "Run one migration and record it, all or nothing",
+    "code": "db.transaction((tx) => {\n    m.up(tx);\n    tx.setUserVersion(m.version);\n});"
+  },
+  {
+    "id": "cod-column",
+    "label": "v3: cash to collect on each delivery, 0 for existing rows",
+    "code": "{\n    version: 3,\n    up: (tx) => tx.addColumn(\"deliveries\", \"cod_amount\", { notNull: true, default: 0 }),\n},"
+  },
+  {
+    "id": "cod-column-no-default",
+    "label": "v3: cash to collect on each delivery, 0 for existing rows",
+    "code": "{\n    version: 3,\n    up: (tx) => tx.addColumn(\"deliveries\", \"cod_amount\", { notNull: true }),\n},",
+    "distractor": true
+  },
+  {
+    "id": "pending-from-current",
+    "label": "The migrations this database has not run yet",
+    "code": "const pending = MIGRATIONS\n    .filter((m) => m.version >= current && m.version <= appVersion)\n    .sort((a, b) => a.version - b.version);",
+    "distractor": true
+  },
+  {
+    "id": "version-before-steps",
+    "label": "Run one migration and record it, all or nothing",
+    "code": "db.setUserVersion(m.version);\ndb.transaction((tx) => m.up(tx));",
+    "distractor": true
+  }
+]

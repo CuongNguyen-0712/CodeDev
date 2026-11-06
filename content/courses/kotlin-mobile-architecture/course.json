@@ -1,11 +1,11 @@
 {
   "publicId": "kotlin-mobile-architecture",
-  "title": "Mobile App Architecture in Kotlin: State, Caching & Testable Logic",
-  "concept": "Structure a mobile app so features stay easy to change: unidirectional data flow and reducers, state machines for screens, repositories with cache policies, paging, optimistic updates and rollback, dependency inversion and fast tests for view models.",
-  "description": "Structure a mobile app so features stay easy to change: unidirectional data flow and reducers, state machines for screens, repositories with cache policies, paging, optimistic updates and rollback, dependency inversion and fast tests for view models. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "title": "Mobile App Architecture in Kotlin: ViewModel, StateFlow, Paging and Testable Logic",
+  "concept": "Structure the Rice Rocket courier app on Android so features stay easy to change: unidirectional data flow with ViewModel and StateFlow, screen state machines, one-off events, repositories with cache policies (Room), Paging-style cursors, optimistic updates, dependency inversion, view model tests with a fake clock, and feature flags. Challenges are Kotlin programs (with kotlinx.coroutines) graded in the code runner.",
+  "description": "Structure the Rice Rocket courier app on Android so features stay easy to change: unidirectional data flow with ViewModel and StateFlow, screen state machines, one-off events, repositories with cache policies (Room), Paging-style cursors, optimistic updates, dependency inversion, view model tests with a fake clock, and feature flags. 9 lessons on one project, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642449/codedev/courses/kotlin-mobile-architecture/cover",
   "level": "advanced",
-  "durationMinutes": 220,
+  "durationMinutes": 150,
   "instructor": "CodeDev Engineering Team",
   "language": "Kotlin",
   "category": "Android Development",
@@ -38,29 +38,69 @@
     "grow_in_role",
     "build_projects"
   ],
-  "prerequisites": [
-    "kotlin-foundations"
+  "prerequisites": [],
+  "completionRules": {},
+  "domain": "frontend",
+  "learningOutcomes": [
+    {
+      "code": "ui-state",
+      "text": "Model screens as state with reducers and state machines driven by unidirectional data flow."
+    },
+    {
+      "code": "ui-events",
+      "text": "Deliver one-off events without losing or repeating them."
+    },
+    {
+      "code": "data-layer",
+      "text": "Serve data through repositories with cache policies, cursor paging and optimistic updates."
+    },
+    {
+      "code": "testable-releases",
+      "text": "Invert dependencies for fast tests and release features behind flags."
+    }
   ],
-  "modules": [],
-  "outline": [
+  "testedVersions": {
+    "Kotlin": "2.2 (to verify)",
+    "kotlinx.coroutines": "1.10 (to verify)",
+    "AndroidX Lifecycle": "2.9 (to verify)",
+    "Paging 3": "3.3 (to verify)"
+  },
+  "lastReviewedAt": "2026-11-06",
+  "sourceLinks": [
+    "https://developer.android.com/topic/architecture",
+    "https://developer.android.com/topic/libraries/architecture/viewmodel",
+    "https://kotlinlang.org/docs/flow.html",
+    "https://developer.android.com/topic/libraries/architecture/paging/v3-overview",
+    "https://developer.android.com/kotlin/coroutines/test"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges run Kotlin with kotlinx.coroutines in the code runner; Android framework classes are replaced by small stand-ins.",
+    "testedVersions are not yet re-checked against the live tools."
+  ],
+  "template": "core-first",
+  "modules": [
     {
       "orderIndex": 1,
       "title": "State",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Unidirectional data flow & reducers",
-          "challenges": "Q(m) + C(m)"
+          "folder": "01-udf-reducers",
+          "title": "Unidirectional data flow and reducers",
+          "sanityId": "lesson-kma-1-1"
         },
         {
           "orderIndex": 2,
-          "title": "Screen state machines: loading, error & empty",
-          "challenges": "C(h)"
+          "folder": "02-screen-state-machines",
+          "title": "Screen state machines: loading, error and empty",
+          "sanityId": "lesson-kma-1-2"
         },
         {
           "orderIndex": 3,
+          "folder": "03-one-off-events",
           "title": "One-off events vs state",
-          "challenges": "Q(m) + F(m)"
+          "sanityId": "lesson-kma-1-3"
         }
       ]
     },
@@ -70,18 +110,21 @@
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Repositories & cache policies",
-          "challenges": "C(h)"
+          "folder": "04-repository-cache-policies",
+          "title": "Repositories and cache policies",
+          "sanityId": "lesson-kma-2-1"
         },
         {
           "orderIndex": 2,
+          "folder": "05-paging-cursors",
           "title": "Paging with cursors",
-          "challenges": "C(h)"
+          "sanityId": "lesson-kma-2-2"
         },
         {
           "orderIndex": 3,
-          "title": "Optimistic updates & rollback",
-          "challenges": "Q(m) + C(h)"
+          "folder": "06-optimistic-rollback",
+          "title": "Optimistic updates and rollback",
+          "sanityId": "lesson-kma-2-3"
         }
       ]
     },
@@ -91,18 +134,21 @@
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "07-dependency-inversion",
           "title": "Dependency inversion for testable features",
-          "challenges": "F(m)"
+          "sanityId": "lesson-kma-3-1"
         },
         {
           "orderIndex": 2,
-          "title": "Testing view models with fake clocks",
-          "challenges": "C(m)"
+          "folder": "08-viewmodel-tests",
+          "title": "Testing view models with a fake clock",
+          "sanityId": "lesson-kma-3-2"
         },
         {
           "orderIndex": 3,
-          "title": "Feature flags & safe rollouts",
-          "challenges": "Q(m) + C(m)"
+          "folder": "09-feature-flags",
+          "title": "Feature flags and safe rollouts",
+          "sanityId": "lesson-kma-3-3"
         }
       ]
     }

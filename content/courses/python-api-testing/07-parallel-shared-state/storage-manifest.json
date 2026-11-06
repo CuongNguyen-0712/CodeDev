@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_pat_172",
+      "key": "challenges/python/chal_coding_pat_172/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "tests/helpers.py",
+      "size": 6156
+    }
+  ]
+}

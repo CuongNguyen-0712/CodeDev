@@ -1,0 +1,213 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pat_171",
+      "name": "parallel-shared-state-quiz",
+      "type": "quiz",
+      "title": "Read the first parallel CI runs",
+      "description": "Three statements about what happened when Rice Rocket's API suite moved to `pytest -n 4`. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "reliable-suites"
+      ],
+      "points": 10,
+      "hints": [
+        "A rerun makes a failure disappear from the report. Ask whether it also removes the thing two tests were fighting over.",
+        "pytest-xdist starts separate processes. Where does a session-scoped fixture live, and how many sessions are there?",
+        "On a shared staging API, which orders does `GET /orders` return, and which of them did this test create?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Since the switch to four workers, a few tests fail on most runs, never the same ones:\n\n```text\n$ pytest -n 4 -q\nFAILED tests/test_courier.py::test_courier_accepts_order - assert 409 == 200 (courier is busy)\nFAILED tests/test_receipts.py::test_receipt - read back: 'receipt for order 5112'\n2 failed, 61 passed in 52.10s\n```\n\nStatement: \"These are timing glitches of the staging API; adding pytest-rerunfailures with `--reruns 3` fixes the cause, since the tests pass on the rerun.\"",
+          "explanation": "False. Both failures are tests fighting over the same thing: one demo courier accepting two deliveries, and one fixed receipt file written by two workers. A rerun usually lands at another moment and passes, so the report turns green while the coupling stays; it also hides the next real regression behind a retry. The fix is to give each test its own courier and its own file (`tmp_path`). Reruns are for failures you cannot control, such as a third-party sandbox, and should be counted and reported, not hidden.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The suite has a session-scoped fixture that seeds a promo code, and the log of one run shows:\n\n```python\n@pytest.fixture(scope=\"session\")\ndef promo(api):\n    status, body = api.post(\"/promos\", {\"code\": \"QA-LUNCH\", \"percent\": 10})\n    ...\n```\n\n```text\n[gw0] POST /promos 201\n[gw1] POST /promos 409 code already exists\n[gw2] POST /promos 409 code already exists\n[gw3] POST /promos 409 code already exists\n```\n\nStatement: \"With pytest-xdist every worker is its own process with its own test session, so a session-scoped fixture runs once per worker, here four times against the same API.\"",
+          "explanation": "True. pytest-xdist runs each worker as a separate Python process, and each one has its own session, so `scope=\"session\"` means once per worker, not once per CI run. Four workers created the promo code four times, and three of them collided. Give the seeded data a per-worker name (the `worker_id` fixture), or create it once before the run (a CI step, or a file lock as the pytest-xdist docs describe).",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A history test fails only under `-n 4`:\n\n```python\ndef test_order_history(api, customer):\n    place_order(api, customer)\n    place_order(api, customer)\n    assert len(api.get(\"/orders\").json()) == 2\n```\n\n```text\nE   AssertionError: assert 7 == 2\n```\n\nStatement: \"The test is right; the API leaks other customers' orders, so the bug has to be fixed in the API, not in the test.\"",
+          "explanation": "False. `GET /orders` without a filter is the staging list of all orders (the test runs with an admin token), and the other workers are creating orders at the same moment. The test counted data it does not own. Filter by this test's customer (`/orders?customer_id=...`) or compare ids, and the count is 2 whatever runs next to it. A permission bug would show up for a customer token, which a separate test should check.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pat_172",
+      "name": "parallel-safe-helpers",
+      "type": "fix_bug",
+      "title": "Fix the helpers for parallel runs",
+      "description": "The API suite passes with one worker and fails at random with `pytest -n 4`: couriers report `409 courier is busy`, a history test counts other tests' orders, receipts read back another test's order, and with `--dist each` customers collide with `409 email already used`. The editor holds `tests/helpers.py` with four helper bodies missing, each marked by a `# [ ]` line; some pieces are the old helpers on purpose. Fill every line so each helper gives the same result whether its test runs alone or next to other workers: names unique per worker and test, a courier of its own, a count of its own orders, and a file path no other test writes to. The docstring is the exact contract; the runner plays pytest-xdist with workers whose requests interleave.",
+      "difficulty": "medium",
+      "outcomes": [
+        "reliable-suites"
+      ],
+      "points": 30,
+      "hints": [
+        "For each helper, picture the same test running on gw0 and gw1 at the same moment: what do the two copies share, and which request of one breaks the other?",
+        "Look at what `ctx` gives you (`worker_id`, `test_name`, `tmp_dir`), at the courier the API seeds, and at the query string `GET /orders` accepts.",
+        "Helpers for a coupon suite: `def prefix(ctx): return f\"{ctx['worker_id']}-{ctx['test_name']}\"`, a coupon created per test with that prefix, `len(api.get(f\"/coupons?owner={owner}\")[1])` for counts, and `f\"{ctx['tmp_dir']}/coupon.png\"` for files."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "tests/helpers.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One worker: the suite passes",
+          "input": {
+            "workers": 1,
+            "order": [
+              "test_courier_accepts_order",
+              "test_order_history",
+              "test_receipt"
+            ]
+          },
+          "expected": {
+            "results": {
+              "test_courier_accepts_order@gw0": "passed",
+              "test_order_history@gw0": "passed",
+              "test_receipt@gw0": "passed"
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Three workers sharing the tests (--dist load): the suite passes",
+          "input": {
+            "workers": 3,
+            "order": [
+              "test_courier_accepts_order",
+              "test_order_history",
+              "test_receipt"
+            ]
+          },
+          "expected": {
+            "results": {
+              "test_courier_accepts_order@gw0": "passed",
+              "test_order_history@gw1": "passed",
+              "test_receipt@gw2": "passed"
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Two workers each running every test at once (--dist each): the suite passes",
+          "input": {
+            "workers": 2,
+            "dist": "each",
+            "order": [
+              "test_courier_accepts_order",
+              "test_order_history",
+              "test_receipt"
+            ]
+          },
+          "expected": {
+            "results": {
+              "test_courier_accepts_order@gw0": "passed",
+              "test_courier_accepts_order@gw1": "passed",
+              "test_order_history@gw0": "passed",
+              "test_order_history@gw1": "passed",
+              "test_receipt@gw0": "passed",
+              "test_receipt@gw1": "passed"
+            }
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Four workers each running every test, in another order",
+          "input": {
+            "workers": 4,
+            "dist": "each",
+            "order": [
+              "test_receipt",
+              "test_courier_accepts_order",
+              "test_order_history"
+            ]
+          },
+          "expected": {
+            "results": {
+              "test_courier_accepts_order@gw0": "passed",
+              "test_courier_accepts_order@gw1": "passed",
+              "test_courier_accepts_order@gw2": "passed",
+              "test_courier_accepts_order@gw3": "passed",
+              "test_order_history@gw0": "passed",
+              "test_order_history@gw1": "passed",
+              "test_order_history@gw2": "passed",
+              "test_order_history@gw3": "passed",
+              "test_receipt@gw0": "passed",
+              "test_receipt@gw1": "passed",
+              "test_receipt@gw2": "passed",
+              "test_receipt@gw3": "passed"
+            }
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Two workers, the history test next to tests that create orders",
+          "input": {
+            "workers": 2,
+            "order": [
+              "test_order_history",
+              "test_receipt",
+              "test_courier_accepts_order"
+            ]
+          },
+          "expected": {
+            "results": {
+              "test_courier_accepts_order@gw0": "passed",
+              "test_order_history@gw0": "passed",
+              "test_receipt@gw1": "passed"
+            }
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

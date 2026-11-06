@@ -1,0 +1,40 @@
+[
+  {
+    "id": "fresh-hit",
+    "label": "Serve a fresh entry without calling the menu service",
+    "code": "if e, ok := c.entries[key]; ok && c.now()-e.fetchedAt < c.ttlMs {\n\tc.mu.Unlock()\n\treturn e.value, nil\n}"
+  },
+  {
+    "id": "join-inflight",
+    "label": "Wait for a call already on its way and use its result",
+    "code": "if cl, ok := c.inflight[key]; ok {\n\tc.mu.Unlock()\n\t<-cl.done\n\treturn cl.value, cl.err\n}"
+  },
+  {
+    "id": "store-result",
+    "label": "Keep a success, fall back to the stale entry on a failure",
+    "code": "if err == nil {\n\tc.entries[key] = entry{value: value, fetchedAt: c.now()}\n} else if e, ok := c.entries[key]; ok {\n\tvalue, err = e.value, nil\n}"
+  },
+  {
+    "id": "finish-call",
+    "label": "Hand the result to the waiters and forget the finished call",
+    "code": "cl.value, cl.err = value, err\ndelete(c.inflight, key)\nclose(cl.done)"
+  },
+  {
+    "id": "finish-call-keep-inflight",
+    "label": "Hand the result to the waiters and forget the finished call",
+    "code": "cl.value, cl.err = value, err\nclose(cl.done)",
+    "distractor": true
+  },
+  {
+    "id": "fresh-hit-forever",
+    "label": "Serve a fresh entry without calling the menu service",
+    "code": "if e, ok := c.entries[key]; ok {\n\tc.mu.Unlock()\n\treturn e.value, nil\n}",
+    "distractor": true
+  },
+  {
+    "id": "store-result-cache-errors",
+    "label": "Keep a success, fall back to the stale entry on a failure",
+    "code": "c.entries[key] = entry{value: value, fetchedAt: c.now()}",
+    "distractor": true
+  }
+]

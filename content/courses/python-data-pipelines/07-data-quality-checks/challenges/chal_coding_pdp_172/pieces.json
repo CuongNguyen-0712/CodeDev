@@ -1,0 +1,50 @@
+[
+  {
+    "id": "required-columns",
+    "label": "Error: rows missing an id, a restaurant or a time",
+    "code": "{\"name\": \"required-columns\", \"severity\": \"error\", \"sql\": \"\"\"\n    SELECT COUNT(*) FROM staging_orders\n    WHERE order_id IS NULL OR restaurant_id IS NULL OR placed_at IS NULL\"\"\"},"
+  },
+  {
+    "id": "unique-order-id",
+    "label": "Error: order ids repeated or already published",
+    "code": "{\"name\": \"unique-order-id\", \"severity\": \"error\", \"sql\": \"\"\"\n    SELECT (SELECT COUNT(*) FROM (SELECT order_id FROM staging_orders GROUP BY order_id HAVING COUNT(*) > 1))\n         + (SELECT COUNT(*) FROM staging_orders s WHERE EXISTS (SELECT 1 FROM orders o WHERE o.order_id = s.order_id))\"\"\"},"
+  },
+  {
+    "id": "delivered-total",
+    "label": "Error: delivered orders without a positive total",
+    "code": "{\"name\": \"delivered-total\", \"severity\": \"error\", \"sql\": \"\"\"\n    SELECT COUNT(*) FROM staging_orders WHERE status = 'delivered' AND (total_vnd IS NULL OR total_vnd <= 0)\"\"\"},"
+  },
+  {
+    "id": "known-restaurant",
+    "label": "Error: orders of restaurants we do not know",
+    "code": "{\"name\": \"known-restaurant\", \"severity\": \"error\", \"sql\": \"\"\"\n    SELECT COUNT(*) FROM staging_orders s\n    WHERE s.restaurant_id IS NOT NULL\n      AND NOT EXISTS (SELECT 1 FROM dim_restaurant r WHERE r.restaurant_id = s.restaurant_id)\"\"\"},"
+  },
+  {
+    "id": "volume",
+    "label": "Warning: far fewer rows than a normal recent day",
+    "code": "{\"name\": \"volume\", \"severity\": \"warn\", \"sql\": \"\"\"\n    WITH daily AS (\n        SELECT date(placed_at, '+7 hours') AS day, COUNT(*) AS n FROM orders\n        WHERE date(placed_at, '+7 hours') BETWEEN date(:batch_day, '-7 days') AND date(:batch_day, '-1 day')\n        GROUP BY day\n    ), ranked AS (\n        SELECT n, ROW_NUMBER() OVER (ORDER BY n) AS i, COUNT(*) OVER () AS c FROM daily\n    )\n    SELECT CASE WHEN (SELECT COUNT(*) FROM staging_orders)\n                     < 0.7 * (SELECT AVG(n) FROM ranked WHERE i IN ((c + 1) / 2, (c + 2) / 2))\n                THEN 1 ELSE 0 END\"\"\"},"
+  },
+  {
+    "id": "publish-decision",
+    "label": "Publish unless an error check failed",
+    "code": "def decide(results):\n    errors = sorted(r[\"name\"] for r in results if r[\"severity\"] == \"error\" and r[\"failing\"] > 0)\n    warnings = sorted(r[\"name\"] for r in results if r[\"severity\"] == \"warn\" and r[\"failing\"] > 0)\n    return {\"publish\": not errors, \"errors\": errors, \"warnings\": warnings}"
+  },
+  {
+    "id": "publish-decision-any-failure",
+    "label": "Publish unless an error check failed",
+    "code": "def decide(results):\n    failed = sorted(r[\"name\"] for r in results if r[\"failing\"] > 0)\n    errors = [name for name in failed if name != \"volume\"]\n    warnings = [name for name in failed if name == \"volume\"]\n    return {\"publish\": not failed, \"errors\": errors, \"warnings\": warnings}",
+    "distractor": true
+  },
+  {
+    "id": "unique-order-id-batch-only",
+    "label": "Error: order ids repeated or already published",
+    "code": "{\"name\": \"unique-order-id\", \"severity\": \"error\", \"sql\": \"\"\"\n    SELECT COUNT(*) FROM (SELECT order_id FROM staging_orders GROUP BY order_id HAVING COUNT(*) > 1)\"\"\"},",
+    "distractor": true
+  },
+  {
+    "id": "volume-vs-yesterday",
+    "label": "Warning: far fewer rows than a normal recent day",
+    "code": "{\"name\": \"volume\", \"severity\": \"warn\", \"sql\": \"\"\"\n    SELECT CASE WHEN (SELECT COUNT(*) FROM staging_orders)\n                     < 0.7 * (SELECT COUNT(*) FROM orders WHERE date(placed_at, '+7 hours') = date(:batch_day, '-1 day'))\n                THEN 1 ELSE 0 END\"\"\"},",
+    "distractor": true
+  }
+]

@@ -70,7 +70,7 @@ JOIN catalog.skill s ON s.code = v.code;
 UPDATE catalog.course SET completion_rules = '{}' WHERE id = (SELECT id FROM catalog.course WHERE public_id = 'qa-performance-reliability');
 DELETE FROM catalog.course_prerequisite WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'qa-performance-reliability');
 INSERT INTO catalog.course_prerequisite (course_id, prerequisite_course_id)
-SELECT (SELECT id FROM catalog.course WHERE public_id = 'qa-performance-reliability'), id FROM catalog.course WHERE public_id = ANY(ARRAY['postgres-performance', 'observability-opentelemetry']::text[]);
+SELECT (SELECT id FROM catalog.course WHERE public_id = 'qa-performance-reliability'), id FROM catalog.course WHERE public_id = ANY(ARRAY['observability-opentelemetry']::text[]);
 
 -- module 1: Measuring Latency
 UPDATE course.module SET title = 'Measuring Latency', updated_at = now() WHERE id = (SELECT id FROM course.module WHERE course_id = (SELECT id FROM catalog.course WHERE public_id = 'qa-performance-reliability') AND order_index = 1 AND is_deleted = false LIMIT 1);
@@ -90,7 +90,7 @@ VALUES ('chal_quiz_qpr_111', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_111');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_111');
 WITH q AS (
@@ -153,7 +153,7 @@ VALUES ('chal_quiz_qpr_121', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_121');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_121');
 WITH q AS (
@@ -215,17 +215,17 @@ Constraints: Python 3 standard library only; up to a few thousand samples.', 'op
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_122');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_122'), 1, 'If 10 learners loaded the leaderboard and you sort their times, which position must you read so that at least 95% of them waited no longer than that value? What do you do when 95% of 10 is not a whole number?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_122'), 2, 'Look at three places: the rank (rounded up, and 1-based while Python lists are 0-based), the status check that decides whether a sample''s ms belongs in the latency list at all, and the type checks (in Python, isinstance(True, int) is True).'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_122'), 3, 'A similar case on other data: five successful samples of GET /api/courses/:id, 120.4, 98.0, 101.5, 870.2, 99.9, plus a timeout (status 0). Sorted: 98.0, 99.9, 101.5, 120.4, 870.2 (n = 5; the timeout only adds 1 to failed). p50: rank = ceil(0.5 * 5) = 3 -> 101.5. p95: rank = ceil(4.75) = 5 -> 870.2. Mean: 1290.0 / 5 = 258.0, two and a half times the median.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_122'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_122');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_122'), 'One endpoint: two slow requests pull the mean far above the median', '{"samples":[{"endpoint":"GET /api/leaderboard","ms":72.5,"status":200},{"endpoint":"GET /api/leaderboard","ms":61,"status":200},{"endpoint":"GET /api/leaderboard","ms":1380.2,"status":200},{"endpoint":"GET /api/leaderboard","ms":58.4,"status":200},{"endpoint":"GET /api/leaderboard","ms":66.1,"status":200},{"endpoint":"GET /api/leaderboard","ms":90.3,"status":200},{"endpoint":"GET /api/leaderboard","ms":70.8,"status":200},{"endpoint":"GET /api/leaderboard","ms":64.9,"status":200},{"endpoint":"GET /api/leaderboard","ms":1512.7,"status":200},{"endpoint":"GET /api/leaderboard","ms":69,"status":200}]}', '{"endpoints":[{"endpoint":"GET /api/leaderboard","count":10,"failed":0,"mean":344.6,"p50":69,"p95":1512.7,"p99":1512.7}],"invalid":0}', 3, true, false, 1),
@@ -254,7 +254,7 @@ VALUES ('chal_quiz_qpr_131', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_131');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_131');
 WITH q AS (
@@ -310,7 +310,7 @@ VALUES ('chal_quiz_qpr_211', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_211');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_211');
 WITH q AS (
@@ -402,17 +402,17 @@ Output (stdout, JSON), for stages 0 -> 10 over 5 s, hold 10 s, 10 -> 0 over 5 s:
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_212');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_212'), 1, 'At the end of second k of a stage that goes from a to b in d seconds, which fraction of the straight line have you covered, and which way does "rounded down" go when b is smaller than a?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_212'), 2, 'Look at three places: where each stage gets its starting rate (the previous target, or start_rate for the first stage), whether you validate every stage before you build anything and in the listed order, and the condition for steady: a hold keeps the rate the same, and a hold at 0/s is a pause, not a steady state.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_212'), 3, 'A similar stage on other numbers: from 90 down to 20 over 4 seconds the line reaches 72.5, 55, 37.5 and 20 at the end of seconds 1 to 4, so the targets are 72, 55, 37, 20. From 20 up to 90 over 4 seconds they are 37, 55, 72, 90. In Python, -17.5 rounded down is -18, while int(-17.5) is -17.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_212'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_212'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_212');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_212'), 'Ramp up to 10/s, hold 10 s, ramp down to 0', '{"stages":[{"duration_s":5,"target":10},{"duration_s":10,"target":10},{"duration_s":5,"target":0}]}', '{"duration_s":20,"total_requests":150,"peak_rate":10,"steady":{"start_s":5,"end_s":15,"rate":10},"schedule":[2,4,6,8,10,10,10,10,10,10,10,10,10,10,10,8,6,4,2,0]}', 3, true, false, 1),
@@ -442,7 +442,7 @@ VALUES ('chal_quiz_qpr_221', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_221');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_221');
 WITH q AS (
@@ -500,17 +500,17 @@ Output (stdout, JSON): {"window_s": 900, "endpoints": {"GET /api/leaderboard": {
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_222');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_222'), 1, 'A request sent at 299.9 s is answered at 300.4 s. Which second of the profile offered it, and what happens to a window''s numbers if slow requests are counted when they finish instead of when they were sent?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_222'), 2, 'Check three things: the window test uses sent_ms only (start inclusive, end exclusive); the status checks run in the right order (429 before the other 4xx); and a row with status 0 is a request that failed, counted both in errors and in timeouts, not a row without data.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_222'), 3, 'A small example on other data: window [0, 2000) and rows [500, "GET /x", 200, 20], [1200, "GET /x", 429, 3], [1900, "GET /x", 0, 1000], [2000, "GET /x", 500, 9]. Three requests are in the window (the 500 sent at 2000 belongs to the next one): ok 1, throttled 1, errors 1 of which timeouts 1, rps 1.5, ok_rps 0.5, error_rate 0.3333.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_222'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_222'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_222');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_222'), 'Two endpoints, every status class, rows outside the window', '{"window":{"start_ms":10000,"end_ms":13000},"requests":[[8200,"POST /api/submissions",200,310],[9100,"GET /api/leaderboard",200,42],[10050,"POST /api/submissions",201,120],[10100,"GET /api/leaderboard",200,40],[10400,"POST /api/submissions",200,95],[10800,"POST /api/submissions",429,6],[11000,"GET /api/leaderboard",200,35],[11200,"POST /api/submissions",503,31],[11500,"POST /api/submissions",0,1000],[11600,"POST /api/submissions",401,12],[11900,"GET /api/leaderboard",304,20],[12100,"POST /api/submissions",200,140],[12500,"GET /api/leaderboard",500,15],[12700,"POST /api/submissions",200,180],[13400,"POST /api/submissions",200,90],[13800,"GET /api/leaderboard",200,30]]}', '{"window_s":3,"endpoints":{"GET /api/leaderboard":{"requests":4,"ok":3,"errors":1,"timeouts":0,"throttled":0,"client_errors":0,"rps":1.33,"ok_rps":1,"error_rate":0.25},"POST /api/submissions":{"requests":8,"ok":4,"errors":2,"timeouts":1,"throttled":1,"client_errors":1,"rps":2.67,"ok_rps":1.33,"error_rate":0.25}},"total":{"requests":12,"ok":7,"errors":3,"timeouts":1,"throttled":1,"client_errors":1,"rps":4,"ok_rps":2.33,"error_rate":0.25}}', 3, true, false, 1),
@@ -540,7 +540,7 @@ VALUES ('chal_quiz_qpr_231', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_231');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_231');
 WITH q AS (
@@ -602,17 +602,17 @@ Output (stdout, JSON): {"requests": 400, "p50": 18.7, "p95": 28.6, "p99": 29.6, 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_232');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_232'), 1, 'In a fixed-rate test, when does the user behind a request start waiting: when the schedule says the request is due, or when the generator finally manages to send it?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_232'), 2, 'Look at latencies_ms: which fields of the input does it use, and which does it ignore? In a run with a stall, compare sent_ms with the time the request was due, and remember that rows are logged in completion order, not by seq.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_232'), 3, 'A similar case on other numbers: start_ms 1000 and interval_ms 20, so request 7 is due at 1140. The generator was blocked and sent it at 1900.0, and its response arrived at 1925.5. done - sent says 25.5 ms; the user behind it waited 785.5 ms.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_232'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_232'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_232');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_232'), 'Ten requests at 20/s, every request sent on time', '{"start_ms":0,"interval_ms":50,"target_ms":100,"requests":[[0,0,21.4],[1,50,68],[2,100,131.9],[3,150,162.5],[4,200,342.7],[5,250,266.1],[6,300,318.8],[7,350,371.2],[8,400,415],[9,450,474.3]]}', '{"requests":10,"p50":18.8,"p95":142.7,"p99":142.7,"max":142.7,"over_target":1}', 2, true, false, 1),
@@ -647,7 +647,7 @@ VALUES ('chal_quiz_qpr_311', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_311');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_311');
 WITH q AS (
@@ -715,17 +715,17 @@ Example: {"window_ms": 10000, "band": 0.2, "baseline": [...], "candidate": [...]
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_312');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_312'), 1, 'Take a run whose window p95 values are 410, 180, 240, 112, 108, 105, 110, 104. The second window is already close to the end value - so why can it not be the end of the warm-up?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_312'), 2, 'Look at the order of the work: drop invalid samples first, then build the windows from valid samples only and skip empty windows, then take the reference from the second half of the window list, and only then search for the first window after which nothing leaves the band. Searching from the last window backwards is the easiest way to get "every later window" right. Check the 3-window minimum before you report a steady state.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_312'), 3, 'A worked example with other numbers: window p95 values [600, 200, 130, 100, 104, 96, 101], band 0.1, W = 10000, no empty windows. n = 7, the second half is V[3:] = [100, 104, 96, 101], so R = 100.5 and the band is 90.45 to 110.55. From the end: 101, 96, 104, 100 are inside, 130 is not, so the steady state starts at index 3 with 4 windows (at least 3) and warmup_end_ms = 30000.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_312'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_312'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_312');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_312'), 'Cold baseline vs warm candidate: the naive p95 change is mostly warm-up', '{"window_ms":10000,"band":0.2,"baseline":[[0,160],[500,244],[1000,328],[1500,172],[2000,256],[2500,340],[3000,184],[3500,268],[4000,352],[4500,196],[5000,280],[5500,364],[6000,208],[6500,292],[7000,376],[7500,220],[8000,304],[8500,388],[9000,232],[9500,316],[10000,100],[10500,152.5],[11000,205],[11500,107.5],[12000,160],[12500,212.5],[13000,115],[13500,167.5],[14000,220],[14500,122.5],[15000,175],[15500,227.5],[16000,130],[16500,182.5],[17000,235],[17500,137.5],[18000,190],[18500,242.5],[19000,145],[19500,197.5],[20000,64],[20500,97.6],[21000,131.2],[21500,68.8],[22000,102.4],[22500,136],[23000,73.6],[23500,107.2],[24000,140.8],[24500,78.4],[25000,112],[25500,145.6],[26000,83.2],[26500,116.8],[27000,150.4],[27500,88],[28000,121.6],[28500,155.2],[29000,92.8],[29500,126.4],[30000,40],[30500,61],[31000,82],[31500,43],[32000,64],[32500,85],[33000,46],[33500,67],[34000,88],[34500,49],[35000,70],[35500,91],[36000,52],[36500,73],[37000,94],[37500,55],[38000,76],[38500,97],[39000,58],[39500,79],[40000,39.2],[40500,59.8],[41000,80.4],[41500,42.1],[42000,62.7],[42500,83.3],[43000,45.1],[43500,65.7],[44000,86.2],[44500,48],[45000,68.6],[45500,89.2],[46000,51],[46500,71.5],[47000,92.1],[47500,53.9],[48000,74.5],[48500,95.1],[49000,56.8],[49500,77.4],[50000,40.8],[50500,62.2],[51000,83.6],[51500,43.9],[52000,65.3],[52500,86.7],[53000,46.9],[53500,68.3],[54000,89.8],[54500,50],[55000,71.4],[55500,92.8],[56000,53],[56500,74.5],[57000,95.9],[57500,56.1],[58000,77.5],[58500,98.9],[59000,59.2],[59500,80.6],[60000,40],[60500,61],[61000,82],[61500,43],[62000,64],[62500,85],[63000,46],[63500,67],[64000,88],[64500,49],[65000,70],[65500,91],[66000,52],[66500,73],[67000,94],[67500,55],[68000,76],[68500,97],[69000,58],[69500,79],[70000,39.6],[70500,60.4],[71000,81.2],[71500,42.6],[72000,63.4],[72500,84.2],[73000,45.5],[73500,66.3],[74000,87.1],[74500,48.5],[75000,69.3],[75500,90.1],[76000,51.5],[76500,72.3],[77000,93.1],[77500,54.5],[78000,75.2],[78500,96],[79000,57.4],[79500,78.2]],"candidate":[[0,38.8],[500,59.2],[1000,79.5],[1500,41.7],[2000,62.1],[2500,82.5],[3000,44.6],[3500,65],[4000,85.4],[4500,47.5],[5000,67.9],[5500,88.3],[6000,50.4],[6500,70.8],[7000,91.2],[7500,53.4],[8000,73.7],[8500,94.1],[9000,56.3],[9500,76.6],[10000,38.4],[10500,58.6],[11000,78.7],[11500,41.3],[12000,61.4],[12500,81.6],[13000,44.2],[13500,64.3],[14000,84.5],[14500,47],[15000,67.2],[15500,87.4],[16000,49.9],[16500,70.1],[17000,90.2],[17500,52.8],[18000,73],[18500,93.1],[19000,55.7],[19500,75.8],[20000,39.2],[20500,59.8],[21000,80.4],[21500,42.1],[22000,62.7],[22500,83.3],[23000,45.1],[23500,65.7],[24000,86.2],[24500,48],[25000,68.6],[25500,89.2],[26000,51],[26500,71.5],[27000,92.1],[27500,53.9],[28000,74.5],[28500,95.1],[29000,56.8],[29500,77.4],[30000,38],[30500,58],[31000,77.9],[31500,40.9],[32000,60.8],[32500,80.8],[33000,43.7],[33500,63.6],[34000,83.6],[34500,46.6],[35000,66.5],[35500,86.5],[36000,49.4],[36500,69.4],[37000,89.3],[37500,52.3],[38000,72.2],[38500,92.2],[39000,55.1],[39500,75.1],[40000,38.8],[40500,59.2],[41000,79.5],[41500,41.7],[42000,62.1],[42500,82.5],[43000,44.6],[43500,65],[44000,85.4],[44500,47.5],[45000,67.9],[45500,88.3],[46000,50.4],[46500,70.8],[47000,91.2],[47500,53.4],[48000,73.7],[48500,94.1],[49000,56.3],[49500,76.6],[50000,38.4],[50500,58.6],[51000,78.7],[51500,41.3],[52000,61.4],[52500,81.6],[53000,44.2],[53500,64.3],[54000,84.5],[54500,47],[55000,67.2],[55500,87.4],[56000,49.9],[56500,70.1],[57000,90.2],[57500,52.8],[58000,73],[58500,93.1],[59000,55.7],[59500,75.8],[60000,39.2],[60500,59.8],[61000,80.4],[61500,42.1],[62000,62.7],[62500,83.3],[63000,45.1],[63500,65.7],[64000,86.2],[64500,48],[65000,68.6],[65500,89.2],[66000,51],[66500,71.5],[67000,92.1],[67500,53.9],[68000,74.5],[68500,95.1],[69000,56.8],[69500,77.4],[70000,38],[70500,58],[71000,77.9],[71500,40.9],[72000,60.8],[72500,80.8],[73000,43.7],[73500,63.6],[74000,83.6],[74500,46.6],[75000,66.5],[75500,86.5],[76000,49.4],[76500,69.4],[77000,89.3],[77500,52.3],[78000,72.2],[78500,92.2],[79000,55.1],[79500,75.1]]}', '{"baseline":{"warmup_end_ms":30000,"excluded":60,"steady_samples":100,"p95":95.1,"dropped":0},"candidate":{"warmup_end_ms":0,"excluded":0,"steady_samples":160,"p95":92.1,"dropped":0},"p95_change_pct":-3.2,"naive_p95_change_pct":-68.5}', 3, true, false, 1),
@@ -755,7 +755,7 @@ VALUES ('chal_quiz_qpr_321', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_321');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_321');
 WITH q AS (
@@ -927,17 +927,17 @@ Output: {"first_bottleneck": name or null, "at_rate": rate or null, "saturated":
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_322');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_322'), 1, 'Run the starter on the first public test and compare two things with the rule: which resources does it call saturated, and at which rate does it say each one started? For each, ask what evidence it used - a wait, or something else.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_322'), 2, 'Look at the condition that marks a resource as saturated and at the line that stores the result: what happens to the stored from_rate when the same resource is saturated again at a later step? Then check the sort key for two resources that saturate at the same step.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_322'), 3, 'A similar case with other data: steps 100, 200, 300; the cache shows util 0.95, 0.97, 0.99 and wait p95 2, 3, 4 ms; the disk queue shows util 0.4, 0.6, 0.8 and wait p95 10, 80, 300 ms; limit 50 ms. Only the disk queue makes requests wait above the limit, first at 200, so the report is disk queue from 200 with p95 80 - not 300, where it is still saturated.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_322'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_322'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_322');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_322'), 'Exam-day step test: the pool wait crosses the limit first, CPU never does', '{"wait_limit_ms":50,"steps":[{"rate":100,"resources":{"cpu":{"util":0.17,"waits_ms":[0.6,0.2,0.5,0.3,0.7,0.8,0.5,0.5,0,0.1,2.1,0.4,0.5,1,0.3,0.1,0.3,0.2,0.7,0.7,0.7,0.1,0.4,0.3,0.1,0.1,0.7,0.2,0.6,0.1,0.7,0.8,0.4,0.6,0.4,0.2,0,2.4,0.4,0.7]},"db_pool":{"util":0.32,"waits_ms":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0]},"object_storage":{"util":0.04,"waits_ms":[0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0]},"judge_workers":{"util":0.53,"waits_ms":[]}}},{"rate":160,"resources":{"cpu":{"util":0.24,"waits_ms":[0.7,0.5,0.8,0.2,0.4,2.4,0.7,0.8,0.4,0,0.5,0.6,2.1,0.1,0.8,0.1,0.7,0.7,1,0.7,0.5,0.4,0.2,0.1,0.5,0.8,0.6,0.2,0.1,0.5,0.5,0.8,0.3,0.7,0.4,0.6,0.2,0.1,0.4,0.3]},"db_pool":{"util":0.51,"waits_ms":[0.4,0.1,0.4,0.4,2.1,0.5,0.3,0.7,0.4,0.6,0.3,0.7,0.4,0.4,0.2,0.4,0.1,0.1,0.3,0.6,0.3,1,0.5,0.3,0.5,0.8,0.6,0.5,0.3,0.4,0.4,0.5,0.7,0.6,0.7,2.4,0.5,0.3,0.1,0.5]},"object_storage":{"util":0.06,"waits_ms":[0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"judge_workers":{"util":0.86,"waits_ms":[]}}},{"rate":220,"resources":{"cpu":{"util":0.3,"waits_ms":[0.2,0.2,0.5,0.5,0.4,0.2,3.8,0.3,0.5,0.9,0.7,0.2,1.3,0.1,1.2,1.4,0.4,0.6,1.4,0.6,2,1.4,0.5,0.7,0.1,1.1,0.2,1.1,3.2,1.3,0.7,0.2,0.3,1.4,0.3,0.3,0.6,1.1,1.6,1.5]},"db_pool":{"util":0.7,"waits_ms":[0.5,6,0.1,2.1,7,0.5,3.2,4.8,3.2,0.7,4.3,5.5,6.2,0.8,4.1,3.5,9,6.9,4,10.9,6.8,1.8,3,0.3,1.2,3,5.3,0.3,6.4,6.6,13.6,1.1,7.1,1.4,4.4,0.5,4.7,2.9,0.6,5.2]},"object_storage":{"util":0.08,"waits_ms":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0]},"judge_workers":{"util":0.97,"waits_ms":[]}}},{"rate":280,"resources":{"cpu":{"util":0.35,"waits_ms":[2.4,0.4,1.5,1.2,0.1,0,2.1,0.9,1.2,2.4,0.4,0.7,0.8,2.1,1.8,1.9,1.4,0.2,0.7,1.7,1.3,0.6,1.2,1.8,1.3,1.5,5.2,1.6,2.2,4.3,1.9,1.5,3,1.8,1.6,0.5,1.2,1.3,0.9,2.2]},"db_pool":{"util":0.89,"waits_ms":[55,140,21.1,3.1,197,3.1,10.5,4.5,90.7,42.7,62.3,38.7,106.7,23.6,20.9,42.7,15.9,35.9,8.5,94.6,98.2,18.4,79.9,45,48.4,33.9,104.4,10.6,94.1,97.7,55.8,56.6,83.9,1.9,60,155,78.7,101.7,88.9,99.9]},"object_storage":{"util":0.1,"waits_ms":[0.4,0.8,0.3,0.4,0.5,0.7,0.6,0.8,2.1,0.3,0.6,0.3,0,0.3,0.7,0.3,0.4,0,0.8,0.2,0.7,0.3,0.1,0.2,0.3,0.2,1,0.8,0.1,0.5,0.7,0,0.3,0.4,0.1,0.4,0.6,0.2,2.4,0]},"judge_workers":{"util":1,"waits_ms":[]}}},{"rate":340,"resources":{"cpu":{"util":0.4,"waits_ms":[0.9,0.2,2.3,3.1,0.9,0.4,4,2.3,2.1,0.2,0.3,2.4,1.4,0.2,0.2,3.2,1.7,2.7,3,1.6,1.6,1.4,2.2,1.3,2,2.2,0,1.3,0.9,1.5,2.1,1.9,1.4,6.6,1.9,0.8,5.4,0.9,2.5,0.3]},"db_pool":{"util":1,"waits_ms":[1705.7,2304.8,2695.2,3108.9,387.6,1735.8,2514.4,4179.8,3295.4,2623.8,259,3302.2,3532.7,2974.4,4233.7,916.4,2300.7,1466,2419.5,3579,4294.8,420.9,7561,4103.9,5400,443.5,3345,3524.5,1137.2,858.1,528.8,2024.4,1630.4,1084.9,5941,2258,4270.3,303.5,3630.4,2176.6]},"object_storage":{"util":0.11,"waits_ms":[1,0.1,0.4,0.3,0.4,0.7,0.3,0.6,0.7,2.1,0.1,0.7,0.1,0.2,0.4,0.2,0.6,0.2,0.2,0.4,0.4,0.4,0.5,0.1,0.8,0.5,0.8,0.5,0.6,0.7,0.2,0.5,0.3,2.4,0.3,0,0.4,0.7,0.1,0.6]},"judge_workers":{"util":1,"waits_ms":[]}}}]}', '{"first_bottleneck":"db_pool","at_rate":280,"saturated":[{"resource":"db_pool","from_rate":280,"p95_wait_ms":140}]}', 3, true, false, 1),
@@ -967,7 +967,7 @@ VALUES ('chal_quiz_qpr_331', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_331');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_331');
 WITH q AS (
@@ -1044,17 +1044,17 @@ Example: steps 100, 110, 120, 130, 140 with p95 66, 70, 79, 104, 205 ms, through
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_332');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_332'), 1, 'Which of the three signals - throughput, latency, errors - would you expect to move first as a pool or queue fills up, and which last? Does your function look at all three for every row?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_332'), 2, 'Check the order of operations: drop invalid rows before you sort and before you pick the baseline (the baseline is the lowest valid row, not the first row of the input). Then walk the sorted rows once and stop at the first row with any broken rule; compare with strict < and > so that values exactly on a threshold pass.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_332'), 3, 'A worked example on other data: offered 20, 40, 60, 80 req/s; achieved 20, 40, 57, 61; p95 30, 32, 41, 300 ms; no errors; R = 0.95, F = 2.0. Baseline 30 ms, so latency breaks above 60 ms. At 60: 57 / 60 = 0.95 is not below 0.95 and 41 ms is not above 60 ms, so it is healthy. At 80: 61 / 80 = 0.76 breaks throughput and 300 ms breaks latency, so the first saturated step is 80 with reasons throughput, latency, and the knee is 60.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_332'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_332'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_332');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_332'), 'Per-instance submit step test: latency doubles before throughput stops tracking', '{"min_throughput_ratio":0.95,"max_p95_factor":2,"max_error_rate":0.01,"steps":[{"offered_rps":100,"achieved_rps":100,"p95_ms":66,"requests":12000,"errors":0},{"offered_rps":110,"achieved_rps":110,"p95_ms":70,"requests":13200,"errors":0},{"offered_rps":120,"achieved_rps":119.9,"p95_ms":79,"requests":14388,"errors":0},{"offered_rps":130,"achieved_rps":129.9,"p95_ms":104,"requests":15588,"errors":0},{"offered_rps":140,"achieved_rps":139.8,"p95_ms":205,"requests":16776,"errors":0},{"offered_rps":150,"achieved_rps":149.1,"p95_ms":820,"requests":17892,"errors":0},{"offered_rps":160,"achieved_rps":157.2,"p95_ms":3900,"requests":18864,"errors":0},{"offered_rps":170,"achieved_rps":157.9,"p95_ms":8400,"requests":18948,"errors":38},{"offered_rps":180,"achieved_rps":158.1,"p95_ms":12100,"requests":18972,"errors":493}]}', '{"knee_rps":130,"first_saturated_rps":140,"reasons":["latency"],"baseline_p95_ms":66,"reached":true,"ignored_rows":0}', 3, true, false, 1),
@@ -1090,7 +1090,7 @@ VALUES ('chal_quiz_qpr_411', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_411');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_411');
 WITH q AS (
@@ -1156,17 +1156,17 @@ Example: A''s runs have p95s 210, 215 and 205 ms and B''s 150, 160 and 155 ms: d
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_412');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_412'), 1, 'The A/A check gave five p95s of unchanged code between 188 and 231 ms. If you poured the samples of those five runs into one big list, where would that 43 ms spread go - and what would that do to the width of your interval?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_412'), 2, 'Three places decide most of the output: the rank in p95 (an integer ceiling, 1-based), the order of the PRNG draws (all of A''s draws of a resample come before B''s, and the state is never reset between resamples), and the verdict, which looks only at the two ends of the interval, never at diff_ms. Check the run count before the empty runs.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_412'), 3, 'The same steps on other numbers: A''s p95 list [10, 20, 30], B''s [5, 15, 25], seed 1. next() gives 1103527590, 377401575 and 662824084; modulo 3 these are 0, 0 and 1, so A draws 10, 10, 20 (mean 13.33). Then 1147902781, 2035015474 and 368800899 give 1, 1, 0, so B draws 15, 15, 5 (mean 11.67): this resample''s difference is 1.67. With R = 40 resamples, the interval ends are the 1st and the 39th sorted differences. And a run of 19 samples has rank ceil(18.05) = 19: its p95 is its largest sample.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_412'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_412'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_412');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_412'), 'Clear win: B''s p95 is lower than A''s in every run', '{"a":[[112.5,150.1,93.4,204.9,95.3,186.5,133.9,149.4,167,136.2,124.9,97.7,172.5,106.4,100.7,134.4,99.9,213.2,149.4,115.2,124,140.1,119.6,176.5,126.6,137.2,114,147.7,106,201.2,158.1,103,163.2,125.8,152.7,139.2,167.6,121.1,109.3,184.1,201.8,118,165,139.7,130.5,123.9,176.2,156.8,132.8,141.2,98.5,135.4,175.2,111.7,209.4,163.2,145.1,94.1,132.3,180.2],[123.8,177.2,223.8,184.5,194.2,188.6,160.7,132.9,205.1,109,104.2,144.9,114.5,146.5,215.5,163.6,140,170.7,138.9,223,154.5,180.6,159.9,122.5,164.2,96.8,152.1,172.3,124.5,191.6,98.2,215,148.2,138.5,96.2,120.1,189.8,109.1,109.2,98.8,113.6,188.6,101.3,213.7,147.3,124.6,152.8,193.7,206.8,115.3,154.1,165.2,111.5,209.1,186.8,132.5,178.8,95.8,179.2,174.6],[221.2,191.1,145.6,134.2,165.7,141.1,118.7,131.7,177.1,104.5,134.4,173.5,181.4,139.2,208.4,123.7,115.5,99.3,190.7,95.7,179.8,171.6,127.9,173.6,94,133.2,176.8,215.8,148.8,152.7,116.1,183.8,121.7,110.8,161.2,178.5,189.8,161.6,129.3,166,110,116.7,96.9,118.1,94.7,170.5,131.5,171.5,155.6,212.1,105.3,166.1,134.4,177.5,94.3,121.4,118.7,209.1,154.5,139.9],[136.9,215.5,184.3,145.5,113.1,184.7,146.7,131.9,154.4,197.8,120.2,190.8,164.9,108.9,181.2,210.6,171.8,110.1,190.9,183.1,122.7,155.3,162.8,117.4,168.9,193.8,108.5,140.2,122.8,134.3,165.6,108.6,106.2,215.3,103,107,171.9,156,116.9,161.4,107.6,219.1,197.6,187,128.5,158.1,181.8,168.6,139.4,101.3,190.2,171.1,187.8,138.1,138.9,179.7,192.6,193.8,138.3,173.3],[150.4,178.7,161.4,206,156.7,161.9,131.1,151.7,136.6,103.7,120.1,164.5,130.5,92,97.8,169,122.8,173,127.7,99.9,160.5,118.9,211.4,181.2,151.7,134.4,210.4,203.9,148.1,183.7,184.4,96.4,105.3,155.1,154.2,93.2,127.3,158.4,214.7,102,189.6,147.6,210.4,181,144,180.3,102.3,91.5,109.5,103.6,190.3,184,136.9,179.1,129.1,98.8,158.7,206.7,130.5,117.6]],"b":[[87.7,80.9,135.5,93.8,67.9,113.1,112.8,98,118.3,135.7,79.8,157.3,83.4,80.4,156.7,111.6,125.5,81.5,69,84,112.5,77.6,102.9,68.9,127.4,74,69.4,84.7,112.9,71.9,152.3,75.1,71,92.1,70.1,137.6,106.1,77.4,79.9,137.2,102.2,101.9,70,154.3,93.6,106.1,115.9,115.5,127.8,78.7,135.1,94.1,114.2,119.6,136.5,99.5,85.3,99.7,150.7,111.5],[84.5,116.8,66.4,71.2,66.5,78.4,128.3,94.1,88.1,105.6,127.3,88.9,111.2,89.5,127.3,86,120.9,94.2,143.5,66.8,94,78.2,84.7,104.3,96.8,63.5,113.1,100.2,84.4,114.3,138.7,110.8,113.5,125,123,128.9,116.1,126.5,109.7,99.6,84.7,118.4,118.8,146.3,103.3,65.7,108.9,119.3,81,129.4,147.6,64.4,148.3,69.5,115.6,83,104.2,86.9,142.7,121.3],[158.5,136.3,69.5,80.1,81.2,75.6,96.1,100,129.7,120.3,106.9,87.9,152.9,117.1,69.5,117.2,116.6,78.2,94.1,105.7,111.9,93.3,107.6,75.2,131.2,122.3,81.4,78.9,119.6,93.6,103.7,81,82.1,95,148.8,69.4,82.8,90.9,86.8,121.4,89.9,87.1,146.3,136,90.4,104.7,137.7,85.1,120.4,105.6,92.9,73.5,69.9,81.7,92.7,138.6,112.2,95.7,120.5,71.9],[123.6,126.8,92.3,107.7,102,101.1,108.9,148.1,106.8,115.8,88.8,144.9,145.6,89,135.2,72.6,145.8,118.7,91.7,127.1,118.5,90.3,144.5,85.7,129.3,83.8,100.1,116.5,114.9,96,122.9,143.9,76.8,68,85.3,97.3,104.7,75.5,94.4,135.1,93.5,117.6,152.4,103.3,83,68.9,92.8,102.8,89.8,144.2,76.5,105.7,66.8,68.4,121,86.6,133,111,120,105.6],[80.9,109.6,142,128,79,143.7,117.2,84.9,77.5,85.4,69,86.8,129.5,68.5,127.5,148.4,153.7,116.3,101.6,82.7,104.4,151.5,100,100.1,67.4,80.6,143.4,95.9,70.3,109.1,143.1,65.9,101.9,154.1,97.8,130.5,150.5,65.3,105.8,130.4,102.7,81.3,85.7,94.4,113.7,106.8,90,91.4,81,132.8,130.1,105.2,86.3,117,124.4,73,105.4,121.4,117.3,87.1]],"resamples":1000,"seed":42}', '{"p95_a":[201.8,215,209.1,210.6,210.4],"p95_b":[152.3,143.5,146.3,145.6,150.5],"diff_ms":61.7,"ci_ms":[56.6,66.2],"verdict":"B is faster"}', 3, true, false, 1),
@@ -1196,7 +1196,7 @@ VALUES ('chal_quiz_qpr_421', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_421');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_421');
 WITH q AS (
@@ -1264,17 +1264,17 @@ Example: run cr-200 (300 s, 102,000 requests, 200 VUs, 105 ms, no think time, a 
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_422');
 INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_422'), 1, 'Run cr-200 reports 200 virtual users, no think time and 105 ms per request. If every VU sends its next request the moment the previous answer arrives, how many requests per second should 200 VUs send - and what does it mean that the report counted only 340 per second?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_422'), 2, 'Take X from requests / duration_s, never from the summary line, and use that one X everywhere. Keep milliseconds and seconds apart: L = X x W needs W in seconds. Then look at the boundaries: ''more than'' is strict, and the hidden tests put values exactly on the tolerance, on 100% of a resource and on the target, where a float can land one side or the other - Fraction(requests, duration_s) keeps every step exact.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_422'), 3, 'The same checks on other numbers: 72,000 requests in 600 s give X = 120 req/s. A mean latency of 250 ms gives in_flight = 120 x 0.25 = 30. 100 VUs with 500 ms think time give closed_limit = 100 x 1000 / 750 = 133.3 req/s; with T = 10, X would be idle only if 120 x 100 < 90 x 133.33..., that is 12,000 < 12,000 - false, a boundary case. A pool held 45 ms per request needs 120 x 0.045 = 5.4 units on average; at U = 60, min_size = ceil(5.4 x 100 / 60) = 9.');
-INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode)
-VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_422'), 'stdio', 3000, 128, NULL, 'all_or_nothing')
+INSERT INTO challenge.coding_configs (challenge_id, execution_mode, time_limit_ms, memory_limit_mb, max_attempts, scoring_mode, snippets)
+VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_422'), 'stdio', 3000, 128, NULL, 'all_or_nothing', NULL)
 ON CONFLICT (challenge_id) DO UPDATE SET
     execution_mode = EXCLUDED.execution_mode, time_limit_ms = EXCLUDED.time_limit_ms, memory_limit_mb = EXCLUDED.memory_limit_mb,
-    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, updated_at = now();
+    max_attempts = EXCLUDED.max_attempts, scoring_mode = EXCLUDED.scoring_mode, snippets = EXCLUDED.snippets, updated_at = now();
 DELETE FROM challenge.challenge_test_cases WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_422');
 INSERT INTO challenge.challenge_test_cases (challenge_id, name, input_data, expected_output, score, is_sample, is_hidden, sort_order)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_qpr_422'), 'Run cr-200: 200 VUs, no think time, 105 ms, yet only 340 req/s', '{"tolerance_pct":10,"target_utilization_pct":70,"report":{"duration_s":300,"requests":102000,"throughput_rps":340,"mean_latency_ms":105,"vus":200,"think_time_ms":0,"mean_in_flight":36},"resources":[{"name":"api_workers","size":60,"hold_ms":105},{"name":"db_pool","size":18,"hold_ms":38}]}', '{"throughput_rps":340,"in_flight":35.7,"closed_limit_rps":1904.8,"resources":[{"name":"api_workers","needed":35.7,"utilization_pct":59.5,"min_size":51},{"name":"db_pool","needed":12.9,"utilization_pct":71.8,"min_size":19}],"findings":["idle_virtual_users","above_target:db_pool"],"verdict":"suspicious"}', 3, true, false, 1),
@@ -1304,7 +1304,7 @@ VALUES ('chal_quiz_qpr_431', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_431');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_431');
 WITH q AS (
@@ -1383,7 +1383,7 @@ VALUES ('chal_quiz_qpr_511', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_511');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_511');
 WITH q AS (
@@ -1438,7 +1438,7 @@ VALUES ('chal_quiz_qpr_521', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_521');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_521');
 WITH q AS (
@@ -1500,7 +1500,7 @@ VALUES ('chal_quiz_qpr_531', (SELECT id FROM catalog.course WHERE public_id = 'q
 ON CONFLICT (public_id) DO UPDATE SET
     course_id = EXCLUDED.course_id, module_id = EXCLUDED.module_id, lesson_id = EXCLUDED.lesson_id, name = EXCLUDED.name,
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
-    points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
+    points = EXCLUDED.points, is_published = EXCLUDED.is_published, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_531');
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_qpr_531');
 WITH q AS (

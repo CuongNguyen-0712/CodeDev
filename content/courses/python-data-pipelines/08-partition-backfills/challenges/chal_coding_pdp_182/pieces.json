@@ -1,0 +1,40 @@
+[
+  {
+    "id": "day-bounds",
+    "label": "UTC start and end of one business day",
+    "code": "def day_bounds(day):\n    start = datetime.fromisoformat(day) - timedelta(hours=7)  # 00:00 in Ho Chi Minh City\n    end = start + timedelta(days=1)\n    return start.strftime(\"%Y-%m-%dT%H:%M:%SZ\"), end.strftime(\"%Y-%m-%dT%H:%M:%SZ\")"
+  },
+  {
+    "id": "replace-day",
+    "label": "Recompute one day so a rerun gives the same rows",
+    "code": "def run_day(db, day):\n    start, end = day_bounds(day)\n    with db:\n        db.execute(\"DELETE FROM fact_commission WHERE day = ?\", (day,))\n        db.execute(\n            \"\"\"INSERT INTO fact_commission (day, restaurant_id, orders, commission_vnd)\n               SELECT ?, restaurant_id, COUNT(*), CAST(ROUND(SUM(subtotal_vnd) * 0.18) AS INTEGER)\n               FROM orders WHERE placed_at >= ? AND placed_at < ?\n               GROUP BY restaurant_id\"\"\",\n            (day, start, end),\n        )"
+  },
+  {
+    "id": "backfill-range",
+    "label": "Every day of the range, both ends included",
+    "code": "def backfill(db, start, end):\n    days, d = [], date.fromisoformat(start)\n    while d <= date.fromisoformat(end):\n        run_day(db, d.isoformat())\n        days.append(d.isoformat())\n        d += timedelta(days=1)\n    return days"
+  },
+  {
+    "id": "lookback",
+    "label": "The days a nightly run recomputes",
+    "code": "def nightly(db, run_date, lookback):\n    last = date.fromisoformat(run_date) - timedelta(days=1)\n    days = [(last - timedelta(days=k)).isoformat() for k in range(lookback - 1, -1, -1)]\n    for day in days:\n        run_day(db, day)\n    return days"
+  },
+  {
+    "id": "backfill-end-excluded",
+    "label": "Every day of the range, both ends included",
+    "code": "def backfill(db, start, end):\n    days, d = [], date.fromisoformat(start)\n    while d < date.fromisoformat(end):\n        run_day(db, d.isoformat())\n        days.append(d.isoformat())\n        d += timedelta(days=1)\n    return days",
+    "distractor": true
+  },
+  {
+    "id": "day-bounds-utc",
+    "label": "UTC start and end of one business day",
+    "code": "def day_bounds(day):\n    start = datetime.fromisoformat(day)\n    end = start + timedelta(days=1)\n    return start.strftime(\"%Y-%m-%dT%H:%M:%SZ\"), end.strftime(\"%Y-%m-%dT%H:%M:%SZ\")",
+    "distractor": true
+  },
+  {
+    "id": "replace-day-append",
+    "label": "Recompute one day so a rerun gives the same rows",
+    "code": "def run_day(db, day):\n    start, end = day_bounds(day)\n    with db:\n        db.execute(\n            \"\"\"INSERT INTO fact_commission (day, restaurant_id, orders, commission_vnd)\n               SELECT ?, restaurant_id, COUNT(*), CAST(ROUND(SUM(subtotal_vnd) * 0.18) AS INTEGER)\n               FROM orders WHERE placed_at >= ? AND placed_at < ?\n               GROUP BY restaurant_id\"\"\",\n            (day, start, end),\n        )",
+    "distractor": true
+  }
+]

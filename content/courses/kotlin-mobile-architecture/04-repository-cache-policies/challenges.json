@@ -1,0 +1,67 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_coding_kma_142",
+      "name": "repository-cache-policies",
+      "type": "mini_coding",
+      "title": "Give the repository its cache policies",
+      "description": "The courier app fetched every screen from the network on every open (slow on 3G, useless offline), except restaurant menus, which a teammate cached forever, so couriers quoted week-old prices. The repository now serves three policies: `CACHE_FIRST` for menus (fresh cache, else the network), `STALE_WHILE_REVALIDATE` for the order list (show the cache at once, refresh it in the background when it is older than `TTL`), and `NETWORK_FIRST` for payout amounts (the network, else a cache entry at most `MAX_STALE` minutes old). The editor holds the repository with these blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that each policy emits the right values in order (`cache:<v>`, `cache:<v> (stale)`, `network:<v>`, `error:offline`), only a successful fetch updates the cache and its time, and an entry is fresh only while it is younger than `TTL`. Run plays a timeline of network changes and reads, and prints what each read returned and what the cache holds.",
+      "difficulty": "hard",
+      "outcomes": [
+        "data-layer"
+      ],
+      "points": 40,
+      "hints": [
+        "For each policy, write down the order of three questions: is there a cache entry, is it fresh, does the network answer? The answers decide which values are emitted and in which order.",
+        "Look at what `fetchAndStore` writes when `fetch` returns null, and at what `isFresh` compares: an entry's age is `now - fetchedAt`, compared with `TTL`.",
+        "A weather repository: `if (cached != null && now - cached.at < TTL) return listOf(cached.temp)`; `val fresh = api(city) ?: return listOfNotNull(cached?.temp, \"offline\")`; `store[city] = Entry(fresh, now)`; and for stale-while-revalidate, emit the cached value first and then the fetched one."
+      ],
+      "coding": {
+        "language": "kotlin",
+        "filePath": "CourierRepository.kt",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "CACHE_FIRST: a fresh menu skips the network, a stale one is refetched",
+          "input": "seed menu v1 0\nnet up v2\nat 5\nget menu cache_first\nat 15\nget menu cache_first\nat 20\nget menu cache_first\n",
+          "hidden": false,
+          "score": 8,
+          "expected": "@5 get menu cache_first -> [cache:v1] cache=v1@0\n@15 get menu cache_first -> [network:v2] cache=v2@15\n@20 get menu cache_first -> [cache:v2] cache=v2@15"
+        },
+        {
+          "name": "Offline: stale data with an error, or just the error when nothing is cached",
+          "input": "seed menu v1 0\nnet down\nat 30\nget menu cache_first\nget menu swr\nget orders cache_first\nget orders swr\n",
+          "hidden": false,
+          "score": 8,
+          "expected": "@30 get menu cache_first -> [cache:v1 (stale), error:offline] cache=v1@0\n@30 get menu swr -> [cache:v1 (stale)] cache=v1@0\n@30 get orders cache_first -> [error:offline] cache=none\n@30 get orders swr -> [error:offline] cache=none"
+        },
+        {
+          "name": "STALE_WHILE_REVALIDATE: the cache at once, the network only when it is old",
+          "input": "seed orders o1 0\nnet up o2\nat 5\nget orders swr\nat 12\nget orders swr\nat 13\nget orders swr\n",
+          "hidden": false,
+          "score": 8,
+          "expected": "@5 get orders swr -> [cache:o1] cache=o1@0\n@12 get orders swr -> [cache:o1 (stale), network:o2] cache=o2@12\n@13 get orders swr -> [cache:o2] cache=o2@12"
+        },
+        {
+          "name": "NETWORK_FIRST: a recent payout from cache when offline, never a very old one",
+          "input": "seed payout 120k 0\nnet down\nat 30\nget payout network_first\nat 90\nget payout network_first\nnet up 135k\nget payout network_first\n",
+          "hidden": true,
+          "score": 8,
+          "expected": "@30 get payout network_first -> [cache:120k (stale), error:offline] cache=120k@0\n@90 get payout network_first -> [error:offline] cache=120k@0\n@90 get payout network_first -> [network:135k] cache=135k@90"
+        },
+        {
+          "name": "A failed refresh does not make old data look fresh",
+          "input": "seed menu v1 0\nnet down\nat 15\nget menu cache_first\nnet up v3\nat 16\nget menu cache_first\n",
+          "hidden": true,
+          "score": 8,
+          "expected": "@15 get menu cache_first -> [cache:v1 (stale), error:offline] cache=v1@0\n@16 get menu cache_first -> [network:v3] cache=v3@16"
+        }
+      ]
+    }
+  ]
+}

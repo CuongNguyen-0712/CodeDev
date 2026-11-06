@@ -1,0 +1,45 @@
+[
+  {
+    "id": "slice-start",
+    "label": "Remember when the current slice of work started",
+    "code": "let sliceStart = env.now();"
+  },
+  {
+    "id": "price-item",
+    "label": "Price one line and add it to the totals",
+    "code": "const line = env.price(item);\nsubtotal += line;\nif (promo && promo.category === item.category) discount += Math.round((line * promo.percent) / 100);"
+  },
+  {
+    "id": "yield-over-budget",
+    "label": "Give the main thread back once the slice used its budget",
+    "code": "if (env.now() - sliceStart >= env.budgetMs) {\n    await env.yield();\n    sliceStart = env.now();\n}"
+  },
+  {
+    "id": "stop-if-stale",
+    "label": "Stop quietly when a newer recalculation replaced this one",
+    "code": "if (env.signal.aborted) return null;"
+  },
+  {
+    "id": "render-once",
+    "label": "Show the new totals once, at the end",
+    "code": "const totals = { subtotal, discount, total: subtotal - discount };\nenv.render(totals);\nreturn totals;"
+  },
+  {
+    "id": "slice-never-reset",
+    "label": "Give the main thread back once the slice used its budget",
+    "code": "if (env.now() - sliceStart >= env.budgetMs) {\n    await env.yield();\n}",
+    "distractor": true
+  },
+  {
+    "id": "stale-still-renders",
+    "label": "Stop quietly when a newer recalculation replaced this one",
+    "code": "if (env.signal.aborted) break;",
+    "distractor": true
+  },
+  {
+    "id": "yield-without-await",
+    "label": "Give the main thread back once the slice used its budget",
+    "code": "if (env.now() - sliceStart >= env.budgetMs) {\n    env.yield();\n    sliceStart = env.now();\n}",
+    "distractor": true
+  }
+]

@@ -1,11 +1,11 @@
 {
   "publicId": "python-api-testing",
-  "title": "API & Contract Testing in Python: From Requests to Pipelines",
-  "concept": "Test HTTP APIs the way production breaks them: request and response contracts, schema validation, idempotency and error cases, test data management and running the suite in CI without flaky failures.",
-  "description": "Test HTTP APIs the way production breaks them: request and response contracts, schema validation, idempotency and error cases, test data management and running the suite in CI without flaky failures. 8 lessons, each starting from a real bug or incident, with graded challenges.",
+  "title": "API and Contract Testing in Python: pytest, Schemas and Contracts",
+  "concept": "Test Rice Rocket's HTTP API the way production breaks it, with pytest and httpx: test cases derived from the OpenAPI contract, response schemas, status codes and error bodies, consumer-driven contracts, factories and fixtures that clean up, idempotency and retries, parallel runs without shared-state flakes, and reports that point at the cause. Challenges are Python programs graded in the code runner.",
+  "description": "Test Rice Rocket's HTTP API the way production breaks it, with pytest and httpx: test cases derived from the OpenAPI contract, response schemas, status codes and error bodies, consumer-driven contracts, factories and fixtures that clean up, idempotency and retries, parallel runs without shared-state flakes, and reports that point at the cause. 8 lessons on one project, each applying the tool to a real production situation, with 1-2 graded challenges per lesson.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594600/codedev/courses/python-api-testing/cover",
   "level": "intermediate",
-  "durationMinutes": 160,
+  "durationMinutes": 130,
   "instructor": "CodeDev Engineering Team",
   "language": "Python",
   "category": "Automation Testing",
@@ -39,50 +39,92 @@
     "grow_in_role",
     "first_job"
   ],
-  "prerequisites": [
-    "python-foundations-automation"
+  "prerequisites": [],
+  "completionRules": {},
+  "domain": "quality",
+  "learningOutcomes": [
+    {
+      "code": "test-design",
+      "text": "Derive API test cases and schema checks from the contract instead of from the happy path."
+    },
+    {
+      "code": "error-cases",
+      "text": "Test status codes, error bodies, idempotency and retries the way clients rely on them."
+    },
+    {
+      "code": "contracts",
+      "text": "Catch breaking API changes with consumer-driven contract tests before deploy."
+    },
+    {
+      "code": "reliable-suites",
+      "text": "Keep the suite deterministic in CI: isolated test data, safe parallel runs and useful reports."
+    }
   ],
-  "modules": [],
-  "outline": [
+  "testedVersions": {
+    "Python": "3.13",
+    "pytest": "8.x (to verify)",
+    "httpx": "0.28 (to verify)"
+  },
+  "lastReviewedAt": "2026-11-06",
+  "sourceLinks": [
+    "https://docs.pytest.org/en/stable/",
+    "https://www.python-httpx.org/",
+    "https://spec.openapis.org/oas/v3.1.0",
+    "https://docs.pact.io/",
+    "https://www.rfc-editor.org/rfc/rfc9457"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges run Python with the standard library only; pytest, httpx and contract tooling appear in the lessons, the graded code uses small stand-ins.",
+    "testedVersions are not yet re-checked against the live tools."
+  ],
+  "template": "core-first",
+  "modules": [
     {
       "orderIndex": 1,
-      "title": "API Tests",
+      "title": "API tests",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Designing API test cases from the contract",
-          "challenges": "Q(e) + C(m)"
+          "folder": "01-test-cases-from-contract",
+          "title": "Test cases from the contract",
+          "sanityId": "lesson-pat-1-1"
         },
         {
           "orderIndex": 2,
+          "folder": "02-response-schemas",
           "title": "Validating responses against a schema",
-          "challenges": "C(m)"
+          "sanityId": "lesson-pat-1-2"
         },
         {
           "orderIndex": 3,
-          "title": "Status codes, errors & edge cases",
-          "challenges": "Q(m) + F(m)"
+          "folder": "03-status-codes-errors",
+          "title": "Status codes, error bodies and edge cases",
+          "sanityId": "lesson-pat-1-3"
         }
       ]
     },
     {
       "orderIndex": 2,
-      "title": "Contracts & Data",
+      "title": "Contracts and data",
       "lessons": [
         {
           "orderIndex": 1,
+          "folder": "04-consumer-driven-contracts",
           "title": "Consumer-driven contract tests",
-          "challenges": "Q(m) + C(m)"
+          "sanityId": "lesson-pat-2-1"
         },
         {
           "orderIndex": 2,
-          "title": "Test data: factories, fixtures & cleanup",
-          "challenges": "F(m)"
+          "folder": "05-test-data-fixtures",
+          "title": "Test data: factories, fixtures and cleanup",
+          "sanityId": "lesson-pat-2-2"
         },
         {
           "orderIndex": 3,
-          "title": "Testing idempotency & retries",
-          "challenges": "C(m)"
+          "folder": "06-idempotency-retries",
+          "title": "Testing idempotency and retries",
+          "sanityId": "lesson-pat-2-3"
         }
       ]
     },
@@ -92,13 +134,15 @@
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Parallel runs & shared state",
-          "challenges": "Q(m) + F(m)"
+          "folder": "07-parallel-shared-state",
+          "title": "Parallel runs and shared state",
+          "sanityId": "lesson-pat-3-1"
         },
         {
           "orderIndex": 2,
+          "folder": "08-reports-root-cause",
           "title": "Reports that point to the cause",
-          "challenges": "C(m)"
+          "sanityId": "lesson-pat-3-2"
         }
       ]
     }

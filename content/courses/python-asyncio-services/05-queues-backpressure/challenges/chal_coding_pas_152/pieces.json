@@ -1,0 +1,45 @@
+[
+  {
+    "id": "bounded-buffer",
+    "label": "A buffer that holds at most `maxsize` events",
+    "code": "queue = asyncio.Queue(maxsize=maxsize)"
+  },
+  {
+    "id": "write-one",
+    "label": "Write one event and always mark it done",
+    "code": "try:\n    await sink.write(event)\n    written += 1\nexcept SinkError:\n    dead.append(event[\"id\"])\nfinally:\n    queue.task_done()"
+  },
+  {
+    "id": "start-writers",
+    "label": "Start the writers",
+    "code": "tasks = [asyncio.create_task(writer()) for _ in range(workers)]"
+  },
+  {
+    "id": "read-source",
+    "label": "Read the stream into the buffer",
+    "code": "async for event in source:\n    await queue.put(event)"
+  },
+  {
+    "id": "drain-and-stop",
+    "label": "Wait for the buffer to drain, then stop the writers",
+    "code": "await queue.join()\nfor task in tasks:\n    task.cancel()\nawait asyncio.gather(*tasks, return_exceptions=True)"
+  },
+  {
+    "id": "bounded-buffer-unbounded",
+    "label": "A buffer that holds at most `maxsize` events",
+    "code": "queue = asyncio.Queue()",
+    "distractor": true
+  },
+  {
+    "id": "drain-and-stop-early",
+    "label": "Wait for the buffer to drain, then stop the writers",
+    "code": "for task in tasks:\n    task.cancel()\nawait asyncio.gather(*tasks, return_exceptions=True)",
+    "distractor": true
+  },
+  {
+    "id": "write-one-done-on-success",
+    "label": "Write one event and always mark it done",
+    "code": "try:\n    await sink.write(event)\n    written += 1\n    queue.task_done()\nexcept SinkError:\n    dead.append(event[\"id\"])",
+    "distractor": true
+  }
+]

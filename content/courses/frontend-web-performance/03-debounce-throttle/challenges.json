@@ -1,0 +1,425 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_fwp_131",
+      "name": "debounce-throttle-quiz",
+      "type": "quiz",
+      "title": "Read the search and scroll traces",
+      "description": "Three statements about the dish search and the sticky cart bar on Rice Rocket's menu page. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "responsive-input"
+      ],
+      "points": 10,
+      "hints": [
+        "Throttle sends during a burst, debounce after it. Which partial words would a throttled search send for \"com tam suon\"?",
+        "Look at the Duration column: does an earlier request have to finish earlier?",
+        "In the trace, what forces the browser to compute layout in the middle of the handler, and how often does the handler run per frame?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The search box sends a request on every keystroke. A teammate proposes:\n\n```js\nsearchInput.addEventListener(\"input\", throttle((e) => search(e.target.value), 250));\n```\n\nStatement: \"Throttling is the right fix for a search box: it sends the query at most every 250 ms while the user types, so only the final text reaches the API.\"",
+          "explanation": "False. Throttle runs at most once per interval during a burst, so while someone types \"com tam suon\" it still sends \"co\", \"com t\", \"com tam s\"... Partial queries cost requests and flash irrelevant results. Debounce waits until the input has been quiet for the interval and then sends once, with the final text. Throttle fits continuous signals you want to sample while they happen (scroll position, resize, drag).",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The Network panel while typing \"com tam\":\n\n```text\nName               Started   Duration\nsearch?q=com       0 ms      820 ms\nsearch?q=com%20t   310 ms    140 ms\nsearch?q=com%20tam 620 ms    120 ms\n```\n\nStatement: \"Responses come back in the order the requests were sent, so the last response always belongs to the last query.\"",
+          "explanation": "False. Each request has its own latency: here \"com\" (a broad query, cache miss) finishes at 820 ms, after \"com tam\" finished at 740 ms, and if the code shows whatever arrives last, the list jumps back to the results for \"com\". Abort the previous request (AbortController) and, because not every client can cancel, ignore any answer that is not for the newest query.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The sticky cart bar updates on scroll:\n\n```js\nwindow.addEventListener(\"scroll\", () => {\n  bar.style.transform = `translateY(${Math.min(0, lastY - window.scrollY)}px)`;\n  lastY = window.scrollY;\n  shadow.hidden = bar.getBoundingClientRect().top < 0;\n});\n```\n\n```text\nPerformance: scroll handler 118 calls/s, each with \"Recalculate Style\" + \"Layout\" (forced reflow)\n```\n\nStatement: \"Reading `getBoundingClientRect()` right after writing a style forces a synchronous layout on every scroll event; doing the work once per frame in a `requestAnimationFrame` callback, with a passive listener, removes it.\"",
+          "explanation": "True. Writing `style.transform` invalidates layout, and reading a layout value right after makes the browser compute layout immediately, inside the handler: a forced reflow, more than once per frame because scroll events can outnumber frames. Coalescing into one `requestAnimationFrame` callback per frame (read first, then write) and `{ passive: true }` (the listener promises not to call `preventDefault`) keep scrolling smooth. CSS `position: sticky` can remove the script entirely.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_fwp_132",
+      "name": "dish-search-box",
+      "type": "fix_bug",
+      "title": "Fix the dish search box",
+      "description": "The dish search on the menu page sent a request on every keystroke (12 requests for \"com tam suon\"), kept old requests running, and sometimes replaced the results for \"pho bo\" with the late results for \"pho\". The editor holds the corrected `search/searchBox.js` with its key blocks missing, each marked by a `// [ ]` line; the pieces that are wrong are last week's bugs. Fill every line so that: `onInput(text)` searches only after typing pauses for `waitMs`, with the text trimmed; starting a search cancels the request still running (`AbortController`); and results are shown only if they belong to the newest search, because the old search SDK ignores the abort signal. Run types into a simulated box with fake timers and a search API whose answers arrive out of order.",
+      "difficulty": "medium",
+      "outcomes": [
+        "responsive-input"
+      ],
+      "points": 30,
+      "hints": [
+        "Follow one burst of typing: how many timers are pending after the third keystroke, how many requests are open after the second search starts, and which answer arrives last?",
+        "Look at `env.clearTimeout(timer)` before setting a new timer, `controller.abort()` on the previous controller, and a request counter compared when the answer arrives.",
+        "An autosave that waits for a pause and keeps only the latest save looks like: `clearTimeout(t); t = setTimeout(async () => { prev?.abort(); prev = new AbortController(); const v = ++version; const saved = await api.save(doc, { signal: prev.signal }); if (v === version) markSaved(saved); }, 800);`"
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "search/searchBox.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Typing \"com tam suon\" without a pause sends one request, for the whole text",
+          "input": {
+            "waitMs": 250,
+            "typing": [
+              {
+                "at": 0,
+                "text": "c"
+              },
+              {
+                "at": 80,
+                "text": "co"
+              },
+              {
+                "at": 160,
+                "text": "com"
+              },
+              {
+                "at": 240,
+                "text": "com "
+              },
+              {
+                "at": 320,
+                "text": "com t"
+              },
+              {
+                "at": 400,
+                "text": "com ta"
+              },
+              {
+                "at": 480,
+                "text": "com tam"
+              },
+              {
+                "at": 560,
+                "text": "com tam "
+              },
+              {
+                "at": 640,
+                "text": "com tam s"
+              },
+              {
+                "at": 720,
+                "text": "com tam su"
+              },
+              {
+                "at": 800,
+                "text": "com tam suo"
+              },
+              {
+                "at": 880,
+                "text": "com tam suon"
+              }
+            ],
+            "latency": {},
+            "honorsAbort": true
+          },
+          "expected": {
+            "requests": [
+              "com tam suon"
+            ],
+            "shown": [
+              [
+                "com tam suon 1",
+                "com tam suon 2"
+              ]
+            ],
+            "maxInFlight": 1
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A second search cancels the first: never more than one request open",
+          "input": {
+            "waitMs": 250,
+            "typing": [
+              {
+                "at": 0,
+                "text": "p"
+              },
+              {
+                "at": 80,
+                "text": "ph"
+              },
+              {
+                "at": 160,
+                "text": "pho"
+              },
+              {
+                "at": 700,
+                "text": "pho "
+              },
+              {
+                "at": 780,
+                "text": "pho b"
+              },
+              {
+                "at": 860,
+                "text": "pho bo"
+              }
+            ],
+            "latency": {
+              "pho": 900,
+              "pho bo": 100
+            },
+            "honorsAbort": true
+          },
+          "expected": {
+            "requests": [
+              "pho",
+              "pho bo"
+            ],
+            "shown": [
+              [
+                "pho bo 1",
+                "pho bo 2"
+              ]
+            ],
+            "maxInFlight": 1
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "The SDK ignores the abort: the late answer for \"pho\" never replaces \"pho bo\"",
+          "input": {
+            "waitMs": 250,
+            "typing": [
+              {
+                "at": 0,
+                "text": "p"
+              },
+              {
+                "at": 80,
+                "text": "ph"
+              },
+              {
+                "at": 160,
+                "text": "pho"
+              },
+              {
+                "at": 700,
+                "text": "pho "
+              },
+              {
+                "at": 780,
+                "text": "pho b"
+              },
+              {
+                "at": 860,
+                "text": "pho bo"
+              }
+            ],
+            "latency": {
+              "pho": 900,
+              "pho bo": 100
+            },
+            "honorsAbort": false
+          },
+          "expected": {
+            "requests": [
+              "pho",
+              "pho bo"
+            ],
+            "shown": [
+              [
+                "pho bo 1",
+                "pho bo 2"
+              ]
+            ],
+            "maxInFlight": 2
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Leading and trailing spaces are trimmed before the query is sent",
+          "input": {
+            "waitMs": 250,
+            "typing": [
+              {
+                "at": 0,
+                "text": " "
+              },
+              {
+                "at": 80,
+                "text": "  "
+              },
+              {
+                "at": 160,
+                "text": "  b"
+              },
+              {
+                "at": 240,
+                "text": "  bu"
+              },
+              {
+                "at": 320,
+                "text": "  bun"
+              },
+              {
+                "at": 400,
+                "text": "  bun "
+              },
+              {
+                "at": 480,
+                "text": "  bun c"
+              },
+              {
+                "at": 560,
+                "text": "  bun ch"
+              },
+              {
+                "at": 640,
+                "text": "  bun cha"
+              },
+              {
+                "at": 900,
+                "text": "  bun cha "
+              }
+            ],
+            "latency": {},
+            "honorsAbort": true
+          },
+          "expected": {
+            "requests": [
+              "bun cha",
+              "bun cha"
+            ],
+            "shown": [
+              [
+                "bun cha 1",
+                "bun cha 2"
+              ],
+              [
+                "bun cha 1",
+                "bun cha 2"
+              ]
+            ],
+            "maxInFlight": 1
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Two separate searches with a long pause both show their results",
+          "input": {
+            "waitMs": 250,
+            "typing": [
+              {
+                "at": 0,
+                "text": "b"
+              },
+              {
+                "at": 80,
+                "text": "ba"
+              },
+              {
+                "at": 160,
+                "text": "ban"
+              },
+              {
+                "at": 240,
+                "text": "banh"
+              },
+              {
+                "at": 320,
+                "text": "banh "
+              },
+              {
+                "at": 400,
+                "text": "banh m"
+              },
+              {
+                "at": 480,
+                "text": "banh mi"
+              },
+              {
+                "at": 3000,
+                "text": "t"
+              },
+              {
+                "at": 3080,
+                "text": "tr"
+              },
+              {
+                "at": 3160,
+                "text": "tra"
+              },
+              {
+                "at": 3240,
+                "text": "tra "
+              },
+              {
+                "at": 3320,
+                "text": "tra d"
+              },
+              {
+                "at": 3400,
+                "text": "tra da"
+              }
+            ],
+            "latency": {},
+            "honorsAbort": true
+          },
+          "expected": {
+            "requests": [
+              "banh mi",
+              "tra da"
+            ],
+            "shown": [
+              [
+                "banh mi 1",
+                "banh mi 2"
+              ],
+              [
+                "tra da 1",
+                "tra da 2"
+              ]
+            ],
+            "maxInFlight": 1
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,251 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_pas_161",
+      "name": "rate-limiting-quiz",
+      "type": "quiz",
+      "title": "Read the 429 storm",
+      "description": "Three statements about the lunch-rush evening when Rice Rocket's SMS provider started answering 429. Decide whether each one is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "throughput"
+      ],
+      "points": 10,
+      "hints": [
+        "A semaphore counts requests that are in flight at the same moment. How many requests per second does that allow when each one takes 50 ms?",
+        "Draw the timeline of 100 tasks that each start with `await asyncio.sleep(0.05)`: when does each of them wake up?",
+        "Count who keeps sending after the first 429: one task, or all of them? What does the provider see during its Retry-After window?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The worker limits concurrency, and the provider still rejects requests:\n\n```python\nsem = asyncio.Semaphore(20)\n\nasync def send_one(sms):\n    async with sem:\n        return await client.post(\"/v1/sms\", json=sms)   # about 50 ms each\n```\n\n```text\n18:02:11 provider: 412 requests in the last second, limit 20/s (burst 40) -> 429\n```\n\nStatement: \"A semaphore of 20 caps how many requests are in flight at once, not how many start per second: with 50 ms responses it lets about 400 requests per second through.\"",
+          "explanation": "True. Each slot is free again after 50 ms, so 20 slots turn over 20 times a second: about 400 requests per second. Concurrency limits protect your own sockets and memory; a provider's rate limit needs a limiter that counts starts over time, such as a token bucket. The misconception is that a semaphore is a rate limiter.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The first fix spaced the requests out inside each task:\n\n```python\nasync def send_one(sms):\n    await asyncio.sleep(1 / 20)          # 20 per second\n    return await client.post(\"/v1/sms\", json=sms)\n\nasync with asyncio.TaskGroup() as tg:\n    for sms in batch:                    # 100 messages\n        tg.create_task(send_one(sms))\n```\n\nStatement: \"Each task waits 50 ms before it sends, so the 100 requests leave 50 ms apart, at exactly 20 per second.\"",
+          "explanation": "False. All 100 tasks start at the same moment and all of them sleep for the same 50 ms at the same time, so all 100 requests leave together at t = 50 ms. A sleep inside each task delays the burst, it does not spread it. Spacing needs shared state: one limiter that every task asks, which hands out tokens one after the other (a token bucket behind a lock, or a library such as aiolimiter).",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "During a short provider incident the log shows:\n\n```text\n18:40:01.020 sms-311 429 Retry-After: 2\n18:40:01.070 sms-312 429 Retry-After: 2\n18:40:01.120 sms-313 429 Retry-After: 2\n... 37 more 429s within 2 seconds ...\n18:40:03.050 provider: account rate-limited for 10 minutes (too many rejected requests)\n```\n\nStatement: \"Only the task that got the 429 waited for Retry-After; the other senders kept their pace and kept hitting the provider. Pausing the shared limiter for the Retry-After time stops every sender at once.\"",
+          "explanation": "True. Retry-After describes the provider's state, not one request's: every request sent in that window will be rejected too. If each task only pauses itself, the rest of the worker keeps sending at full rate and piles up rejections until the provider blocks the account. Recording the pause in the shared limiter (nobody gets a token until it ends) turns 40 rejections into one or two.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_pas_162",
+      "name": "sms-token-bucket",
+      "type": "mini_coding",
+      "title": "A token bucket for the SMS provider",
+      "description": "Rice Rocket's provider allows 20 SMS per second with bursts of 40; above that it answers 429 with Retry-After, and more than 20 rejections in one run block the account. The editor holds `sms_limiter.py` with its key blocks missing, each marked by a `# [ ]` line; some pieces are wrong on purpose. Fill every line so that `TokenBucket(rate, capacity)` starts full, refills `rate` tokens per second up to `capacity`, and hands tokens out one caller at a time (waiting exactly until the next token); nobody gets a token while `paused_until` is in the future; and `send_all` sends every message concurrently through the bucket, pausing the whole worker for Retry-After on a 429 and then sending that message again. Run plays the batches on asyncio's clock (it jumps instead of waiting) against a simulated provider.",
+      "difficulty": "medium",
+      "outcomes": [
+        "throughput"
+      ],
+      "points": 30,
+      "hints": [
+        "Follow the 41st message of a burst: how many tokens are left, how long until the next one, and what stops the 42nd from taking the same token?",
+        "Look at the bucket's state (tokens, last refill time, a lock, paused_until), `min(capacity, ...)` in the refill, `async with self.lock`, and `asyncio.TaskGroup` for the fan-out.",
+        "A limiter for crawling one website at 2 pages per second with bursts of 5 looks like: `tokens = min(5, tokens + elapsed * 2)`; under one `asyncio.Lock`, if `tokens < 1` sleep `(1 - tokens) / 2`, refill again, then `tokens -= 1`; on a 503 with Retry-After set `paused_until = max(paused_until, now + retry_after)` on the shared limiter."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "sms_limiter.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A burst of 100 SMS: no 429, 40 at once then 20 per second",
+          "input": {
+            "rate": 20,
+            "capacity": 40,
+            "provider": {
+              "rate": 20,
+              "capacity": 40
+            },
+            "batches": [
+              {
+                "at": 0,
+                "count": 100
+              }
+            ]
+          },
+          "expected": {
+            "sent": 100,
+            "rejected": 0,
+            "blocked": false,
+            "busiest_second": 59,
+            "finished_at": 3
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "Ten quiet seconds between two batches do not overfill the bucket",
+          "input": {
+            "rate": 20,
+            "capacity": 40,
+            "provider": {
+              "rate": 20,
+              "capacity": 40
+            },
+            "batches": [
+              {
+                "at": 0,
+                "count": 30
+              },
+              {
+                "at": 10,
+                "count": 80
+              }
+            ]
+          },
+          "expected": {
+            "sent": 110,
+            "rejected": 0,
+            "blocked": false,
+            "busiest_second": 59,
+            "finished_at": 12
+          },
+          "hidden": false,
+          "score": 6
+        },
+        {
+          "name": "A 429 with Retry-After pauses the whole worker, and every SMS still goes out",
+          "input": {
+            "rate": 20,
+            "capacity": 40,
+            "provider": {
+              "rate": 20,
+              "capacity": 40
+            },
+            "batches": [
+              {
+                "at": 0,
+                "count": 120
+              }
+            ],
+            "outage": {
+              "from": 1,
+              "to": 1.5,
+              "retry_after": 2
+            }
+          },
+          "expected": {
+            "sent": 120,
+            "rejected": 2,
+            "blocked": false,
+            "busiest_second": 59,
+            "finished_at": 4.1
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "A limiter set below the provider's limit paces the run by its own rate",
+          "input": {
+            "rate": 10,
+            "capacity": 10,
+            "provider": {
+              "rate": 20,
+              "capacity": 40
+            },
+            "batches": [
+              {
+                "at": 0,
+                "count": 50
+              }
+            ]
+          },
+          "expected": {
+            "sent": 50,
+            "rejected": 0,
+            "blocked": false,
+            "busiest_second": 19,
+            "finished_at": 4
+          },
+          "hidden": true,
+          "score": 6
+        },
+        {
+          "name": "Three batches 20 s apart after an incident window, never blocked",
+          "input": {
+            "rate": 20,
+            "capacity": 40,
+            "provider": {
+              "rate": 20,
+              "capacity": 40
+            },
+            "batches": [
+              {
+                "at": 0,
+                "count": 60
+              },
+              {
+                "at": 20,
+                "count": 60
+              },
+              {
+                "at": 40,
+                "count": 60
+              }
+            ],
+            "outage": {
+              "from": 21,
+              "to": 22,
+              "retry_after": 3
+            }
+          },
+          "expected": {
+            "sent": 180,
+            "rejected": 1,
+            "blocked": false,
+            "busiest_second": 59,
+            "finished_at": 41
+          },
+          "hidden": true,
+          "score": 6
+        }
+      ]
+    }
+  ]
+}

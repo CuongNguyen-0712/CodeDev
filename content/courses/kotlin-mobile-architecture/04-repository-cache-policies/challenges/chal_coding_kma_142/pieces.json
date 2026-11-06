@@ -1,0 +1,45 @@
+[
+  {
+    "id": "fresh-check",
+    "label": "Is a cached entry still fresh?",
+    "code": "fun isFresh(entry: Entry, now: Int): Boolean = now - entry.fetchedAt < TTL"
+  },
+  {
+    "id": "fetch-and-store",
+    "label": "Fetch; keep the answer only when it arrived",
+    "code": "fun fetchAndStore(key: String, now: Int): String? {\n    val value = fetch(key) ?: return null\n    cache[key] = Entry(value, now)\n    return value\n}"
+  },
+  {
+    "id": "cache-first",
+    "label": "CACHE_FIRST: the network only when the cache is not fresh",
+    "code": "Policy.CACHE_FIRST -> {\n    if (cached != null && isFresh(cached, now)) return listOf(label(cached, now))\n    val value = fetchAndStore(key, now)\n    if (value != null) out += \"network:$value\"\n    else { if (cached != null) out += label(cached, now); out += \"error:offline\" }\n}"
+  },
+  {
+    "id": "stale-while-revalidate",
+    "label": "STALE_WHILE_REVALIDATE: show the cache now, refresh if old",
+    "code": "Policy.STALE_WHILE_REVALIDATE -> {\n    if (cached != null) out += label(cached, now)\n    if (cached == null || !isFresh(cached, now)) {\n        val value = fetchAndStore(key, now)\n        if (value != null) out += \"network:$value\" else if (cached == null) out += \"error:offline\"\n    }\n}"
+  },
+  {
+    "id": "network-first",
+    "label": "NETWORK_FIRST: the network, then a recent cache entry",
+    "code": "Policy.NETWORK_FIRST -> {\n    val value = fetchAndStore(key, now)\n    if (value != null) out += \"network:$value\"\n    else {\n        if (cached != null && now - cached.fetchedAt <= MAX_STALE) out += label(cached, now)\n        out += \"error:offline\"\n    }\n}"
+  },
+  {
+    "id": "fetch-touches-on-failure",
+    "label": "Fetch; keep the answer only when it arrived",
+    "code": "fun fetchAndStore(key: String, now: Int): String? {\n    val value = fetch(key)\n    val old = cache[key]\n    if (value != null) cache[key] = Entry(value, now)\n    else if (old != null) cache[key] = old.copy(fetchedAt = now)\n    return value\n}",
+    "distractor": true
+  },
+  {
+    "id": "fresh-check-forever",
+    "label": "Is a cached entry still fresh?",
+    "code": "fun isFresh(entry: Entry, now: Int): Boolean = entry.value.isNotEmpty()",
+    "distractor": true
+  },
+  {
+    "id": "network-first-any-age",
+    "label": "NETWORK_FIRST: the network, then a recent cache entry",
+    "code": "Policy.NETWORK_FIRST -> {\n    val value = fetchAndStore(key, now)\n    if (value != null) out += \"network:$value\"\n    else {\n        if (cached != null) out += label(cached, now)\n        out += \"error:offline\"\n    }\n}",
+    "distractor": true
+  }
+]

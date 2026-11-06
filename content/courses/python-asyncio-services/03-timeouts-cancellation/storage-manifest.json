@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_pas_132",
+      "key": "challenges/python/chal_coding_pas_132/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "app/checkout.py",
+      "size": 4849
+    }
+  ]
+}

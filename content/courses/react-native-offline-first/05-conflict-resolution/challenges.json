@@ -1,0 +1,438 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_rno_151",
+      "name": "conflict-resolution-quiz",
+      "type": "quiz",
+      "title": "Read the sync conflicts",
+      "description": "Three statements about the conflicts Rice Rocket found once couriers edited deliveries offline while dispatchers edited them on the web. Decide whether each one is true.",
+      "difficulty": "hard",
+      "outcomes": [
+        "sync"
+      ],
+      "points": 10,
+      "hints": [
+        "Compare the two clocks in the evidence with the real order of events. Who sets `updatedAt`, and how far can that clock be off?",
+        "List the fields each side changed. Field-level merge decides fields only one side changed; what is left when both sides changed the same field?",
+        "To know whether a value changed on the phone, on the server, or on both, you need one more value than the two copies being merged. Which one?"
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The sync used last-write-wins on the whole delivery, comparing `updatedAt` set by each writer:\n\n```text\n04:12:03 (real time)  dispatcher fixes the address on the web   updatedAt=2026-11-06T04:12:03Z (server clock)\n04:14:40 (real time)  courier adds a gate code, offline         updatedAt=2026-11-06T04:07:31Z (phone clock, 7 min slow)\n04:20:15 (real time)  phone syncs: server copy is newer -> courier's gate code dropped\n```\n\nStatement: \"Last-write-wins is safe as long as every writer stores an `updatedAt` timestamp with its change.\"",
+          "explanation": "False. The timestamps come from different clocks: the phone's runs 7 minutes slow, so its later edit looks older and is thrown away. A phone clock can be minutes or hours off (manual time, a dead battery, a traveller's time zone handling). Even with perfect clocks, whole-record last-write-wins drops the other side's edits to different fields. Server-assigned versions, a base copy for three-way merge, or hybrid logical clocks avoid trusting device time.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After switching to a per-field merge, one delivery still showed this:\n\n```text\nfield     base               courier (offline)     dispatcher (web)\naddress   12 Le Loi, D1      12A Le Loi, D1        14 Le Loi, D1\nnote      \"\"                 \"gate code 4471\"     \"\"\n```\n\nStatement: \"With a per-field merge there are no conflicts left, so the app never needs to show one to the courier.\"",
+          "explanation": "False. The note changed on one side only and merges cleanly, but both sides changed `address` to different values. The merge has to apply a rule (here the dispatcher's value wins for addresses) and, because the courier's edit is lost, tell the courier. Field-level merge shrinks conflicts to the fields both sides changed; it does not remove them.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The phone now stores the version it last synced next to the edited copy:\n\n```ts\ntype Pending = { base: Delivery; local: Delivery };\n// on sync: mergeDelivery(pending.base, pending.local, await api.getDelivery(id), POLICY)\n```\n\nStatement: \"Keeping `base` lets the merge tell a field only the courier changed from one only the dispatcher changed, which two copies alone cannot show.\"",
+          "explanation": "True. With only `local` and `remote`, a difference in a field could mean the courier changed it, the dispatcher changed it, or both did. Comparing each side with `base` answers it: equal to base on one side means only the other side changed it. That is the three-way merge git uses for text, applied per field. The cost is storing the base copy until the edit syncs.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_rno_152",
+      "name": "three-way-delivery-merge",
+      "type": "mini_coding",
+      "title": "Merge an offline edit with the dispatcher's changes",
+      "description": "When an offline courier comes back online, the app merges the courier's copy of a delivery with the api's current copy, field by field, using `base`, the version the edit started from. The first version trusted the newest `updatedAt` (and phone clocks are wrong), let the api's copy override the courier's own edits, and doubled list items. The editor holds `mergeDelivery` with its key blocks missing, each marked by a `// [ ]` line; some pieces are wrong on purpose. Fill every line so that: a field only one side changed takes that side's value; a field both changed to the same value keeps it; a field both changed differently follows its policy (`server`: the api's value, reported in `conflicts`; `device`: the courier's; `union`: each list item once, sorted); and `updatedAt` never decides anything. Run merges deliveries edited on both sides, including one from a phone whose clock runs fast.",
+      "difficulty": "hard",
+      "outcomes": [
+        "sync"
+      ],
+      "points": 40,
+      "hints": [
+        "For each field of a test, mark it: changed by the courier, by the dispatcher, by both. Only the last group needs a policy.",
+        "Look at which copy each branch returns after comparing with `base`, at whether anything compares `updatedAt`, and at how two lists become one without repeating an item.",
+        "Merging a shared shopping list item: `if (same(mine.qty, base.qty)) qty = theirs.qty; else if (same(theirs.qty, base.qty)) qty = mine.qty; else qty = Math.max(mine.qty, theirs.qty)` and labels `[...new Set([...mine.labels, ...theirs.labels])].sort()`."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The courier adds a gate code while the dispatcher fixes the address: both survive",
+          "input": {
+            "base": {
+              "id": "d-8812",
+              "address": "12 Le Loi, District 1",
+              "phone": "0901 234 567",
+              "status": "picked_up",
+              "note": "",
+              "proofPhoto": null,
+              "tags": [
+                "cash"
+              ],
+              "updatedAt": "2026-11-06T04:10:00Z"
+            },
+            "local": {
+              "id": "d-8812",
+              "address": "12 Le Loi, District 1",
+              "phone": "0901 234 567",
+              "status": "picked_up",
+              "note": "gate code 4471",
+              "proofPhoto": null,
+              "tags": [
+                "cash"
+              ],
+              "updatedAt": "2026-11-06T04:14:40Z"
+            },
+            "remote": {
+              "id": "d-8812",
+              "address": "14 Le Loi, District 1",
+              "phone": "0901 234 567",
+              "status": "picked_up",
+              "note": "",
+              "proofPhoto": null,
+              "tags": [
+                "cash"
+              ],
+              "updatedAt": "2026-11-06T04:12:03Z"
+            },
+            "policy": {
+              "address": "server",
+              "phone": "server",
+              "status": "server",
+              "note": "device",
+              "proofPhoto": "device",
+              "tags": "union"
+            }
+          },
+          "expected": {
+            "merged": {
+              "updatedAt": "2026-11-06T04:12:03Z",
+              "address": "14 Le Loi, District 1",
+              "id": "d-8812",
+              "note": "gate code 4471",
+              "phone": "0901 234 567",
+              "proofPhoto": null,
+              "status": "picked_up",
+              "tags": [
+                "cash"
+              ]
+            },
+            "conflicts": []
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Both add tags: each tag kept once",
+          "input": {
+            "base": {
+              "id": "d-8812",
+              "address": "12 Le Loi, District 1",
+              "phone": "0901 234 567",
+              "status": "picked_up",
+              "note": "",
+              "proofPhoto": null,
+              "tags": [
+                "cash"
+              ],
+              "updatedAt": "2026-11-06T04:10:00Z"
+            },
+            "local": {
+              "id": "d-8812",
+              "address": "12 Le Loi, District 1",
+              "phone": "0901 234 567",
+              "status": "picked_up",
+              "note": "",
+              "proofPhoto": null,
+              "tags": [
+                "cash",
+                "fragile"
+              ],
+              "updatedAt": "2026-11-06T04:15:00Z"
+            },
+            "remote": {
+              "id": "d-8812",
+              "address": "12 Le Loi, District 1",
+              "phone": "0901 234 567",
+              "status": "picked_up",
+              "note": "",
+              "proofPhoto": null,
+              "tags": [
+                "call-on-arrival",
+                "cash",
+                "fragile"
+              ],
+              "updatedAt": "2026-11-06T04:13:00Z"
+            },
+            "policy": {
+              "address": "server",
+              "phone": "server",
+              "status": "server",
+              "note": "device",
+              "proofPhoto": "device",
+              "tags": "union"
+            }
+          },
+          "expected": {
+            "merged": {
+              "updatedAt": "2026-11-06T04:13:00Z",
+              "address": "12 Le Loi, District 1",
+              "id": "d-8812",
+              "note": "",
+              "phone": "0901 234 567",
+              "proofPhoto": null,
+              "status": "picked_up",
+              "tags": [
+                "call-on-arrival",
+                "cash",
+                "fragile"
+              ]
+            },
+            "conflicts": []
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "Both change the address: the dispatcher's value wins and the courier is told",
+          "input": {
+            "base": {
+              "id": "d-8812",
+              "address": "12 Le Loi, District 1",
+              "phone": "0901 234 567",
+              "status": "picked_up",
+              "note": "",
+              "proofPhoto": null,
+              "tags": [
+                "cash"
+              ],
+              "updatedAt": "2026-11-06T04:10:00Z"
+            },
+            "local": {
+              "id": "d-8812",
+              "address": "12A Le Loi, District 1",
+              "phone": "0901 234 567",
+              "status": "picked_up",
+              "note": "",
+              "proofPhoto": null,
+              "tags": [
+                "cash"
+              ],
+              "updatedAt": "2026-11-06T04:14:40Z"
+            },
+            "remote": {
+              "id": "d-8812",
+              "address": "14 Le Loi, District 1",
+              "phone": "0901 234 567",
+              "status": "picked_up",
+              "note": "",
+              "proofPhoto": null,
+              "tags": [
+                "cash"
+              ],
+              "updatedAt": "2026-11-06T04:12:03Z"
+            },
+            "policy": {
+              "address": "server",
+              "phone": "server",
+              "status": "server",
+              "note": "device",
+              "proofPhoto": "device",
+              "tags": "union"
+            }
+          },
+          "expected": {
+            "merged": {
+              "updatedAt": "2026-11-06T04:12:03Z",
+              "address": "14 Le Loi, District 1",
+              "id": "d-8812",
+              "note": "",
+              "phone": "0901 234 567",
+              "proofPhoto": null,
+              "status": "picked_up",
+              "tags": [
+                "cash"
+              ]
+            },
+            "conflicts": [
+              "address"
+            ]
+          },
+          "hidden": false,
+          "score": 8
+        },
+        {
+          "name": "A phone clock 10 minutes fast does not make the courier's phone number win",
+          "input": {
+            "base": {
+              "id": "d-8812",
+              "address": "12 Le Loi, District 1",
+              "phone": "0901 234 567",
+              "status": "picked_up",
+              "note": "",
+              "proofPhoto": null,
+              "tags": [
+                "cash"
+              ],
+              "updatedAt": "2026-11-06T04:10:00Z"
+            },
+            "local": {
+              "id": "d-8812",
+              "address": "12 Le Loi, District 1",
+              "phone": "0901 234 568",
+              "status": "picked_up",
+              "note": "call twice",
+              "proofPhoto": null,
+              "tags": [
+                "cash"
+              ],
+              "updatedAt": "2026-11-06T04:25:00Z"
+            },
+            "remote": {
+              "id": "d-8812",
+              "address": "12 Le Loi, District 1",
+              "phone": "0912 000 111",
+              "status": "picked_up",
+              "note": "",
+              "proofPhoto": null,
+              "tags": [
+                "cash"
+              ],
+              "updatedAt": "2026-11-06T04:16:00Z"
+            },
+            "policy": {
+              "address": "server",
+              "phone": "server",
+              "status": "server",
+              "note": "device",
+              "proofPhoto": "device",
+              "tags": "union"
+            }
+          },
+          "expected": {
+            "merged": {
+              "updatedAt": "2026-11-06T04:16:00Z",
+              "address": "12 Le Loi, District 1",
+              "id": "d-8812",
+              "note": "call twice",
+              "phone": "0912 000 111",
+              "proofPhoto": null,
+              "status": "picked_up",
+              "tags": [
+                "cash"
+              ]
+            },
+            "conflicts": [
+              "phone"
+            ]
+          },
+          "hidden": true,
+          "score": 8
+        },
+        {
+          "name": "Proof photo kept from the phone; a status both sides set the same way is no conflict",
+          "input": {
+            "base": {
+              "id": "d-8812",
+              "address": "12 Le Loi, District 1",
+              "phone": "0901 234 567",
+              "status": "picked_up",
+              "note": "",
+              "proofPhoto": null,
+              "tags": [
+                "cash"
+              ],
+              "updatedAt": "2026-11-06T04:10:00Z"
+            },
+            "local": {
+              "id": "d-8812",
+              "address": "12 Le Loi, District 1",
+              "phone": "0901 234 567",
+              "status": "delivered",
+              "note": "",
+              "proofPhoto": "file:///proofs/d-8812.jpg",
+              "tags": [
+                "cash"
+              ],
+              "updatedAt": "2026-11-06T04:18:00Z"
+            },
+            "remote": {
+              "id": "d-8812",
+              "address": "12 Le Loi, District 1",
+              "phone": "0901 234 567",
+              "status": "delivered",
+              "note": "",
+              "proofPhoto": "s3://placeholder.jpg",
+              "tags": [
+                "cash"
+              ],
+              "updatedAt": "2026-11-06T04:19:00Z"
+            },
+            "policy": {
+              "address": "server",
+              "phone": "server",
+              "status": "server",
+              "note": "device",
+              "proofPhoto": "device",
+              "tags": "union"
+            }
+          },
+          "expected": {
+            "merged": {
+              "updatedAt": "2026-11-06T04:19:00Z",
+              "address": "12 Le Loi, District 1",
+              "id": "d-8812",
+              "note": "",
+              "phone": "0901 234 567",
+              "proofPhoto": "file:///proofs/d-8812.jpg",
+              "status": "delivered",
+              "tags": [
+                "cash"
+              ]
+            },
+            "conflicts": []
+          },
+          "hidden": true,
+          "score": 8
+        }
+      ]
+    }
+  ]
+}
