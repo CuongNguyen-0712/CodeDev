@@ -12,6 +12,7 @@ import Finding, { plural } from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
 import TabBar from "@/components/admin/ui/tabBar";
 import { useUrlFilters } from "@/components/admin/ui/useUrlFilters";
+import DateRange, { urlDay } from "@/components/admin/ui/dateRange";
 import { formatDate, formatNumber, formatRelative } from "@/components/admin/ui/format";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -27,6 +28,11 @@ const TABS = [
     { key: "unverified", label: "Unverified" },
     { key: "suspended", label: "Suspended" },
     { key: "blocked", label: "Blocked" },
+];
+const SORTS = [
+    { key: "newest", label: "Newest first" },
+    { key: "oldest", label: "Oldest first" },
+    { key: "seen", label: "Last seen" },
 ];
 const ROLES = ["super_admin", "admin", "course_manager", "instructor", "user"];
 const roleLabel = (code) => code.replace("_", " ");
@@ -68,7 +74,10 @@ function userFinding(counts) {
 }
 
 export default function UserList() {
-    const [{ tab, role, q }, update] = useUrlFilters({ tab: TABS.map((item) => item.key), role: ROLES, q: 100 }, { tab: "all" });
+    const [{ tab, role, q, sort, joinedFrom, joinedTo }, update] = useUrlFilters(
+        { tab: TABS.map((item) => item.key), role: ROLES, q: 100, sort: SORTS.map((item) => item.key), joinedFrom: 10, joinedTo: 10 },
+        { tab: "all", sort: "newest" },
+    );
     const [search, setSearch] = useState(q);
 
     useEffect(() => {
@@ -77,7 +86,7 @@ export default function UserList() {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- debounce on typing only
     }, [search]);
 
-    const filters = { tab, q, role };
+    const filters = { tab, q, role, sort, joinedFrom: urlDay(joinedFrom), joinedTo: urlDay(joinedTo) };
     const query = useInfiniteQuery({
         queryKey: adminKeys.userList(filters),
         queryFn: ({ pageParam }) => adminClient.listUsers({ ...filters, cursor: pageParam }),
@@ -120,6 +129,13 @@ export default function UserList() {
                         {ROLES.map((code) => <SelectItem key={code} value={code} className="capitalize">{roleLabel(code)}</SelectItem>)}
                     </SelectContent>
                 </Select>
+                <DateRange id="users-joined" label="Joined" from={filters.joinedFrom} to={filters.joinedTo} fromKey="joinedFrom" toKey="joinedTo" onChange={update} />
+                <Select value={sort} onValueChange={(value) => update({ sort: value })}>
+                    <SelectTrigger className="w-40" aria-label="Sort users"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        {SORTS.map((item) => <SelectItem key={item.key} value={item.key}>{item.label}</SelectItem>)}
+                    </SelectContent>
+                </Select>
                 {total != null && <span className="ml-auto text-sm text-muted-foreground">{formatNumber(total)} {total === 1 ? "user" : "users"}</span>}
             </div>
 
@@ -134,7 +150,7 @@ export default function UserList() {
                         <button type="button" onClick={() => query.refetch()} className="font-medium text-primary-ink hover:underline">Retry</button>
                     </p>
                 ) : users.length === 0 ? (
-                    <p className="p-4 text-sm text-muted-foreground">{q ? `No account matches “${q}”.` : "No account in this state."}</p>
+                    <p className="p-4 text-sm text-muted-foreground">{q ? `No account matches “${q}”.` : filters.joinedFrom || filters.joinedTo ? "No account joined in these dates." : "No account in this state."}</p>
                 ) : (
                     <ul className="divide-y divide-border">
                         {users.map((user) => <UserRow key={user.id} user={user} />)}

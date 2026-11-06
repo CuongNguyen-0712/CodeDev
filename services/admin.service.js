@@ -367,8 +367,8 @@ export const adminService = {
         return rows;
     },
 
-    listOrders: async () => {
-        const { rows } = await adminDb.listOrders({ limit: 50 });
+    listOrders: async (filters = {}) => {
+        const { rows } = await adminDb.listOrders({ ...filters, limit: 50 });
         return rows.map((row) => ({ ...row, amount_minor: toNumber(row.amount_minor), points_total: toNumber(row.points_total) }));
     },
 

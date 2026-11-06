@@ -36,8 +36,10 @@ const masker = (actor) => {
 function decodeCursor(raw) {
     if (!raw) return null;
     try {
-        const [createdAt, id] = JSON.parse(Buffer.from(String(raw), "base64url").toString("utf-8"));
-        if (/^\d{4}-\d{2}-\d{2}[ T][\d:.]{8,15}$/.test(createdAt) && /^\d{1,19}$/.test(id)) return { createdAt, id };
+        // `at` is the sort key of the last row shown: a timestamp, or -infinity for "never signed in".
+        const [at, id] = JSON.parse(Buffer.from(String(raw), "base64url").toString("utf-8"));
+        const stamp = /^\d{4}-\d{2}-\d{2}[ T][\d:.]{8,15}([+-]\d{2}(:\d{2})?)?$/.test(at) || at === "-infinity";
+        if (stamp && /^\d{1,19}$/.test(id)) return { at, id };
     } catch {
         // fall through
     }
@@ -61,10 +63,10 @@ const statusView = (row) => ({ status: row.status, until: row.status_until, reas
 export const adminUserService = {
     tabs: USER_TABS,
 
-    list: async ({ actor, tab, search, role, cursor, limit = 50 }) => {
+    list: async ({ actor, tab, search, role, sort, joinedFrom, joinedTo, cursor, limit = 50 }) => {
         const mask = masker(actor);
         const [{ rows }, counts] = await Promise.all([
-            adminUserDb.list({ tab, search, matchEmail: actorCan(actor, "user.pii"), role, cursor: decodeCursor(cursor), limit: limit + 1 }),
+            adminUserDb.list({ tab, search, matchEmail: actorCan(actor, "user.pii"), role, sort, joinedFrom, joinedTo, cursor: decodeCursor(cursor), limit: limit + 1 }),
             adminUserDb.tabCounts(),
         ]);
         const page = rows.slice(0, limit);

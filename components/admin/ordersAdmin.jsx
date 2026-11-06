@@ -17,10 +17,15 @@ import { Button } from "@/components/shadcn/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import RowAction from "@/components/admin/ui/rowAction";
 import { TableSkeleton } from "@/components/admin/ui/adminSkeleton";
+import ListSearch from "@/components/admin/ui/listSearch";
+import DateRange, { urlDay } from "@/components/admin/ui/dateRange";
+import { useUrlFilters } from "@/components/admin/ui/useUrlFilters";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
 
 import { LuUndo2 } from "react-icons/lu";
 
 const STATUS_VARIANT = { completed: "success", pending: "info", failed: "destructive", cancelled: "muted", expired: "muted", refunded: "warning" };
+const STATUSES = Object.keys(STATUS_VARIANT);
 const formatDateTime = (value) => (value ? new Date(value).toLocaleString() : "-");
 
 function Loading() {
@@ -30,12 +35,29 @@ function Loading() {
 export default function OrdersAdmin() {
     const { can } = useAdmin();
     const { showAlert } = useApp();
-    const { data, isPending, isError, refetch } = useQuery(adminQueries.orders());
+    const [{ q, status, from, to }, update] = useUrlFilters({ q: 100, status: STATUSES, from: 10, to: 10 });
+    const filters = { q, status, from: urlDay(from), to: urlDay(to) };
+    const filtered = Object.values(filters).some(Boolean);
+    const { data, isPending, isError, refetch } = useQuery(adminQueries.orders(filters));
     const refund = useAdminRefund();
     const [refunding, setRefunding] = useState(null);
 
-    if (isPending) return <Loading />;
-    if (isError) return <ErrorReload refetch={refetch} />;
+    const filterBar = (
+        <ListSearch value={q} onChange={(value) => update({ q: value })} label="Order id or buyer username" delay={300}>
+            <Select value={status || "any"} onValueChange={(value) => update({ status: value === "any" ? "" : value })}>
+                <SelectTrigger className="w-40" aria-label="Filter by status"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="any">Any status</SelectItem>
+                    {STATUSES.map((value) => <SelectItem key={value} value={value} className="capitalize">{value}</SelectItem>)}
+                </SelectContent>
+            </Select>
+            <DateRange id="orders-date" label="Order date" from={filters.from} to={filters.to} onChange={update} />
+            {filtered && <Button variant="ghost" size="sm" onClick={() => update({ q: "", status: "", from: "", to: "" })}>Clear filters</Button>}
+        </ListSearch>
+    );
+
+    if (isPending) return <>{filterBar}<Loading /></>;
+    if (isError) return <>{filterBar}<ErrorReload refetch={refetch} /></>;
 
     const doRefund = (order, reason) => {
         refund.mutate(
@@ -49,6 +71,7 @@ export default function OrdersAdmin() {
 
     return (
         <>
+        {filterBar}
         <Table>
             <TableHeader>
                 <TableRow>
@@ -62,7 +85,12 @@ export default function OrdersAdmin() {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {data.length === 0 && (
+                {data.length === 0 && filtered && (
+                    <TableRow>
+                        <TableCell colSpan={7} className="py-6 text-center text-muted-foreground">No order matches these filters.</TableCell>
+                    </TableRow>
+                )}
+                {data.length === 0 && !filtered && (
                     <TableRow>
                         <TableCell colSpan={7} className="py-6 text-center text-muted-foreground">
                             No orders yet. Prices are set per course under{" "}

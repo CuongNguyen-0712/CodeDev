@@ -1,6 +1,7 @@
 import { commerceClient, onboardingClient, adminClient } from "@/clients/premium.client";
 
 import { adminKeys } from "@/keys/admin.keys";
+import { SEARCH_MIN } from "@/lib/adminSearch";
 import { commerceKeys } from "@/keys/commerce.keys";
 import { onboardingKeys } from "@/keys/onboarding.keys";
 import { QUERY_TIMES, retryTransient } from "@/lib/queryTimes";
@@ -91,7 +92,20 @@ export const commerceQueries = {
 
 export const adminQueries = {
     courses: () => ({ queryKey: adminKeys.courses(), queryFn: () => adminClient.getCourses(), ...QUERY_TIMES.live, retry: retryTransient }),
-    orders: () => ({ queryKey: adminKeys.orders(), queryFn: () => adminClient.getOrders(), ...QUERY_TIMES.live, retry: retryTransient }),
+    // Unfiltered shares its cache with the overview finding (components/admin/ui/pageFindings.jsx).
+    orders: (filters) => {
+        const active = filters && Object.values(filters).some(Boolean) ? filters : undefined;
+        return { queryKey: adminKeys.orders(active), queryFn: () => adminClient.getOrders(active), ...QUERY_TIMES.live, retry: retryTransient };
+    },
+    // Ctrl / Cmd + K; the palette debounces `q`, and keeps the last results while the next ones load.
+    search: (q, type) => ({
+        queryKey: adminKeys.search(q, type),
+        queryFn: () => adminClient.search({ q, type }),
+        enabled: q.length >= SEARCH_MIN,
+        placeholderData: (previous) => previous,
+        ...QUERY_TIMES.live,
+        retry: retryTransient,
+    }),
     users: (query) => ({
         queryKey: adminKeys.users(query),
         queryFn: () => adminClient.findUsers(query),

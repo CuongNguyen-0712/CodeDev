@@ -7,7 +7,7 @@ export const escapeLike = (text) => text.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 
 /** identity.audit_log for the Audit screen (docs/admin-panel-plan.md 5.5), newest first, keyset on id. */
 export const adminAuditDb = {
-    list: async ({ actor = "", action = "", targetType = "", targetId = "", range = "7d", beforeId = null, limit = 50 }) => {
+    list: async ({ actor = "", action = "", targetType = "", targetId = "", q = "", range = "7d", beforeId = null, limit = 50 }) => {
         const params = [];
         const where = [];
         if (RANGES[range]) where.push(`a.created_at > now() - interval '${RANGES[range]}'`);
@@ -17,6 +17,10 @@ export const adminAuditDb = {
         if (action) { params.push(action, `${escapeLike(action)}.%`); where.push(`(a.action = $${params.length - 1} OR a.action LIKE $${params.length} ESCAPE '\\')`); }
         if (targetType) { params.push(targetType); where.push(`a.target_type = $${params.length}`); }
         if (targetId) { params.push(targetId); where.push(`a.target_id = $${params.length}`); }
+        if (q) {
+            params.push(`%${escapeLike(q)}%`);
+            where.push(`(a.action ILIKE $${params.length} ESCAPE '\\' OR a.target_id ILIKE $${params.length} ESCAPE '\\' OR u.username ILIKE $${params.length} ESCAPE '\\')`);
+        }
         if (beforeId) { params.push(beforeId); where.push(`a.id < $${params.length}::bigint`); }
         params.push(limit);
         return sql(

@@ -1,7 +1,8 @@
 export const adminKeys = {
     all: ['admin'],
     courses: () => [...adminKeys.all, 'courses'],
-    orders: () => [...adminKeys.all, 'orders'],
+    orders: (filters) => [...adminKeys.all, 'orders', ...(filters ? [filters] : [])],
+    search: (q, type) => [...adminKeys.all, 'search', q, type],
     audit: () => [...adminKeys.all, 'audit'],
     users: (query) => [...adminKeys.all, 'users', query],
     entitlements: (userId) => [...adminKeys.all, 'entitlements', userId],

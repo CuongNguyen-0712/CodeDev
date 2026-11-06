@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { escapeLike } from "@/db/adminAudit.db";
 
 /**
  * Privileged reads and writes for the admin area. Writes take a transaction `client` so the
@@ -268,7 +269,18 @@ export const adminDb = {
         );
     },
 
-    listOrders: async ({ limit = 50 }) => {
+    /** Latest orders; `q` is an order id or part of a buyer username, `from` / `to` are UTC days (inclusive). */
+    listOrders: async ({ q = "", status = null, from = null, to = null, limit = 50 }) => {
+        const params = [];
+        const where = [];
+        if (q) {
+            params.push(q, `%${escapeLike(q)}%`);
+            where.push(`(o.public_id = $${params.length - 1} OR u.username ILIKE $${params.length} ESCAPE '\\')`);
+        }
+        if (status) { params.push(status); where.push(`o.status = $${params.length}::public.order_status`); }
+        if (from) { params.push(from); where.push(`o.created_at >= $${params.length}::date`); }
+        if (to) { params.push(to); where.push(`o.created_at < $${params.length}::date + 1`); }
+        params.push(limit);
         return sql(
             `SELECT o.public_id AS id, o.status, o.payment_method, o.currency, o.amount_minor, o.points_total,
                     o.created_at, o.failure_reason, u.username, c.title AS course_title
@@ -276,9 +288,10 @@ export const adminDb = {
              JOIN identity.users u ON u.id = o.user_id
              JOIN commerce.order_items oi ON oi.order_id = o.id
              JOIN catalog.course c ON c.id = oi.course_id
+             ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
              ORDER BY o.id DESC
-             LIMIT $1`,
-            [limit]
+             LIMIT $${params.length}`,
+            params
         );
     },
 

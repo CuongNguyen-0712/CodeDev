@@ -20,11 +20,19 @@ const TAB_FILTERS = {
 
 export const USER_TABS = Object.keys(TAB_FILTERS);
 
+// Keyset sort orders. Accounts that never signed in sort last by "seen": -infinity keeps the key non-null.
+const SORTS = {
+    newest: { key: "u.created_at", cast: "timestamp", dir: "DESC" },
+    oldest: { key: "u.created_at", cast: "timestamp", dir: "ASC" },
+    seen: { key: "COALESCE(ls.seen, '-infinity'::timestamptz)", cast: "timestamptz", dir: "DESC" },
+};
+
 const escapeLike = (text) => text.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 
 export const adminUserDb = {
-    /** One page, newest first (keyset on created_at, id). */
-    list: async ({ tab = "all", search = "", matchEmail = false, role = null, cursor = null, limit = 50 }) => {
+    /** One page in `sort` order (keyset on the sort key, then id); `joinedFrom` / `joinedTo` are UTC days (inclusive). */
+    list: async ({ tab = "all", search = "", matchEmail = false, role = null, sort = "newest", joinedFrom = null, joinedTo = null, cursor = null, limit = 50 }) => {
+        const order = SORTS[sort] || SORTS.newest;
         const params = [];
         const where = [TAB_FILTERS[tab] || TAB_FILTERS.all];
         if (search) {
@@ -37,21 +45,25 @@ export const adminUserDb = {
             params.push(role);
             where.push(`EXISTS (SELECT 1 FROM identity.user_roles ur JOIN identity.roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.code = $${params.length})`);
         }
+        if (joinedFrom) { params.push(joinedFrom); where.push(`u.created_at >= $${params.length}::date`); }
+        if (joinedTo) { params.push(joinedTo); where.push(`u.created_at < $${params.length}::date + 1`); }
         if (cursor) {
-            params.push(cursor.createdAt, cursor.id);
-            where.push(`(u.created_at, u.id) < ($${params.length - 1}::timestamp, $${params.length}::bigint)`);
+            params.push(cursor.at, cursor.id);
+            const after = order.dir === "DESC" ? "<" : ">";
+            where.push(`(${order.key}, u.id) ${after} ($${params.length - 1}::${order.cast}, $${params.length}::bigint)`);
         }
         params.push(limit);
 
         return sql(
             `SELECT u.public_id AS id, u.username, u.email, ${STATE} AS state, u.status_until, u.created_at,
-                    u.created_at::text AS cursor_at, u.id::text AS cursor_id,
-                    (SELECT MAX(s.last_seen_at) FROM identity.sessions s WHERE s.user_id = u.id) AS last_active_at,
+                    (${order.key})::text AS cursor_at, u.id::text AS cursor_id,
+                    ls.seen AS last_active_at,
                     COALESCE((SELECT array_agg(r.code ORDER BY r.rank DESC) FROM identity.user_roles ur
                               JOIN identity.roles r ON r.id = ur.role_id WHERE ur.user_id = u.id), '{}') AS roles
              FROM identity.users u
+             LEFT JOIN LATERAL (SELECT MAX(s.last_seen_at) AS seen FROM identity.sessions s WHERE s.user_id = u.id) ls ON TRUE
              WHERE ${where.join(" AND ")}
-             ORDER BY u.created_at DESC, u.id DESC
+             ORDER BY ${order.key} ${order.dir}, u.id ${order.dir}
              LIMIT $${params.length}`,
             params
         );

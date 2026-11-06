@@ -15,6 +15,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { cn } from "@/lib/utils";
 import { plural } from "@/components/admin/ui/finding";
+import ListSearch from "@/components/admin/ui/listSearch";
 
 const RANGES = [{ key: "1h", label: "1 hour" }, { key: "24h", label: "24 hours" }, { key: "7d", label: "7 days" }, { key: "30d", label: "30 days" }, { key: "all", label: "All" }];
 const TARGET_LINKS = {
@@ -91,7 +92,7 @@ function Diff({ before, after }) {
 }
 
 export default function AuditPage() {
-    const [filters, update] = useUrlFilters({ range: RANGES.map((item) => item.key), actor: 255, action: 60, target: 40, targetId: 100 }, { range: "7d" });
+    const [filters, update] = useUrlFilters({ range: RANGES.map((item) => item.key), actor: 255, action: 60, target: 40, targetId: 100, q: 100 }, { range: "7d" });
     const [open, setOpen] = useState(null);
     const query = useInfiniteQuery({
         queryKey: [...adminKeys.audit(), filters],
@@ -104,7 +105,8 @@ export default function AuditPage() {
     const pages = query.data?.pages || [];
     const entries = pages.flatMap((page) => page.items);
     const facets = pages[0]?.facets;
-    const filtered = Boolean(filters.actor || filters.action || filters.target || filters.targetId);
+    const filtered = Boolean(filters.actor || filters.action || filters.target || filters.targetId || filters.q);
+    const clear = () => update({ actor: "", action: "", target: "", targetId: "", q: "" });
     const facetGroups = (
         <>
             <FilterGroup title="Action" items={facets?.actions} value={filters.action} onChange={(value) => update({ action: value })} />
@@ -118,10 +120,11 @@ export default function AuditPage() {
             <PageHeader
                 title="Audit"
                 description={facets?.actions?.length ? auditFinding(facets, filters.range) : "Every privileged change, newest first. The log is append-only."}
-                actions={filtered && <Button variant="outline" size="sm" onClick={() => update({ actor: "", action: "", target: "", targetId: "" })}>Clear filters</Button>}
+                actions={filtered && <Button variant="outline" size="sm" onClick={clear}>Clear filters</Button>}
             />
             <div className="grid gap-4 @3xl:grid-cols-[14rem_minmax(0,1fr)] @3xl:gap-6">
                 <aside className="space-y-5" aria-label="Filters">
+                    <ListSearch value={filters.q} onChange={(value) => update({ q: value })} label="Action, target id or actor" delay={300} />
                     <div className="space-y-1">
                         <h2 className="px-2 text-xs text-muted-foreground">Time</h2>
                         <div className="flex flex-wrap gap-1 px-1">
@@ -157,7 +160,7 @@ export default function AuditPage() {
                     ) : entries.length === 0 ? (
                         <p className="p-4 text-sm text-muted-foreground">
                             No entry matches these filters.{" "}
-                            {filtered && <button type="button" className="font-medium text-primary-ink hover:underline" onClick={() => update({ actor: "", action: "", target: "", targetId: "" })}>Clear filters</button>}
+                            {filtered && <button type="button" className="font-medium text-primary-ink hover:underline" onClick={clear}>Clear filters</button>}
                         </p>
                     ) : (
                         <ul className="divide-y divide-border">

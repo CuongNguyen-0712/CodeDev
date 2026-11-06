@@ -29,6 +29,8 @@ import { useUrlFilters } from "@/components/admin/ui/useUrlFilters";
 import { LuPencil } from "react-icons/lu";
 
 const STATUS_VARIANT = { published: "success", draft: "muted", unpublished: "warning", archived: "destructive" };
+const STATUSES = Object.keys(STATUS_VARIANT);
+const ACCESS_MODELS = ["free", "premium"];
 const LEVELS = ["beginner", "intermediate", "advanced", "expert", "master"];
 const MINOR_DIGITS = { VND: 0, JPY: 0, KRW: 0 };
 
@@ -59,10 +61,11 @@ export default function CourseAdmin() {
     const { can } = useAdmin();
     const { data, isPending, isError, refetch } = useQuery(adminQueries.courses());
     const [editingId, setEditingId] = useState(null);
-    const [{ q }, update] = useUrlFilters({ q: 100 });
+    const [{ q, status, access }, update] = useUrlFilters({ q: 100, status: STATUSES, access: ACCESS_MODELS });
 
     const courses = data?.courses || [];
-    const shown = courses.filter((course) => matches(q, course.title, course.id, course.publishStatus, course.accessModel));
+    const shown = courses.filter((course) => (!status || course.publishStatus === status) && (!access || course.accessModel === access)
+        && matches(q, course.title, course.id, course.publishStatus, course.accessModel));
     const editing = courses.find((course) => course.id === editingId) || null;
 
     if (isPending) {
@@ -73,7 +76,22 @@ export default function CourseAdmin() {
     return (
         <>
             {courses.length > 0 && (
-                <ListSearch value={q} onChange={(value) => update({ q: value })} label="Search courses by title, slug or status" shown={shown.length} total={courses.length} noun="courses" delay={300} />
+                <ListSearch value={q} onChange={(value) => update({ q: value })} label="Search courses by title, slug or status" shown={shown.length} total={courses.length} noun="courses" delay={300}>
+                    <Select value={status || "any"} onValueChange={(value) => update({ status: value === "any" ? "" : value })}>
+                        <SelectTrigger className="w-40" aria-label="Filter by status"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="any">Any status</SelectItem>
+                            {STATUSES.map((value) => <SelectItem key={value} value={value} className="capitalize">{value}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    <Select value={access || "any"} onValueChange={(value) => update({ access: value === "any" ? "" : value })}>
+                        <SelectTrigger className="w-40" aria-label="Filter by access model"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="any">Any access</SelectItem>
+                            {ACCESS_MODELS.map((value) => <SelectItem key={value} value={value} className="capitalize">{value}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </ListSearch>
             )}
             <Table>
                 <TableHeader>
@@ -88,7 +106,7 @@ export default function CourseAdmin() {
                 </TableHeader>
                 <TableBody>
                     {shown.length === 0 && (
-                        <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">{courses.length ? `No course matches “${q.trim()}”.` : "No courses yet."}</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">{!courses.length ? "No courses yet." : q.trim() ? `No course matches “${q.trim()}”.` : "No course matches these filters."}</TableCell></TableRow>
                     )}
                     {shown.map((course) => (
                         <TableRow key={course.id}>

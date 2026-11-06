@@ -41,7 +41,10 @@ export const adminClient = {
     adjustExperience: async (input) => (await apiClient.post('/admin/experience/adjust', input)).data,
     grantEntitlement: async (input) => (await apiClient.post('/admin/entitlements', input)).data,
     revokeEntitlement: async (input) => (await apiClient.delete('/admin/entitlements', { data: input })).data,
-    getOrders: async () => (await apiClient.get('/admin/orders')).data,
+    getOrders: async (filters = {}) => (await apiClient.get('/admin/orders', {
+        params: Object.fromEntries(Object.entries(filters).filter(([, value]) => value)),
+    })).data,
+    search: async ({ q, type }) => (await apiClient.get('/admin/search', { params: { q, type: type || undefined } })).data,
     refundOrder: async ({ orderId, reason }) => (await apiClient.post(`/admin/orders/${encodeURIComponent(orderId)}/refund`, { reason })).data,
     getAudit: async ({ before, ...filters }) => (await apiClient.get('/admin/audit', {
         params: Object.fromEntries(Object.entries({ ...filters, before }).filter(([, value]) => value)),
@@ -50,8 +53,9 @@ export const adminClient = {
     getExpAudit: async () => (await apiClient.get('/admin/exp-audit')).data,
     getActivity: async (days) => (await apiClient.get('/admin/dashboard/activity', { params: { days } })).data,
     getDashboard: async ({ fresh = false } = {}) => (await apiClient.get('/admin/dashboard', { params: fresh ? { fresh: 1 } : {} })).data,
-    listUsers: async ({ tab, q, role, cursor }) =>
-        (await apiClient.get('/admin/users/list', { params: { tab, q: q || undefined, role: role || undefined, cursor: cursor || undefined } })).data,
+    listUsers: async ({ cursor, ...filters }) => (await apiClient.get('/admin/users/list', {
+        params: Object.fromEntries(Object.entries({ ...filters, cursor }).filter(([, value]) => value)),
+    })).data,
     getUser: async (userId) => (await apiClient.get(`/admin/users/${encodeURIComponent(userId)}`)).data,
     getUserActivity: async ({ userId, kinds, before }) => (await apiClient.get(`/admin/users/${encodeURIComponent(userId)}/activity`, {
         params: { kinds: kinds?.length ? kinds.join(',') : undefined, before: before || undefined },

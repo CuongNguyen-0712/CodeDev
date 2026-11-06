@@ -15,8 +15,9 @@ export const matches = (query, ...fields) => {
 /**
  * A search field above a list, with how many rows it shows (announced politely). With `delay` the
  * field types freely and `onChange` runs once typing pauses, as the Users search does for the URL.
+ * `children` (filter selects) sit next to the field; without `total` the count is left out.
  */
-export default function ListSearch({ value, onChange, label, shown, total, noun = "rows", delay = 0 }) {
+export default function ListSearch({ value, onChange, label, shown, total, noun = "rows", delay = 0, children }) {
     const [draft, setDraft] = useState(value);
     const sent = useRef(value);
 
@@ -37,9 +38,12 @@ export default function ListSearch({ value, onChange, label, shown, total, noun 
                 <LuSearch aria-hidden="true" className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input type="search" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={label} aria-label={label} maxLength={100} className="pl-8" />
             </div>
-            <p className="text-sm text-muted-foreground" aria-live="polite">
-                {value.trim() ? `${shown} of ${total} ${noun}` : `${total} ${noun}`}
-            </p>
+            {children}
+            {total != null && (
+                <p className="text-sm text-muted-foreground" aria-live="polite">
+                    {value.trim() || shown !== total ? `${shown} of ${total} ${noun}` : `${total} ${noun}`}
+                </p>
+            )}
         </div>
     );
 }
