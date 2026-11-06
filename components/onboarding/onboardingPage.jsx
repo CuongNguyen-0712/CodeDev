@@ -187,7 +187,9 @@ function RecommendationsStep({ sessionStatus, headingRef, onEdit }) {
     const pending = sessionStatus === "loading" || isLoading;
 
     return (
-        <section aria-labelledby="onboarding-recommendations-heading" className="flex flex-col gap-5">
+        // *:shrink-0: Safari shrank the card grid below its content in this column, so the action row
+        // was drawn over the cards.
+        <section aria-labelledby="onboarding-recommendations-heading" className="flex flex-col gap-5 *:shrink-0">
             <StepHeading
                 id="onboarding-recommendations-heading"
                 headingRef={headingRef}
@@ -238,12 +240,14 @@ function RecommendationsStep({ sessionStatus, headingRef, onEdit }) {
                 </ul>
             )}
 
-            <div className="flex flex-col-reverse gap-2 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
-                <Button type="button" variant="ghost" onClick={onEdit}>
+            {/* Phones: sticks to the bottom of the screen while the cards scroll under it, like the
+                question bar. */}
+            <div className="flex items-center gap-2 border-t pt-5 max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:bg-background max-sm:px-4 max-sm:pt-3 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:justify-between">
+                <Button type="button" variant="ghost" onClick={onEdit} className="max-sm:h-11">
                     <LuPencil />
-                    Edit my answers
+                    Edit <span className="max-sm:hidden">my answers</span>
                 </Button>
-                <Button asChild>
+                <Button asChild className="max-sm:h-11 max-sm:flex-1">
                     <Link href="/home">
                         <LuLayoutDashboard />
                         Go to dashboard
@@ -405,7 +409,8 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
     const languageValue = draft.preferredLanguageId != null ? String(draft.preferredLanguageId) : NO_LANGUAGE;
 
     return (
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-6 pb-20 sm:px-6 sm:pb-12 lg:pt-10">
+        // Phones: room under the fixed question bar; the results end on their own sticky bar instead.
+        <div className={cn("mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-6 pb-28 sm:px-6 sm:pb-12 lg:pt-10", slide === "recommendations" && "max-sm:pb-0")}>
             <header className="flex items-center justify-between gap-3">
                 {/* Not a link: /home sends unfinished onboarding straight back here. */}
                 <span className="flex items-center gap-2">

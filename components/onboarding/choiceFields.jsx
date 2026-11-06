@@ -60,8 +60,8 @@ export function ChoiceRadioGroup({ idPrefix, options, value, onChange, disabled,
                                 aria-labelledby={`${id}-title`}
                                 aria-describedby={option.description ? `${id}-desc` : undefined}
                             />
-                            <FieldContent className="gap-1">
-                                <FieldTitle id={`${id}-title`}>{option.label}</FieldTitle>
+                            <FieldContent className="min-w-0 gap-1">
+                                <FieldTitle id={`${id}-title`} className="block w-auto hyphens-auto [overflow-wrap:anywhere]">{option.label}</FieldTitle>
                                 {option.description && (
                                     <FieldDescription id={`${id}-desc`} className="text-xs">{option.description}</FieldDescription>
                                 )}
@@ -97,8 +97,8 @@ export function ChoiceCheckboxGroup({ idPrefix, options, values, onChange, disab
                                 aria-describedby={option.description ? `${id}-desc` : undefined}
                                 onCheckedChange={(next) => onChange(toggleValue(values, option.value, next === true))}
                             />
-                            <FieldContent className="gap-1">
-                                <FieldTitle id={`${id}-title`}>{option.label}</FieldTitle>
+                            <FieldContent className="min-w-0 gap-1">
+                                <FieldTitle id={`${id}-title`} className="block w-auto hyphens-auto [overflow-wrap:anywhere]">{option.label}</FieldTitle>
                                 {option.description && (
                                     <FieldDescription id={`${id}-desc`} className="text-xs">{option.description}</FieldDescription>
                                 )}

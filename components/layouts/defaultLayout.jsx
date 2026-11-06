@@ -5,7 +5,9 @@
 function LayoutContent({ children, enter }) {
     return (
         // A div, not a <section>: page <header>s inside a section lose their banner landmark.
-        <div className={`${enter ? 'page-enter ' : ''}flex h-dvh w-full flex-col overflow-y-auto bg-background`}>
+        // *:shrink-0: a page taller than the screen keeps its height and scrolls (Safari shrank it to
+        // the screen and drew the rest over it).
+        <div className={`${enter ? 'page-enter ' : ''}flex h-dvh w-full flex-col overflow-y-auto bg-background *:shrink-0`}>
             {children}
         </div>
     )
