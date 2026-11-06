@@ -146,7 +146,7 @@ function CourseRow({ course }) {
         <li>
             <Link
                 href={`/course/${course.id}`}
-                className="group flex items-start gap-3 rounded-md px-2 py-2.5 outline-none transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring active:bg-accent"
+                className="group flex items-start gap-3 rounded-lg border bg-background px-3 py-3 outline-none transition-colors hover:border-primary/40 hover:bg-primary-soft/40 focus-visible:ring-2 focus-visible:ring-ring active:bg-primary-soft/60"
             >
                 <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -178,7 +178,7 @@ function CourseRow({ course }) {
                     )}
                     {lessons > 0 ? (
                         <span className="flex items-center gap-2">
-                            <Progress value={percent} className="h-1 flex-1 bg-muted" aria-hidden="true" />
+                            <Progress value={percent} className="h-1.5 flex-1 bg-primary/15" aria-hidden="true" />
                             <span className="shrink-0 text-xs text-muted-foreground tabular">
                                 {isComplete ? 'Completed' : `${completed}/${lessons}`}
                             </span>
@@ -213,16 +213,16 @@ export function NodeCourseList({ courses = [] }) {
         <div className="space-y-5">
             {groups.map((group) => (
                 <section key={group.key} aria-labelledby={`node-courses-${group.key}`} className="space-y-1.5">
-                    <div className="flex items-baseline justify-between gap-2 px-2">
+                    <div className="flex items-baseline justify-between gap-2 px-1">
                         <h4 id={`node-courses-${group.key}`} className="text-xs font-semibold text-foreground">
                             {group.title}
                         </h4>
                         <span className="text-xs text-muted-foreground tabular">{group.items.length}</span>
                     </div>
                     {groups.length > 1 && (
-                        <p className="px-2 text-xs text-muted-foreground">{group.hint}</p>
+                        <p className="px-1 text-xs text-muted-foreground">{group.hint}</p>
                     )}
-                    <ul className="list-none space-y-0.5">
+                    <ul className="list-none space-y-2">
                         {group.items.map((course, index) => (
                             <CourseRow key={course.id || index} course={course} />
                         ))}

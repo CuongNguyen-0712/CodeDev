@@ -133,14 +133,17 @@ function NodeDetailsPanel({ node, stepNumber, onClose = null }) {
                 </div>
 
                 {progress.totalLessons > 0 && (
-                    <div className="space-y-2 rounded-lg border bg-background px-3 py-2.5">
+                    // Violet-tinted so the step's own progress reads first; the track is a primary tint, not
+                    // bg-muted, which matched the panel and hid the bar.
+                    <div className="space-y-2.5 rounded-lg border border-primary/20 bg-primary-soft/60 px-3.5 py-3">
                         <div className="flex items-baseline justify-between gap-2">
-                            <span className="text-xs text-muted-foreground">Core lessons completed</span>
+                            <span className="text-xs font-medium text-primary-soft-foreground">Core lessons completed</span>
                             <span className="text-xs text-foreground tabular">
-                                {progress.completedLessons}/{progress.totalLessons} &middot; {progress.percent}%
+                                {progress.completedLessons}/{progress.totalLessons}
+                                <span className="ml-1.5 font-semibold text-primary-ink">{progress.percent}%</span>
                             </span>
                         </div>
-                        <Progress value={progress.percent} className="h-1.5 bg-muted" aria-label={`${node.title} progress`} />
+                        <Progress value={progress.percent} className="h-2 bg-primary/15" aria-label={`${node.title} progress`} />
                     </div>
                 )}
 
@@ -506,7 +509,7 @@ function RoadmapView({ params, initialData, query }) {
                 </main>
 
                 {hasNodes && (
-                    <aside className="hidden w-96 shrink-0 border-l bg-sidebar lg:block xl:w-[26rem]" aria-label="Step details panel">
+                    <aside className="hidden w-96 shrink-0 border-l bg-card lg:block xl:w-[26rem]" aria-label="Step details panel">
                         <NodeDetailsPanel node={selectedNode} stepNumber={selectedStepNumber} />
                     </aside>
                 )}
@@ -518,7 +521,7 @@ function RoadmapView({ params, initialData, query }) {
                     side={isMobile ? 'bottom' : 'right'}
                     showCloseButton={false}
                     className={cn(
-                        'gap-0 bg-sidebar p-0',
+                        'gap-0 bg-card p-0',
                         isMobile
                             ? 'max-h-[85vh] rounded-t-2xl border-t'
                             : 'w-[min(26rem,92vw)]'
