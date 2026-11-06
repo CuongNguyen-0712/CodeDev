@@ -46,8 +46,8 @@ export function QueueStrip({ queue }) {
                 {queue.map((lane) => {
                     const slow = lane.oldest_wait_sec > SLOW_WAIT_SEC;
                     return (
-                        <li key={lane.sandbox} className="grid grid-cols-2 gap-3 px-5 py-3 text-sm sm:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))]">
-                            <span className="col-span-2 truncate font-mono text-xs sm:col-span-1 sm:self-center">{lane.sandbox}</span>
+                        <li key={lane.sandbox} className="grid grid-cols-2 gap-3 px-5 py-3 text-sm @xl:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))]">
+                            <span className="col-span-2 truncate font-mono text-xs @xl:col-span-1 @xl:self-center">{lane.sandbox}</span>
                             <span><span className="block text-xs text-muted-foreground">Queued</span><span className="tabular-nums">{formatNumber(lane.queued)}</span></span>
                             <span><span className="block text-xs text-muted-foreground">Running</span><span className="tabular-nums">{formatNumber(lane.running)}</span></span>
                             <span>
@@ -66,8 +66,8 @@ export function QueueStrip({ queue }) {
 function RunRow({ run, canCancel, onCancel }) {
     const active = run.status === "queued" || run.status === "running";
     return (
-        <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 px-4 py-3 hover:bg-muted/60 sm:grid-cols-[7rem_minmax(0,2fr)_minmax(0,1fr)_auto]">
-            <span className="hidden sm:block"><StatusDot status={run.status} /></span>
+        <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 px-4 py-3 hover:bg-muted/60 @xl:grid-cols-[7rem_minmax(0,2fr)_minmax(0,1fr)_auto]">
+            <span className="hidden @xl:block"><StatusDot status={run.status} /></span>
             <Link href={`/admin/runs/${encodeURIComponent(run.id)}`} className="min-w-0 focus-visible:underline focus-visible:outline-none">
                 <span className="flex min-w-0 items-center gap-2">
                     <span className="truncate font-medium">{run.challenge_title}</span>
@@ -77,9 +77,9 @@ function RunRow({ run, canCancel, onCancel }) {
                     <span className="font-mono text-xs">…{run.id.slice(-8)}</span> · {run.username}
                     {run.tests_total > 0 && <> · {run.tests_passed} / {run.tests_total} tests</>}
                 </span>
-                <span className="block sm:hidden"><StatusDot status={run.status} /></span>
+                <span className="block @xl:hidden"><StatusDot status={run.status} /></span>
             </Link>
-            <span className="hidden text-sm text-muted-foreground sm:block">
+            <span className="hidden text-sm text-muted-foreground @xl:block">
                 <span className="block">waited {formatDuration(run.waited_sec)}</span>
                 <span className="block">{run.ran_sec != null ? `ran ${formatDuration(run.ran_sec)}` : "not started"}</span>
             </span>

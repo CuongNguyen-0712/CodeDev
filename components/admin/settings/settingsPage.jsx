@@ -195,9 +195,9 @@ export default function SettingsPage({ section }) {
     return (
         <>
             <PageHeader title="Settings" description="Read-only configuration of this deployment." />
-            <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-[12rem_minmax(0,1fr)] md:gap-6">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[12rem_minmax(0,1fr)] @2xl:gap-6">
                 <nav aria-label="Settings sections">
-                    <ul className="flex list-none gap-1 overflow-x-auto [scrollbar-width:none] md:flex-col [&::-webkit-scrollbar]:hidden">
+                    <ul className="flex list-none gap-1 overflow-x-auto [scrollbar-width:none] @2xl:flex-col [&::-webkit-scrollbar]:hidden">
                         {SETTINGS_SECTIONS.map((item) => (
                             <li key={item.key}>
                                 <Link

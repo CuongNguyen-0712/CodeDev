@@ -120,7 +120,7 @@ export default function AuditPage() {
                 description={facets?.actions?.length ? auditFinding(facets, filters.range) : "Every privileged change, newest first. The log is append-only."}
                 actions={filtered && <Button variant="outline" size="sm" onClick={() => update({ actor: "", action: "", target: "", targetId: "" })}>Clear filters</Button>}
             />
-            <div className="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-6">
+            <div className="grid gap-4 @3xl:grid-cols-[14rem_minmax(0,1fr)] @3xl:gap-6">
                 <aside className="space-y-5" aria-label="Filters">
                     <div className="space-y-1">
                         <h2 className="px-2 text-xs text-muted-foreground">Time</h2>
@@ -139,13 +139,13 @@ export default function AuditPage() {
                         </div>
                     </div>
                     {/* Below lg the facet lists fold away so the log itself is on the first screen. */}
-                    <details className="group rounded-md lg:hidden">
+                    <details className="group rounded-md @3xl:hidden">
                         <summary className="cursor-pointer rounded-md px-2 py-1.5 text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                             Filter by action, target or actor
                         </summary>
                         <div className="mt-3 space-y-5">{facetGroups}</div>
                     </details>
-                    <div className="hidden space-y-5 lg:block">{facetGroups}</div>
+                    <div className="hidden space-y-5 @3xl:block">{facetGroups}</div>
                     {filters.targetId && <p className="px-2 text-xs text-muted-foreground">Only <span className="font-mono">{filters.targetId}</span></p>}
                 </aside>
 
@@ -163,10 +163,10 @@ export default function AuditPage() {
                         <ul className="divide-y divide-border">
                             {entries.map((entry) => (
                                 <li key={entry.id}>
-                                    <button type="button" onClick={() => setOpen(entry)} className="grid w-full grid-cols-[10.5rem_minmax(0,1fr)] gap-3 px-4 py-2 text-left text-sm hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none sm:grid-cols-[10.5rem_11rem_minmax(0,1fr)]">
+                                    <button type="button" onClick={() => setOpen(entry)} className="grid w-full grid-cols-[10.5rem_minmax(0,1fr)] gap-3 px-4 py-2 text-left text-sm hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none @xl:grid-cols-[10.5rem_11rem_minmax(0,1fr)]">
                                         <time dateTime={entry.created_at} className="font-mono text-xs leading-5 text-muted-foreground">{stamp(entry.created_at)}</time>
                                         <span className="truncate font-mono text-xs leading-5">{entry.action}</span>
-                                        <span className="col-span-2 min-w-0 truncate sm:col-span-1">
+                                        <span className="col-span-2 min-w-0 truncate @xl:col-span-1">
                                             <span className="text-muted-foreground">{entry.actor || "system"} →</span> {entry.target_type} <span className="font-mono text-xs">{entry.target_id}</span>
                                             {entry.reason && <span className="text-muted-foreground"> · “{entry.reason}”</span>}
                                         </span>

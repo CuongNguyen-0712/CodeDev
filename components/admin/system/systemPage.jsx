@@ -58,9 +58,9 @@ function Services({ health }) {
         { label: "Jobs", status: health.jobs?.status, detail: health.jobs?.inngest === false ? "Inline (Inngest off)" : `${formatNumber(health.jobs?.deadLettersLastHour ?? 0)} dead letters in the last hour` },
     ];
     return (
-        <dl className="mb-6 grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card lg:grid-cols-4">
+        <dl className="mb-6 grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card @3xl:grid-cols-4">
             {items.map((item, index) => (
-                <div key={item.label} className={cn("space-y-1 p-4", index % 2 === 1 && "border-l border-border", index > 1 && "border-t border-border lg:border-t-0", index === 2 && "lg:border-l")}>
+                <div key={item.label} className={cn("space-y-1 p-4", index % 2 === 1 && "border-l border-border", index > 1 && "border-t border-border @3xl:border-t-0", index === 2 && "@3xl:border-l")}>
                     <dt className="text-xs text-muted-foreground">{item.label}</dt>
                     <dd><StatusDot status={item.status || "unknown"} /></dd>
                     <dd className="truncate text-xs text-muted-foreground">{item.detail}</dd>
@@ -139,7 +139,7 @@ export default function SystemPage() {
                                 <tbody className="divide-y divide-border">
                                     {deadLetters.map((letter) => (
                                         <tr key={letter.id}>
-                                            <td className="px-5 py-2.5 break-all sm:break-normal sm:whitespace-nowrap"><span className="font-mono text-xs">{letter.kind}</span><span className="block text-xs text-muted-foreground">{letter.source}</span></td>
+                                            <td className="px-5 py-2.5 break-all @xl:break-normal @xl:whitespace-nowrap"><span className="font-mono text-xs">{letter.kind}</span><span className="block text-xs text-muted-foreground">{letter.source}</span></td>
                                             <td className="max-w-0 truncate px-5 py-2.5 text-muted-foreground @max-2xl:hidden" title={letter.error || ""}>{letter.error || "—"}</td>
                                             <td className="px-5 py-2.5 text-right tabular-nums @max-2xl:hidden">{letter.attempts ?? "—"}</td>
                                             <td className="px-5 py-2.5 text-right whitespace-nowrap text-muted-foreground">{formatRelative(letter.created_at)}</td>
@@ -157,7 +157,7 @@ export default function SystemPage() {
                     )}
                 </Panel>
 
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="grid gap-4 @3xl:grid-cols-2">
                     <Panel title="Auth outbox">
                         <dl className="grid grid-cols-3 gap-4 text-sm">
                             <div><dt className="text-xs text-muted-foreground">Pending</dt><dd className="text-xl font-semibold tabular-nums">{formatNumber(outbox.pending)}</dd></div>
@@ -175,7 +175,7 @@ export default function SystemPage() {
                     </Panel>
                 </div>
 
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="grid gap-4 @3xl:grid-cols-2">
                     <Panel title="Largest tables">
                         <ul className="divide-y divide-border text-sm">
                             {database.tables.map((table) => (

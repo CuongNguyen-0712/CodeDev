@@ -127,7 +127,7 @@ function CheckboxList({ legend, items, selected, onChange, disabled }) {
     return (
         <fieldset className="space-y-2" disabled={disabled}>
             <legend className="text-sm font-medium">{legend}</legend>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2 @xl:grid-cols-2">
                 {items.map((item) => {
                     const id = `${legend}-${item.code}`;
                     return (

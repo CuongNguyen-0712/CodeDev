@@ -37,7 +37,7 @@ function UserRow({ user }) {
         <li>
             <Link
                 href={`/admin/users/${encodeURIComponent(user.id)}`}
-                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto]"
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none @xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto]"
             >
                 <span className="min-w-0">
                     <span className="flex min-w-0 items-center gap-2">
@@ -48,9 +48,9 @@ function UserRow({ user }) {
                     </span>
                     <span className="block truncate text-sm text-muted-foreground">{user.email}</span>
                 </span>
-                <span className="hidden sm:block"><StatusDot status={user.state} /></span>
+                <span className="hidden @xl:block"><StatusDot status={user.state} /></span>
                 <span className="text-right text-sm text-muted-foreground">
-                    <span className="block sm:hidden"><StatusDot status={user.state} /></span>
+                    <span className="block @xl:hidden"><StatusDot status={user.state} /></span>
                     <span className="block">{user.last_active_at ? formatRelative(user.last_active_at) : "Never signed in"}</span>
                     <span className="block text-xs">Joined {formatDate(user.created_at)}</span>
                 </span>
@@ -102,7 +102,7 @@ export default function UserList() {
             <TabBar tabs={TABS} value={tab} onChange={(key) => update({ tab: key })} counts={counts} label="Account state" />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
-                <div className="relative w-full sm:w-72">
+                <div className="relative w-full @xl:w-72">
                     <LuSearch aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                         value={search}

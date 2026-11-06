@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import PageHeader from "@/components/admin/shell/pageHeader";
 import Finding from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
+import { DateField } from "@/components/admin/ui/dateField";
 import { formatDate, formatDateTime, formatNumber, formatRelative } from "@/components/admin/ui/format";
 import { Button } from "@/components/shadcn/button";
 import { Field, FieldLabel } from "@/components/shadcn/field";
@@ -259,7 +260,7 @@ export default function UserDetail({ userId }) {
                 {staff.map((role) => <span key={role.code} className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{role.name}</span>)}
             </PageHeader>
 
-            <dl className="mb-6 grid grid-cols-2 divide-border overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-4 [&>div]:border-border [&>div:nth-child(n+3)]:border-t sm:[&>div:nth-child(n+3)]:border-t-0 sm:[&>div:nth-child(n+5)]:border-t sm:[&>div:not(:nth-child(4n+1))]:border-l [&>div:nth-child(even)]:border-l">
+            <dl className="mb-6 grid grid-cols-2 divide-border overflow-hidden rounded-lg border border-border bg-card @xl:grid-cols-4 [&>div]:border-border [&>div:nth-child(n+3)]:border-t @xl:[&>div:nth-child(n+3)]:border-t-0 @xl:[&>div:nth-child(n+5)]:border-t @xl:[&>div:not(:nth-child(4n+1))]:border-l [&>div:nth-child(even)]:border-l">
                 <Fact label="Email">{user.email}</Fact>
                 <Fact label="Sign-in methods">{user.providers.length ? user.providers.join(", ") : "—"}</Fact>
                 <Fact label="Points"><span className="tabular-nums">{formatNumber(user.points)}</span></Fact>
@@ -327,13 +328,14 @@ export default function UserDetail({ userId }) {
             >
                 <Field>
                     <FieldLabel htmlFor="suspend-until">Suspended until</FieldLabel>
-                    <input
+                    <DateField
                         id="suspend-until"
-                        type="datetime-local"
+                        withTime
                         min={minUntil}
                         value={until}
-                        onChange={(event) => setUntil(event.target.value)}
-                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        onChange={setUntil}
+                        placeholder="Pick an end date"
+                        presets={[{ label: "1 day", days: 1 }, { label: "7 days", days: 7 }, { label: "30 days", days: 30 }]}
                     />
                 </Field>
             </ConfirmDialog>

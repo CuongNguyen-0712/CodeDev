@@ -112,7 +112,7 @@ export default function ChallengeManager({ courseId }) {
                 )}
             >
                 {draft && (
-                    <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="grid gap-4 @xl:grid-cols-3">
                         <Field>
                             <FieldLabel htmlFor="challenge-status">Status</FieldLabel>
                             <Select value={draft.status} onValueChange={(value) => setDraft({ ...draft, status: value })}>

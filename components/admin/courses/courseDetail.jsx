@@ -99,7 +99,7 @@ export default function CourseDetail({ courseId }) {
                 <StatusDot status={course.publish_status} />
             </PageHeader>
 
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+            <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_20rem]">
                 <div className="min-w-0">
                     <TabBar tabs={TABS.filter((item) => !item.permission || can(item.permission))} value={tab} onChange={setTab} label="Course sections" />
                     {tab === "challenges" ? <ChallengeManager courseId={courseId} /> : tab === "feedback" ? <div className="space-y-6"><CourseRatings courseId={courseId} /><CommentList courseId={courseId} /></div> : (
@@ -122,7 +122,7 @@ export default function CourseDetail({ courseId }) {
                                     </header>
                                     <ol className="divide-y divide-border">
                                         {module.lessons.map((lesson, lessonIndex) => (
-                                            <li key={lesson.id} className="flex flex-col gap-1 px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                                            <li key={lesson.id} className="flex flex-col gap-1 px-4 py-2 @xl:flex-row @xl:items-center @xl:justify-between @xl:gap-3">
                                                 <span className="min-w-0">
                                                     <span className={cn("block truncate text-sm", lesson.hidden && "text-muted-foreground line-through")}>{lessonIndex + 1}. {lesson.title}</span>
                                                     <span className="block text-xs text-muted-foreground">
@@ -131,7 +131,7 @@ export default function CourseDetail({ courseId }) {
                                                         {!lesson.contentSource && <span className="text-warning"> · no content</span>}
                                                     </span>
                                                 </span>
-                                                <span className="-ml-2 flex shrink-0 items-center sm:ml-0">
+                                                <span className="-ml-2 flex shrink-0 items-center @xl:ml-0">
                                                     {lesson.contentSource && can("content.studio") && (
                                                         <a href={`/studio/structure/lesson;${encodeURIComponent(lesson.contentSource)}`} className="mr-1 inline-flex items-center gap-1 text-xs text-primary-ink hover:underline">
                                                             Studio<LuExternalLink aria-hidden="true" className="size-3" />

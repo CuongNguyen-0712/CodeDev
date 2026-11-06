@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import { Textarea } from "@/components/shadcn/textarea";
 import RowAction from "@/components/admin/ui/rowAction";
+import { DateField, toLocalValue } from "@/components/admin/ui/dateField";
 
 import { LuBan } from "react-icons/lu";
 
@@ -30,7 +31,7 @@ export default function AccessAdmin() {
     const users = useQuery(adminQueries.users(query));
 
     return (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[18rem_1fr]">
+        <div className="grid grid-cols-1 gap-6 @3xl:grid-cols-[18rem_1fr]">
             <section className="space-y-3" aria-labelledby="user-search-heading">
                 <h2 id="user-search-heading" className="text-sm font-semibold">Find a user</h2>
                 <Label htmlFor="admin-user-search" className="sr-only">Username, email or user id</Label>
@@ -217,7 +218,7 @@ function Entitlements({ user }) {
                 </Table>
             )}
 
-            <form onSubmit={submitGrant} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <form onSubmit={submitGrant} className="grid grid-cols-1 gap-3 @xl:grid-cols-2">
                 <div className="space-y-1.5">
                     <Label htmlFor="grant-course">Grant access to</Label>
                     <Select value={courseId || undefined} onValueChange={setCourseId}>
@@ -231,13 +232,13 @@ function Entitlements({ user }) {
                 </div>
                 <div className="space-y-1.5">
                     <Label htmlFor="grant-expiry">Expires on (optional)</Label>
-                    <Input id="grant-expiry" type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
+                    <DateField id="grant-expiry" value={expiresAt} onChange={setExpiresAt} min={toLocalValue(new Date(), false)} clearable placeholder="No end date" presets={[{ label: "30 days", days: 30 }, { label: "90 days", days: 90 }, { label: "1 year", days: 365 }]} />
                 </div>
-                <div className="space-y-1.5 sm:col-span-2">
+                <div className="space-y-1.5 @xl:col-span-2">
                     <Label htmlFor="grant-reason">Reason</Label>
                     <Textarea id="grant-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} className="h-24 resize-none field-sizing-fixed" />
                 </div>
-                <div className="sm:col-span-2">
+                <div className="@xl:col-span-2">
                     <Button type="submit" disabled={!courseId || reason.trim().length < 5 || grant.isPending}>
                         {grant.isPending ? "Granting..." : "Grant access"}
                     </Button>

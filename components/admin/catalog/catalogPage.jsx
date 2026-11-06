@@ -100,7 +100,7 @@ export default function CatalogPage() {
                         <tbody className="divide-y divide-border">
                             {items.map((item) => (
                                 <tr key={item.id}>
-                                    <td className="max-w-0 truncate px-3 py-2 sm:px-4">{item.name}</td>
+                                    <td className="max-w-0 truncate px-3 py-2 @xl:px-4">{item.name}</td>
                                     {coded && <td className="px-4 py-2 font-mono text-xs @max-2xl:hidden">{item.code}</td>}
                                     {coded && <td className="px-4 py-2 text-muted-foreground @max-2xl:hidden">{item.is_active ? "Active" : "Inactive"}</td>}
                                     <td className="px-4 py-2 text-right tabular-nums">{item.courses === 0 ? <Badge variant="warning">Unused</Badge> : formatNumber(item.courses)}</td>
@@ -143,7 +143,7 @@ export default function CatalogPage() {
                 }}
             >
                 {["create", "rename"].includes(dialog?.action) && (
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-4 @xl:grid-cols-2">
                         <Field>
                             <FieldLabel htmlFor="catalog-name">Name</FieldLabel>
                             <input id="catalog-name" value={form.name} maxLength={120} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} />

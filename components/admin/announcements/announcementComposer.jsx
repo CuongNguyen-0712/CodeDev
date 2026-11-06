@@ -12,6 +12,7 @@ import { useAdminCreateAnnouncement } from "@/mutations/premium.mutation";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import PageHeader from "@/components/admin/shell/pageHeader";
 import { formatNumber } from "@/components/admin/ui/format";
+import { DateField } from "@/components/admin/ui/dateField";
 import { describeAudience } from "@/components/admin/announcements/announcementsPage";
 import { NotificationItem } from "@/components/ui/notificationCenter";
 import { Button } from "@/components/shadcn/button";
@@ -38,7 +39,6 @@ const ROLES = [
     { code: "super_admin", label: "Super admin" },
 ];
 const LINK = /^\/(?![/\\])[^\s\\]*$/;
-const DATETIME_CLASS = "h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
 
 // datetime-local wants local time.
 const localInput = (date) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -143,7 +143,7 @@ export default function AnnouncementComposer() {
                 description={recipients != null && audience ? `Reaches ${formatNumber(recipients)} active learner${recipients === 1 ? "" : "s"}` : "Pick who receives it"}
             />
 
-            <form onSubmit={submit} noValidate className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
+            <form onSubmit={submit} noValidate className="grid gap-8 @4xl:grid-cols-[minmax(0,1fr)_22rem]">
                 <div className="space-y-6">
                     <Field data-invalid={Boolean(errors.title) || undefined}>
                         <FieldLabel htmlFor={`${id}-title`}>Title</FieldLabel>
@@ -153,7 +153,7 @@ export default function AnnouncementComposer() {
 
                     <Field data-invalid={Boolean(errors.body) || undefined}>
                         <FieldLabel htmlFor={`${id}-body`}>Message</FieldLabel>
-                        <Textarea id={`${id}-body`} value={body} onChange={(event) => setBody(event.target.value)} maxLength={1000} className="h-28 resize-y" aria-invalid={Boolean(errors.body) || undefined} aria-describedby={`${id}-body-hint`} />
+                        <Textarea id={`${id}-body`} value={body} onChange={(event) => setBody(event.target.value)} maxLength={1000} className="h-28 resize-none field-sizing-fixed" aria-invalid={Boolean(errors.body) || undefined} aria-describedby={`${id}-body-hint`} />
                         {errors.body ? <FieldError id={`${id}-body-hint`}>{errors.body}</FieldError> : <FieldDescription id={`${id}-body-hint`}>Plain text. {formatNumber(1000 - body.length)} characters left.</FieldDescription>}
                     </Field>
 
@@ -174,7 +174,7 @@ export default function AnnouncementComposer() {
                             ))}
                         </RadioGroup>
                         {type === "role" && (
-                            <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Roles">
+                            <div className="grid gap-2 @xl:grid-cols-2" role="group" aria-label="Roles">
                                 {ROLES.map((role) => (
                                     <label key={role.code} className="flex items-center gap-2 text-sm">
                                         <Checkbox checked={roles.includes(role.code)} onCheckedChange={(on) => toggleRole(role.code, on === true)} />
@@ -192,7 +192,7 @@ export default function AnnouncementComposer() {
                         {type === "users" && (
                             <Field>
                                 <FieldLabel htmlFor={`${id}-users`}>Usernames</FieldLabel>
-                                <Textarea id={`${id}-users`} value={users} onChange={(event) => setUsers(event.target.value)} className="h-20 resize-y font-mono text-sm" aria-describedby={`${id}-users-hint`} />
+                                <Textarea id={`${id}-users`} value={users} onChange={(event) => setUsers(event.target.value)} className="h-20 resize-none field-sizing-fixed font-mono text-sm" aria-describedby={`${id}-users-hint`} />
                                 <FieldDescription id={`${id}-users-hint`}>Up to 100, separated by spaces, commas or lines. Public ids work too.</FieldDescription>
                             </Field>
                         )}
@@ -209,7 +209,7 @@ export default function AnnouncementComposer() {
                         {when === "later" && (
                             <Field>
                                 <FieldLabel htmlFor={`${id}-send-at`}>Send at</FieldLabel>
-                                <input id={`${id}-send-at`} type="datetime-local" min={minSendAt} value={sendAt} onChange={(event) => setSendAt(event.target.value)} className={DATETIME_CLASS} aria-invalid={Boolean(errors.sendAt) || undefined} aria-describedby={errors.sendAt ? `${id}-sendAt-error` : undefined} />
+                                <DateField id={`${id}-send-at`} withTime min={minSendAt} value={sendAt} onChange={setSendAt} placeholder="Pick a date and time" presets={[{ label: "In 1 hour", days: 1 / 24 }, { label: "Tomorrow", days: 1 }, { label: "In 7 days", days: 7 }]} invalid={Boolean(errors.sendAt)} describedBy={errors.sendAt ? `${id}-sendAt-error` : undefined} />
                             </Field>
                         )}
                         {fieldError("sendAt")}
@@ -224,7 +224,7 @@ export default function AnnouncementComposer() {
                     </div>
                 </div>
 
-                <aside className="space-y-2 lg:sticky lg:top-6 lg:self-start" aria-label="Preview">
+                <aside className="space-y-2 @4xl:sticky @4xl:top-6 @4xl:self-start" aria-label="Preview">
                     <h2 className="text-sm font-semibold">Preview</h2>
                     <div className="overflow-hidden rounded-lg border border-border bg-popover">
                         <NotificationItem

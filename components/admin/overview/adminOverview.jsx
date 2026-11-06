@@ -59,8 +59,8 @@ function DeploymentCard({ deployment, health }) {
     const copySha = () => deployment.sha && navigator.clipboard?.writeText(deployment.sha).catch(() => {});
 
     return (
-        <section className="grid overflow-hidden rounded-lg border border-border bg-card lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]" aria-label="Deployment and health">
-            <div className="space-y-1 border-b border-border px-4 py-3 lg:border-r lg:border-b-0">
+        <section className="grid overflow-hidden rounded-lg border border-border bg-card @3xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]" aria-label="Deployment and health">
+            <div className="space-y-1 border-b border-border px-4 py-3 @3xl:border-r @3xl:border-b-0">
                 <p className="text-sm text-muted-foreground capitalize">{deployment.environment}</p>
                 {deployment.message ? (
                     <>
@@ -78,9 +78,9 @@ function DeploymentCard({ deployment, health }) {
                     <p className="text-base font-semibold">Local build</p>
                 )}
             </div>
-            <dl className="grid grid-cols-2 divide-border sm:grid-cols-4 sm:divide-x">
+            <dl className="grid grid-cols-2 divide-border @xl:grid-cols-4 @xl:divide-x">
                 {services.map((service) => (
-                    <div key={service.key} className="space-y-0.5 border-b border-border px-4 py-3 nth-[n+3]:border-b-0 sm:border-b-0">
+                    <div key={service.key} className="space-y-0.5 border-b border-border px-4 py-3 nth-[n+3]:border-b-0 @xl:border-b-0">
                         <dt className="text-xs text-muted-foreground">{service.label}</dt>
                         <dd><StatusDot status={service.status || "unknown"} /></dd>
                         <dd className="truncate text-xs text-muted-foreground">{service.detail}</dd>
@@ -100,9 +100,9 @@ function Kpis({ counts }) {
         { label: "New sign-ups (7 days)", value: counts.signups_7d, change: formatChange(counts.signups_7d, counts.signups_prev_7d, "vs previous 7 days") },
     ];
     return (
-        <dl className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card lg:grid-cols-4" aria-label="Key figures">
+        <dl className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card @3xl:grid-cols-4" aria-label="Key figures">
             {items.map((item, index) => (
-                <div key={item.label} className={cn("space-y-0.5 px-4 py-3.5",index % 2 === 1 && "border-l border-border", index > 1 && "border-t border-border lg:border-t-0", index === 2 && "lg:border-l")}>
+                <div key={item.label} className={cn("space-y-0.5 px-4 py-3.5",index % 2 === 1 && "border-l border-border", index > 1 && "border-t border-border @3xl:border-t-0", index === 2 && "@3xl:border-l")}>
                     <dt className="text-sm text-muted-foreground">{item.label}</dt>
                     <dd className="text-2xl font-semibold tabular-nums">{formatNumber(item.value)}</dd>
                     <dd className={cn("text-xs", item.bad ? "text-destructive" : "text-muted-foreground")}>{item.change || "—"}</dd>
@@ -152,8 +152,8 @@ function OverviewSkeleton() {
         <div className="space-y-4" aria-busy="true" aria-label="Loading overview">
             <StripSkeleton />
             <StripSkeleton />
-            <div className="grid gap-4 lg:grid-cols-3">
-                <Skeleton className="h-60 rounded-lg border border-border lg:col-span-2" />
+            <div className="grid gap-4 @4xl:grid-cols-3">
+                <Skeleton className="h-60 rounded-lg border border-border @4xl:col-span-2" />
                 <TableSkeleton rows={3} columns={2} label="Loading what needs attention" />
             </div>
         </div>
@@ -206,11 +206,11 @@ export default function AdminOverview() {
                 <DeploymentCard deployment={deployment} health={health} />
                 <Kpis counts={counts} />
 
-                <div className="grid gap-4 lg:grid-cols-3">
-                    <Panel title="Submissions, last 14 days" className="lg:col-span-2" action={<span className="text-xs text-muted-foreground">Code and quiz</span>}>
+                <div className="grid gap-4 @4xl:grid-cols-3">
+                    <Panel title="Submissions, last 14 days" className="@4xl:col-span-2" action={<span className="text-xs text-muted-foreground">Code and quiz</span>}>
                         {/* The SVG scales with its viewBox, so phones get a narrower one to keep the ticks readable. */}
-                        <BarChart data={chartData} label="Submissions per day, last 14 days" width={320} height={150} className="sm:hidden" formatLabel={dayLabel} />
-                        <BarChart data={chartData} label="Submissions per day, last 14 days" height={140} className="max-sm:hidden" formatLabel={dayLabel} />
+                        <BarChart data={chartData} label="Submissions per day, last 14 days" width={320} height={150} className="@xl:hidden" formatLabel={dayLabel} />
+                        <BarChart data={chartData} label="Submissions per day, last 14 days" height={140} className="@max-xl:hidden" formatLabel={dayLabel} />
                     </Panel>
                     <Panel
                         title="Needs attention"
@@ -225,7 +225,7 @@ export default function AdminOverview() {
                     </Panel>
                 </div>
 
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="grid gap-4 @3xl:grid-cols-2">
                     <Panel title="Catalog and people" action={can("admin.read") && <Link href="/admin/courses" className="text-sm text-primary-ink hover:underline">Courses</Link>}>
                         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                             {PUBLISH_ORDER.map((status) => (

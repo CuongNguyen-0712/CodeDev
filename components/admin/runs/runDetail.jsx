@@ -110,7 +110,7 @@ function Source({ runId, hasSource }) {
                     {failed.map((test, index) => (
                         <div key={test.id ?? index} className="overflow-hidden rounded-lg border border-border">
                             <p className="border-b border-border px-4 py-2 text-sm">{test.name || `Test ${test.number}`}</p>
-                            <dl className="grid gap-px bg-border text-sm sm:grid-cols-2">
+                            <dl className="grid gap-px bg-border text-sm @xl:grid-cols-2">
                                 <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Expected</dt><dd><pre className="mt-1 whitespace-pre-wrap font-mono text-xs">{String(test.expected ?? "—")}</pre></dd></div>
                                 <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Actual</dt><dd><pre className="mt-1 whitespace-pre-wrap font-mono text-xs">{String(test.actual ?? test.error ?? "—")}</pre></dd></div>
                             </dl>
@@ -183,7 +183,7 @@ export default function RunDetail({ runId }) {
                 <StatusDot status={run.status} />
             </PageHeader>
 
-            <dl className="mb-6 grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-4 [&>div]:border-border [&>div:nth-child(even)]:border-l [&>div:nth-child(n+3)]:border-t sm:[&>div:nth-child(n+3)]:border-t-0 sm:[&>div:nth-child(n+5)]:border-t sm:[&>div:not(:nth-child(4n+1))]:border-l">
+            <dl className="mb-6 grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card @xl:grid-cols-4 [&>div]:border-border [&>div:nth-child(even)]:border-l [&>div:nth-child(n+3)]:border-t @xl:[&>div:nth-child(n+3)]:border-t-0 @xl:[&>div:nth-child(n+5)]:border-t @xl:[&>div:not(:nth-child(4n+1))]:border-l">
                 <Fact label="Learner">{can("user.read")
                     ? <Link href={`/admin/users/${encodeURIComponent(run.user_id)}`} className="text-primary-ink hover:underline">{run.username}</Link>
                     : run.username}</Fact>
