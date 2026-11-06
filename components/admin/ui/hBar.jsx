@@ -13,7 +13,7 @@ export default function HBar({ rows, label, max, className, formatValue = format
             {rows.map((row) => (
                 <li key={row.key} className="grid min-w-0 gap-1">
                     <div className="flex min-w-0 items-baseline justify-between gap-3 text-sm">
-                        <span className="min-w-0 truncate" title={typeof row.label === "string" ? row.label : undefined}>{row.label}</span>
+                        <span className="min-w-0 line-clamp-2 break-words">{row.label}</span>
                         <span className="shrink-0 tabular-nums">
                             <span className="font-medium">{formatValue(row.value)}</span>
                             {row.detail && <span className="ml-1.5 text-xs text-muted-foreground">{row.detail}</span>}

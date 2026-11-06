@@ -12,7 +12,7 @@ import BarChart from "@/components/admin/ui/barChart";
 import HBar from "@/components/admin/ui/hBar";
 import TabBar from "@/components/admin/ui/tabBar";
 import { useUrlFilters } from "@/components/admin/ui/useUrlFilters";
-import Finding from "@/components/admin/ui/finding";
+import Finding, { plural } from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
 import { formatChange, formatDuration, formatNumber, formatRelative } from "@/components/admin/ui/format";
 import { StripSkeleton, TableSkeleton } from "@/components/admin/ui/adminSkeleton";
@@ -223,18 +223,25 @@ function ActivityPanel() {
 /** The courses most registered in the last 30 days, each with how many of those registrations finished. */
 function TopCourses({ courses, can }) {
     if (!courses?.length) return <p className="text-sm text-muted-foreground">No course had a new registration in the last 30 days.</p>;
+    // Figures cached before `total` existed fall back to the listed courses.
+    const total = courses[0].total || courses.reduce((sum, course) => sum + course.registrations, 0);
     return (
-        <HBar
-            label="Courses with the most new registrations, last 30 days"
-            rows={courses.map((course) => ({
-                key: course.id,
-                label: can("admin.read")
-                    ? <Link href={`/admin/courses/${encodeURIComponent(course.id)}`} className="hover:underline">{course.title}</Link>
-                    : course.title,
-                value: course.registrations,
-                detail: `${formatNumber(course.completed)} finished`,
-            }))}
-        />
+        <>
+            <p className="mb-3 text-xs text-muted-foreground">{`${plural(total, "new registration")} in all; bars show each course's share.`}</p>
+            {/* Scaled to every registration, not to the top course, so one registration each is not five full bars. */}
+            <HBar
+                label="Courses with the most new registrations, last 30 days"
+                max={total}
+                rows={courses.map((course) => ({
+                    key: course.id,
+                    label: can("admin.read")
+                        ? <Link href={`/admin/courses/${encodeURIComponent(course.id)}`} title={course.title} className="hover:underline">{course.title}</Link>
+                        : course.title,
+                    value: course.registrations,
+                    detail: `${Math.round((course.registrations / Math.max(1, total)) * 100)}% · ${formatNumber(course.completed)} finished`,
+                }))}
+            />
+        </>
     );
 }
 

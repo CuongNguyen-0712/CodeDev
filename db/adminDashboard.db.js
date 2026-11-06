@@ -85,10 +85,14 @@ export const adminDashboardDb = {
         ORDER BY d.day
     `, [days])).rows,
 
-    /** The 5 courses with the most new registrations in the last 30 days, with how many of those finished. */
+    /**
+     * The 5 courses with the most new registrations in the last 30 days, with how many of those finished;
+     * `total` is every new registration in that window (all courses, counted before the LIMIT).
+     */
     topCourses: async () => (await sql(`
         SELECT c.public_id AS id, c.title, COUNT(*)::int AS registrations,
-               COUNT(*) FILTER (WHERE reg.status = 'completed')::int AS completed
+               COUNT(*) FILTER (WHERE reg.status = 'completed')::int AS completed,
+               (SUM(COUNT(*)) OVER ())::int AS total
         FROM learning.register reg JOIN catalog.course c ON c.id = reg.course_id
         WHERE reg.created_at > now() - interval '30 days' AND reg.is_deleted IS NOT TRUE AND c.is_deleted IS NOT TRUE
           AND ${NOT_STAFF("reg.user_id")}
