@@ -108,11 +108,12 @@ export default function BarChart({ data, label, height = 180, className, formatL
                     </>
                 )}
             </div>
+            {/* pointer-events-auto: globals.css turns pointer events off on every svg (icons), which killed the hover. */}
             <svg
                 viewBox={`0 0 ${width} ${height}`}
                 width={width}
                 height={height}
-                className="block max-w-full rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="pointer-events-auto block max-w-full rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 role="img"
                 aria-label={`${label}: ${formatNumber(total)} in total. Arrow keys move between ${unit}.`}
                 tabIndex={0}
