@@ -28,6 +28,7 @@ const JOBS_DIR = "/vercel/jobs";
 const WORK_ROOT = "/work";
 const RUNNER = "/opt/codedev/runner.cjs";
 const GO_CACHE = "/opt/gocache";
+const GO_CACHE_PROG = "/opt/codedev/gocacheprog";
 const KOTLINC_CDS = "/opt/kotlin/kotlinc.jsa";
 // Every world-writable directory in the image (others are made read-only in the Dockerfile);
 // selftest.mjs fails if a new one appears.
@@ -185,12 +186,6 @@ function prepareSlot(user, job) {
     fs.mkdirSync(path.join(user.dir, "tmp"), { mode: 0o700 });
     own(path.join(user.dir, "tmp"));
     if (job.mode === "stdio") write(job.lang.file, job.code);
-    if (job.language === "go") {
-        // Private copy of the pre-built std cache: learners must not be able to poison a shared one.
-        const cache = path.join(user.dir, "gocache");
-        execFileSync("/usr/bin/cp", ["-r", GO_CACHE, cache]);
-        execFileSync("/usr/bin/chown", ["-R", `${user.uid}:${user.gid}`, cache]);
-    }
     if (job.language === "csharp") write("main.runtimeconfig.json", fs.readFileSync("/opt/codedev/csharp/main.runtimeconfig.json"));
 }
 
@@ -201,6 +196,8 @@ function userEnv(user) {
         HOME: user.dir,
         TMPDIR: path.join(user.dir, "tmp"),
         GOCACHE: path.join(user.dir, "gocache"),
+        // Reads the pre-built std in place (read-only), writes new entries to the job's GOCACHE.
+        GOCACHEPROG: `${GO_CACHE_PROG} ${GO_CACHE} ${path.join(user.dir, "gocache")}`,
         GOPATH: path.join(user.dir, "gopath"),
         GOFLAGS: "-trimpath",   // must match the image build, or the pre-built cache misses
         GOTOOLCHAIN: "local",

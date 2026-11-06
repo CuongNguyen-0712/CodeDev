@@ -83,12 +83,18 @@ RUN printf '%s\n' 'Defaults always_set_home' 'Defaults !env_reset' 'Defaults !fq
     find / -xdev \( -path /proc -o -path /sys -o -path /tmp -o -path /var/tmp -o -path /dev/shm -o -path /run/lock \) -prune \
       -o -type d -perm -0002 -exec chmod o-w {} +
 
-# Pre-built Go standard library cache (root-owned, read-only); run-job gives every job its own copy.
+# Pre-built Go standard library cache (all of std, net/http included; root-owned, read-only).
+# run-job's GOCACHEPROG (gocacheprog.go) reads it in place and keeps each job's new entries in the
+# job's own directory: no copy per job, nothing writable shared between jobs.
 ENV GOFLAGS=-trimpath GOTOOLCHAIN=local
-RUN mkdir -p /opt/gocache && \
+COPY --chown=root:root --chmod=0644 vercel/gocacheprog.go /tmp/gocacheprog/main.go
+RUN mkdir -p /opt/gocache /opt/codedev && \
+    GOCACHE=/opt/gocache go build std && \
     printf 'package main\nimport ("bufio";"fmt";"os";"sort";"strconv";"strings";"encoding/json";"math")\nfunc main(){r:=bufio.NewReader(os.Stdin);_=r;fmt.Println(sort.IntsAreSorted(nil),strings.ToUpper("x"),strconv.Itoa(1),math.Sqrt(2));_,_=json.Marshal(1)}\n' > /tmp/w.go && \
     GOCACHE=/opt/gocache go build -o /tmp/w /tmp/w.go && rm -f /tmp/w /tmp/w.go && \
-    chmod -R go-w,a+rX /opt/gocache
+    chmod -R go-w,a+rX /opt/gocache && \
+    cd /tmp/gocacheprog && GOCACHE=/tmp/gocacheprog/cache go build -o /opt/codedev/gocacheprog main.go && \
+    chmod 0755 /opt/codedev/gocacheprog && cd / && rm -rf /tmp/gocacheprog
 
 COPY --chown=root:root --chmod=0755 vercel/run-job /opt/codedev/run-job
 COPY --chown=root:root --chmod=0644 runner.cjs vercel/selftest.mjs /opt/codedev/

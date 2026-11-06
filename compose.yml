@@ -171,7 +171,8 @@ services:
       - /var/tmp:rw,noexec,nosuid,nodev,size=16m
       - /run:rw,noexec,nosuid,nodev,size=1m,mode=0755
       - /vercel/jobs:rw,noexec,nosuid,nodev,size=8m,mode=0700
-      # Compiled programs run from the slot's work dir (plus a 39 MB Go cache copy per Go job).
+      # Compiled programs run from the slot's work dir (Go jobs also keep their own build cache
+      # entries there; the pre-built std cache is read in place from the image).
       - /work:rw,exec,nosuid,nodev,size=768m,mode=0711
     # Compilers and the JVM start many threads; run-job also caps each slot user at 64.
     pids_limit: 256

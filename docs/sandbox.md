@@ -144,7 +144,7 @@ than a VM per submission. Recycle sessions regularly to bound how long a comprom
 
 Ubuntu 26.04 with the same layout as the managed `vercel/sandbox/ubuntu` image (user `ubuntu` with
 sudo, `HOME=/vercel`). Toolchains: Node.js 24, Python 3.14, gcc/g++ 15.2, OpenJDK 21, Go 1.26
-(std cache pre-built, read-only, in `/opt/gocache`), rustc 1.93; since `v3` also PHP 8 (`php -l` as the compile
+(whole std cache pre-built, read-only, in `/opt/gocache`), rustc 1.93; since `v3` also PHP 8 (`php -l` as the compile
 step), TypeScript 5.9 (`tsc --strict`, then node), Kotlin 2.3 (`kotlinc` + kotlinx.coroutines, run on the JVM) and
 .NET 10 (Roslyn `csc.dll` called directly with the framework reference assemblies and implicit usings, no NuGet).
 
@@ -192,8 +192,14 @@ or `{ "error": "..." }` (bad job, `slot is busy`).
   the kernel sends SIGKILL instead, which cannot be told apart from other kills (v4 and older).
 - Before and after a job: every process of the slot user is killed (`kill -1` as that user, which
   a fork bomb cannot outrun), its work directory and its files in the shared temp dirs are removed.
-- Go: each job gets a private copy of the read-only std cache, with `GOFLAGS=-trimpath` (same as
-  the image build; otherwise the cache misses and `go build` takes ~9.5 s instead of ~0.45 s).
+- Go: the image pre-builds the whole standard library (`go build std`, `net/http` and
+  `net/http/httptest` included) into `/opt/gocache`, root-owned and read-only. Jobs do not copy it:
+  run-job sets `GOCACHEPROG=/opt/codedev/gocacheprog /opt/gocache <slot>/gocache`
+  (`sandbox/vercel/gocacheprog.go`, built in the image), which serves hits from the job's own
+  `GOCACHE` first, then from `/opt/gocache` in place, and writes new entries only to the job's
+  `GOCACHE`. Jobs share nothing writable and the job's directory is removed with the slot. Jobs use
+  `GOFLAGS=-trimpath` like the image build; otherwise the cache misses (a `net/http` program then
+  takes 15-20 s to compile against the 20 s limit, instead of ~1 s).
 
 `selftest.mjs` (21 checks, all passing in local Docker, 2026-10-19) covers every language end to
 end, the function harness and its forged-result defence, compile errors, timeouts, a fork bomb,

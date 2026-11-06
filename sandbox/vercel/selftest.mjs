@@ -144,9 +144,9 @@ test("memory limits: C (RLIMIT_AS), Java (-Xmx), JavaScript (heap)", async () =>
     assert.equal(one(js).ok, false, `JS: ${JSON.stringify(one(js))}`);
 });
 
-test("Go cache: shared copy is read-only, job copy is private", async () => {
+test("Go cache: shared std cache is read-only and covers net/http", async () => {
     assert.equal(sh("stat -c %U /opt/gocache"), "root");
-    const r = await job("run02", { language: "go", code: "package main\nimport (\"fmt\";\"os\")\nfunc main(){fmt.Println(os.WriteFile(\"/opt/gocache/x\",[]byte(\"x\"),0644)!=nil)}", tests: [{ id: "a", input: "" }] });
+    const r = await job("run02", { language: "go", code: "package main\nimport (\"fmt\";\"net/http\";\"net/http/httptest\";\"os\")\nfunc main(){w:=httptest.NewRecorder();http.NotFound(w,nil);fmt.Println(w.Code==404&&os.WriteFile(\"/opt/gocache/x\",[]byte(\"x\"),0644)!=nil)}", tests: [{ id: "a", input: "" }] });
     assert.equal(text(one(r)), "true");
     assert.ok(r.compile.timeMs < 5000, `go build took ${r.compile.timeMs}ms (cache miss?)`);
 });
