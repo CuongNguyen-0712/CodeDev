@@ -1,0 +1,15 @@
+# Not part of the app runtime: authoring sources, tooling, tests and local infrastructure.
+# Nothing under app/, components/, lib/, services/ or db/*.db.js imports or reads these.
+content/
+cms/
+docs/
+__tests__/
+tests/
+scripts/
+sandbox/
+monitoring/
+db/seeds/
+db/backups/
+design.pen
+Dockerfile
+compose.yml

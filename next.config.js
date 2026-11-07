@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    output: 'standalone',
+    // Standalone server is for the Docker image only; Vercel packages its own functions.
+    output: process.env.VERCEL ? undefined : 'standalone',
     reactStrictMode: false,
     // Cache Components (Partial Prerendering): static shell + cached data ('use cache') + runtime
     // data streamed behind <Suspense>. See docs/rendering-strategy-plan.md.

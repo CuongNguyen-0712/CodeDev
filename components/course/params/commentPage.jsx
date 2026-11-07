@@ -22,7 +22,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 
 import CommentItem from "./commentItem";
 import { YourRating } from "../ratingStars";
-import { uniqBy } from "lodash";
+import uniqBy from "lodash/uniqBy";
 
 import { LuLoaderCircle, LuLogIn, LuMessagesSquare, LuSendHorizontal } from "react-icons/lu";
 

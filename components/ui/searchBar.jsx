@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 
 import { normalizeSearch, SEARCH_MAX_LENGTH } from '@/lib/listFilters';
 
