@@ -53,6 +53,15 @@ describe("mailConfig", () => {
         expect(mailConfig({ APP_ENV: "production" }).error).toMatch(/AGENTMAIL_API_KEY/);
     });
 
+    it("the start-up check warns when AgentMail takes over from Gmail settings", () => {
+        const env = { APP_ENV: "production", MAIL_FROM: "team@gmail.com", AGENTMAIL_API_KEY: "am_key", MAIL_PASSWORD: "gmailpass" };
+        const warnings = checkEnvironment(env).warnings.join("\n");
+        expect(warnings).toMatch(/mail: AGENTMAIL_API_KEY is set, so MAIL_PASSWORD \/ MAIL_HOST are ignored/);
+        expect(warnings).toMatch(/mail: MAIL_FROM is a gmail\.com address; AgentMail only sends as the inbox/);
+        const clean = checkEnvironment({ APP_ENV: "production", MAIL_FROM: "codedev@agentmail.to", AGENTMAIL_API_KEY: "am_key" });
+        expect(clean.warnings.join("\n")).not.toMatch(/^mail:/m);
+    });
+
     it("never shows the AgentMail key", () => {
         const env = { APP_ENV: "production", MAIL_FROM: "codedev@agentmail.to", AGENTMAIL_API_KEY: "am_secret_key" };
         expect(describeMail(mailConfig(env))).toBe("agentmail smtp.agentmail.to:465 from CodeDev <codedev@agentmail.to>");
