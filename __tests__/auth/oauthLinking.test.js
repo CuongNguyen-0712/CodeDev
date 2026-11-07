@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { usernameBase, splitDisplayName } from "@/lib/username";
 import { verifiedProviderEmail } from "@/lib/oauthEmail";
 import { openRecovery, sealRecovery } from "@/lib/auth.util";
-import { describeMail, mailConfig } from "@/lib/mailConfig.mjs";
+import { describeRoutes, mailConfig, mailRoutes } from "@/lib/mailConfig.mjs";
 import { checkEnvironment } from "@/lib/envCheck.mjs";
 
 describe("mailConfig", () => {
@@ -33,47 +33,63 @@ describe("mailConfig", () => {
             .toMatchObject({ mode: "smtp", host: "smtp.resend.com", port: 587, secure: false });
     });
 
-    it("AGENTMAIL_API_KEY sends through AgentMail SMTP as the MAIL_FROM inbox", () => {
-        // The key may be pasted with a trailing newline; the address is matched in lower case.
-        expect(mailConfig({ APP_ENV: "production", MAIL_FROM: "CodeDev <CodeDev@AgentMail.to>", AGENTMAIL_API_KEY: " am_key123\n" })).toEqual({
-            mode: "agentmail", host: "smtp.agentmail.to", port: 465, secure: true,
-            auth: { user: "codedev@agentmail.to", pass: "am_key123" }, from: "CodeDev <codedev@agentmail.to>",
-        });
-    });
-
-    it("AGENTMAIL_API_KEY wins over MAIL_PASSWORD / MAIL_HOST", () => {
-        expect(mailConfig({ MAIL_FROM: "codedev@agentmail.to", AGENTMAIL_API_KEY: "am_key", MAIL_PASSWORD: "gmailpass", MAIL_HOST: "smtp.resend.com", MAIL_PORT: "587" }))
-            .toMatchObject({ mode: "agentmail", host: "smtp.agentmail.to", port: 465, auth: { pass: "am_key" } });
-    });
-
-    it("an empty AGENTMAIL_API_KEY is unset; the key needs MAIL_FROM", () => {
-        expect(mailConfig({ APP_ENV: "development", AGENTMAIL_API_KEY: "" })).toMatchObject({ mode: "mailpit" });
-        expect(mailConfig({ APP_ENV: "production", AGENTMAIL_API_KEY: "am_key" }).error)
-            .toBe("MAIL_FROM (the AgentMail inbox address) is required with AGENTMAIL_API_KEY");
-        expect(mailConfig({ APP_ENV: "production" }).error).toMatch(/AGENTMAIL_API_KEY/);
-    });
-
-    it("the start-up check warns when AgentMail takes over from Gmail settings", () => {
-        const env = { APP_ENV: "production", MAIL_FROM: "team@gmail.com", AGENTMAIL_API_KEY: "am_key", MAIL_PASSWORD: "gmailpass" };
-        const warnings = checkEnvironment(env).warnings.join("\n");
-        expect(warnings).toMatch(/mail: AGENTMAIL_API_KEY is set, so MAIL_PASSWORD \/ MAIL_HOST are ignored/);
-        expect(warnings).toMatch(/mail: MAIL_FROM is a gmail\.com address; AgentMail only sends as the inbox/);
-        const clean = checkEnvironment({ APP_ENV: "production", MAIL_FROM: "codedev@agentmail.to", AGENTMAIL_API_KEY: "am_key" });
-        expect(clean.warnings.join("\n")).not.toMatch(/^mail:/m);
-    });
-
-    it("never shows the AgentMail key", () => {
-        const env = { APP_ENV: "production", MAIL_FROM: "codedev@agentmail.to", AGENTMAIL_API_KEY: "am_secret_key" };
-        expect(describeMail(mailConfig(env))).toBe("agentmail smtp.agentmail.to:465 from CodeDev <codedev@agentmail.to>");
-        expect(JSON.stringify(checkEnvironment(env))).not.toContain("am_secret_key");
-    });
-
     it("the start-up check reports missing mail settings without the password", () => {
         const check = checkEnvironment({ APP_ENV: "production", MAIL_FROM: "team@gmail.com" });
         expect(check.errors.join()).toMatch(/mail: MAIL_FROM \/ MAIL_PASSWORD/);
         const ok = checkEnvironment({ APP_ENV: "production", MAIL_FROM: "team@gmail.com", MAIL_PASSWORD: "secretpass" });
         expect(JSON.stringify(ok)).not.toContain("secretpass");
         expect(ok.mail).toBe("gmail smtp.gmail.com:465 from CodeDev <team@gmail.com>");
+    });
+});
+
+describe("mailRoutes (AgentMail first, Gmail as fallback)", () => {
+    const AGENTMAIL = { AGENTMAIL_API_KEY: " am_key123\n", AGENTMAIL_FROM: "CodeDev <CodeDev@AgentMail.to>" };
+    const GMAIL = { MAIL_FROM: "team@gmail.com", MAIL_PASSWORD: "abcd efgh ijkl mnop" };
+
+    it("each route signs in with its own address; the key is trimmed", () => {
+        const { routes, errors } = mailRoutes({ APP_ENV: "production", ...AGENTMAIL, ...GMAIL });
+        expect(errors).toEqual([]);
+        expect(routes).toEqual([
+            {
+                mode: "agentmail", host: "smtp.agentmail.to", port: 465, secure: true,
+                auth: { user: "codedev@agentmail.to", pass: "am_key123" }, from: "CodeDev <codedev@agentmail.to>",
+            },
+            {
+                mode: "gmail", host: "smtp.gmail.com", port: 465, secure: true,
+                auth: { user: "team@gmail.com", pass: "abcdefghijklmnop" }, from: "CodeDev <team@gmail.com>",
+            },
+        ]);
+    });
+
+    it("AGENTMAIL_HOST replaces the AgentMail server", () => {
+        expect(mailRoutes({ ...AGENTMAIL, AGENTMAIL_HOST: "smtp.eu.agentmail.to" }).routes[0]).toMatchObject({ mode: "agentmail", host: "smtp.eu.agentmail.to", port: 465 });
+    });
+
+    it("Mailpit never stands in for AgentMail", () => {
+        expect(mailRoutes({ APP_ENV: "development", ...AGENTMAIL }).routes.map((route) => route.mode)).toEqual(["agentmail"]);
+        expect(mailRoutes({ APP_ENV: "development", AGENTMAIL_API_KEY: "" }).routes.map((route) => route.mode)).toEqual(["mailpit"]);
+    });
+
+    it("a key without AGENTMAIL_FROM is an error and the other route still sends", () => {
+        const message = "AGENTMAIL_FROM (the AgentMail inbox, e.g. CodeDev <codedev@agentmail.to>) is required with AGENTMAIL_API_KEY";
+        const withGmail = mailRoutes({ APP_ENV: "production", AGENTMAIL_API_KEY: "am_key", ...GMAIL });
+        expect(withGmail.errors).toEqual([message]);
+        expect(withGmail.routes.map((route) => route.mode)).toEqual(["gmail"]);
+        expect(mailRoutes({ APP_ENV: "development", AGENTMAIL_API_KEY: "am_key", AGENTMAIL_FROM: "not an address" }).routes.map((route) => route.mode)).toEqual(["mailpit"]);
+        expect(mailRoutes({ APP_ENV: "production" }).errors.join()).toMatch(/AGENTMAIL_API_KEY \+ AGENTMAIL_FROM/);
+    });
+
+    it("describes the routes and the start-up check never shows a secret", () => {
+        const env = { APP_ENV: "production", ...AGENTMAIL, ...GMAIL };
+        expect(describeRoutes(mailRoutes(env))).toBe("agentmail smtp.agentmail.to:465 from CodeDev <codedev@agentmail.to> -> fallback gmail smtp.gmail.com:465 from CodeDev <team@gmail.com>");
+        const check = JSON.stringify(checkEnvironment(env));
+        expect(check).not.toContain("am_key123");
+        expect(check).not.toContain("abcd efgh");
+    });
+
+    it("warns when a deployment has AgentMail without a Gmail fallback", () => {
+        expect(checkEnvironment({ APP_ENV: "production", ...AGENTMAIL }).warnings).toContain("mail: MAIL_PASSWORD is not set: no Gmail fallback when AgentMail fails");
+        expect(checkEnvironment({ APP_ENV: "production", ...AGENTMAIL, ...GMAIL }).warnings.join("\n")).not.toMatch(/^mail:/m);
     });
 });
 

@@ -12,7 +12,7 @@ decides which; `lib/appEnv.mjs` is the single definition used by the app, the te
 | PostgreSQL | local (`pg` driver) | Neon (serverless driver) |
 | Redis | local container (`npm run services:up`, `compose.yml`) | Upstash |
 | Object storage | **MinIO** (`compose.yml` profile `dev`, `MINIO_ENDPOINT`) | **Neon S3** (`AWS_ENDPOINT_URL_S3`) |
-| Mail | Mailpit (`compose.yml` profile `dev`, inbox `http://127.0.0.1:8025`; `MAIL_PASSWORD` empty) | AgentMail `smtp.agentmail.to:465` (`AGENTMAIL_API_KEY` + `MAIL_FROM` = the inbox); fallback Gmail `smtp.gmail.com:465` (`MAIL_FROM` + `MAIL_PASSWORD`) |
+| Mail | Mailpit (`compose.yml` profile `dev`, inbox `http://127.0.0.1:8025`; `MAIL_PASSWORD` empty) | AgentMail `smtp.agentmail.to:465` (`AGENTMAIL_API_KEY` + `AGENTMAIL_FROM` = the inbox); fallback on any AgentMail error: Gmail `smtp.gmail.com:465` (`MAIL_FROM` + `MAIL_PASSWORD`) |
 | Code runner | `compose.yml` profile `dev` (`CODE_RUNNER_URL=http://127.0.0.1:4100`) | optional; browser-reported grading when unset ([sandbox.md](sandbox.md)) |
 | Images (Cloudinary) | folder `codedev/development/...` | folder `codedev/production/...` |
 | Schema | `npm run db:migrate` | `npm run db:migrate:prod -- --yes`; `npm run db:compare` must report "in sync" |
@@ -126,8 +126,8 @@ Set in the Vercel project (Production scope), with values distinct from developm
 `APP_ENV=production`, `STORAGE_PROVIDER=s3`, `AWS_ENDPOINT_URL_S3`, `AWS_ACCESS_KEY_ID`,
 `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_PRIVATE_BUCKET`, `DATABASE_URL`, `REDIS_URL` /
 `REDIS_TOKEN`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `REFRESH_TOKEN_HASH_SECRET`,
-`REFRESH_TOKEN_RECOVERY_KEY`, `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `MAIL_FROM` (the AgentMail
-inbox address), `AGENTMAIL_API_KEY` (see [auth.md](auth.md); `MAIL_PASSWORD` only for the Gmail fallback), `INNGEST_EVENT_KEY` and
+`REFRESH_TOKEN_RECOVERY_KEY`, `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `AGENTMAIL_API_KEY`,
+`AGENTMAIL_FROM` (the AgentMail inbox), `MAIL_FROM` + `MAIL_PASSWORD` (the Gmail fallback; see [auth.md](auth.md)), `INNGEST_EVENT_KEY` and
 `INNGEST_SIGNING_KEY` (background jobs and the daily crons, [queue-execution-plan.md](queue-execution-plan.md)),
 `CRON_SECRET` (only to run `/api/internal/*` by hand), `HEALTH_TOKEN` (Bearer token for the full
 `GET /api/health` report; without it the endpoint answers only `{ status }`),

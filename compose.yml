@@ -58,8 +58,8 @@ services:
     networks: [backend]
 
   # ------------------------------------------------------------------ mail catcher (development)
-  # Every email the app sends locally lands here instead of a real inbox while MAIL_PASSWORD is
-  # empty (lib/mailConfig.mjs): SMTP 127.0.0.1:1025, inbox at http://127.0.0.1:8025.
+  # Every email the app sends locally lands here instead of a real inbox while AGENTMAIL_API_KEY
+  # and MAIL_PASSWORD are empty (lib/mailConfig.mjs): SMTP 127.0.0.1:1025, inbox at http://127.0.0.1:8025.
   mailpit:
     profiles: [dev]
     image: axllent/mailpit:v1.27
