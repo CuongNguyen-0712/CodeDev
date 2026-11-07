@@ -133,6 +133,9 @@ address), `MAIL_PASSWORD` (its App Password; see [auth.md](auth.md)), `INNGEST_E
 `GET /api/health` report; without it the endpoint answers only `{ status }`),
 `SANITY_WEBHOOK_SECRET` (see below) and `ADMIN_MFA_KEY` (32+ random characters, its own value for
 production and for staging; set it before the first admin enrols in two-factor authentication).
+Web push is optional: `BEAMS_INSTANCE_ID` and `NEXT_PUBLIC_BEAMS_INSTANCE_ID` (the Beams Instance
+ID) plus `BEAMS_SECRET_KEY` (the Primary key, server only); without them the Settings switch shows
+"Not supported" and nothing is pushed ([spec](superpowers/specs/2026-11-07-beams-web-push-design.md)).
 Outside Vercel, `CLIENT_IP_HEADER` names the one header the proxy sets to the client address.
 `DB_POOL_MAX` is optional: the pool defaults to 3 connections
 per instance on Vercel and 10 elsewhere; point `DATABASE_URL` at the Neon `-pooler` host.

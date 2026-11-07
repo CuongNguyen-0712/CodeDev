@@ -3,6 +3,7 @@ import { announcementDb } from "@/db/announcement.db";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
 import { inngest, inngestEnabled } from "@/lib/inngest";
+import { pushToUsers } from "@/lib/beams";
 import { publish, publishToUser } from "@/lib/pusher";
 import { channels, events } from "@/lib/realtime";
 
@@ -149,7 +150,7 @@ export const announcementService = {
         if (!announcement) return null;
         let afterId = "0";
         for (let i = 0; i < MAX_BATCHES; i++) {
-            const batch = await announcementDb.deliverBatch({ announcement, afterId, limit: BATCH });
+            const batch = await announcementService.deliverBatch(announcement, afterId);
             afterId = batch.lastId;
             if (batch.selected < BATCH) break;
         }
@@ -157,7 +158,17 @@ export const announcementService = {
     },
 
     startSending: (id) => announcementDb.startSending(id),
-    deliverBatch: (announcement, afterId) => announcementDb.deliverBatch({ announcement, afterId, limit: BATCH }),
+    /**
+     * One batch of copies, then web push to the people who just got one. The id list stays out of
+     * the return value: it becomes the Inngest step output.
+     */
+    deliverBatch: async (announcement, afterId) => {
+        const { userIds, ...batch } = await announcementDb.deliverBatch({ announcement, afterId, limit: BATCH });
+        if (userIds?.length) {
+            await pushToUsers(userIds, { title: announcement.title, body: announcement.body, link: announcement.link || null });
+        }
+        return batch;
+    },
 
     finish: async (id) => {
         const done = await announcementDb.finishSending(id);

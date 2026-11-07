@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const insert = vi.fn();
 const courseTitle = vi.fn(async () => ({ rows: [{ title: "Rust basics" }] }));
 const publishToUser = vi.fn();
+const pushToUsers = vi.fn(async () => true);
 
 vi.mock("@/db/notification.db", () => ({
     notificationDb: {
@@ -16,12 +17,40 @@ vi.mock("@/db/notification.db", () => ({
     },
 }));
 vi.mock("@/lib/pusher", () => ({ publishToUser: (...args) => publishToUser(...args) }));
+vi.mock("@/lib/beams", () => ({ pushToUsers: (...args) => pushToUsers(...args) }));
 vi.mock("@/lib/db", () => ({ parseUtcTimestamp: (v) => v }));
 
 const { notificationService, decodeNotificationCursor } = await import("@/services/notification.service");
 
 describe("notificationService.notify", () => {
-    beforeEach(() => { insert.mockReset(); publishToUser.mockClear(); courseTitle.mockClear(); });
+    beforeEach(() => {
+        insert.mockReset(); publishToUser.mockClear(); courseTitle.mockClear();
+        pushToUsers.mockReset(); pushToUsers.mockResolvedValue(true);
+    });
+
+    it("pushes the new row to the user's devices", async () => {
+        insert.mockResolvedValue({ rows: [{ id: "n1", kind: "level_up" }] });
+        await notificationService.notify("u1", { kind: "level_up", title: "Level 2 reached", message: "x", dedupeKey: "2" });
+        expect(pushToUsers).toHaveBeenCalledWith(["u1"], { title: "Level 2 reached", body: "x", link: null });
+    });
+
+    it("does not push an already-notified fact", async () => {
+        insert.mockResolvedValue({ rows: [] });
+        await notificationService.notify("u1", { kind: "level_up", title: "t", message: "m", dedupeKey: "2" });
+        expect(pushToUsers).not.toHaveBeenCalled();
+    });
+
+    it("push failure does not fail notify", async () => {
+        insert.mockResolvedValue({ rows: [{ id: "n1", kind: "level_up" }] });
+        pushToUsers.mockResolvedValueOnce(false);
+        expect(await notificationService.notify("u1", { kind: "level_up", title: "t", message: "m" })).toEqual({ id: "n1", kind: "level_up" });
+
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        pushToUsers.mockRejectedValueOnce(new Error("beams down"));
+        expect(await notificationService.notify("u1", { kind: "level_up", title: "t", message: "m" })).toEqual({ id: "n1", kind: "level_up" });
+        expect(publishToUser).toHaveBeenCalledTimes(2);
+        spy.mockRestore();
+    });
 
     it("publishes notification-created with the new row's id and kind", async () => {
         insert.mockResolvedValue({ rows: [{ id: "n1", kind: "level_up" }] });
@@ -34,13 +63,19 @@ describe("notificationService.notify", () => {
     it("waits for the publish before resolving (serverless would freeze it otherwise)", async () => {
         insert.mockResolvedValue({ rows: [{ id: "n1", kind: "level_up" }] });
         let release;
+        let releasePush;
         publishToUser.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+        pushToUsers.mockImplementationOnce(() => new Promise((resolve) => { releasePush = resolve; }));
         let settled = false;
         const pending = notificationService.notify("u1", { kind: "level_up", title: "t", message: "m" }).then(() => { settled = true; });
         await new Promise((r) => setTimeout(r, 0));
         expect(publishToUser).toHaveBeenCalled();
+        expect(pushToUsers).toHaveBeenCalled();
         expect(settled).toBe(false);
         release(true);
+        await new Promise((r) => setTimeout(r, 0));
+        expect(settled).toBe(false);
+        releasePush(true);
         await pending;
         expect(settled).toBe(true);
     });

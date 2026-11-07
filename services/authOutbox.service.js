@@ -7,6 +7,7 @@ import { redis } from "@/lib/cache";
 import { cacheKeys } from "@/lib/cacheKeys";
 import { AUTH } from "@/lib/authConfig";
 import { inngest, outboxViaInngest } from "@/lib/inngest";
+import { deleteBeamsUser } from "@/lib/beams";
 import { publishToUser } from "@/lib/pusher";
 import { events } from "@/lib/realtime";
 
@@ -72,13 +73,18 @@ const handlers = {
             );
         }
 
-        // Realtime notice is best effort and sent once: the cache write is what must succeed.
-        if (attempts === 1 && payload.userId) {
-            await publishToUser(payload.userId, events.SESSION_REVOKED, {
+        if (!payload.userId) return;
+        await Promise.all([
+            // Realtime notice is best effort and sent once: the cache write is what must succeed.
+            attempts === 1 && publishToUser(payload.userId, events.SESSION_REVOKED, {
                 sessionIds: payload.sessionIds || [],
                 reason: payload.reason,
-            });
-        }
+            }),
+            // Revoked from elsewhere: the revoked device may never open the app again, so unbind
+            // every device of the user; the ones still signed in bind again on their next load.
+            // Idempotent, so every attempt sends it (attempt 1 may have stopped at the cache write).
+            payload.reason !== "logout" && deleteBeamsUser(payload.userId),
+        ]);
     },
 };
 

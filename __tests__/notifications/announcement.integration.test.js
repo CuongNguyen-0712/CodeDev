@@ -81,6 +81,8 @@ describe.skipIf(!hasDb)("admin announcements (PostgreSQL)", () => {
         const again = await announcementDb.deliverBatch({ announcement: started, afterId: "0", limit: 1000 });
         expect(first).toMatchObject({ selected: 2, inserted: 2 });
         expect(again).toMatchObject({ selected: 2, inserted: 0 });
+        expect([...first.userIds].sort()).toEqual([a.publicId, b.publicId].sort());
+        expect(again.userIds).toEqual([]);
 
         const done = await announcementDb.finishSending(row.id);
         expect(done.recipients).toBe(2);

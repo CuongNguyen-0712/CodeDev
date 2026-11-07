@@ -119,7 +119,7 @@ export const announcementDb = {
 
     /**
      * Writes the next batch of copies (users after `afterId`, by internal id). A retried batch
-     * inserts nothing new (unique user_id, kind, dedupe_key).
+     * inserts nothing new (unique user_id, kind, dedupe_key), so `userIds` comes back empty.
      */
     deliverBatch: async ({ announcement, afterId = "0", limit = 1000 }) => {
         const params = [announcement.id, announcement.title, announcement.body, announcement.link, afterId, limit];
@@ -138,10 +138,16 @@ export const announcementDb = {
              )
              SELECT (SELECT MAX(id)::text FROM batch) AS last_id,
                     (SELECT COUNT(*)::int FROM batch) AS selected,
-                    (SELECT COUNT(*)::int FROM ins) AS inserted`,
+                    (SELECT COUNT(*)::int FROM ins) AS inserted,
+                    (SELECT COALESCE(array_agg(u.public_id ORDER BY u.id), '{}') FROM ins JOIN identity.users u ON u.id = ins.user_id) AS user_ids`,
             params
         );
-        return { lastId: rows[0]?.last_id ?? afterId, selected: rows[0]?.selected ?? 0, inserted: rows[0]?.inserted ?? 0 };
+        return {
+            lastId: rows[0]?.last_id ?? afterId,
+            selected: rows[0]?.selected ?? 0,
+            inserted: rows[0]?.inserted ?? 0,
+            userIds: rows[0]?.user_ids ?? [], // public ids of the copies written now, for web push
+        };
     },
 
     /** sending -> sent with the number of copies actually written. */

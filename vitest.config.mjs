@@ -45,6 +45,9 @@ export default defineConfig({
             PUSHER_APP_ID: "",
             PUSHER_KEY: "",
             PUSHER_SECRET: "",
+            BEAMS_INSTANCE_ID: "",
+            BEAMS_SECRET_KEY: "",
+            NEXT_PUBLIC_BEAMS_INSTANCE_ID: "",
             AUTH_OUTBOX_WORKER: "off",
             // Background work runs inline in tests (lib/inngest.js), never through an Inngest server.
             INNGEST_EVENT_KEY: "",

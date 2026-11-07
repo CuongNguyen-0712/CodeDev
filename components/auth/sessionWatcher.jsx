@@ -139,7 +139,16 @@ export function SessionWatcher() {
 }
 
 export function AuthSessionWatcher() {
-    const { status } = useSession();
+    const { data: session, status } = useSession();
+    const pushUserId = status === "authenticated" && !session?.error ? session?.user?.id ?? null : null;
+
+    // Web push: bind this device again for a user who turned it on here, or unbind a device left
+    // bound to someone else / to nobody. lib/beamsClient loads the Beams SDK only when needed.
+    useEffect(() => {
+        if (status === "loading") return;
+        import("@/lib/beamsClient").then((m) => m.resumeWebPush(pushUserId)).catch(() => { });
+    }, [status, pushUserId]);
+
     return (
         <>
             <SessionWatcher />

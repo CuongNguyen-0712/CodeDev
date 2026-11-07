@@ -27,6 +27,8 @@ vi.mock("@/lib/inngest", () => ({ inngest: { send: (...a) => send(...a) }, innge
 const publish = vi.fn();
 const publishToUser = vi.fn();
 vi.mock("@/lib/pusher", () => ({ publish: (...a) => publish(...a), publishToUser: (...a) => publishToUser(...a) }));
+const pushToUsers = vi.fn(async () => true);
+vi.mock("@/lib/beams", () => ({ pushToUsers: (...a) => pushToUsers(...a) }));
 
 const { announcementService, BATCH } = await import("@/services/announcement.service");
 
@@ -88,6 +90,29 @@ describe("deliver", () => {
         expect(db.deliverBatch).toHaveBeenNthCalledWith(2, { announcement, afterId: "100", limit: BATCH });
         expect(publish).toHaveBeenCalledWith("broadcast", "announcement", { id: "a1" });
         expect(publishToUser).not.toHaveBeenCalled();
+    });
+
+    it("pushes each batch's new recipients", async () => {
+        const announcement = { id: "a1", title: "Maintenance", body: "Down at 22:00", link: "", audience: { type: "all" } };
+        db.deliverBatch.mockResolvedValueOnce({ lastId: "9", selected: 2, inserted: 2, userIds: ["P1", "P2"] });
+        expect(await announcementService.deliverBatch(announcement, "0")).toEqual({ lastId: "9", selected: 2, inserted: 2 });
+        expect(pushToUsers).toHaveBeenCalledWith(["P1", "P2"], { title: "Maintenance", body: "Down at 22:00", link: null });
+    });
+
+    it("a replayed batch pushes nobody", async () => {
+        const announcement = { id: "a1", title: "t", body: "b", link: null, audience: { type: "all" } };
+        db.deliverBatch.mockResolvedValueOnce({ lastId: "9", selected: 2, inserted: 0, userIds: [] });
+        await announcementService.deliverBatch(announcement, "0");
+        expect(pushToUsers).not.toHaveBeenCalled();
+    });
+
+    it("deliver pushes through the same batch step", async () => {
+        const announcement = { id: "a1", title: "t", body: "b", link: "/courses", audience: { type: "all" } };
+        db.startSending.mockResolvedValueOnce(announcement);
+        db.deliverBatch.mockResolvedValueOnce({ lastId: "3", selected: 1, inserted: 1, userIds: ["P1"] });
+        db.finishSending.mockResolvedValueOnce({ id: "a1", audience: { type: "all" }, recipients: 1 });
+        await announcementService.deliver("a1");
+        expect(pushToUsers).toHaveBeenCalledWith(["P1"], { title: "t", body: "b", link: "/courses" });
     });
 
     it("pings each named user directly", async () => {

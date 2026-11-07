@@ -1,6 +1,7 @@
 import { notificationDb } from "@/db/notification.db";
 import { parseUtcTimestamp } from "@/lib/db";
 import { ApiError } from "@/lib/error/apiError";
+import { pushToUsers } from "@/lib/beams";
 import { publishToUser } from "@/lib/pusher";
 import { events } from "@/lib/realtime";
 
@@ -58,7 +59,15 @@ export const notificationService = {
         try {
             const { rows } = await notificationDb.insert({ userId, kind, title, message, link, dedupeKey });
             const row = rows[0] || null;
-            if (row) await publishToUser(userId, events.NOTIFICATION_CREATED, { id: row.id, kind: row.kind });
+            if (row) {
+                // Open tabs over Channels, closed ones over Beams web push; one failing never stops the other.
+                await Promise.all([
+                    publishToUser(userId, events.NOTIFICATION_CREATED, { id: row.id, kind: row.kind }),
+                    pushToUsers([userId], { title, body: message, link }).catch((error) => {
+                        console.error(`[notification] push ${kind} for ${userId} failed:`, error?.message);
+                    }),
+                ]);
+            }
             return row;
         } catch (error) {
             console.error(`[notification] ${kind} for ${userId} failed:`, error?.message);

@@ -20,6 +20,8 @@ Trạng thái 2026-11-04. Phần 1 là inbox đã làm (migration `20261104_017`
 | 3 | Nút "Send notification" trên trang user admin, mở form với `?user=<username>` | `components/admin/users/userDetail.jsx` |
 | 3 | Kênh public `broadcast`, client làm mới inbox sau 0 đến 20 giây | `lib/realtime.js`, `components/realtime/userRealtimeBridge.jsx` |
 
+| 6 (web push) | Beams Authenticated Users: `lib/beams.js` (publish / token / delete user), `GET /api/pusher/beams-auth`, push trong `notify` và từng lô announcement, `deleteBeamsUser` khi phiên bị thu hồi từ xa, `public/service-worker.js`, `lib/beamsClient.js`, công tắc "Browser notifications" trong Settings | `docs/superpowers/specs/2026-11-07-beams-web-push-design.md` |
+
 Khác với thiết kế bên dưới:
 - **Chưa có `severity`, `channels`, `ends_at`.** Chỉ banner (đợt 4) cần chúng, nên để migration của đợt 4 thêm.
 - **Tin nhắn riêng (A2) không có route riêng.** Nó là một announcement với `audience = users` một người, nên vào được danh sách, đếm được đã đọc và thu hồi được. Không có kind `admin_message`: mọi dòng do admin gửi đều là `announcement`.
@@ -179,7 +181,7 @@ A2 (tin riêng) đi cùng đường với `audience = users` một id. Lối và
 |---|---|---|
 | Tuỳ chọn nhận thông báo theo nhóm | Bảng `profile.notification_preference(user_id, category, inbox, email)`, mục mới trong `components/settings/settingsPage.jsx` | Inbox cho tài khoản và tiền luôn bật |
 | Email cho thông báo quan trọng, bản tóm tắt tuần | Nhà cung cấp email: outbox hiện chỉ gửi 10 thư mỗi phút (`jobs/outbox.js`). Link huỷ đăng ký | Thông báo admin `critical` có thể kèm email |
-| Web push | Service worker; `@pusher/push-notifications-web` đã có trong `package.json` nhưng chưa dùng | Dành cho nhắc học |
+| Web push | Pusher Beams (Authenticated Users), service worker, công tắc theo thiết bị trong Settings | Thiết kế: `docs/superpowers/specs/2026-11-07-beams-web-push-design.md`. Đợt đầu push mọi dòng inbox, nhắc học dùng lại sau |
 | Nhắc học, chuỗi ngày học | Cron Inngest, docs/development-plan.md 3.3 | Cần tuỳ chọn nhận trước |
 | Trả lời bình luận, nhắc tên | Cột cha trên bình luận | Kind `comment_reply` |
 | Cập nhật khoá đang học | Sự kiện khi admin publish bài mới | "Bài mới trong khoá X" |
@@ -198,7 +200,7 @@ A2 (tin riêng) đi cùng đường với `audience = users` một id. Lối và
 | 3 | A1 + A2: bảng, permission, service, function Inngest, API admin, màn admin, kind phía người học, test | 3 đến 4 ngày |
 | 4 | A4: banner | 1 ngày |
 | 5 | Ghi thông báo trong transaction của đường tiền (mục 2.1) | 0,5 ngày |
-| 6 | Tuỳ chọn nhận, email, web push | Kế hoạch riêng |
+| 6 | Tuỳ chọn nhận, email, web push | Kế hoạch riêng. Web push: `docs/superpowers/specs/2026-11-07-beams-web-push-design.md` |
 
 Giả định cần người quyết, mặc định đang dùng:
 - `admin` và `super_admin` đều được gửi cho mọi người. Nếu muốn chỉ `super_admin` gửi nhóm `all`, thêm một kiểm tra trong service.

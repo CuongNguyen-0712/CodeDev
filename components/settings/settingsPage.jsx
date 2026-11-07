@@ -23,6 +23,7 @@ import SessionsSection from "@/components/settings/sessionsSection";
 import SignInMethodsSection from "@/components/settings/signInMethodsSection";
 import PreferencesSection from "@/components/settings/preferencesSection";
 import PrivacySection from "@/components/settings/privacySection";
+import WebPushSection from "@/components/settings/webPushSection";
 import AvatarCropDialog from "@/components/settings/avatarCropDialog";
 import AvatarHistory from "@/components/settings/avatarHistory";
 import { InputGroup, TextAreaGroup } from "@/components/ui/input";
@@ -603,6 +604,14 @@ export default function SettingsPage() {
                         description="Your role, industries, level, goals and preferred language. Used to personalise course recommendations."
                     >
                         <PreferencesSection />
+                    </SettingsSection>
+
+                    <SettingsSection
+                        id="settings-notifications"
+                        title="Browser notifications"
+                        description="Notifications from your browser for what lands in your inbox. Set on each device."
+                    >
+                        <WebPushSection />
                     </SettingsSection>
 
                     <SettingsSection
