@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { usernameBase, splitDisplayName } from "@/lib/username";
 import { verifiedProviderEmail } from "@/lib/oauthEmail";
 import { openRecovery, sealRecovery } from "@/lib/auth.util";
-import { mailConfig } from "@/lib/mailConfig.mjs";
+import { describeMail, mailConfig } from "@/lib/mailConfig.mjs";
 import { checkEnvironment } from "@/lib/envCheck.mjs";
 
 describe("mailConfig", () => {
@@ -31,6 +31,32 @@ describe("mailConfig", () => {
     it("MAIL_HOST / MAIL_PORT switch provider", () => {
         expect(mailConfig({ MAIL_FROM: "noreply@codedev.app", MAIL_PASSWORD: "key", MAIL_HOST: "smtp.resend.com", MAIL_PORT: "587" }))
             .toMatchObject({ mode: "smtp", host: "smtp.resend.com", port: 587, secure: false });
+    });
+
+    it("AGENTMAIL_API_KEY sends through AgentMail SMTP as the MAIL_FROM inbox", () => {
+        // The key may be pasted with a trailing newline; the address is matched in lower case.
+        expect(mailConfig({ APP_ENV: "production", MAIL_FROM: "CodeDev <CodeDev@AgentMail.to>", AGENTMAIL_API_KEY: " am_key123\n" })).toEqual({
+            mode: "agentmail", host: "smtp.agentmail.to", port: 465, secure: true,
+            auth: { user: "codedev@agentmail.to", pass: "am_key123" }, from: "CodeDev <codedev@agentmail.to>",
+        });
+    });
+
+    it("AGENTMAIL_API_KEY wins over MAIL_PASSWORD / MAIL_HOST", () => {
+        expect(mailConfig({ MAIL_FROM: "codedev@agentmail.to", AGENTMAIL_API_KEY: "am_key", MAIL_PASSWORD: "gmailpass", MAIL_HOST: "smtp.resend.com", MAIL_PORT: "587" }))
+            .toMatchObject({ mode: "agentmail", host: "smtp.agentmail.to", port: 465, auth: { pass: "am_key" } });
+    });
+
+    it("an empty AGENTMAIL_API_KEY is unset; the key needs MAIL_FROM", () => {
+        expect(mailConfig({ APP_ENV: "development", AGENTMAIL_API_KEY: "" })).toMatchObject({ mode: "mailpit" });
+        expect(mailConfig({ APP_ENV: "production", AGENTMAIL_API_KEY: "am_key" }).error)
+            .toBe("MAIL_FROM (the AgentMail inbox address) is required with AGENTMAIL_API_KEY");
+        expect(mailConfig({ APP_ENV: "production" }).error).toMatch(/AGENTMAIL_API_KEY/);
+    });
+
+    it("never shows the AgentMail key", () => {
+        const env = { APP_ENV: "production", MAIL_FROM: "codedev@agentmail.to", AGENTMAIL_API_KEY: "am_secret_key" };
+        expect(describeMail(mailConfig(env))).toBe("agentmail smtp.agentmail.to:465 from CodeDev <codedev@agentmail.to>");
+        expect(JSON.stringify(checkEnvironment(env))).not.toContain("am_secret_key");
     });
 
     it("the start-up check reports missing mail settings without the password", () => {

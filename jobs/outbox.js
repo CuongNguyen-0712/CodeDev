@@ -5,7 +5,7 @@ import { deliverAuthOutboxEvent, killAuthOutboxEvent } from "@/services/authOutb
 
 /**
  * One auth outbox row per run (event `outbox/created`, sent after the commit that wrote the row).
- * Throttled per event type: Gmail SMTP accepts only a few mails a minute from one account.
+ * Throttled per event type: the mail provider caps sends (AgentMail Free: 100 a day; Gmail: a few a minute).
  */
 export const outboxDeliver = inngest.createFunction(
     {
