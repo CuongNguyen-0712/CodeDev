@@ -148,3 +148,27 @@ Expected: prints `agentmail smtp.agentmail.to:465 from CodeDev <…@agentmail.to
 git add .env.example docs/auth.md docs/environments.md
 git commit -m "docs: AgentMail as the production mail provider, Gmail as fallback"
 ```
+
+---
+
+## Revision 2026-11-07: separate AgentMail variables, Gmail fallback
+
+Tasks 1-2 are done (commits 9d2bdaf, 854a670, 27764b0). The spec's sections 2-3 were rewritten: AgentMail uses `AGENTMAIL_API_KEY` + `AGENTMAIL_FROM` (+ optional `AGENTMAIL_HOST`); Gmail (`MAIL_FROM` + `MAIL_PASSWORD`) is the fallback for any AgentMail send error. The spec carries the exact names, messages and test cases; this task applies them.
+
+### Task 3: Routes with fallback
+
+**Files:**
+- Modify: `lib/mailConfig.mjs` (remove the agentmail branch from `mailConfig`; add `agentmailConfig`, `mailRoutes`, `describeRoutes`)
+- Modify: `lib/mail.js` (`sendMail` / `verifyMail` over routes, transport cache per server)
+- Modify: `lib/envCheck.mjs` (mail block, `mail` field)
+- Modify: `scripts/mail-test.mjs`, `compose.yml:61-62` (comments), `.env.example`, `docs/auth.md`, `docs/environments.md`
+- Test: `__tests__/auth/oauthLinking.test.js` (replace the 5 agentmail tests), Create: `__tests__/auth/mailFallback.test.js`
+
+**Interfaces:**
+- Produces: `agentmailConfig(env) -> config | null | { error }`; `mailRoutes(env) -> { routes: config[], errors: string[] }`; `describeRoutes({ routes, errors }) -> string`. `mailConfig` and `describeMail` keep their old shape.
+
+- [ ] **Step 1:** Write the spec section 3 tests in both files; run `npx vitest run __tests__/auth/oauthLinking.test.js __tests__/auth/mailFallback.test.js`. Expected: the new tests FAIL (no `mailRoutes` export; `sendMail` has no fallback).
+- [ ] **Step 2:** Implement `lib/mailConfig.mjs`, `lib/mail.js`, `lib/envCheck.mjs`, `scripts/mail-test.mjs` per spec section 2.
+- [ ] **Step 3:** Run the same command. Expected: all pass. Then `npx vitest run`: no failures.
+- [ ] **Step 4:** Docs and comments per spec section 3, last line; `grep -n "AGENTMAIL_FROM" .env.example docs/auth.md docs/environments.md lib/mailConfig.mjs` hits all four; no doc still says `MAIL_FROM` must be the AgentMail inbox.
+- [ ] **Step 5:** Commit.
