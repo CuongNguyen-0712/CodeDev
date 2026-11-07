@@ -34,7 +34,8 @@ const setup = mailRoutes();
 console.log(`env:  ${envFile}`);
 console.log(`mail: ${describeRoutes(setup)}`);
 for (const error of setup.errors) console.error(`fail: ${error}`);
-if (!setup.routes.length) process.exit(1);
+// A broken route is a failure even when another one works: the fallback would hide it.
+if (setup.errors.length || !setup.routes.length) process.exit(1);
 
 try {
     await verifyMail();

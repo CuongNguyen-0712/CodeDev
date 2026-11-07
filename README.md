@@ -141,7 +141,7 @@ All variables are documented in [`.env.example`](.env.example); real values live
 |---|---|
 | App | `APP_ENV`, `NEXT_PUBLIC_API_URL`, `MACHINE_ID` |
 | Auth | `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `REFRESH_TOKEN_HASH_SECRET`, `GITHUB_ID` / `GITHUB_SECRET`, `GOOGLE_ID` / `GOOGLE_SECRET` |
-| Mail | `MAIL_FROM`, `MAIL_PASSWORD`, optional `MAIL_HOST` / `MAIL_PORT` |
+| Mail | AgentMail: `AGENTMAIL_API_KEY`, `AGENTMAIL_FROM`, optional `AGENTMAIL_HOST`; Gmail fallback: `MAIL_FROM`, `MAIL_PASSWORD`, optional `MAIL_HOST` / `MAIL_PORT` |
 | Database | `DATABASE_URL`, `DATABASE_URL_UNPOOLED` |
 | Redis | `REDIS_URL`, `REDIS_TOKEN` |
 | Storage | `STORAGE_PROVIDER`, `S3_BUCKET`, `S3_PRIVATE_BUCKET`, `MINIO_*` or `AWS_*` |

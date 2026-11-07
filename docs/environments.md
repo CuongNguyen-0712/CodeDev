@@ -12,7 +12,7 @@ decides which; `lib/appEnv.mjs` is the single definition used by the app, the te
 | PostgreSQL | local (`pg` driver) | Neon (serverless driver) |
 | Redis | local container (`npm run services:up`, `compose.yml`) | Upstash |
 | Object storage | **MinIO** (`compose.yml` profile `dev`, `MINIO_ENDPOINT`) | **Neon S3** (`AWS_ENDPOINT_URL_S3`) |
-| Mail | Mailpit (`compose.yml` profile `dev`, inbox `http://127.0.0.1:8025`; `MAIL_PASSWORD` empty) | AgentMail `smtp.agentmail.to:465` (`AGENTMAIL_API_KEY` + `AGENTMAIL_FROM` = the inbox); fallback on any AgentMail error: Gmail `smtp.gmail.com:465` (`MAIL_FROM` + `MAIL_PASSWORD`) |
+| Mail | Mailpit (`compose.yml` profile `dev`, inbox `http://127.0.0.1:8025`; `AGENTMAIL_API_KEY` and `MAIL_PASSWORD` empty) | AgentMail `smtp.agentmail.to:465` (`AGENTMAIL_API_KEY` + `AGENTMAIL_FROM` = the inbox); fallback on any AgentMail error: Gmail `smtp.gmail.com:465` (`MAIL_FROM` + `MAIL_PASSWORD`) |
 | Code runner | `compose.yml` profile `dev` (`CODE_RUNNER_URL=http://127.0.0.1:4100`) | optional; browser-reported grading when unset ([sandbox.md](sandbox.md)) |
 | Images (Cloudinary) | folder `codedev/development/...` | folder `codedev/production/...` |
 | Schema | `npm run db:migrate` | `npm run db:migrate:prod -- --yes`; `npm run db:compare` must report "in sync" |

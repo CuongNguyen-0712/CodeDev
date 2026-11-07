@@ -91,6 +91,12 @@ describe("mailRoutes (AgentMail first, Gmail as fallback)", () => {
         expect(checkEnvironment({ APP_ENV: "production", ...AGENTMAIL }).warnings).toContain("mail: MAIL_PASSWORD is not set: no Gmail fallback when AgentMail fails");
         expect(checkEnvironment({ APP_ENV: "production", ...AGENTMAIL, ...GMAIL }).warnings.join("\n")).not.toMatch(/^mail:/m);
     });
+
+    it("a half-configured Gmail next to AgentMail is reported as an error, not as a missing password", () => {
+        const check = checkEnvironment({ APP_ENV: "production", ...AGENTMAIL, MAIL_PASSWORD: "abcd efgh ijkl mnop" });
+        expect(check.errors).toContain("mail: MAIL_FROM (the sending address) is required with MAIL_PASSWORD");
+        expect(check.warnings.join("\n")).not.toMatch(/MAIL_PASSWORD is not set/);
+    });
 });
 
 describe("sealed blobs", () => {

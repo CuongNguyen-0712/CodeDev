@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Fake SMTP: records which server each send went to; servers in `down` throw.
-const smtp = vi.hoisted(() => ({ sent: [], down: new Set() }));
+const smtp = vi.hoisted(() => ({ sent: [], verified: [], down: new Set() }));
 vi.mock("nodemailer", () => ({
     default: {
         createTransport: ({ host }) => ({
@@ -10,12 +10,16 @@ vi.mock("nodemailer", () => ({
                 if (smtp.down.has(host)) throw new Error(`${host} refused: daily limit`);
                 return { messageId: `<id@${host}>` };
             },
-            verify: async () => true,
+            verify: async () => {
+                smtp.verified.push(host);
+                if (smtp.down.has(host)) throw new Error(`${host} refused: invalid login`);
+                return true;
+            },
         }),
     },
 }));
 
-const { sendMail } = await import("@/lib/mail.js");
+const { sendMail, verifyMail } = await import("@/lib/mail.js");
 
 const MESSAGE = { to: "learner@example.com", subject: "Verify", html: "<p>hi</p>", text: "hi" };
 const BOTH = {
@@ -33,6 +37,7 @@ function useEnv(values) {
 describe("sendMail fallback", () => {
     beforeEach(() => {
         smtp.sent.length = 0;
+        smtp.verified.length = 0;
         smtp.down.clear();
     });
     afterEach(() => {
@@ -63,6 +68,17 @@ describe("sendMail fallback", () => {
         expect(error.message).toMatch(/smtp\.agentmail\.to.*refused.*smtp\.gmail\.com.*refused/s);
         expect(error.message).not.toContain("am_secret_key");
         expect(error.message).not.toContain("gmailsecretpass");
+    });
+
+    it("verifyMail signs in to every route and names each one that failed", async () => {
+        useEnv(BOTH);
+        await expect(verifyMail()).resolves.toMatch(/^agentmail .* -> fallback gmail /);
+        smtp.down.add("smtp.agentmail.to");
+        smtp.verified.length = 0;
+        const error = await verifyMail().catch((caught) => caught);
+        expect(smtp.verified).toEqual(["smtp.agentmail.to", "smtp.gmail.com"]);
+        expect(error.message).toMatch(/agentmail smtp\.agentmail\.to:465.*invalid login/);
+        expect(error.message).not.toMatch(/gmail smtp\.gmail\.com/);
     });
 
     it("throws the configuration error when no route is set", async () => {
