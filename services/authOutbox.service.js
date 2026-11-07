@@ -74,7 +74,7 @@ const handlers = {
 
         // Realtime notice is best effort and sent once: the cache write is what must succeed.
         if (attempts === 1 && payload.userId) {
-            publishToUser(payload.userId, events.SESSION_REVOKED, {
+            await publishToUser(payload.userId, events.SESSION_REVOKED, {
                 sessionIds: payload.sessionIds || [],
                 reason: payload.reason,
             });

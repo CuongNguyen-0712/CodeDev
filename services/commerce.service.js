@@ -19,7 +19,7 @@ const toNumber = (value) => (value === null || value === undefined ? null : Numb
 /** Drops the user's versioned Redis views (course lists show enrolment) and pings their tabs. */
 async function afterOwnershipChange(userId, courseId) {
     await invalidateUserCache(userId);
-    publishToUser(userId, events.PROGRESS_UPDATED, { courseId: courseId || null, reason: progressReasons.OWNERSHIP_CHANGED });
+    await publishToUser(userId, events.PROGRESS_UPDATED, { courseId: courseId || null, reason: progressReasons.OWNERSHIP_CHANGED });
 }
 
 function mapOrder(row) {

@@ -98,6 +98,19 @@ describe("deliver", () => {
         expect(publish).not.toHaveBeenCalled();
     });
 
+    it("finish waits for the broadcast so the Inngest step does not end before it is sent", async () => {
+        db.finishSending.mockResolvedValueOnce({ id: "a3", audience: { type: "all" }, recipients: 1 });
+        let release;
+        publish.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+        let settled = false;
+        const pending = announcementService.finish("a3").then(() => { settled = true; });
+        await new Promise((r) => setTimeout(r, 0));
+        expect(settled).toBe(false);
+        release(true);
+        await pending;
+        expect(settled).toBe(true);
+    });
+
     it("does nothing for a cancelled announcement", async () => {
         db.startSending.mockResolvedValueOnce(null);
         expect(await announcementService.deliver("a1")).toBeNull();

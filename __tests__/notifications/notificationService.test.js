@@ -31,6 +31,20 @@ describe("notificationService.notify", () => {
         expect(publishToUser).toHaveBeenCalledWith("u1", "notification-created", { id: "n1", kind: "level_up" });
     });
 
+    it("waits for the publish before resolving (serverless would freeze it otherwise)", async () => {
+        insert.mockResolvedValue({ rows: [{ id: "n1", kind: "level_up" }] });
+        let release;
+        publishToUser.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+        let settled = false;
+        const pending = notificationService.notify("u1", { kind: "level_up", title: "t", message: "m" }).then(() => { settled = true; });
+        await new Promise((r) => setTimeout(r, 0));
+        expect(publishToUser).toHaveBeenCalled();
+        expect(settled).toBe(false);
+        release(true);
+        await pending;
+        expect(settled).toBe(true);
+    });
+
     it("stays quiet when the fact was already notified (no row back)", async () => {
         insert.mockResolvedValue({ rows: [] });
         expect(await notificationService.notify("u1", { kind: "level_up", title: "t", message: "m", dedupeKey: "2" })).toBeNull();

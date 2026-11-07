@@ -286,7 +286,7 @@ export const adminService = {
         });
 
         await invalidateUserCache(result.userId);
-        publishToUser(result.userId, events.PROGRESS_UPDATED, { courseId: null, reason: progressReasons.OWNERSHIP_CHANGED });
+        await publishToUser(result.userId, events.PROGRESS_UPDATED, { courseId: null, reason: progressReasons.OWNERSHIP_CHANGED });
         await notificationService.notify(result.userId, {
             kind: "access_revoked",
             title: "Order refunded",
@@ -326,7 +326,7 @@ export const adminService = {
         });
 
         await invalidateUserCache(input.userId);
-        publishToUser(input.userId, events.PROGRESS_UPDATED, { courseId: input.courseId, reason: progressReasons.OWNERSHIP_CHANGED });
+        await publishToUser(input.userId, events.PROGRESS_UPDATED, { courseId: input.courseId, reason: progressReasons.OWNERSHIP_CHANGED });
         await notificationService.notifyCourse(input.userId, "access_granted", input.courseId, result.entitlementId);
         return result;
     },
@@ -352,7 +352,7 @@ export const adminService = {
         });
 
         await invalidateUserCache(result.userId);
-        publishToUser(result.userId, events.PROGRESS_UPDATED, { courseId: result.courseId, reason: progressReasons.OWNERSHIP_CHANGED });
+        await publishToUser(result.userId, events.PROGRESS_UPDATED, { courseId: result.courseId, reason: progressReasons.OWNERSHIP_CHANGED });
         await notificationService.notifyCourse(result.userId, "access_revoked", result.courseId, input.entitlementId);
         return { revoked: true };
     },

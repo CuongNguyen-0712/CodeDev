@@ -96,7 +96,7 @@ export const emailVerificationService = {
         if (status === "verified") {
             await invalidateUserCache(userId);
             // Open tabs refetch /api/user/me and drop the "verify your email" banner.
-            publishToUser(userId, events.PROFILE_UPDATED, {});
+            await publishToUser(userId, events.PROFILE_UPDATED, {});
         }
         return { status };
     },

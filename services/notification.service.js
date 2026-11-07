@@ -58,7 +58,7 @@ export const notificationService = {
         try {
             const { rows } = await notificationDb.insert({ userId, kind, title, message, link, dedupeKey });
             const row = rows[0] || null;
-            if (row) publishToUser(userId, events.NOTIFICATION_CREATED, { id: row.id, kind: row.kind });
+            if (row) await publishToUser(userId, events.NOTIFICATION_CREATED, { id: row.id, kind: row.kind });
             return row;
         } catch (error) {
             console.error(`[notification] ${kind} for ${userId} failed:`, error?.message);

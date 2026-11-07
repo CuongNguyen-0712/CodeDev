@@ -125,7 +125,7 @@ function rewardView(rewards = {}) {
 /** Points, EXP, overview and learning progress changed: drop caches and tell the user's other tabs. */
 async function afterSubmission({ userId, ctx, passed, rewards }) {
     await invalidateUserCache(userId);
-    publishToUser(userId, events.CHALLENGE_SUBMITTED, {
+    await publishToUser(userId, events.CHALLENGE_SUBMITTED, {
         challengeId: String(ctx.id),
         type: ctx.type,
         passed: Boolean(passed),

@@ -21,7 +21,7 @@ async function afterProgressChange({ userId, courseId, reason }) {
         revalidateCoursePage(courseId);
         await redis.del(cacheKeys.courseDetailsPublic(courseId));
     }
-    publishToUser(userId, events.PROGRESS_UPDATED, { courseId: courseId || null, reason });
+    await publishToUser(userId, events.PROGRESS_UPDATED, { courseId: courseId || null, reason });
 }
 
 // Keyset cursor of the comment list: (created_at, id) of the last row, opaque to the client.

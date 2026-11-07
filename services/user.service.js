@@ -176,7 +176,7 @@ export const userService = {
         }
 
         await invalidateUserCache(userId);
-        publishToUser(userId, events.PROFILE_UPDATED, {});
+        await publishToUser(userId, events.PROFILE_UPDATED, {});
 
         return true;
     },

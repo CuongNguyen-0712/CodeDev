@@ -70,15 +70,14 @@ async function normalizeAudience(audience) {
 }
 
 /** Tells open tabs to refetch: a ping per user for small lists, else one broadcast. */
-function pingRecipients(announcement) {
+async function pingRecipients(announcement) {
     const audience = announcement.audience;
     if (audience?.type === "users" && audience.userIds.length <= DIRECT_PING_MAX) {
-        for (const userId of audience.userIds) {
-            publishToUser(userId, events.NOTIFICATION_CREATED, { id: announcement.id, kind: "announcement" });
-        }
+        await Promise.all(audience.userIds.map((userId) =>
+            publishToUser(userId, events.NOTIFICATION_CREATED, { id: announcement.id, kind: "announcement" })));
         return;
     }
-    publish(channels.broadcast(), events.ANNOUNCEMENT, { id: announcement.id });
+    await publish(channels.broadcast(), events.ANNOUNCEMENT, { id: announcement.id });
 }
 
 /** Queues the send (Inngest dedupes the event id), or runs it now when the queue is off. */
@@ -162,7 +161,7 @@ export const announcementService = {
 
     finish: async (id) => {
         const done = await announcementDb.finishSending(id);
-        if (done) pingRecipients(done);
+        if (done) await pingRecipients(done);
         return done ? { id: done.id, recipients: done.recipients } : null;
     },
 
@@ -187,7 +186,7 @@ export const announcementService = {
             });
             return changed;
         });
-        pingRecipients(row);
+        await pingRecipients(row);
         return view(await announcementDb.get(id));
     },
 
