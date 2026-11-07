@@ -63,32 +63,37 @@ function CompletionRequirements({ completion, completedLessons, totalLessons }) 
     const hard = completion.hard || {};
     const rateMet = (row) => row.passed * 100 >= row.minPercent * row.total;
 
+    const items = [
+        { label: 'Lessons completed', passed: completedLessons, total: totalLessons, met: totalLessons > 0 && completedLessons >= totalLessons },
+        ...rows.map((row) => ({ label: row.label + ', ' + row.minPercent + '% needed', passed: row.passed, total: row.total, met: rateMet(row) })),
+        ...(hard.required > 0 ? [{ label: 'Hard coding passed', passed: hard.passed, total: hard.required, met: hard.passed >= hard.required }] : []),
+    ];
+
     return (
-        <section aria-labelledby="completion-heading" className="space-y-2 border-t px-4 py-3 text-xs">
-            <h3 id="completion-heading" className="flex items-center gap-1.5 font-semibold text-foreground">
-                {completion.met
-                    ? <LuCircleCheck className="size-3.5 text-success" aria-hidden="true" />
-                    : <LuCircle className="size-3.5 text-muted-foreground" aria-hidden="true" />}
-                To complete this course
-            </h3>
-            <ul className="list-none space-y-1 text-muted-foreground">
-                <li className={cn('flex justify-between gap-2', totalLessons > 0 && completedLessons >= totalLessons && 'text-success')}>
-                    <span>Lessons completed</span>
-                    <span className="tabular">{completedLessons}/{totalLessons}</span>
-                </li>
-                {rows.map((row) => (
-                    <li key={row.label} className={cn('flex justify-between gap-2', rateMet(row) && 'text-success')}>
-                        <span>{row.label}, {row.minPercent}% needed</span>
-                        <span className="tabular">{row.passed}/{row.total}</span>
-                    </li>
-                ))}
-                {hard.required > 0 && (
-                    <li className={cn('flex justify-between gap-2', hard.passed >= hard.required && 'text-success')}>
-                        <span>Hard coding passed</span>
-                        <span className="tabular">{hard.passed}/{hard.required}</span>
-                    </li>
-                )}
-            </ul>
+        <section aria-labelledby="completion-heading" className="shrink-0 border-t p-3 text-xs">
+            <div className={cn('space-y-2.5 rounded-lg border p-3', completion.met ? 'border-success/25 bg-success-soft' : 'bg-muted/50')}>
+                <h3 id="completion-heading" className="flex items-center gap-1.5 text-[13px] font-semibold text-foreground">
+                    {completion.met
+                        ? <LuCircleCheck className="size-4 text-success" aria-hidden="true" />
+                        : <LuCircle className="size-4 text-muted-foreground" aria-hidden="true" />}
+                    To complete this course
+                </h3>
+                <ul className="list-none space-y-2">
+                    {items.map((item) => (
+                        <li key={item.label} className="space-y-1">
+                            <span className={cn('flex justify-between gap-2', item.met ? 'text-success' : 'text-muted-foreground')}>
+                                <span>{item.label}</span>
+                                <span className="tabular font-medium">{item.passed}/{item.total}</span>
+                            </span>
+                            <Progress
+                                value={item.total > 0 ? Math.min(100, (item.passed / item.total) * 100) : 0}
+                                className={cn('h-1', item.met ? 'bg-success/20 [&>*]:bg-success' : 'bg-primary/15')}
+                                aria-hidden="true"
+                            />
+                        </li>
+                    ))}
+                </ul>
+            </div>
         </section>
     );
 }
@@ -114,9 +119,12 @@ function SyllabusPanel({
             <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b pr-2 pl-4">
                 <h2 className="text-sm font-semibold">Syllabus</h2>
                 <div className="flex items-center gap-1">
-                    <span className="mr-1 text-xs text-muted-foreground tabular">
-                        {completedLessonsCount}/{totalLessonsCount}
-                    </span>
+                    {/* Lesson progress lives in the top bar; the header names the chapters instead. */}
+                    {data?.modules?.length > 0 && (
+                        <span className="mr-1 text-xs text-muted-foreground tabular">
+                            {data.modules.length} {data.modules.length === 1 ? 'chapter' : 'chapters'}
+                        </span>
+                    )}
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button
@@ -146,6 +154,19 @@ function SyllabusPanel({
                 </div>
             </div>
 
+            {/* Only in the sheet (phones and tablets), where the top bar's progress is hidden or covered. */}
+            {onClose && totalLessonsCount > 0 && (
+                <div className="shrink-0 space-y-1.5 border-b px-4 py-3">
+                    <div className="flex items-baseline justify-between gap-2 text-xs">
+                        <span className="font-medium text-primary-soft-foreground">Course progress</span>
+                        <span className="font-semibold text-primary-ink tabular">
+                            {Math.round((completedLessonsCount / totalLessonsCount) * 100)}%
+                        </span>
+                    </div>
+                    <Progress value={(completedLessonsCount / totalLessonsCount) * 100} className="h-1.5 bg-primary/15" aria-label="Course progress" />
+                </div>
+            )}
+
             <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:block!">
                 <nav aria-label="Course syllabus" className="p-2">
                     {isLoading ? (
@@ -166,6 +187,8 @@ function SyllabusPanel({
                                 const isModuleOpen = selectedData?.module === module.id;
                                 const lessons = module.lessons || [];
                                 const completedInModule = lessons.filter(l => l.status === 'completed').length;
+                                const moduleDone = lessons.length > 0 && completedInModule === lessons.length;
+                                const hasCurrent = lessons.some((l) => l.id === selectedData?.lesson);
 
                                 return (
                                     <li key={module.id || index}>
@@ -176,26 +199,35 @@ function SyllabusPanel({
                                                 module: open ? module.id : null,
                                             }))}
                                         >
-                                            <CollapsibleTrigger className="group flex w-full items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-sidebar-accent">
-                                                <LuChevronRight
-                                                    className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
+                                            <CollapsibleTrigger className="group flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left hover:bg-muted">
+                                                <span
+                                                    className={cn(
+                                                        'mt-px flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular',
+                                                        moduleDone ? 'border-success/25 bg-success-soft text-success'
+                                                            : hasCurrent ? 'border-primary/25 bg-primary-soft text-primary-ink'
+                                                                : 'bg-background text-muted-foreground'
+                                                    )}
                                                     aria-hidden="true"
-                                                />
+                                                >
+                                                    {moduleDone ? <LuCircleCheck className="size-3.5" /> : index + 1}
+                                                </span>
                                                 <span className="min-w-0 flex-1">
-                                                    <span className="block tabular text-xs text-muted-foreground">
-                                                        Chapter {index + 1}
-                                                    </span>
+                                                    <span className="sr-only">Chapter {index + 1}: </span>
                                                     <span className="block text-[13px] leading-snug font-medium text-foreground">
                                                         {module.title}
                                                     </span>
+                                                    <span className="block text-xs text-muted-foreground tabular">
+                                                        {completedInModule}/{lessons.length} lessons
+                                                    </span>
                                                 </span>
-                                                <span className="mt-0.5 shrink-0 text-xs text-muted-foreground tabular">
-                                                    {completedInModule}/{lessons.length}
-                                                </span>
+                                                <LuChevronRight
+                                                    className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
+                                                    aria-hidden="true"
+                                                />
                                             </CollapsibleTrigger>
 
                                             <CollapsibleContent>
-                                                <ul className="mt-0.5 mb-1.5 list-none space-y-0.5 pl-4">
+                                                <ul className="mt-0.5 mb-2 ml-[1.1875rem] list-none space-y-0.5 border-l pl-2">
                                                     {lessons.map((lesson, lIndex) => {
                                                         const isCurrent = selectedData?.lesson === lesson.id;
                                                         const overallIndex = allLessons.findIndex(l => l.id === lesson.id);
@@ -212,17 +244,17 @@ function SyllabusPanel({
                                                                     aria-current={isCurrent ? 'step' : undefined}
                                                                     title={isLocked ? 'Complete the previous lesson to unlock this one.' : lesson.title}
                                                                     className={cn(
-                                                                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-transparent',
-                                                                        isCurrent && 'bg-sidebar-accent font-medium text-sidebar-foreground'
+                                                                        'relative flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-foreground/85 hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-transparent',
+                                                                        isCurrent && 'bg-primary-soft font-medium text-primary-soft-foreground hover:bg-primary-soft hover:text-primary-soft-foreground before:absolute before:inset-y-1.5 before:-left-[0.5625rem] before:w-0.5 before:rounded-full before:bg-primary'
                                                                     )}
                                                                 >
                                                                     <LessonStatusIcon status={lesson.status} locked={isLocked} />
-                                                                    <span className="w-5 shrink-0 text-xs text-muted-foreground tabular">
+                                                                    <span className="w-4 shrink-0 text-xs text-muted-foreground tabular">
                                                                         {lIndex + 1}
                                                                     </span>
                                                                     <span className="min-w-0 flex-1 truncate">{lesson.title}</span>
                                                                     {hasChallenges && (
-                                                                        <Badge variant="outline" className="h-4 px-1 tabular text-xs text-muted-foreground">
+                                                                        <Badge variant={challengeKind === 'Code' ? 'info' : 'muted'} className="h-4 px-1 text-[0.6875rem]">
                                                                             {challengeKind}
                                                                         </Badge>
                                                                     )}
@@ -499,7 +531,7 @@ export default function StudyingPage({ params }) {
                     )}
                     {totalLessonsCount > 0 && (
                         <div className="ml-2 hidden shrink-0 items-center gap-2 md:flex">
-                            <Progress value={progressPercent} className="h-1.5 w-28 bg-muted" aria-label="Course progress" />
+                            <Progress value={progressPercent} className="h-1.5 w-28 bg-primary/15" aria-label="Course progress" />
                             <span className="text-xs text-muted-foreground tabular">
                                 {completedLessonsCount}/{totalLessonsCount} &middot; {progressPercent}%
                             </span>
@@ -518,7 +550,7 @@ export default function StudyingPage({ params }) {
 
             <div className="flex min-h-0 flex-1">
                 {!isCompact && desktopSyllabus && (
-                    <aside className="w-72 shrink-0 border-r bg-sidebar xl:w-80" aria-label="Syllabus panel">
+                    <aside className="w-72 shrink-0 border-r bg-card xl:w-80" aria-label="Syllabus panel">
                         <SyllabusPanel {...syllabusProps} />
                     </aside>
                 )}
@@ -562,7 +594,7 @@ export default function StudyingPage({ params }) {
                 <SheetContent
                     side="left"
                     showCloseButton={false}
-                    className="w-[min(20rem,88vw)] gap-0 bg-sidebar p-0"
+                    className="w-[min(20rem,88vw)] gap-0 bg-card p-0"
                     onOpenAutoFocus={(event) => {
                         // Land on the current lesson instead of the first toolbar
                         // button, which would also pop its tooltip.

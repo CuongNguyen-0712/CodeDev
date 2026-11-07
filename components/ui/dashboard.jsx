@@ -102,7 +102,14 @@ export default function Dashboard() {
 
   return (
     // role makes the aria-label count (a role-less div ignores it) and puts the sidebar in a landmark.
-    <Sidebar collapsible="icon" role="navigation" aria-label="Main navigation">
+    // Learner sidebar on the card colour (the lavender sidebar tokens stay for admin): hover is the
+    // muted tint, the current page a violet pill with a bar on its left edge.
+    <Sidebar
+      collapsible="icon"
+      role="navigation"
+      aria-label="Main navigation"
+      className="[--sidebar:var(--card)] [--sidebar-accent:var(--muted)] [--sidebar-accent-foreground:var(--foreground)] [--sidebar-border:var(--border)]"
+    >
       <SidebarHeader className="h-12 justify-center border-b border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -130,7 +137,7 @@ export default function Dashboard() {
         ) : (
           menus.map((section) => (
             <SidebarGroup key={section.title} className="py-1 first:pt-2">
-              <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
+              <SidebarGroupLabel className="text-[0.6875rem] font-semibold tracking-wider uppercase text-muted-foreground">{section.title}</SidebarGroupLabel>
               <SidebarMenu>
                 {section.items.map((item) => {
                   const active = isItemActive(item.value);
@@ -141,7 +148,12 @@ export default function Dashboard() {
                         asChild
                         isActive={active}
                         tooltip={item.name}
-                        className={cn("data-[active=true]:bg-primary-soft/70 data-[active=true]:text-primary-ink data-[active=true]:font-semibold", hit)}
+                        className={cn(
+                          "relative text-foreground/85 [&>svg]:text-muted-foreground hover:[&>svg]:text-foreground",
+                          "data-[active=true]:bg-primary-soft data-[active=true]:font-semibold data-[active=true]:text-primary-soft-foreground data-[active=true]:[&>svg]:text-primary-ink",
+                          "data-[active=true]:before:absolute data-[active=true]:before:inset-y-2 data-[active=true]:before:left-0 data-[active=true]:before:w-[3px] data-[active=true]:before:rounded-r-full data-[active=true]:before:bg-primary",
+                          hit
+                        )}
                       >
                         <Link
                           href={hrefFor(item.value, session)}
