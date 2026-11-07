@@ -23,6 +23,8 @@ import SessionsSection from "@/components/settings/sessionsSection";
 import SignInMethodsSection from "@/components/settings/signInMethodsSection";
 import PreferencesSection from "@/components/settings/preferencesSection";
 import PrivacySection from "@/components/settings/privacySection";
+import AvatarCropDialog from "@/components/settings/avatarCropDialog";
+import AvatarHistory from "@/components/settings/avatarHistory";
 import { InputGroup, TextAreaGroup } from "@/components/ui/input";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
@@ -36,6 +38,7 @@ import {
     LuAtSign,
     LuCircleAlert,
     LuCircleCheck,
+    LuCrop,
     LuImageUp,
     LuLoaderCircle,
     LuMail,
@@ -118,6 +121,8 @@ function PhotoSection({ data, onSaved }) {
     const { showAlert: alert } = useApp();
     const inputRef = useRef(null);
 
+    const [source, setSource] = useState(null);
+    const [cropOpen, setCropOpen] = useState(false);
     const [file, setFile] = useState(null);
     const [preview, setPreview] = useState(null);
     const [pending, setPending] = useState(false);
@@ -127,9 +132,15 @@ function PhotoSection({ data, onSaved }) {
         if (preview) URL.revokeObjectURL(preview);
     }, [preview]);
 
+    useEffect(() => () => {
+        if (source) URL.revokeObjectURL(source.url);
+    }, [source]);
+
     const displayName = [data?.surname, data?.name].filter(Boolean).join(' ') || data?.username || '';
 
     const clearSelection = () => {
+        setSource(null);
+        setCropOpen(false);
         setFile(null);
         setPreview(null);
         setAvatarError(null);
@@ -156,9 +167,19 @@ function PhotoSection({ data, onSaved }) {
             e.target.value = '';
             return;
         }
-        setFile(next);
-        setPreview(URL.createObjectURL(next));
+        // The picked file is only the source: the cropped square is what gets uploaded.
+        setSource({ file: next, url: URL.createObjectURL(next) });
+        setCropOpen(true);
     };
+
+    const handleCropApply = (cropped) => {
+        setFile(cropped);
+        setPreview(URL.createObjectURL(cropped));
+        setCropOpen(false);
+    };
+
+    // Cancelling the first crop drops the pick; cancelling a re-adjust keeps the earlier crop.
+    const handleCropCancel = () => (file ? setCropOpen(false) : clearSelection());
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -218,6 +239,12 @@ function PhotoSection({ data, onSaved }) {
                             {file ? 'Choose another image' : 'Choose image'}
                         </Button>
                         {file && (
+                            <Button type="button" variant="outline" size="sm" onClick={() => setCropOpen(true)} disabled={pending}>
+                                <LuCrop />
+                                Adjust
+                            </Button>
+                        )}
+                        {file && (
                             <Button type="button" variant="ghost" size="sm" onClick={clearSelection} disabled={pending}>
                                 <LuX />
                                 Remove selection
@@ -225,7 +252,7 @@ function PhotoSection({ data, onSaved }) {
                         )}
                     </div>
                     <p className="truncate text-xs text-muted-foreground" aria-live="polite">
-                        {file ? `Selected: ${file.name}` : 'A square image of at least 400 x 400 px works best.'}
+                        {source ? `Selected: ${source.file.name}` : 'PNG, JPG, WebP or GIF, up to 5 MB.'}
                     </p>
                     {avatarError && (
                         <p role="alert" className="flex items-center gap-1.5 text-xs text-destructive">
@@ -235,6 +262,7 @@ function PhotoSection({ data, onSaved }) {
                     )}
                 </div>
             </div>
+            <AvatarHistory />
             <SectionFooter
                 hint={file ? 'The preview shows how your new photo will look.' : 'Choose an image to enable saving.'}
                 pending={pending}
@@ -242,6 +270,7 @@ function PhotoSection({ data, onSaved }) {
                 label="Save photo"
                 pendingLabel="Uploading..."
             />
+            <AvatarCropDialog file={source?.file} src={source?.url} open={cropOpen} onApply={handleCropApply} onCancel={handleCropCancel} />
         </form>
     );
 }
@@ -504,6 +533,7 @@ export default function SettingsPage() {
     const showLoading = status === 'loading' || (status === 'authenticated' && isLoading);
 
     const handleSaved = () => queryClient.invalidateQueries({ queryKey: userKeys.me() });
+    const handlePhotoSaved = () => Promise.all([handleSaved(), queryClient.invalidateQueries({ queryKey: userKeys.avatars() })]);
 
     return (
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
@@ -547,7 +577,7 @@ export default function SettingsPage() {
                         title="Profile photo"
                         description="Shown on your profile, in the account menu and in Contacts."
                     >
-                        <PhotoSection data={data} onSaved={handleSaved} />
+                        <PhotoSection data={data} onSaved={handlePhotoSaved} />
                     </SettingsSection>
 
                     <SettingsSection

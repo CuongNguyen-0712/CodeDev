@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { CourseList, LanguageList, Stat, initials } from "@/components/profile/profilePage";
 import { RankSummary } from "@/components/ranking/rankSummary";
 import { ExpProgress, LevelBadge, levelProgress } from "@/components/ui/level";
+import { ImageLightbox } from "@/components/ui/imageLightbox";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
 
@@ -52,12 +53,14 @@ export default function PublicProfilePage({ profile }) {
             ) : null}
 
             <header className="flex min-w-0 items-start gap-4">
-                <Avatar className="size-16 border sm:size-20">
-                    <AvatarImage src={profile.image || undefined} alt="" className="object-cover" />
-                    <AvatarFallback className="bg-primary-soft text-lg font-semibold text-primary-soft-foreground">
-                        {initials(displayName)}
-                    </AvatarFallback>
-                </Avatar>
+                <ImageLightbox src={profile.image} alt={displayName} caption={displayName} variant="avatar" label="View profile photo" className="shrink-0 rounded-full">
+                    <Avatar className="size-16 border sm:size-20">
+                        <AvatarImage src={profile.image || undefined} alt="" className="object-cover" />
+                        <AvatarFallback className="bg-primary-soft text-lg font-semibold text-primary-soft-foreground">
+                            {initials(displayName)}
+                        </AvatarFallback>
+                    </Avatar>
+                </ImageLightbox>
                 <div className="min-w-0 space-y-2">
                     <h1 className="text-3xl font-semibold tracking-tight break-words text-foreground sm:text-4xl">
                         {displayName}

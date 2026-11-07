@@ -10,6 +10,7 @@ import ExperienceSection from "@/components/profile/experienceSection";
 import { MyRankSummary } from "@/components/ranking/rankSummary";
 
 import { ErrorReload } from "@/components/ui/error";
+import { ImageLightbox } from "@/components/ui/imageLightbox";
 import { formatPoints } from "@/components/ui/navbar";
 import { COURSE_STATUS } from "@/components/learning/course";
 
@@ -389,12 +390,14 @@ export default function ProfilePage() {
                 <>
                     <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div className="flex min-w-0 items-start gap-4">
-                            <Avatar className="size-14 border sm:size-16">
-                                <AvatarImage src={data?.image || undefined} alt="" className="object-cover" />
-                                <AvatarFallback className="bg-primary-soft text-base font-semibold text-primary-soft-foreground">
-                                    {initials(displayName)}
-                                </AvatarFallback>
-                            </Avatar>
+                            <ImageLightbox src={data?.image} alt={displayName} caption={displayName} variant="avatar" label="View profile photo" className="shrink-0 rounded-full">
+                                <Avatar className="size-14 border sm:size-16">
+                                    <AvatarImage src={data?.image || undefined} alt="" className="object-cover" />
+                                    <AvatarFallback className="bg-primary-soft text-base font-semibold text-primary-soft-foreground">
+                                        {initials(displayName)}
+                                    </AvatarFallback>
+                                </Avatar>
+                            </ImageLightbox>
                             <div className="min-w-0 space-y-2">
                                 <h1 className="text-3xl font-semibold tracking-tight break-words text-foreground sm:text-4xl">
                                     {displayName}

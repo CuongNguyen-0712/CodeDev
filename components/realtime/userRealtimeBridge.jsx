@@ -100,6 +100,7 @@ export function UserRealtimeBridge() {
 
             [events.PROFILE_UPDATED]: () => {
                 queryClient.invalidateQueries({ queryKey: userKeys.me() });
+                queryClient.invalidateQueries({ queryKey: userKeys.avatars() });
             },
 
             [events.NOTIFICATION_CREATED]: () => {

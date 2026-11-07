@@ -21,9 +21,9 @@ function isFileLike(file) {
  * Avatar upload:
  *   1. validate size and the real format (magic bytes, not the client MIME type);
  *   2. upload to <root>/<APP_ENV>/users/<userId>/avatars/<ulid> (folder chosen by the server);
- *   3. one DB transaction: storage.assets row + profile.info.image / avatar_asset_id, previous
- *      avatar marked deleted;
- *   4. after commit: delete the previous Cloudinary file, drop the user's caches, notify tabs.
+ *   3. one DB transaction: storage.assets row + profile.info.image / avatar_asset_id; earlier
+ *      avatars stay as history, those past the newest 10 are marked deleted;
+ *   4. after commit: delete the pruned Cloudinary files, drop the user's caches, notify tabs.
  * If step 3 fails the new upload is deleted again, so no orphan stays in Cloudinary.
  */
 export const mediaService = {
@@ -89,18 +89,53 @@ export const mediaService = {
             throw new ApiError("User not found", 404);
         }
 
-        if (saved.previous?.provider === "cloudinary" && saved.previous.objectKey) {
-            // Best effort: the DB already points at the new avatar; a leftover file is only storage.
-            await destroyAsset(saved.previous.objectKey).catch((error) => {
-                console.error("[media] Failed to delete previous avatar:", saved.previous.objectKey, error?.message);
-            });
-        }
-
-        await invalidateUserCache(userId);
-        publishToUser(userId, events.PROFILE_UPDATED, {});
+        for (const old of saved.pruned) await destroyFile(old);
+        await afterAvatarChange(userId);
 
         return { image: asset.url, width: asset.width, height: asset.height };
     },
+
+    listAvatars: async ({ userId }) => {
+        const rows = await mediaDb.listAvatars({ userId });
+        return rows.map((row) => ({
+            id: row.public_id,
+            url: row.external_url,
+            width: row.width,
+            height: row.height,
+            createdAt: row.created_at,
+            current: Boolean(row.current),
+        }));
+    },
+
+    /** Makes a kept avatar the profile image again. */
+    restoreAvatar: async ({ userId, assetId }) => {
+        const result = await mediaDb.restoreAvatar({ userId, assetPublicId: assetId });
+        if (!result) throw new ApiError("That photo is no longer available", 404);
+        await afterAvatarChange(userId);
+        return { image: result.url };
+    },
+
+    /** Deletes a kept avatar (not the current one) and its file. */
+    deleteAvatar: async ({ userId, assetId }) => {
+        const result = await mediaDb.deleteAvatar({ userId, assetPublicId: assetId });
+        if (!result) throw new ApiError("That photo is no longer available", 404);
+        if (result === "current") throw new ApiError("Choose another photo before deleting your current one", 409);
+        await destroyFile(result);
+        return { deleted: true };
+    },
 };
+
+// Best effort: the DB no longer uses the file; a leftover file is only storage.
+async function destroyFile({ provider, objectKey }) {
+    if (provider !== "cloudinary" || !objectKey) return;
+    await destroyAsset(objectKey).catch((error) => {
+        console.error("[media] Failed to delete avatar file:", objectKey, error?.message);
+    });
+}
+
+async function afterAvatarChange(userId) {
+    await invalidateUserCache(userId);
+    await publishToUser(userId, events.PROFILE_UPDATED, {});
+}
 
 export default mediaService;

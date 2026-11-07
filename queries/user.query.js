@@ -118,6 +118,16 @@ export const userQueries = {
         };
     },
 
+    avatars(status) {
+        return {
+            queryKey: userKeys.avatars(),
+            queryFn: () => userClient.getAvatars(),
+            enabled: status === 'authenticated',
+            ...QUERY_TIMES.profile,
+            refetchOnWindowFocus: false,
+        };
+    },
+
     signInMethods(status) {
         return {
             queryKey: userKeys.signInMethods(),

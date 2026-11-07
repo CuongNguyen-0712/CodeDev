@@ -2,8 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 /**
  * Avatar upload flow: real PostgreSQL (DATABASE_URL), Cloudinary mocked. Checks the format
- * sniffing, the server-chosen folder, the single transaction (asset row + profile pointer +
- * retired previous avatar) and the cleanup of uploads that could not be saved.
+ * sniffing, the server-chosen folder, the single transaction (asset row + profile pointer), the
+ * kept history (newest 10, restore, delete) and the cleanup of uploads that could not be saved.
  * The test user's profile image is restored afterwards.
  */
 const hasDb = Boolean(process.env.DATABASE_URL);
@@ -107,7 +107,7 @@ describe.skipIf(!hasDb)("avatar upload (PostgreSQL)", () => {
         expect(asset.checksum).toMatch(/^[0-9a-f]{64}$/);
     });
 
-    it("replacing an avatar retires the previous asset and deletes its file", async () => {
+    it("replacing an avatar keeps the previous one as history", async () => {
         await mediaService.uploadAvatar({ userId, file: fileOf(PNG) });
         const first = await profile();
         const firstKey = uploads.at(-1).publicId;
@@ -117,8 +117,62 @@ describe.skipIf(!hasDb)("avatar upload (PostgreSQL)", () => {
 
         expect(second.asset_id).not.toBe(first.asset_id);
         const old = (await sql(`SELECT deleted_at FROM storage.assets WHERE id = $1`, [first.asset_id])).rows[0];
-        expect(old.deleted_at).not.toBeNull();
-        expect(destroyed).toContain(firstKey);
+        expect(old.deleted_at).toBeNull();
+        expect(destroyed).not.toContain(firstKey);
+
+        const list = await mediaService.listAvatars({ userId });
+        expect(list[0]).toMatchObject({ current: true, url: second.image });
+        expect(list.filter((item) => item.current)).toHaveLength(1);
+    });
+
+    it("keeps at most 10 avatars and deletes the files of older ones", async () => {
+        for (let i = 0; i < 11; i++) await mediaService.uploadAvatar({ userId, file: fileOf(PNG) });
+        const keys = uploads.map((u) => u.publicId);
+
+        const list = await mediaService.listAvatars({ userId });
+        expect(list).toHaveLength(10);
+        expect(list[0].current).toBe(true);
+        expect(destroyed).toContain(keys[0]);
+        expect(destroyed).not.toContain(keys.at(-1));
+    });
+
+    it("restores a kept avatar, and refuses to delete the current one", async () => {
+        await mediaService.uploadAvatar({ userId, file: fileOf(PNG) });
+        await mediaService.uploadAvatar({ userId, file: fileOf(PNG) });
+        const [, older] = await mediaService.listAvatars({ userId });
+
+        expect(await mediaService.restoreAvatar({ userId, assetId: older.id })).toEqual({ image: older.url });
+        expect((await profile()).image).toBe(older.url);
+        await expect(mediaService.deleteAvatar({ userId, assetId: older.id })).rejects.toMatchObject({ status: 409 });
+        expect((await mediaService.listAvatars({ userId })).find((item) => item.current)?.id).toBe(older.id);
+    });
+
+    it("deletes a kept avatar and its file", async () => {
+        await mediaService.uploadAvatar({ userId, file: fileOf(PNG) });
+        const oldKey = uploads.at(-1).publicId;
+        await mediaService.uploadAvatar({ userId, file: fileOf(PNG) });
+        const [, older] = await mediaService.listAvatars({ userId });
+
+        expect(await mediaService.deleteAvatar({ userId, assetId: older.id })).toEqual({ deleted: true });
+        expect(destroyed).toContain(oldKey);
+        expect((await mediaService.listAvatars({ userId })).map((item) => item.id)).not.toContain(older.id);
+        await expect(mediaService.restoreAvatar({ userId, assetId: older.id })).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("refuses another user's avatar", async () => {
+        const other = (await sql(
+            `SELECT u.id FROM identity.users u JOIN profile.info i ON i.user_id = u.id WHERE u.public_id <> $1 ORDER BY u.id LIMIT 1`,
+            [userId]
+        )).rows[0];
+        if (!other) return;
+        const assetId = "ast_00000000000000000000000000";
+        await sql(
+            `INSERT INTO storage.assets (public_id, provider, object_key, external_url, resource_type, owner_id, purpose)
+             VALUES ($1, 'cloudinary', 'codedev/test/other', 'https://res.cloudinary.com/x.png', 'image', $2, 'avatar')`,
+            [assetId, other.id]
+        );
+        await expect(mediaService.restoreAvatar({ userId, assetId })).rejects.toMatchObject({ status: 404 });
+        await expect(mediaService.deleteAvatar({ userId, assetId })).rejects.toMatchObject({ status: 404 });
     });
 
     it("removes the new upload again when the database write fails", async () => {

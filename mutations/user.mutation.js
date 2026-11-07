@@ -25,6 +25,33 @@ export function useRevokeSession() {
     });
 }
 
+/** Makes a kept photo the profile photo again. */
+export function useRestoreAvatar() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (assetId) => userClient.restoreAvatar(assetId),
+        onSettled: () => Promise.all([
+            queryClient.invalidateQueries({ queryKey: userKeys.me() }),
+            queryClient.invalidateQueries({ queryKey: userKeys.avatars() }),
+        ]),
+    });
+}
+
+export function useDeleteAvatar() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (assetId) => userClient.deleteAvatar(assetId),
+        onSuccess: (_, assetId) => {
+            queryClient.setQueryData(userKeys.avatars(), (old) =>
+                Array.isArray(old) ? old.filter((item) => item.id !== assetId) : old
+            );
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: userKeys.avatars() }),
+    });
+}
+
 export function useRevokeOtherSessions() {
     const queryClient = useQueryClient();
 

@@ -4,6 +4,7 @@ import React from "react";
 import { PortableText } from "@portabletext/react";
 import createImageUrlBuilder from "@sanity/image-url";
 import CodeBlock from "@/components/ui/codeBlock";
+import { ImageLightbox } from "@/components/ui/imageLightbox";
 
 import {
     LuCircleAlert,
@@ -90,12 +91,14 @@ function ImageBlock({ value }) {
 
     return (
         <figure className="lesson_image_wrapper">
-            <img
-                src={imageUrl}
-                alt={alt || "Lesson illustrative figure"}
-                loading="lazy"
-                className="lesson_image"
-            />
+            <ImageLightbox src={imageUrl} alt={alt || "Lesson illustrative figure"} caption={caption} label="View larger image" className="lesson_image_button">
+                <img
+                    src={imageUrl}
+                    alt={alt || "Lesson illustrative figure"}
+                    loading="lazy"
+                    className="lesson_image"
+                />
+            </ImageLightbox>
             {caption && <figcaption className="lesson_image_caption">{caption}</figcaption>}
         </figure>
     );
@@ -108,15 +111,17 @@ function CloudinaryImage({ value }) {
 
     return (
         <figure className="lesson_image_wrapper">
-            <img
-                src={url}
-                alt={alt || ""}
-                width={width || undefined}
-                height={height || undefined}
-                loading="lazy"
-                decoding="async"
-                className="lesson_image h-auto"
-            />
+            <ImageLightbox src={url} alt={alt || ""} caption={caption} label={alt ? `View larger: ${alt}` : "View larger image"} className="lesson_image_button">
+                <img
+                    src={url}
+                    alt={alt || ""}
+                    width={width || undefined}
+                    height={height || undefined}
+                    loading="lazy"
+                    decoding="async"
+                    className="lesson_image h-auto"
+                />
+            </ImageLightbox>
             {caption && <figcaption className="lesson_image_caption">{caption}</figcaption>}
         </figure>
     );

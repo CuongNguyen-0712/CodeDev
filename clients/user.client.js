@@ -83,6 +83,21 @@ export const userClient = {
         return res.data;
     },
 
+    getAvatars: async () => {
+        const res = await apiClient.get('/user/avatars');
+        return res.data || [];
+    },
+
+    restoreAvatar: async (assetId) => {
+        const res = await apiClient.patch('/user/avatars', { assetId });
+        return res.data;
+    },
+
+    deleteAvatar: async (assetId) => {
+        const res = await apiClient.delete('/user/avatars', { data: { assetId } });
+        return res.data;
+    },
+
     getSignInMethods: async () => {
         const res = await apiClient.get('/user/accounts');
         return res.data || { password: false, providers: [] };
