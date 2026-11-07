@@ -43,7 +43,7 @@ Audit events: `account.linked` (`reason`: `claim` | `email` | `settings`), `acco
 
 **Email verification** — plan: [email-verification-plan.md](email-verification-plan.md) sections 3–6.
 - Sending: `emailVerificationService.request(userId)` queues `email.verify_requested` in the auth outbox and processes it at once; the handler issues a token (320-bit, stored as `HMAC("email-verify|" + token)` in `identity.email_tokens`, one live token per user, `EMAIL_VERIFY_TTL_SECONDS` = 24 h) and mails `/auth/verify-email?token=…` through `lib/mail.js` (SMTP). Failed sends are retried by the outbox; each retry issues a new token. Verified users get nothing.
-- Mail transport (`lib/mailConfig.mjs`, `lib/mail.js`): see `MAIL_FROM` / `MAIL_PASSWORD` below. Connection 10 s, greeting 10 s, socket 20 s timeouts, so a slow server fails fast and the outbox retries (5 s, 10 s, … up to 5 min). The start-up log prints `mail: gmail smtp.gmail.com:465 from …` or `mailpit …`. Check an env file without the app: `npm run mail:test -- --env .env.production --to <you>` (signs in, sends one test message, never prints the password).
+- Mail transport (`lib/mailConfig.mjs`, `lib/mail.js`): `AGENTMAIL_API_KEY` set → AgentMail `smtp.agentmail.to:465`; else `MAIL_PASSWORD` set → Gmail (or `MAIL_HOST`); else Mailpit in development / test and nothing in production. See the table below. Connection 10 s, greeting 10 s, socket 20 s timeouts, so a slow server fails fast and the outbox retries (5 s, 10 s, … up to 5 min). The start-up log prints `mail: agentmail smtp.agentmail.to:465 from …`, `gmail smtp.gmail.com:465 from …` or `mailpit …`. Check an env file without the app: `npm run mail:test -- --env .env.production --to <you>` (signs in, sends one test message, never prints the password).
 - Triggered by: signup (`/api/user/signup`, response `verificationSent`), an email change in Settings (`updateUserProfileAction` sets `email_verified = false`; shares the `emailVerify` budget, 429 when used up), `POST /api/auth/verify-email/resend` (signed in, same origin, `emailVerify` limiter: 3 / 15 min per user).
 - Checking: `/auth/verify-email` removes the token from the URL (`referrer: no-referrer`) and calls `POST /api/auth/verify-email` (`verifyEmail` limiter, 20 / min per IP). One transaction: unknown or replaced → 400, sent to a previous email → 400, expired → 410, already used → 200 `already_verified`, else `email_verified = true` → 200 `verified`. Not a GET, so link scanners do not use the token up.
 - UI: banner under the navbar (`components/auth/verifyEmailBanner.jsx`) while `/api/user/me` says `email_verified: false`; "Send verification email" next to the badge in Settings.
@@ -81,9 +81,10 @@ Revocation is committed in PostgreSQL first. Redis may say "active" until the ou
 | `AUTH_ACCEPT_LEGACY_JWT` | `true` | set `false` 30 days after deploying (all pre-iss/aud cookies expired) |
 | `AUTH_CRON_SECRET` / `CRON_SECRET` | — | bearer token to run `/api/internal/account-maintenance` and `/api/internal/exp-audit` by hand; unset, they answer 404 |
 | `AUTH_OUTBOX_WORKER` | on | `off` disables the in-process worker (it only runs while Inngest is not configured) |
-| `MAIL_FROM` | dev: `CodeDev <dev@codedev.local>` | sending address, `you@gmail.com` or `CodeDev <you@gmail.com>`; with Gmail it must be the signed-in account |
+| `MAIL_FROM` | dev: `CodeDev <dev@codedev.local>` | sending address, `you@gmail.com` or `CodeDev <you@gmail.com>`; it must be the signed-in account: the AgentMail inbox with `AGENTMAIL_API_KEY`, the Gmail address with `MAIL_PASSWORD` |
+| `AGENTMAIL_API_KEY` | — | AgentMail API key (surrounding spaces ignored). Set → `smtp.agentmail.to:465` in any environment, signed in as `MAIL_FROM`; wins over `MAIL_PASSWORD` / `MAIL_HOST` |
 | `MAIL_PASSWORD` | — | Google App Password of `MAIL_FROM` (spaces ignored). Set → `smtp.gmail.com:465` in any environment. Empty → development / test use Mailpit `127.0.0.1:1025`; production sends nothing (outbox retries) and the start-up check logs `mail: …` |
-| `MAIL_HOST` / `MAIL_PORT` | — / 465 | optional: another SMTP provider instead of Gmail (Resend later) |
+| `MAIL_HOST` / `MAIL_PORT` | — / 465 | optional: another SMTP provider instead of Gmail |
 | `EMAIL_VERIFY_TTL_SECONDS` | 86400 | verification link lifetime |
 
 ## Deploying

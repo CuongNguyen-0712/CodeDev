@@ -94,7 +94,7 @@ Key design points:
 | Storage | S3-compatible (`@aws-sdk/client-s3`): Neon S3 in production, MinIO locally |
 | Content | Sanity (Studio at `/studio`), Cloudinary |
 | Realtime | Pusher |
-| Mail | Nodemailer, React Email (Mailpit locally, Gmail SMTP in production) |
+| Mail | Nodemailer, React Email (Mailpit locally, AgentMail SMTP in production, Gmail as fallback) |
 | Code runner | Docker image `codedev_sandbox` (Node 24, Python 3.14, gcc 15, JDK 21, Go 1.26, Rust 1.93) or Vercel Sandbox |
 | Validation | zod |
 | Tests | Vitest |
