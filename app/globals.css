@@ -604,6 +604,16 @@
     }
 }
 
+/* Admin sidebar: a quiet rail one step off the page (white in light mode, raised in dark), hover in the
+   neutral muted tone; the open screen's violet tint is set on the rows (components/admin/shell/adminShell.jsx). */
+.admin-sidebar-theme {
+    --sidebar: var(--card);
+    --sidebar-foreground: var(--foreground);
+    --sidebar-accent: var(--muted);
+    --sidebar-accent-foreground: var(--foreground);
+    --sidebar-border: var(--border);
+}
+
 /* A table that sits straight on the admin page gets the frame every other panel has. Unlayered so
    it wins over the table container's rounded-[inherit] utility. */
 #admin-main :not(.bg-card) > [data-slot="table-container"] {

@@ -18,10 +18,87 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import { Textarea } from "@/components/shadcn/textarea";
 import RowAction from "@/components/admin/ui/rowAction";
-import { formatDate } from "@/components/admin/ui/format";
+import { formatDate, formatNumber } from "@/components/admin/ui/format";
 import { DateField, toLocalValue } from "@/components/admin/ui/dateField";
 
-import { LuBan } from "react-icons/lu";
+import { LuBan, LuCheck, LuSearch } from "react-icons/lu";
+import { cn } from "@/lib/utils";
+
+function Initial({ name, className }) {
+    return (
+        <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-sm font-semibold text-primary-ink uppercase", className)} aria-hidden="true">
+            {(name || "?").trim().slice(0, 1)}
+        </span>
+    );
+}
+
+const levelAndPoints = (user) => `Lv ${formatNumber(user.level || 1)} · ${formatNumber(user.points)} pts`;
+
+/** The user picker: one card with the search field and the matches as rows, the picked one tinted. */
+function UserPicker({ query, onQuery, users, selected, onSelect }) {
+    const term = query.trim();
+    const results = users.data || [];
+    return (
+        <section className="overflow-hidden rounded-lg border border-border bg-card" aria-labelledby="user-search-heading">
+            <div className="space-y-2 border-b border-border p-3">
+                <h2 id="user-search-heading" className="text-sm font-semibold">Find a user</h2>
+                <div className="relative">
+                    <LuSearch aria-hidden="true" className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Label htmlFor="admin-user-search" className="sr-only">Username, email or user id</Label>
+                    <Input
+                        id="admin-user-search"
+                        type="search"
+                        placeholder="Username, email or user id"
+                        value={query}
+                        onChange={(event) => onQuery(event.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="pl-8"
+                    />
+                </div>
+            </div>
+            <div aria-live="polite" aria-busy={users.isFetching}>
+                {term.length < 2 ? (
+                    <p className="px-3 py-4 text-sm text-muted-foreground">Type at least 2 characters of a username or email, or paste a user id.</p>
+                ) : users.isPending || (users.isFetching && results.length === 0) ? (
+                    <div className="space-y-2 p-3">{[0, 1, 2].map((key) => <Skeleton key={key} className="h-10 w-full" />)}</div>
+                ) : users.isError ? (
+                    <p className="px-3 py-4 text-sm">Search failed. <button type="button" className="font-medium text-primary-ink hover:underline" onClick={() => users.refetch()}>Retry</button></p>
+                ) : results.length === 0 ? (
+                    <p className="px-3 py-4 text-sm text-muted-foreground">No user matches “{term}”.</p>
+                ) : (
+                    <ul className="max-h-[26rem] list-none divide-y divide-border overflow-y-auto" aria-label="Matching users">
+                        {results.map((user) => {
+                            const picked = selected?.id === user.id;
+                            return (
+                                <li key={user.id}>
+                                    <button
+                                        type="button"
+                                        onClick={() => onSelect(user)}
+                                        aria-pressed={picked}
+                                        className={cn(
+                                            "flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors focus-visible:bg-muted focus-visible:outline-none",
+                                            picked ? "bg-primary-soft" : "hover:bg-muted"
+                                        )}
+                                    >
+                                        <Initial name={user.username} />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm font-medium">{user.username}</span>
+                                            <span className="block truncate text-xs text-muted-foreground">{user.email || user.id}</span>
+                                            <span className="block text-xs text-muted-foreground tabular-nums">{levelAndPoints(user)}</span>
+                                        </span>
+                                        {picked && <LuCheck aria-hidden="true" className="size-4 shrink-0 text-primary-ink" />}
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+            </div>
+            {results.length >= 20 && <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">Showing the first 20. Type more to narrow it down.</p>}
+        </section>
+    );
+}
 
 export default function AccessAdmin() {
     const { can } = useAdmin();
@@ -30,49 +107,27 @@ export default function AccessAdmin() {
     const users = useQuery(adminQueries.users(query));
 
     return (
-        <div className="grid grid-cols-1 gap-6 @3xl:grid-cols-[18rem_1fr]">
-            <section className="space-y-3" aria-labelledby="user-search-heading">
-                <h2 id="user-search-heading" className="text-sm font-semibold">Find a user</h2>
-                <Label htmlFor="admin-user-search" className="sr-only">Username, email or user id</Label>
-                <Input
-                    id="admin-user-search"
-                    placeholder="Username, email or user id"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    autoComplete="off"
-                />
-                <ul className="space-y-1" aria-live="polite">
-                    {users.isFetching && <li><Skeleton className="h-9 w-full" /></li>}
-                    {users.isError && <li className="text-sm text-destructive">Search failed, try again.</li>}
-                    {users.data?.length === 0 && query.trim().length >= 2 && <li className="text-sm text-muted-foreground">No user found.</li>}
-                    {(users.data || []).map((user) => (
-                        <li key={user.id}>
-                            <button
-                                type="button"
-                                onClick={() => setSelected(user)}
-                                aria-pressed={selected?.id === user.id}
-                                className="w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-accent aria-pressed:border-primary"
-                            >
-                                <span className="block font-medium">{user.username}</span>
-                                <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            </section>
+        <div className="grid grid-cols-1 items-start gap-6 @3xl:grid-cols-[20rem_minmax(0,1fr)]">
+            <UserPicker query={query} onQuery={setQuery} users={users} selected={selected} onSelect={setSelected} />
 
             {selected ? (
-                <div className="space-y-6">
-                    <header>
-                        <h2 className="text-lg font-semibold">{selected.username}</h2>
-                        <p className="font-mono text-xs text-muted-foreground">{selected.id}</p>
+                <div className="min-w-0 space-y-6">
+                    <header className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card p-4">
+                        <Initial name={selected.username} className="size-10 text-base" />
+                        <div className="min-w-0 flex-1">
+                            <h2 className="truncate text-lg font-semibold">{selected.username}</h2>
+                            <p className="truncate text-sm text-muted-foreground">{selected.email || "No email shown"} · <span className="font-mono text-xs">{selected.id}</span></p>
+                        </div>
+                        <p className="shrink-0 text-sm text-muted-foreground tabular-nums max-sm:hidden">{levelAndPoints(selected)}</p>
                     </header>
                     {can("points.adjust") && <AdjustBalance key={selected.id} kind="points" user={selected} onAdjusted={(points) => setSelected({ ...selected, points })} />}
                     {can("points.adjust") && <AdjustBalance key={`x-${selected.id}`} kind="exp" user={selected} onAdjusted={(exp) => setSelected({ ...selected, exp })} />}
                     {can("entitlement.grant") && <Entitlements key={`e-${selected.id}`} user={selected} />}
                 </div>
             ) : (
-                <p className="text-sm text-muted-foreground">Pick a user to adjust points or manage course access.</p>
+                <p className="rounded-lg border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">
+                    Pick a user to adjust their points and EXP or manage their course access.
+                </p>
             )}
         </div>
     );

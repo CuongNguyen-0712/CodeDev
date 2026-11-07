@@ -46,7 +46,7 @@ export default async function AdminLayout({ children }) {
         <AdminShell
             permissions={[...actor.permissions]}
             environment={adminEnvironment()}
-            user={{ username: session.user.username || session.user.name || session.user.email }}
+            user={{ username: session.user.username || session.user.name || session.user.email, rank: actor.rank }}
         >
             {children}
         </AdminShell>
