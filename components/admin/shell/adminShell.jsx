@@ -13,6 +13,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { LogoMark } from "@/components/ui/logo";
 import { AdminProvider } from "@/components/admin/adminContext";
 import StepUpDialog from "@/components/admin/mfa/stepUpDialog";
+import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import CommandPalette from "@/components/admin/shell/commandPalette";
 import { useTheme } from "@/contexts/themeContext";
 import { ADMIN_FOOTER_NAV, ADMIN_NAV, SETTINGS_SECTIONS, activeNavKey } from "@/lib/adminPermissions";
@@ -116,16 +117,16 @@ function NavGroups({ items, activeKey }) {
     ));
 }
 
-/** The signed-in admin with their role, and a direct sign-out button (no menu: the row has one action). */
+/** The signed-in admin with their role, and a sign-out button that asks first (a slip would end the MFA session). */
 function Account({ username, rank }) {
     const queryClient = useQueryClient();
     const { showAlert: alert } = useApp();
     const logout = useLogOut();
+    const [confirming, setConfirming] = useState(false);
     const signingOut = logout.isPending;
     const LogoutIcon = signingOut ? LuLoaderCircle : LuLogOut;
 
-    const signOut = (event) => {
-        event.preventDefault();
+    const signOut = () => {
         if (signingOut) return;
         logout.mutate(null, {
             onSuccess: ({ revoked }) => leaveSignedOut(queryClient, {
@@ -152,7 +153,7 @@ function Account({ username, rank }) {
             </span>
             <button
                 type="button"
-                onClick={signOut}
+                onClick={() => setConfirming(true)}
                 disabled={signingOut}
                 title={signingOut ? "Signing out..." : "Log out"}
                 aria-label={signingOut ? "Signing out" : "Log out"}
@@ -160,6 +161,14 @@ function Account({ username, rank }) {
             >
                 <LogoutIcon className={cn("size-4", signingOut && "animate-spin")} aria-hidden="true" />
             </button>
+            <ConfirmDialog
+                open={confirming}
+                onOpenChange={setConfirming}
+                title="Log out of CodeDev?"
+                description="This ends your session on this device. Next time you sign in to the admin, you will enter your two-factor code again."
+                confirmLabel="Log out"
+                onConfirm={signOut}
+            />
         </>
     );
 }
@@ -183,7 +192,7 @@ export default function AdminShell({ permissions, environment, user, children })
 
     return (
         <AdminProvider permissions={permissions} environment={environment}>
-            <SidebarProvider className="admin-sidebar-theme h-dvh min-h-0 overflow-hidden">
+            <SidebarProvider className="admin-shell h-dvh min-h-0 overflow-hidden">
                 <a
                     href="#admin-main"
                     className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:ring-2 focus:ring-ring"

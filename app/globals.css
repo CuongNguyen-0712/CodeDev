@@ -604,9 +604,17 @@
     }
 }
 
+/* Admin chrome lists (nav, result rows, queues) are never bullet lists; the reset keeps browser list
+   defaults for content, so an admin list that wants markers says list-disc / list-decimal (utilities win). */
+@layer base {
+    .admin-shell :is(ul, ol) {
+        list-style: none;
+    }
+}
+
 /* Admin sidebar: a quiet rail one step off the page (white in light mode, raised in dark), hover in the
    neutral muted tone; the open screen's violet tint is set on the rows (components/admin/shell/adminShell.jsx). */
-.admin-sidebar-theme {
+.admin-shell {
     --sidebar: var(--card);
     --sidebar-foreground: var(--foreground);
     --sidebar-accent: var(--muted);
