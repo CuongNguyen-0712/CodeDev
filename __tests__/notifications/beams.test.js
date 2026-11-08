@@ -105,6 +105,14 @@ describe("beamsToken", () => {
         });
         expect(payload.exp - payload.iat).toBe(86400);
     });
+
+    it("dates the token back so a server clock behind ours does not see it as used before issued", async () => {
+        const { token } = await beams.beamsToken("P1");
+        const { payload } = await jwtVerify(token, new TextEncoder().encode(SECRET));
+        const now = Math.floor(Date.now() / 1000);
+        expect(now - payload.iat).toBeGreaterThanOrEqual(300);
+        expect(payload.exp).toBeGreaterThan(now);
+    });
 });
 
 describe("deleteBeamsUser", () => {
