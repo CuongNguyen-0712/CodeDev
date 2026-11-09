@@ -25,11 +25,11 @@ const item = (row) => ({
     appealReason: row.appeal_reason, purgeAt: purgeAtOf(row.status, row.hidden_at), updatedAt: row.updated_at,
 });
 
-function notice({ action, appeal, post, reason, postId, purgeDate }) {
+function notice({ action, appeal, post, reason, purgeDate }) {
     if (action === "approve") return { kind: "system", title: "Post published", message: "Your post is now live on the blog.", link: `/blog/${post.slug}` };
     if (action === "hide") {
         return { kind: "content_hidden", title: "Post hidden", link: "/blog/me",
-            message: `Hidden: ${reason}. It will be deleted on ${purgeDate} unless it is restored. You can appeal once from My posts.` };
+            message: `Hidden: ${reason.replace(/.$/, "")}. It will be deleted on ${purgeDate} unless it is restored. You can appeal once from My posts.` };
     }
     if (action === "reject" && appeal) {
         return { kind: "content_hidden", title: "Appeal rejected", link: "/blog/me",
@@ -51,29 +51,31 @@ export const adminBlogService = {
         const result = await withTransaction(async (client) => {
             const post = await blogDb.lockForModeration(client, postId);
             if (!post) throw new ApiError("Post not found", 404);
-            if (post.status === TARGET[action]) return { changed: false, status: post.status };
+            // A rejected appeal lands on hidden, so rejecting a hidden post that was appealed is a repeat.
+            if (post.status === TARGET[action] || (action === "reject" && post.status === "hidden" && post.appealed_at)) return { changed: false, status: post.status };
             const appeal = post.status === "pending" && Boolean(post.appealed_at);
             const to = ALLOWED[`${post.status}${appeal ? ":appeal" : ""}:${action}`];
             if (!to) throw new ApiError(`Not allowed from ${post.status}`, 409);
 
-            if (action === "approve") await blogDb.approve(client, { id: post.id, actorDbId: actor.id, appeal });
-            else if (action === "reject") await blogDb.reject(client, { id: post.id, reason, appeal });
-            else if (action === "hide") await blogDb.hide(client, { id: post.id, reason });
-            else await blogDb.show(client, { id: post.id });
+            let updatedAt;
+            if (action === "approve") updatedAt = await blogDb.approve(client, { id: post.id, actorDbId: actor.id, appeal });
+            else if (action === "reject") updatedAt = await blogDb.reject(client, { id: post.id, reason, appeal });
+            else if (action === "hide") updatedAt = await blogDb.hide(client, { id: post.id, reason });
+            else updatedAt = await blogDb.show(client, { id: post.id });
 
             await adminDb.audit(client, {
                 actorId: actor.id, action: `blog.${action}`, targetType: "post", targetId: postId, reason,
                 before: { status: post.status }, after: { status: to }, ip,
             });
-            return { changed: true, status: to, post, appeal };
+            return { changed: true, status: to, post, appeal, updatedAt };
         });
         if (!result.changed) return { changed: false, status: result.status };
 
-        const { post, appeal } = result;
+        const { post, appeal, updatedAt } = result;
         // An appeal that is rejected keeps its original clock; a fresh hide starts one now.
-        const purgeDate = iso(new Date((post.hidden_at ? new Date(post.hidden_at).getTime() : Date.now()) + BLOG_HIDDEN_PURGE_DAYS * DAY));
-        const copy = notice({ action, appeal, post, reason, postId, purgeDate });
-        if (copy) await notificationService.notify(post.author_public_id, { ...copy, dedupeKey: `blog:${postId}:${action}` });
+        const purgeDate = iso(new Date((post.hidden_at ? new Date(post.hidden_at) : updatedAt).getTime() + BLOG_HIDDEN_PURGE_DAYS * DAY));
+        const copy = notice({ action, appeal, post, reason, purgeDate });
+        if (copy) await notificationService.notify(post.author_public_id, { ...copy, dedupeKey: `blog:${postId}:${action}:${updatedAt.toISOString()}` });
         revalidateBlog(postId);
         return { changed: true, status: result.status };
     },

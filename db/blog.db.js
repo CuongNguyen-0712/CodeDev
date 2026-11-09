@@ -82,16 +82,17 @@ export const blogDb = {
         const published = status === "published";
         const at = published ? "p.published_at" : "p.updated_at";
         const dir = published ? "DESC" : "ASC";
-        const where = status === "pending" ? `p.status = 'pending' AND p.appealed_at IS NULL`
-            : status === "appeal" ? `p.status = 'pending' AND p.appealed_at IS NOT NULL` : `p.status = '${status}'`; // status is a zod enum
         return (await sql(
             `SELECT p.public_id AS id, p.slug, p.title, p.excerpt, p.status, p.reject_reason, p.hidden_reason, p.hidden_at, p.appealed_at, p.appeal_reason, p.updated_at,
                     u.public_id AS author_id, u.username AS author_username, i.image AS author_image, ${at}::text AS cursor_at, p.public_id AS cursor_id
              FROM community.post p ${AUTHOR}
-             WHERE ${where} AND p.deleted_at IS NULL
+             WHERE (CASE $4::text
+                      WHEN 'pending' THEN p.status = 'pending' AND p.appealed_at IS NULL
+                      WHEN 'appeal' THEN p.status = 'pending' AND p.appealed_at IS NOT NULL
+                      ELSE p.status = $4::text END) AND p.deleted_at IS NULL
                AND ($1::timestamptz IS NULL OR (${at}, p.public_id) ${published ? "<" : ">"} ($1::timestamptz, $2::text))
              ORDER BY ${at} ${dir}, p.public_id ${dir} LIMIT $3`,
-            [cursor?.createdAt ?? null, cursor?.id ?? null, limit]
+            [cursor?.createdAt ?? null, cursor?.id ?? null, limit, status]
         )).rows;
     },
 
@@ -101,28 +102,28 @@ export const blogDb = {
          WHERE p.public_id = $1 AND p.deleted_at IS NULL FOR UPDATE OF p`, [publicId]
     )).rows[0] || null,
 
-    approve: async (client, { id, actorDbId, appeal }) => client.query(
+    approve: async (client, { id, actorDbId, appeal }) => (await client.query(
         `UPDATE community.post SET status = 'published', updated_at = now(),
                 approved_by = CASE WHEN $3::boolean THEN approved_by ELSE $2::bigint END,
                 approved_at = CASE WHEN $3::boolean THEN approved_at ELSE now() END,
                 published_at = COALESCE(published_at, now()), hidden_at = NULL, hidden_reason = NULL
-         WHERE id = $1`, [id, actorDbId, appeal]
-    ),
+         WHERE id = $1 RETURNING updated_at`, [id, actorDbId, appeal]
+    )).rows[0].updated_at,
 
     // An appeal that is rejected goes back to hidden and keeps hidden_at, so the purge clock never restarts.
-    reject: async (client, { id, reason, appeal }) => client.query(
+    reject: async (client, { id, reason, appeal }) => (await client.query(
         `UPDATE community.post SET status = CASE WHEN $3::boolean THEN 'hidden' ELSE 'rejected' END,
                 reject_reason = CASE WHEN $3::boolean THEN reject_reason ELSE $2::text END, updated_at = now()
-         WHERE id = $1`, [id, reason, appeal]
-    ),
+         WHERE id = $1 RETURNING updated_at`, [id, reason, appeal]
+    )).rows[0].updated_at,
 
-    hide: async (client, { id, reason }) => client.query(
-        `UPDATE community.post SET status = 'hidden', hidden_at = now(), hidden_reason = $2, updated_at = now() WHERE id = $1`, [id, reason]
-    ),
+    hide: async (client, { id, reason }) => (await client.query(
+        `UPDATE community.post SET status = 'hidden', hidden_at = now(), hidden_reason = $2, updated_at = now() WHERE id = $1 RETURNING updated_at`, [id, reason]
+    )).rows[0].updated_at,
 
-    show: async (client, { id }) => client.query(
-        `UPDATE community.post SET status = 'published', hidden_at = NULL, hidden_reason = NULL, updated_at = now() WHERE id = $1`, [id]
-    ),
+    show: async (client, { id }) => (await client.query(
+        `UPDATE community.post SET status = 'published', hidden_at = NULL, hidden_reason = NULL, updated_at = now() WHERE id = $1 RETURNING updated_at`, [id]
+    )).rows[0].updated_at,
 
     // status = 'hidden' only: a pending appeal keeps its hidden_at but must survive the purge.
     lockExpiredHidden: async (client, { days, limit }) => (await client.query(
@@ -135,7 +136,8 @@ export const blogDb = {
     retireOrphanAssets: async (client, { postIds }) => (await client.query(
         `UPDATE storage.assets a SET deleted_at = now()
          WHERE a.deleted_at IS NULL
-           AND a.id IN (SELECT asset_id FROM community.post_asset WHERE post_id = ANY($1::bigint[]))
+           AND a.id IN (SELECT asset_id FROM community.post_asset WHERE post_id = ANY($1::bigint[])
+                        UNION SELECT cover_asset_id FROM community.post WHERE id = ANY($1::bigint[]) AND cover_asset_id IS NOT NULL)
            AND NOT EXISTS (SELECT 1 FROM community.post_asset o WHERE o.asset_id = a.id AND o.post_id <> ALL($1::bigint[]))
            AND NOT EXISTS (SELECT 1 FROM community.post c WHERE c.cover_asset_id = a.id AND c.id <> ALL($1::bigint[]))
          RETURNING a.provider, a.object_key AS key`, [postIds]

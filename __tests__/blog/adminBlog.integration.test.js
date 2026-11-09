@@ -95,9 +95,34 @@ describe.skipIf(!hasDb)("admin blog moderation (PostgreSQL)", () => {
         const hiddenAt = (await row(id)).hidden_at;
         await act(id, "reject", "Still breaks the rules");
         const due = new Date(hiddenAt.getTime() + BLOG_HIDDEN_PURGE_DAYS * 86400000).toISOString().slice(0, 10);
-        const note = (await sql(`SELECT title, message FROM profile.notification WHERE user_id = $1 AND dedupe_key = $2`, [author.id, `blog:${id}:reject`])).rows[0];
+        const note = (await sql(`SELECT title, message FROM profile.notification WHERE user_id = $1 AND dedupe_key LIKE $2`, [author.id, `blog:${id}:reject:%`])).rows[0];
         expect(note.title).toBe("Appeal rejected");
         expect(note.message).toContain(due);
+    });
+
+    it("rejecting an appeal twice is a repeat, not a 409", async () => {
+        const id = await post("pending", APPEALED);
+        await act(id, "reject", "Still breaks the rules");
+        await expect(act(id, "reject", "Still breaks the rules")).resolves.toEqual({ changed: false, status: "hidden" });
+    });
+
+    it("hide, show, hide notifies twice; the notice names the reason and that hide's purge date", async () => {
+        const id = await post("published", "published_at = now()");
+        const hides = async () => (await sql(
+            `SELECT message FROM profile.notification WHERE user_id = $1 AND kind = 'content_hidden' AND dedupe_key LIKE $2 ORDER BY id`, [author.id, `blog:${id}:hide:%`]
+        )).rows.map((r) => r.message);
+        const dueOf = async () => new Date((await row(id)).hidden_at.getTime() + BLOG_HIDDEN_PURGE_DAYS * 86400000).toISOString().slice(0, 10);
+        await act(id, "hide", "Spam links inside.");
+        const first = await dueOf();
+        await act(id, "show");
+        await act(id, "hide", "Spam links inside.");
+        const second = await dueOf();
+        const messages = await hides();
+        expect(messages).toHaveLength(2);
+        expect(messages[0]).toBe(`Hidden: Spam links inside. It will be deleted on ${first} unless it is restored. You can appeal once from My posts.`);
+        expect(messages[1]).toContain("Spam links inside.");
+        expect(messages[1]).toContain(second);
+        expect(messages[1]).not.toContain("..");
     });
 
     it("lists queues: appeal apart from pending, purgeAt only on hidden", async () => {
