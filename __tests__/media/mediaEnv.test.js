@@ -20,6 +20,11 @@ describe("media settings in the start-up check", () => {
         expect(all(checkEnvironment({ ...production, ...cloudinary }))).not.toContain("CLOUDINARY");
     });
 
+    it("errors when PAYLOAD_URL is set in production", () => {
+        const r = checkEnvironment({ ...production, ...cloudinary, PAYLOAD_URL: "x" });
+        expect(r.errors.some((m) => m.includes("PAYLOAD_URL"))).toBe(true);
+    });
+
     it("warns that CLOUDINARY_* is ignored outside production", () => {
         const r = checkEnvironment({ APP_ENV: "development", PAYLOAD_URL: "http://127.0.0.1:3010", ...cloudinary });
         expect(r.warnings.some((m) => m.includes("ignored outside production"))).toBe(true);

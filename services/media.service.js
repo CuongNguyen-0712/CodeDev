@@ -55,6 +55,7 @@ export const mediaService = {
                 mime: type.mime,
                 filename: `avatar.${type.format}`,
                 maxSide: AVATAR_MAX_SIDE,
+                allowedFormats: ACCEPTED_IMAGE_FORMATS,
                 purpose: "avatar",
             });
         } catch (error) {

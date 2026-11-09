@@ -4191,7 +4191,7 @@ CREATE TABLE storage.assets (
 -- Name: COLUMN assets.object_key; Type: COMMENT; Schema: storage; Owner: -
 --
 
-COMMENT ON COLUMN storage.assets.object_key IS 'S3 object key, or the Cloudinary public_id';
+COMMENT ON COLUMN storage.assets.object_key IS 'S3 object key, the Cloudinary public_id, or the Payload document id';
 
 
 --

@@ -4,10 +4,11 @@ import { mediaStore, destroyStoredFile } from "@/lib/media/mediaStore";
 import { deleteFromPayload } from "@/lib/media/payloadMedia.mjs";
 
 const destroyAsset = vi.fn(async () => "ok");
+const uploadBuffer = vi.fn(async () => ({ public_id: "codedev/production/users/u1/avatars/x", secure_url: "https://c/x.png", width: 1, height: 1, format: "png", version: 1, bytes: 3 }));
 const s3Delete = vi.fn(async () => {});
 vi.mock("@/lib/cloudinary", async () => {
     const actual = await vi.importActual("@/lib/cloudinary");
-    return { ...actual, destroyAsset: (...a) => destroyAsset(...a) };
+    return { ...actual, destroyAsset: (...a) => destroyAsset(...a), uploadBuffer: (...a) => uploadBuffer(...a) };
 });
 vi.mock("@/lib/s3", () => ({ s3: { delete: (...a) => s3Delete(...a) } }));
 
@@ -25,6 +26,23 @@ describe("mediaStore", () => {
         for (const APP_ENV of ["development", "test", "staging"]) {
             expect(mediaStore({ APP_ENV }).provider).toBe("payload");
         }
+    });
+
+    it("uploads to Cloudinary with the avatar options", async () => {
+        const out = await mediaStore({ APP_ENV: "production" }).upload(Buffer.from("abc"), {
+            key: "users/u1/avatars/x", mime: "image/png", maxSide: 512, purpose: "avatar", allowedFormats: ["jpg", "png"],
+        });
+        expect(uploadBuffer.mock.calls[0][1]).toEqual({
+            folder: "codedev/production/users/u1/avatars",
+            public_id: "x",
+            resource_type: "image",
+            overwrite: false,
+            tags: ["avatar"],
+            context: { purpose: "avatar" },
+            allowed_formats: ["jpg", "png"],
+            transformation: [{ width: 512, height: 512, crop: "limit" }],
+        });
+        expect(out).toMatchObject({ provider: "cloudinary", objectKey: "codedev/production/users/u1/avatars/x" });
     });
 
     it("payload store is not configured without PAYLOAD_URL or key", () => {
