@@ -29,7 +29,7 @@ function notice({ action, appeal, post, reason, purgeDate }) {
     if (action === "approve") return { kind: "system", title: "Post published", message: "Your post is now live on the blog.", link: `/blog/${post.slug}` };
     if (action === "hide") {
         return { kind: "content_hidden", title: "Post hidden", link: "/blog/me",
-            message: `Hidden: ${reason.replace(/.$/, "")}. It will be deleted on ${purgeDate} unless it is restored. You can appeal once from My posts.` };
+            message: `Hidden: ${reason.replace(/\.$/, "")}. It will be deleted on ${purgeDate} unless it is restored. You can appeal once from My posts.` };
     }
     if (action === "reject" && appeal) {
         return { kind: "content_hidden", title: "Appeal rejected", link: "/blog/me",

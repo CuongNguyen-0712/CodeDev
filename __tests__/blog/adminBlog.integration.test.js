@@ -125,6 +125,14 @@ describe.skipIf(!hasDb)("admin blog moderation (PostgreSQL)", () => {
         expect(messages[1]).not.toContain("..");
     });
 
+    it("a hide reason without a trailing period keeps every character and gets one period", async () => {
+        const id = await post("published", "published_at = now()");
+        await act(id, "hide", "Spam links");
+        const { message } = (await sql(`SELECT message FROM profile.notification WHERE user_id = $1 AND dedupe_key LIKE $2`, [author.id, `blog:${id}:hide:%`])).rows[0];
+        expect(message.startsWith("Hidden: Spam links. It will be deleted on ")).toBe(true);
+        expect(message.split("Spam links.")).toHaveLength(2);
+    });
+
     it("lists queues: appeal apart from pending, purgeAt only on hidden", async () => {
         const plain = await post("pending");
         const appeal = await post("pending", "hidden_at = now(), appealed_at = now()");
