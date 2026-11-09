@@ -8,10 +8,10 @@ Hiện tại `/blog` (`app/(shell)/blog/page.jsx`) chỉ render empty state (`co
 Đã chốt với user:
 - **Ai viết:** mọi học viên chia sẻ kiến thức, kinh nghiệm cho nhau. Có thể đính kèm ảnh.
 - **Kiểm duyệt (lai):** bài đầu tiên của mỗi người phải được admin duyệt. Từ bài thứ hai trở đi thì đăng ngay.
-  Khi bị báo cáo, admin ẩn bài.
+  Khi bị báo cáo, admin ẩn bài. Tác giả được kháng nghị một lần cho mỗi bài bị ẩn.
 - **Định dạng:** Markdown, ảnh chèn giữa bài, có nút Preview.
 - **Tương tác:** tag + lọc theo tag, like, bình luận, thưởng.
-- **Thưởng:** EXP khi bài được đăng. Points khi bài đạt đủ like từ người khác. Points là tiền mua khoá
+- **Thưởng:** chỉ ở vài mốc cố định: EXP khi bài được đăng, points ở mốc 10/50/100 like từ người khác. Points là tiền mua khoá
   học (`redeem_course_points`), nên phải chống farm.
 - **Chia giai đoạn:** P1 lõi bài viết, P2 tương tác, P3 thưởng. Dùng chung một spec, mỗi giai đoạn có plan
   và PR riêng.
@@ -33,6 +33,7 @@ Hai lựa chọn khác bị loại:
 - `cover_asset_id` → `storage.assets`, nullable
 - `status`: `draft | pending | published | rejected | hidden`
 - `reject_reason`, `hidden_reason`, `hidden_at` (set khi ẩn, xoá khi hiện lại), `approved_by`, `approved_at`
+- `appealed_at`, `appeal_reason` (≤ 500 ký tự): kháng nghị, tối đa một lần cho mỗi bài
 - `published_at`, `created_at`, `updated_at`, `deleted_at` (soft delete)
 - `like_count`, `comment_count` (P2 cập nhật)
 - Index list: `(status, published_at DESC, id DESC) WHERE deleted_at IS NULL` cho keyset pagination.
@@ -47,6 +48,16 @@ Bảng này cho biết khi xoá bài thì xoá ảnh nào.
 - Submit khi đã trusted → `published`.
 - Sửa bài đang published → giữ `published`.
 - Sửa bài `rejected` → về `draft`, gửi lại được.
+
+**Kháng nghị (P1):**
+- Tác giả sửa bài `hidden` có `appealed_at IS NULL`, kèm `appeal_reason`. Bài chuyển sang `pending` và
+  được ghi `appealed_at = now()`. `hidden_at` **giữ nguyên**.
+- Job purge chỉ chọn bài `hidden`, nên bài đang chờ xét kháng nghị không bị xoá.
+- Admin duyệt kháng nghị → `published`, `hidden_at = NULL`, `hidden_reason = NULL`.
+- Admin bác kháng nghị → về `hidden` với `hidden_at` cũ, nên đồng hồ xoá không tính lại. Nếu đã quá N ngày,
+  job đêm đó xoá bài.
+- Đã kháng nghị một lần thì không sửa hay kháng nghị lại được nữa. UI ghi "Kháng nghị đã bị từ chối".
+- Thông báo cho tác giả về kết quả, ghi rõ ngày xoá nếu bị bác.
 
 **P2**
 - `community.post_like (post_id, user_id, created_at)`, PK `(post_id, user_id)`.
@@ -73,7 +84,7 @@ Bảng này cho biết khi xoá bài thì xoá ảnh nào.
 |---|---|---|
 | 1 | `GET /api/blog/posts?tag=&cursor=` | list published, keyset |
 | 1 | `POST /api/blog/posts` | tạo `{title, tags, body, submit}`; `submit` quyết định draft hay gửi đi |
-| 1 | `PATCH`/`DELETE /api/blog/posts/[id]` | chỉ tác giả; DELETE là soft delete |
+| 1 | `PATCH`/`DELETE /api/blog/posts/[id]` | chỉ tác giả; DELETE là soft delete; PATCH bài `hidden` kèm `appealReason` là kháng nghị |
 | 1 | `GET /api/blog/posts/mine` | bài của tôi, kèm status và lý do |
 | 1 | `POST /api/blog/images` | multipart: `mediaService` với purpose `blog`, ≤ 5 MB, jpeg/png/gif/webp, maxSide 1600 |
 | 1 | `GET /api/admin/blog?status=` / `PATCH /api/admin/blog/[id]` | `approve | reject | hide | show` kèm `reason`, audit qua `adminAudit` |
@@ -130,7 +141,7 @@ lý do và ngày bài sẽ bị xoá vĩnh viễn nếu admin không hiện lạ
   - Ảnh: nút upload và dán ảnh từ clipboard; sau upload chèn `![alt](url)` tại con trỏ.
   - Hai nút: "Lưu nháp" và "Gửi". Bài đầu thì ghi "Gửi duyệt".
 - **`/blog/me`**: danh sách bài của tôi, badge trạng thái, lý do từ chối.
-- **`/admin/blog`**: hàng chờ duyệt, bài bị báo cáo (P2), bài đã ẩn. Theo layout các trang admin hiện có
+- **`/admin/blog`**: hàng chờ duyệt, kháng nghị (bài `pending` có `appealed_at`, hiện lý do kháng nghị và lý do ẩn cũ), bài bị báo cáo (P2), bài đã ẩn. Theo layout các trang admin hiện có
   (`app/admin/feedback`).
 - **SEO:**
   - `generateMetadata` (canonical, OG `article`).
@@ -141,14 +152,27 @@ lý do và ngày bài sẽ bị xoá vĩnh viễn nếu admin không hiện lạ
 
 ## Thưởng (P3)
 
-- **EXP:** `award_exp(user, 'blog.post_published', 'blog_post', post_id)` chạy lần đầu bài chuyển sang
-  `published`. Idempotent theo bài. Mỗi ngày chỉ thưởng tối đa 1 bài cho mỗi người. Ẩn bài sau đó không
-  thu hồi EXP.
-- **Points:** khi bài đạt **10 like** từ người dùng khác (đã xác minh email), gọi
-  `post_points(..., idempotency_key = 'blog-likes:<post_id>')`, chỉ một lần cho mỗi bài.
-  Bài bị ẩn trước mốc này thì không nhận.
+Chỉ thưởng ở các mốc cố định. Mỗi mốc thưởng một lần cho mỗi bài.
+
+| Mốc | EXP | Points |
+|---|---|---|
+| Bài được đăng lần đầu | 20 | 0 |
+| 10 like | 0 | 10 |
+| 50 like | 0 | 30 |
+| 100 like | 0 | 60 |
+| **Tối đa mỗi bài** | **20** | **100** |
+
+- **EXP:** rule `blog.post_published` (amount 20) trong `profile.exp_rule`.
+  - Gọi `award_exp(user, 'blog.post_published', 'blog_post', post_id)` lần đầu bài chuyển sang `published`.
+  - Idempotent theo bài. Tối đa 1 bài được thưởng mỗi ngày cho mỗi người.
+  - Ẩn bài sau đó không thu hồi EXP.
+- **Points:**
+  - Mốc khai báo bằng hằng số `BLOG_LIKE_MILESTONES = [{ likes: 10, points: 10 }, { likes: 50, points: 30 }, { likes: 100, points: 60 }]`.
+  - Khi like làm `like_count` chạm một mốc, gọi `post_points(..., idempotency_key = 'blog-likes:<post_id>:<likes>')`.
+  - Chỉ like của người khác đã xác minh email được tính: điều kiện like đã chặn tự like và chặn email chưa xác minh.
+  - Unlike rồi like lại không thưởng lần hai, nhờ idempotency key.
+  - Bài bị ẩn thì không ai like được, nên không lên thêm mốc.
 - Báo cho tác giả qua `notificationService.notifyRewards`.
-- Các con số (EXP, 10 like, số points) user review ở bước spec.
 
 ## Ngoài phạm vi (YAGNI)
 
@@ -157,7 +181,6 @@ lý do và ngày bài sẽ bị xoá vĩnh viễn nếu admin không hiện lạ
 - Tìm kiếm full-text, RSS
 - Tự xoá ảnh mồ côi của bài tác giả tự xoá (soft delete) hoặc ảnh upload mà không lưu bài. Ảnh của bài
   bị purge thì có xoá.
-- Tác giả sửa bài đã ẩn để gửi duyệt lại (kháng nghị)
 - Lịch sử chỉnh sửa
 - Lượt xem
 - Theo dõi tác giả
@@ -186,7 +209,13 @@ lý do và ngày bài sẽ bị xoá vĩnh viễn nếu admin không hiện lạ
     - Outbox event có đúng file.
     - Chạy lại lần hai không xoá thêm gì.
   - P2: like trùng, tự like.
-  - P3: thưởng idempotent, giới hạn mỗi ngày, mốc 10 like.
+  - Kháng nghị:
+    - Bài đang `pending` vì kháng nghị không bị purge.
+    - Bị bác thì giữ `hidden_at` cũ.
+    - Kháng nghị lần hai bị từ chối (403).
+  - P3:
+    - EXP idempotent và giới hạn 1 bài/ngày.
+    - Mỗi mốc 10/50/100 like thưởng đúng một lần, kể cả khi unlike rồi like lại.
 - **Vitest renderer (XSS):** `<script>` thô, `[x](javascript:...)`, ảnh từ origin lạ đều không ra HTML nguy hiểm.
 - **Migration:** chạy `npm run db:migrate`, rồi `npm run db:compare` sạch.
 - **Preview (`npm run dev`):**
