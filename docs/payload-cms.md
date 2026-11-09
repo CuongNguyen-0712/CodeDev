@@ -37,7 +37,7 @@ Answers, test cases and starter files live in Postgres and object storage in eve
    npm run cms:up
    ```
 
-3. Load every written course. Lessons whose `lesson.sanity.json` is missing or older than the
+3. Load every written course. Lessons whose `lesson.payload.json` is missing or older than the
    source are rebuilt first. Media is uploaded to the CMS first (see Media below), so the CMS must be running.
 
    ```bash
@@ -63,7 +63,9 @@ Outside production every uploaded file lives in the local CMS; Cloudinary is pro
 - **Avatars:** `lib/media/mediaStore.js` sends them to Payload outside production and to Cloudinary
   (`<root>/production/users/...`) in production. `storage.assets.provider` can be `payload`.
 - **Course and lesson media:** `node content/tools/upload-media.mjs <course|lesson> [--env file] [--dry-run]`.
-  The target follows `APP_ENV` of the env file:
+  The target follows `APP_ENV` of the env file. A shell `APP_ENV` that differs from the env file is
+  refused, except `APP_ENV=development` (forces the local target; `payload-sync.mjs` uses it).
+  Videos over 20 MB go to Cloudinary in chunks.
 
   | `APP_ENV` | Target | Manifests (course / lesson) |
   |---|---|---|
@@ -79,6 +81,38 @@ Outside production every uploaded file lives in the local CMS; Cloudinary is pro
 - **Renderer allowlist:** `lib/media/mediaOrigins.mjs`. `next.config.js` exposes it as
   `NEXT_PUBLIC_MEDIA_ORIGINS` (Cloudinary always, the Payload origin only outside production).
   Restart the dev server after changing `PAYLOAD_URL`.
+- **Deletes:** `destroyStoredFile` never deletes a Cloudinary file outside production (it warns and
+  returns `skipped`, which the account purge counts as done) and never calls Payload from production.
+
+### Cloudinary cleanup
+
+`node scripts/cloudinary-cleanup.mjs --scope dev|orphans --env .env.production [--apply]`, dry run
+unless `--apply` (then the cloud name must be typed). The report goes to the OS temp dir.
+
+- `--scope dev`: everything under `codedev/development/`, `codedev/test/` and `codedev/staging/`.
+- `--scope orphans`: `codedev/**` not referenced by a committed `assets.json`, a course cover, a
+  live `storage.assets` row, a `catalog.course` cover or a Sanity lesson. The env file must set
+  `APP_ENV=production`, the production `DATABASE_URL`, and `NEXT_PUBLIC_SANITY_PROJECT_ID`,
+  `NEXT_PUBLIC_SANITY_DATASET`, `NEXT_PUBLIC_SANITY_API_VERSION` and `SANITY_READ_TOKEN`: without the
+  token, draft-only lesson images are invisible and would be deleted. Assets created less than an
+  hour before the references were read are kept and listed with reason `too-new`.
+
+### Production cutover
+
+1. `CLOUDINARY_*` currently live in `.env` (shared). Move them to `.env.production` and the Vercel
+   Production scope, then remove them from `.env`.
+2. `.env.production` needs `NEXT_PUBLIC_SANITY_PROJECT_ID`, `NEXT_PUBLIC_SANITY_DATASET`,
+   `NEXT_PUBLIC_SANITY_API_VERSION` and `SANITY_READ_TOKEN` for `--scope orphans`.
+3. Order:
+   1. Re-upload each course: `node content/tools/upload-media.mjs content/courses/<course> --env .env.production`.
+   2. Rebuild: `node content/tools/build-course.mjs content/courses/<course> --skip-uploads`.
+   3. Commit `assets.json`, `course.json`, the lessons and the seeds.
+   4. Push the Sanity lessons and apply the seeds to production.
+   5. Verify: `git grep -n "codedev/courses/" content db/seeds` returns nothing (URLs and `publicId`
+      values), and neither Sanity lessons nor `catalog.course` covers still point at `codedev/courses/`.
+   6. `node scripts/cloudinary-cleanup.mjs --scope dev --env .env.production` (dry run).
+   7. `node scripts/cloudinary-cleanup.mjs --scope orphans --env .env.production` (dry run).
+   8. Read both reports, then run each again with `--apply`.
 
 ### Change the collections
 

@@ -116,7 +116,7 @@ npm install
 cp .env.example .env.local      # fill in the values, see "Configuration"
 npm run services:up             # redis + minio + mailpit + sandbox + gateway
 npm run db:migrate              # apply db/migrations to DATABASE_URL
-npm run storage:init            # create the public / private buckets
+npm run storage:init            # create the public / private / media buckets
 npm run dev                     # http://localhost:3000
 ```
 

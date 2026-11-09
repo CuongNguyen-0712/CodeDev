@@ -31,7 +31,7 @@ courses/<course>/
     storage-manifest.json        written by upload-storage.mjs (commit it)
     lesson.sanity.json           written by build-lesson.mjs (git-ignored)
     lesson.payload.json          written by build-lesson.mjs --target payload (git-ignored)
-  course.local.json              written by upload-media.mjs course outside production (git-ignored)
+  course.local.json              written by upload-media.mjs <course folder> outside production (git-ignored)
 ```
 
 A course created before this pipeline sets `"existing": true` in `course.json` (only the
@@ -67,7 +67,17 @@ node content/tools/build-course.mjs content/courses/<course>          # every le
 node content/tools/build-course.mjs content/courses/<course> --push   # also write the Sanity drafts
 ```
 
-Course cover: `node content/tools/upload-media.mjs course content/courses/<course>` renders `cover.svg` to PNG
+Media uploads in `build-course.mjs` use `--storage-env` (default `.env.local`), so they go to the local Payload CMS
+(`assets.local.json`), while the default `build-lesson.mjs` target (Sanity) reads the production `assets.json`.
+Production flow for a course with new or changed media:
+
+```bash
+node content/tools/upload-media.mjs content/courses/<course> --env .env.production   # Cloudinary: assets.json, course.json image
+git add content/courses/<course>                                                      # commit assets.json and course.json
+node content/tools/build-course.mjs content/courses/<course> --skip-uploads --push
+```
+
+Course cover: `node content/tools/upload-media.mjs content/courses/<course>` renders `cover.svg` to PNG
 and uploads it: production (`APP_ENV` of `--env`) to Cloudinary (`codedev/production/courses/<course>/cover`),
 setting `image` and `imageChecksum` in `course.json` (`update.image` for an `existing` course); anywhere else to
 the local Payload CMS, writing the git-ignored `course.local.json`. Rebuild the seed afterwards; covers are 16:9, logos and other
@@ -80,7 +90,7 @@ Step by step, per lesson (`tools/`):
 1. `build-pieces.mjs <lesson>`: writes `starter.<ext>` and `pieces.json` of piece-assembly challenges.
    `verify-challenges.mjs <lesson>`: starter fails, solution passes every test, variants fail (pieces: the
    generated files are current, base + pieces passes, each distractor in place of its piece fails).
-2. `upload-media.mjs lesson <lesson>`: Cloudinary (production) writes `assets.json`; local Payload writes `assets.local.json`.
+2. `upload-media.mjs <lesson> [--env .env.production]`: Cloudinary (production) writes `assets.json`; local Payload writes `assets.local.json`.
 3. `upload-storage.mjs <lesson> [--env .env.production]`: object storage, writes `storage-manifest.json`.
 4. `build-lesson.mjs <lesson> [--target payload]`: writes `lesson.sanity.json` (or `lesson.payload.json` from `assets.local.json`).
 5. `build-seed.mjs <course>`: writes `db/seeds/<course>.sql` (idempotent; also gives learners who

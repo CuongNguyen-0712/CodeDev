@@ -35,6 +35,10 @@ variables, never values:
 - **fatal in production**: storage on the development MinIO or on a local endpoint,
   `NEXTAUTH_URL` without https.
 - **production, media**: `CLOUDINARY_*` is required; a `PAYLOAD_URL` is an error.
+- **staging, media**: avatar uploads are disabled. Staging uses the Payload store like every
+  non-production environment but has no CMS of its own, so an upload answers 503 ("Image uploads
+  are not available right now"). The start-up check warns unless `PAYLOAD_URL` points at a
+  reachable (non-local) CMS. Existing Cloudinary files are never deleted from staging.
 - **error, logged**: a required variable is missing (`DATABASE_URL`, `NEXTAUTH_SECRET`,
   `REFRESH_TOKEN_HASH_SECRET`, storage endpoint / credentials).
 - **development**: storage must be local. Remote storage needs an explicit `STORAGE_PROVIDER=s3`
