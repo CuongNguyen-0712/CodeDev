@@ -18,3 +18,40 @@ export const needsUpload = (entry, checksum, { remoteExists }) => !entry || entr
 export const mediaKey = ({ course, lesson, name }) => ["courses", course, lesson, name].filter(Boolean).join("/");
 
 export const cloudinaryPublicId = (key) => `codedev/production/${key}`;
+
+const formatOf = (mime) => String(mime || "").split("/")[1]?.replace(/\+.*/, "") || null;
+
+/** Manifest entry for a Payload media doc (uploadToPayload result). */
+export const payloadEntry = ({ key, doc, mime, checksum }) => ({
+    key,
+    url: doc.url,
+    width: doc.width,
+    height: doc.height,
+    format: formatOf(doc.mimeType || mime),
+    bytes: doc.filesize,
+    checksum,
+    provider: "payload",
+    mime: doc.mimeType || mime,
+});
+
+/** Manifest entry for a Cloudinary upload result; `url` is the delivery URL, `mime` what that URL serves. */
+export const cloudinaryEntry = ({ key, result, url, mime, checksum, video }) => ({
+    key,
+    publicId: result.public_id,
+    url,
+    width: result.width,
+    height: result.height,
+    format: result.format,
+    bytes: result.bytes,
+    ...(video ? { duration: result.duration } : {}),
+    checksum,
+    provider: "cloudinary",
+    mime,
+});
+
+/** Names present in both lists (a diagram and a video would share one key). */
+export const duplicateNames = (imageFiles, videoFiles) => {
+    const stem = (f) => f.replace(/\.[^.]+$/, "");
+    const images = new Map(imageFiles.map((f) => [stem(f), f]));
+    return videoFiles.filter((f) => images.has(stem(f))).map((f) => [images.get(stem(f)), f]);
+};

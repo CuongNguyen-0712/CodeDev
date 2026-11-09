@@ -56,7 +56,7 @@ for (const lesson of lessons) {
     run("build-pieces.mjs", dir);
     run("verify-challenges.mjs", dir);
     if (!flag("--skip-uploads")) {
-        if (["diagrams", "videos"].some((d) => fs.existsSync(path.join(dir, d)))) run("upload-media.mjs", dir);
+        if (["diagrams", "videos"].some((d) => fs.existsSync(path.join(dir, d)))) run("upload-media.mjs", dir, "--env", storageEnv);
         run("upload-storage.mjs", dir, "--env", storageEnv);
     }
     run("build-lesson.mjs", dir);

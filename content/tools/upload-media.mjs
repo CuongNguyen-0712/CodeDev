@@ -17,7 +17,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-import { cloudinaryPublicId, mediaKey, needsUpload, resolveMediaTarget } from "./mediaTarget.mjs";
+import { cloudinaryEntry, cloudinaryPublicId, duplicateNames, mediaKey, needsUpload, payloadEntry, resolveMediaTarget } from "./mediaTarget.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const require = createRequire(path.join(root, "package.json"));
@@ -53,11 +53,11 @@ const readJson = (file) => (fs.existsSync(file) ? JSON.parse(fs.readFileSync(fil
 const writeJson = (file, data) => fs.writeFileSync(file, JSON.stringify(data, null, 2) + "\n");
 const rel = (file) => path.relative(root, file).replaceAll("\\", "/");
 
-/** Sends one file; resolves to a manifest entry (without checksum). */
-async function send({ key, buffer, filename, mime, kind, cover }) {
+/** Sends one file; resolves to the complete manifest entry. */
+async function send({ key, buffer, filename, mime, kind, cover, checksum }) {
     if (payload) {
         const doc = await payload.uploadToPayload({ ...payloadAuth, buffer, filename, mime, key, purpose: "content" });
-        return { key, url: doc.url, width: doc.width, height: doc.height, mime: doc.mimeType || mime };
+        return payloadEntry({ key, doc, mime, checksum });
     }
     const options = { public_id: cloudinaryPublicId(key), overwrite: true, invalidate: true, resource_type: kind };
     const result = await new Promise((resolve, reject) => {
@@ -65,20 +65,20 @@ async function send({ key, buffer, filename, mime, kind, cover }) {
         if (kind === "video" && buffer.length > 20 * 1024 * 1024) cloudinary.uploader.upload_large_stream({ ...options, chunk_size: 20 * 1024 * 1024 }, done).end(buffer);
         else cloudinary.uploader.upload_stream(options, done).end(buffer);
     });
-    const entry = { key, publicId: result.public_id, width: result.width, height: result.height };
-    if (kind === "video") return { ...entry, url: result.secure_url, mime };
+    if (kind === "video") return cloudinaryEntry({ key, result, url: result.secure_url, mime, checksum, video: true });
     // Covers: the browser picks WebP/AVIF. Diagrams: SVG sources are rasterised to PNG at delivery.
     const delivery = cover
         ? { transformation: [{ width: 1600, crop: "limit" }, { fetch_format: "auto", quality: "auto" }] }
         : { format: "png", transformation: [{ width: 1600, crop: "limit" }, { quality: "auto" }] };
     // The SDK analytics query (?_a=...) is dropped for covers so the stored URL is stable.
     const url = cloudinary.url(result.public_id, { secure: true, ...delivery, version: result.version });
-    return { ...entry, url: cover ? url.split("?")[0] : url, mime: mime === "image/svg+xml" ? "image/png" : mime };
+    return cloudinaryEntry({ key, result, url: cover ? url.split("?")[0] : url, mime: mime === "image/svg+xml" ? "image/png" : mime, checksum });
 }
 
 /** Uploads unless the manifest says it is current; returns the entry to store. */
-async function sync({ label, entry, ...file }) {
-    if (file.buffer.length > MAX_BYTES) throw new Error(`${label} is larger than 200 MB`);
+async function sync({ label, entry, size, read, ...file }) {
+    if (size > MAX_BYTES) throw new Error(`${label} is larger than 200 MB`);
+    file.buffer = read();
     const checksum = sha256(file.buffer);
     let remoteExists = true;
     if (payload && entry?.checksum === checksum && !dryRun) remoteExists = Boolean(await payload.findByKey({ ...payloadAuth, key: file.key }));
@@ -90,7 +90,7 @@ async function sync({ label, entry, ...file }) {
         console.log(`would upload ${label} -> ${file.key} (${target.provider})`);
         return entry;
     }
-    const result = { ...(await send(file)), checksum };
+    const result = await send({ ...file, checksum });
     console.log(`uploaded ${label} -> ${result.url}`);
     return result;
 }
@@ -102,48 +102,55 @@ async function uploadLesson(lessonDir) {
     const manifest = readJson(manifestPath);
     manifest.images ||= {};
     manifest.videos ||= {};
-    let changed = false;
-    for (const [dir, group, kind, pattern] of [["diagrams", "images", "image", /\.(svg|png|jpe?g|webp|gif)$/i], ["videos", "videos", "video", /\.(mp4|webm)$/i]]) {
-        const folder = path.join(lessonDir, dir);
-        if (!fs.existsSync(folder)) continue;
-        for (const file of fs.readdirSync(folder).filter((f) => pattern.test(f))) {
+    const list = (dir, pattern) => (fs.existsSync(path.join(lessonDir, dir)) ? fs.readdirSync(path.join(lessonDir, dir)).filter((f) => pattern.test(f)) : []);
+    const images = list("diagrams", /\.(svg|png|jpe?g|webp|gif)$/i);
+    const videos = list("videos", /\.(mp4|webm)$/i);
+    // Images and videos share one key space (courses/<course>/<lesson>/<name>): fail before any upload.
+    for (const [image, video] of duplicateNames(images, videos)) throw new Error(`${lesson}: diagrams/${image} and videos/${video} share a name`);
+    for (const [dir, group, kind, files] of [["diagrams", "images", "image", images], ["videos", "videos", "video", videos]]) {
+        for (const file of files) {
             const { name, ext } = path.parse(file);
+            const full = path.join(lessonDir, dir, file);
             const before = manifest[group][name];
             const after = await sync({
                 label: `${lesson}/${dir}/${file}`,
                 entry: before,
-                key: mediaKey({ course, lesson, name: kind === "video" ? `videos/${name}` : name }),
-                buffer: fs.readFileSync(path.join(folder, file)),
+                key: mediaKey({ course, lesson, name }),
+                size: fs.statSync(full).size,
+                read: () => fs.readFileSync(full),
                 filename: file,
                 mime: MIME[ext.toLowerCase()],
                 kind,
             });
             if (after !== before) {
                 manifest[group][name] = after;
-                changed = true;
+                // Written per file, so a later failure keeps the record of what already uploaded.
+                writeJson(manifestPath, manifest);
+                console.log(`wrote ${rel(manifestPath)}`);
             }
         }
-    }
-    if (changed) {
-        writeJson(manifestPath, manifest);
-        console.log(`wrote ${rel(manifestPath)}`);
     }
 }
 
 /** Edit the text, not a re-serialised object, so course.json keeps its hand-written layout. */
-function writeProductionCover(coursePath, url) {
+function writeProductionCover(coursePath, url, checksum) {
     let text = fs.readFileSync(coursePath, "utf8");
     const course = JSON.parse(text);
     text = /^  "image": (".*"|null),$/m.test(text)
         ? text.replace(/^  "image": (".*"|null),$/m, `  "image": ${JSON.stringify(url)},`)
         : text.replace(/^(  "publicId": .*,)$/m, `$1\n  "image": ${JSON.stringify(url)},`);
+    const checksumLine = `  "imageChecksum": ${JSON.stringify(checksum)},`;
+    text = /^  "imageChecksum": ".*",$/m.test(text)
+        ? text.replace(/^  "imageChecksum": ".*",$/m, checksumLine)
+        : text.replace(/^(  "image": .*,)$/m, `$1
+${checksumLine}`);
     if (course.existing) {
         const update = JSON.stringify({ ...(course.update || {}), image: url }).replace(/":/g, '": ').replace(/,"/g, ', "');
         text = /^  "update": .*,$/m.test(text)
             ? text.replace(/^  "update": .*,$/m, `  "update": ${update.replace(/^\{/, "{ ").replace(/\}$/, " }")},`)
             : text.replace(/^(  "existing": true,)$/m, `$1\n  "update": ${update},`);
     }
-    if (JSON.parse(text).image !== url) throw new Error("could not write image to course.json");
+    if (JSON.parse(text).image !== url || JSON.parse(text).imageChecksum !== checksum) throw new Error("could not write image to course.json");
     fs.writeFileSync(coursePath, text);
 }
 
@@ -157,23 +164,16 @@ async function uploadCover(courseDir) {
     const { width, height } = await sharp(buffer).metadata();
     if (width !== 1600 || height !== 900) throw new Error(`cover must be 1600x900, got ${width}x${height}`);
 
-    const file = { label: `${course}/cover.svg`, key: mediaKey({ course, name: "cover" }), buffer, filename: "cover.png", mime: "image/png", kind: "image", cover: true };
-    if (target.provider === "cloudinary") {
-        // course.json holds no checksum, so production always re-uploads the cover (overwrite, one small file).
-        const result = await sync(file);
-        if (dryRun) return;
-        writeProductionCover(path.join(courseDir, "course.json"), result.url);
-        console.log(`wrote ${rel(path.join(courseDir, "course.json"))}`);
-        return;
-    }
+    const file = { label: `${course}/cover.svg`, key: mediaKey({ course, name: "cover" }), size: buffer.length, read: () => buffer, filename: "cover.png", mime: "image/png", kind: "image", cover: true };
+    // Local: course.local.json {image, imageChecksum}. Production: course.json keeps the same two fields (hand-edited text).
     const manifestPath = path.join(courseDir, target.courseManifestName);
     const stored = readJson(manifestPath);
     const entry = stored.imageChecksum ? { checksum: stored.imageChecksum } : undefined;
     const result = await sync({ ...file, entry });
-    if (result !== entry) {
-        writeJson(manifestPath, { ...stored, image: result.url, imageChecksum: result.checksum });
-        console.log(`wrote ${rel(manifestPath)}`);
-    }
+    if (result === entry) return;
+    if (target.provider === "cloudinary") writeProductionCover(manifestPath, result.url, result.checksum);
+    else writeJson(manifestPath, { ...stored, image: result.url, imageChecksum: result.checksum });
+    console.log(`wrote ${rel(manifestPath)}`);
 }
 
 if (!args[0] || args[0].startsWith("--") || !fs.existsSync(args[0])) throw new Error("usage: upload-media.mjs <course folder | lesson folder> [--env <file>] [--dry-run]");
