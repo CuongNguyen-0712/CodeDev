@@ -65,8 +65,8 @@ export const blogDb = {
         `SELECT ${PUBLIC_COLS}, p.body_md AS body, p.published_at::text AS cursor_at, p.public_id AS cursor_id
          FROM community.post p ${AUTHOR}
          WHERE p.status = 'published' AND p.deleted_at IS NULL
-           AND ($1::text IS NULL OR $1 = ANY(p.tags))
-           AND ($2::timestamptz IS NULL OR (p.published_at, p.public_id) < ($2::timestamptz, $3::text))
+           AND ($1::text IS NULL OR p.tags @> ARRAY[$1]::text[])
+           AND ($2::timestamptz IS NULL OR (p.published_at <= $2::timestamptz AND (p.published_at, p.public_id) < ($2::timestamptz, $3::text)))
          ORDER BY p.published_at DESC, p.public_id DESC LIMIT $4`,
         [tag, cursor?.createdAt ?? null, cursor?.id ?? null, limit]
     )).rows,

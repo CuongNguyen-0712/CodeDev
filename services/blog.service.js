@@ -34,7 +34,7 @@ function checkImages(body) {
 
 // One transaction for create and update; postId null means create.
 async function write({ userId, postId = null, input }) {
-    if (!(await userDb.isEmailVerified({ userId }))) throw new ApiError("Verify your email to write posts", 403);
+    if (!(await userDb.isEmailVerified({ userId }))) throw new ApiError("Verify your email to write on the blog", 403);
     const result = await withTransaction(async (client) => {
         const user = await blogDb.userByPublicId(client, userId);
         if (!user) throw notFound();

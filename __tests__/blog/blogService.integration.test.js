@@ -56,7 +56,7 @@ describe.skipIf(!hasDb)("blog service (PostgreSQL)", () => {
 
     it("unverified email cannot write", async () => {
         const u = await newUser("u", false);
-        await expect(blogService.create({ userId: u, input: input() })).rejects.toMatchObject({ status: 403 });
+        await expect(blogService.create({ userId: u, input: input() })).rejects.toMatchObject({ status: 403, message: "Verify your email to write on the blog" });
     });
 
     it("another user's post is 404", async () => {
@@ -93,8 +93,10 @@ describe.skipIf(!hasDb)("blog service (PostgreSQL)", () => {
     it("hidden post can be appealed once", async () => {
         const post = await blogService.create({ userId: a, input: input() });
         await setStatus(post.id, "hidden");
+        await sql(`UPDATE community.post SET hidden_at = '2026-01-01T00:00:00Z' WHERE public_id = $1`, [post.id]);
         const appeal = { ...input(), appealReason: "Please look again, thanks" };
         await expect(blogService.update({ userId: a, postId: post.id, input: appeal })).resolves.toMatchObject({ status: "pending" });
+        expect((await sql(`SELECT hidden_at = '2026-01-01T00:00:00Z' AS same FROM community.post WHERE public_id = $1`, [post.id])).rows[0].same).toBe(true);
         expect((await sql(`SELECT appealed_at FROM community.post WHERE public_id = $1`, [post.id])).rows[0].appealed_at).not.toBeNull();
         await expect(blogService.update({ userId: a, postId: post.id, input: appeal })).rejects.toMatchObject({ status: 409 });
         await setStatus(post.id, "hidden");
