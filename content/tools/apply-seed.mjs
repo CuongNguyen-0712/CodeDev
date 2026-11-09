@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { localCoverUpdates } from "./localCovers.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const require = createRequire(path.join(root, "package.json"));
@@ -39,11 +40,35 @@ if (!isLocal && !args.includes("--yes")) {
     process.exit(1);
 }
 
+// Local DB: course seeds carry the production Cloudinary cover; swap in the local CMS cover (course.local.json).
+const courseDirOf = (file) => {
+    const dir = path.join(root, "content", "courses", path.basename(file, ".sql"));
+    return fs.existsSync(path.join(dir, "course.json")) ? dir : null;
+};
+const covers = new Map();
+if (isLocal) {
+    for (const file of files) {
+        const dir = courseDirOf(file);
+        if (!dir) continue;
+        const { updates, missing } = localCoverUpdates([dir]);
+        if (missing.length) {
+            console.error(`no local cover for ${missing[0]} - run npm run cms:sync`);
+            process.exit(1);
+        }
+        covers.set(file, updates[0]);
+    }
+}
+
 const client = new Client({ connectionString: url });
 await client.connect();
 try {
     for (const file of files) {
         await client.query(fs.readFileSync(path.resolve(file), "utf8"));
+        const cover = covers.get(file);
+        if (cover) {
+            const { rowCount } = await client.query("UPDATE catalog.course SET image = $2 WHERE public_id = $1", [cover.publicId, cover.image]);
+            if (!rowCount) console.warn(`warning: no catalog.course row for ${cover.publicId}; cover not updated`);
+        }
         console.log(`applied ${path.relative(root, path.resolve(file))}`);
     }
 } finally {
