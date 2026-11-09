@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import BlogMarkdown from "@/components/blog/markdown";
 import PostActions from "@/components/blog/postActions";
+import PostComments from "@/components/blog/postComments";
 import PostCard, { AuthorAvatar, PostMeta } from "@/components/blog/postCard";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -86,6 +87,8 @@ export default function PostPage({ post, headings = [], related = [] }) {
                     <TableOfContents headings={headings} />
                 </aside>
             )}
+
+            <PostComments postId={post.id} slug={post.slug} initialCount={post.commentCount ?? 0} />
 
             {related.length > 0 && (
                 <section aria-labelledby="related-heading" className="flex min-w-0 flex-col gap-2 border-t pt-8 xl:col-start-1">

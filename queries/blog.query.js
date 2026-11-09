@@ -23,6 +23,15 @@ export const blogQueries = {
     viewer(id) {
         return { queryKey: blogKeys.viewer(id), queryFn: () => blogClient.getViewer(id), ...QUERY_TIMES.personal };
     },
+    comments(id) {
+        return {
+            queryKey: blogKeys.comments(id),
+            initialPageParam: undefined,
+            queryFn: ({ pageParam }) => blogClient.getComments({ id, cursor: pageParam }),
+            getNextPageParam: (lastPage) => lastPage.nextCursor || undefined,
+            ...QUERY_TIMES.live,
+        };
+    },
     // One request per page of posts, shared by every Like button on it.
     liked(ids, enabled) {
         return { queryKey: blogKeys.liked(ids), queryFn: () => blogClient.getLiked(ids), enabled: enabled && ids.length > 0, ...QUERY_TIMES.personal };

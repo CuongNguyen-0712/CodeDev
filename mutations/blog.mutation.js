@@ -29,5 +29,29 @@ export function useSetLike() {
         },
     });
 }
+// The new comment goes on top of the cached first page; the viewer query carries the count.
+export function useAddComment(postId) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (body) => blogClient.addComment({ id: postId, body }),
+        onSuccess: (comment) => {
+            queryClient.setQueryData(blogKeys.comments(postId), (data) => data && {
+                ...data,
+                pages: data.pages.map((page, index) => (index === 0 ? { ...page, items: [comment, ...page.items] } : page)),
+            });
+            queryClient.invalidateQueries({ queryKey: blogKeys.viewer(postId) });
+        },
+    });
+}
+export function useDeleteComment(postId) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (commentId) => blogClient.deleteComment(commentId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: blogKeys.comments(postId) });
+            queryClient.invalidateQueries({ queryKey: blogKeys.viewer(postId) });
+        },
+    });
+}
 export const useReportPost = () => useMutation({ mutationFn: (input) => blogClient.reportPost(input) });
 export const useUploadBlogImage = () => useMutation({ mutationFn: (file) => blogClient.uploadImage(file) });
