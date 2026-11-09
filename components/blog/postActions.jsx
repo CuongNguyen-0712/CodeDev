@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldDescription, FieldLabel } from "@/components/shadcn/field";
 import { Textarea } from "@/components/shadcn/textarea";
 import { useApp } from "@/contexts/appContext";
+import { nextLikeState } from "@/lib/blog/likeState.mjs";
 import { cn } from "@/lib/utils";
 import { useReportPost, useSetLike } from "@/mutations/blog.mutation";
 import { blogQueries } from "@/queries/blog.query";
@@ -47,12 +48,13 @@ export function LikeButton({ postId, pageIds, likeCount, onPost = false, variant
     const sourceCount = onPost ? (viewer.data?.likeCount ?? likeCount) : likeCount;
     const [state, setState] = useState({ liked: sourceLiked, count: sourceCount });
 
-    // Re-seed during render when the source changes (not while a click is pending).
-    const seed = `${sourceLiked}:${sourceCount}`;
-    const [seeded, setSeeded] = useState(seed);
-    if (seed !== seeded && !setLike.isPending) {
-        setSeeded(seed);
-        setState({ liked: sourceLiked, count: sourceCount });
+    // Re-seed during render from each source on its own (see nextLikeState).
+    const source = { liked: sourceLiked, count: sourceCount };
+    const [seen, setSeen] = useState(source);
+    const next = nextLikeState(state, seen, source, setLike.isPending);
+    if (next.seen.liked !== seen.liked || next.seen.count !== seen.count) {
+        setSeen(next.seen);
+        setState(next.state);
     }
 
     const toggle = () => {
