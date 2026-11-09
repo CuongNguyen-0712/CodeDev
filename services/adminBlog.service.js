@@ -23,6 +23,7 @@ const item = (row) => ({
     author: { id: row.author_id, username: row.author_username, image: row.author_image },
     rejectReason: row.reject_reason, hiddenReason: row.hidden_reason, hiddenAt: row.hidden_at, appealedAt: row.appealed_at,
     appealReason: row.appeal_reason, purgeAt: purgeAtOf(row.status, row.hidden_at), updatedAt: row.updated_at,
+    ...(row.report_count === undefined ? {} : { reportCount: row.report_count, reports: row.reports }),
 });
 
 function notice({ action, appeal, post, reason, purgeDate }) {
@@ -43,7 +44,8 @@ function notice({ action, appeal, post, reason, purgeDate }) {
 /** Blog moderation: review queues, approve / reject / hide / show and appeal decisions, all audited. */
 export const adminBlogService = {
     list: async ({ status, cursor = null }) => {
-        const rows = await blogDb.listAdmin({ status, cursor: decodeCursor(cursor, /^pst_[0-9a-z]{26}$/), limit: PAGE + 1 });
+        const args = { cursor: decodeCursor(cursor, /^pst_[0-9a-z]{26}$/), limit: PAGE + 1 };
+        const rows = status === "reported" ? await blogDb.listReported(args) : await blogDb.listAdmin({ ...args, status });
         const { items, nextCursor } = pageOf(rows, PAGE, (last) => encodeCursor(last.cursor_at, last.cursor_id));
         return { items: items.map(item), nextCursor };
     },
@@ -59,6 +61,16 @@ export const adminBlogService = {
         const result = await withTransaction(async (client) => {
             const post = await blogDb.lockForModeration(client, postId);
             if (!post) throw new ApiError("Post not found", 404);
+            if (action === "dismiss") {
+                if (post.status !== "published") throw new ApiError(`Not allowed from ${post.status}`, 409);
+                const openReports = await blogDb.resolveReports(client, { postId: post.id });
+                if (!openReports) throw new ApiError("No open reports", 409);
+                await adminDb.audit(client, {
+                    actorId: actor.id, action: "blog.dismiss", targetType: "post", targetId: postId, reason,
+                    before: { status: post.status, openReports }, after: { status: post.status, openReports: 0 }, ip,
+                });
+                return { changed: true, dismissed: true, status: "published" };
+            }
             // A rejected appeal lands on hidden, so rejecting a hidden post that was appealed is a repeat.
             if (post.status === TARGET[action] || (action === "reject" && post.status === "hidden" && post.appealed_at)) return { changed: false, status: post.status };
             const appeal = post.status === "pending" && Boolean(post.appealed_at);
@@ -68,7 +80,10 @@ export const adminBlogService = {
             let updatedAt;
             if (action === "approve") updatedAt = await blogDb.approve(client, { id: post.id, actorDbId: actor.id, appeal });
             else if (action === "reject") updatedAt = await blogDb.reject(client, { id: post.id, reason, appeal });
-            else if (action === "hide") updatedAt = await blogDb.hide(client, { id: post.id, reason });
+            else if (action === "hide") {
+                updatedAt = await blogDb.hide(client, { id: post.id, reason });
+                await blogDb.resolveReports(client, { postId: post.id });
+            }
             else updatedAt = await blogDb.show(client, { id: post.id });
 
             await adminDb.audit(client, {
@@ -78,6 +93,7 @@ export const adminBlogService = {
             return { changed: true, status: to, post, appeal, updatedAt };
         });
         if (!result.changed) return { changed: false, status: result.status };
+        if (result.dismissed) return { changed: true, status: result.status };
 
         const { post, appeal, updatedAt } = result;
         // An appeal that is rejected keeps its original clock; a fresh hide starts one now.

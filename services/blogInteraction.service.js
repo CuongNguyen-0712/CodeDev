@@ -75,6 +75,18 @@ export const blogInteractionService = {
         });
     },
 
+    report: async ({ userId, postId, input }) => {
+        if (!(await userDb.isEmailVerified({ userId }))) throw new ApiError("Verify your email to write on the blog", 403);
+        return withTransaction(async (client) => {
+            const user = await blogDb.userByPublicId(client, userId);
+            const post = user && await blogDb.lockLive(client, postId);
+            if (!post) throw notFound();
+            if (post.author_id === user.id) throw new ApiError("You cannot report your own post", 400);
+            if (!(await blogDb.insertReport(client, { postId: post.id, userId: user.id, reason: input.reason }))) throw new ApiError("You already reported this post", 409);
+            return { reported: true };
+        });
+    },
+
     /** Only the author may delete; the counter drops only if the comment was still visible. */
     deleteComment: ({ userId, commentId }) => withTransaction(async (client) => {
         const comment = await blogDb.lockComment(client, commentId);

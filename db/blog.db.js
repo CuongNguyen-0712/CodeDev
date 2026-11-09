@@ -100,6 +100,16 @@ export const blogDb = {
         `UPDATE community.post SET like_count = GREATEST(like_count + $2::int, 0) WHERE id = $1 RETURNING like_count`, [postId, delta]
     )).rows[0].like_count,
 
+    /** 1 when the report was stored, 0 when this user already reported the post (resolved or not). */
+    insertReport: async (client, { postId, userId, reason }) => (await client.query(
+        `INSERT INTO community.post_report (post_id, reporter_id, reason) VALUES ($1, $2, $3) ON CONFLICT (post_id, reporter_id) DO NOTHING`, [postId, userId, reason]
+    )).rowCount,
+
+    /** Closes the post's open reports; returns how many there were. */
+    resolveReports: async (client, { postId }) => (await client.query(
+        `UPDATE community.post_report SET resolved_at = now() WHERE post_id = $1 AND resolved_at IS NULL`, [postId]
+    )).rowCount,
+
     insertComment: async (client, { publicId, postId, userId, body }) => (await client.query(
         `WITH c AS (INSERT INTO community.post_comment (public_id, post_id, user_id, body) VALUES ($1, $2, $3, $4) RETURNING created_at)
          SELECT c.created_at, u.username, i.image FROM c, identity.users u LEFT JOIN profile.info i ON i.user_id = u.id WHERE u.id = $3`,
@@ -184,6 +194,23 @@ export const blogDb = {
             [cursor?.createdAt ?? null, cursor?.id ?? null, limit, status]
         )).rows;
     },
+
+    /** Published posts with open reports: most reports first, then newest report. */
+    // shortcut: the cursor holds only (last_report_at, id), so a report landing between pages can move a row; fine for a moderator queue.
+    listReported: async ({ cursor, limit }) => (await sql(
+        `SELECT p.public_id AS id, p.slug, p.title, p.excerpt, p.status, p.reject_reason, p.hidden_reason, p.hidden_at, p.appealed_at, p.appeal_reason, p.updated_at,
+                u.public_id AS author_id, u.username AS author_username, i.image AS author_image, g.report_count,
+                (SELECT COALESCE(json_agg(json_build_object('reason', r.reason, 'createdAt', r.created_at) ORDER BY r.created_at DESC), '[]'::json)
+                 FROM (SELECT reason, created_at FROM community.post_report WHERE post_id = p.id AND resolved_at IS NULL ORDER BY created_at DESC LIMIT 5) r) AS reports,
+                g.last_report_at::text AS cursor_at, p.public_id AS cursor_id
+         FROM community.post p ${AUTHOR}
+              JOIN (SELECT post_id, count(*)::int AS report_count, max(created_at) AS last_report_at
+                    FROM community.post_report WHERE resolved_at IS NULL GROUP BY post_id) g ON g.post_id = p.id
+         WHERE p.status = 'published' AND p.deleted_at IS NULL
+           AND ($1::timestamptz IS NULL OR (g.last_report_at, p.public_id) < ($1::timestamptz, $2::text))
+         ORDER BY g.report_count DESC, g.last_report_at DESC, p.public_id DESC LIMIT $3`,
+        [cursor?.createdAt ?? null, cursor?.id ?? null, limit]
+    )).rows,
 
     getAdmin: async (publicId) => (await sql(
         `SELECT p.public_id AS id, p.slug, p.title, p.excerpt, p.status, p.body_md AS body, p.reject_reason, p.hidden_reason, p.hidden_at, p.appealed_at, p.appeal_reason, p.updated_at,
