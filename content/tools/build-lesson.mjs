@@ -7,20 +7,27 @@
  *       content: [h2("..."), p("Text with `inline code` and **bold**."), image("race-timeline", { alt }), challenge("chal_x")],
  *   })
  *
- * `images` comes from <lesson>/assets.json (content/tools/upload-images.mjs). Keys are
+ * `images` / `videos` come from the media manifest (content/tools/upload-media.mjs): assets.json for
+ * the sanity target (Cloudinary, production), assets.local.json for the payload target (local Payload CMS). Keys are
  * derived from block positions, so rebuilding an unchanged source gives the same JSON.
  * Answers and test cases never go here: they live in challenges.json -> Postgres.
  *
- * Usage: node content/tools/build-lesson.mjs <lesson folder>   -> <lesson>/lesson.sanity.json
+ * Usage: node content/tools/build-lesson.mjs <lesson folder> [--target sanity|payload]
+ *   sanity (default) -> <lesson>/lesson.sanity.json (reads assets.json)
+ *   payload          -> <lesson>/lesson.payload.json (reads only assets.local.json)
  */
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
-const lessonDir = path.resolve(process.argv[2]);
-const assetsPath = path.join(lessonDir, "assets.json");
-const { images = {} } = fs.existsSync(assetsPath) ? JSON.parse(fs.readFileSync(assetsPath, "utf8")) : {};
+const argv = process.argv.slice(2);
+const lessonDir = path.resolve(argv[0]);
+const targetName = argv.includes("--target") ? argv[argv.indexOf("--target") + 1] : "sanity";
+if (!["sanity", "payload"].includes(targetName)) throw new Error(`--target must be sanity or payload, got "${targetName}"`);
+const manifestName = targetName === "payload" ? "assets.local.json" : "assets.json";
+const assetsPath = path.join(lessonDir, manifestName);
+const { images = {}, videos = {} } = fs.existsSync(assetsPath) ? JSON.parse(fs.readFileSync(assetsPath, "utf8")) : {};
 const { challenges = [] } = JSON.parse(fs.readFileSync(path.join(lessonDir, "challenges.json"), "utf8"));
 
 let counter = 0;
@@ -51,8 +58,13 @@ const helpers = {
     callout: (type, title, content) => ({ _type: "callout", _key: key(content), type, title, content }),
     image: (name, { alt, caption }) => {
         const img = images[name];
-        if (!img) throw new Error(`image "${name}" is not in assets.json - run upload-images.mjs first`);
-        return { _type: "cloudinaryImage", _key: key(name), url: img.url, publicId: img.publicId, alt, ...(caption && { caption }), width: img.width, height: img.height };
+        if (!img) throw new Error(`image "${name}" is not in ${manifestName} - run upload-media.mjs`);
+        return { _type: "cloudinaryImage", _key: key(name), url: img.url, publicId: img.publicId ?? img.key, alt, ...(caption && { caption }), width: img.width, height: img.height };
+    },
+    video: (name, { title }) => {
+        const file = videos[name];
+        if (!file) throw new Error(`video "${name}" is not in ${manifestName} - run upload-media.mjs`);
+        return { _type: "video", _key: key(name), url: file.url, title, width: file.width, height: file.height, mime: file.mime };
     },
     challenge: (challengePublicId, hint) => {
         if (!challenges.some((c) => c.publicId === challengePublicId)) throw new Error(`challenge "${challengePublicId}" is not in challenges.json`);
@@ -72,6 +84,6 @@ if (doc.environmentSetup?.setupSteps) {
 const embedded = new Set(doc.content.filter((b) => b._type === "challengeEmbed").map((b) => b.challengePublicId));
 const missing = challenges.filter((c) => !embedded.has(c.publicId)).map((c) => c.publicId);
 
-const target = path.join(lessonDir, "lesson.sanity.json");
+const target = path.join(lessonDir, `lesson.${targetName}.json`);
 fs.writeFileSync(target, JSON.stringify({ _type: "lesson", published: true, ...doc }, null, 2) + "\n");
 console.log(`wrote ${target} (${doc.content.length} blocks, ${embedded.size} embedded challenges${missing.length ? `; shown in Practice section: ${missing.join(", ")}` : ""})`);

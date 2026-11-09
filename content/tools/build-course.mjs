@@ -65,6 +65,7 @@ for (const lesson of lessons) {
 run("build-seed.mjs", courseDir);
 
 if (flag("--payload")) {
+    for (const lesson of lessons) run("build-lesson.mjs", path.join(courseDir, lesson.folder), "--target", "payload");
     run("push-lesson-payload.mjs", ...lessons.map((lesson) => path.join(courseDir, lesson.folder)));
 }
 

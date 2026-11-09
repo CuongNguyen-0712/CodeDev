@@ -2,7 +2,7 @@
 /**
  * Writes lesson bodies to the local Payload CMS (cms/, docs/payload-cms.md), the fallback the app
  * reads in local development when Sanity has no document for a lesson. Nothing leaves this machine.
- * Reads <lesson>/lesson.sanity.json (run build-lesson.mjs first) and creates or updates the
+ * Reads <lesson>/lesson.payload.json (run build-lesson.mjs --target payload first) and creates or updates the
  * `lessons` document whose sourceId is the Sanity _id.
  *
  * Usage:
@@ -50,9 +50,9 @@ async function api(method, pathname, body) {
 
 let failures = 0;
 for (const folder of folders) {
-    const file = path.resolve(folder, "lesson.sanity.json");
+    const file = path.resolve(folder, "lesson.payload.json");
     if (!fs.existsSync(file)) {
-        console.error(`${folder}: no lesson.sanity.json - run build-lesson.mjs first`);
+        console.error(`${folder}: no lesson.payload.json - run build-lesson.mjs --target payload first`);
         failures++;
         continue;
     }
