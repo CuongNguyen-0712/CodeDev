@@ -26,4 +26,19 @@ describe("PortableTextRenderer media", () => {
         cleanup();
         expect(render(<PortableTextRenderer value={video("http://127.0.0.1:3010/api/media/file/v.mp4")} />).container.querySelector("video")).not.toBeNull();
     });
+
+    it("embeds only real YouTube / Vimeo hosts as iframes", () => {
+        const video = (url) => [{ _type: "video", _key: "v", url, title: "t" }];
+        const iframeOf = (url) => {
+            cleanup();
+            return render(<PortableTextRenderer value={video(url)} />).container.querySelector("iframe")?.getAttribute("src") ?? null;
+        };
+        expect(iframeOf("https://attacker.example/youtube.com")).toBeNull();
+        expect(iframeOf("https://attacker.example/youtube.com/embed/dQw4w9WgXcQ")).toBeNull();
+        expect(iframeOf("https://vimeo.com.attacker.example/1")).toBeNull();
+        expect(iframeOf("http://player.vimeo.com/video/1")).toBeNull();
+        expect(iframeOf("https://youtu.be/dQw4w9WgXcQ")).toBe("https://www.youtube.com/embed/dQw4w9WgXcQ");
+        expect(iframeOf("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe("https://www.youtube.com/embed/dQw4w9WgXcQ");
+        expect(iframeOf("https://player.vimeo.com/video/76979871")).toBe("https://player.vimeo.com/video/76979871");
+    });
 });

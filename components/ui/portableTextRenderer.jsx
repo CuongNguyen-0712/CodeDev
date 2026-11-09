@@ -130,18 +130,29 @@ function MediaImage({ value }) {
     );
 }
 
+const IFRAME_HOSTS = new Set(["www.youtube.com", "youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com", "player.vimeo.com", "vimeo.com"]);
+
+const isIframeUrl = (value) => {
+    try {
+        const { protocol, hostname } = new URL(value);
+        return protocol === "https:" && IFRAME_HOSTS.has(hostname);
+    } catch {
+        return false;
+    }
+};
+
 function VideoEmbed({ value }) {
     const { url, title } = value || {};
     if (!url) return null;
 
-    // Support YouTube embed conversion
+    // Support YouTube embed conversion (anchored: the host itself must be YouTube)
     let embedUrl = url;
-    const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+    const ytMatch = url.match(/^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
     if (ytMatch) {
         embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
     }
 
-    const isIframe = embedUrl.includes("youtube.com") || embedUrl.includes("vimeo.com");
+    const isIframe = isIframeUrl(embedUrl);
     if (!isIframe && !isAllowedMediaUrl(url, MEDIA_ORIGINS)) return null;
 
     return (
