@@ -47,8 +47,8 @@ describe("image type detection", () => {
 
     it("builds upload folders per environment from server-side values only", async () => {
         const { cloudinaryFolder } = await vi.importActual("@/lib/cloudinary");
-        expect(cloudinaryFolder("users", "abc-123", "avatars")).toBe("codedev/test/users/abc-123/avatars");
-        expect(cloudinaryFolder("users", "../../etc", "avatars")).toBe("codedev/test/users/______etc/avatars");
+        expect(cloudinaryFolder("users", "abc-123", "avatars")).toBe("codedev/production/users/abc-123/avatars");
+        expect(cloudinaryFolder("users", "../../etc", "avatars")).toBe("codedev/production/users/______etc/avatars");
     });
 });
 
@@ -96,7 +96,7 @@ describe.skipIf(!hasDb)("avatar upload (PostgreSQL)", () => {
         const result = await mediaService.uploadAvatar({ userId, file: fileOf(PNG) });
 
         expect(uploads).toHaveLength(1);
-        expect(uploads[0].options.folder).toBe(`codedev/test/users/${userId}/avatars`);
+        expect(uploads[0].options.folder).toBe(`codedev/production/users/${userId}/avatars`);
         expect(uploads[0].options).toMatchObject({ resource_type: "image", overwrite: false });
 
         const current = await profile();
