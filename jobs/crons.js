@@ -1,4 +1,5 @@
 import { inngest } from "@/lib/inngest";
+import { blogService } from "@/services/blog.service";
 import { runAccountMaintenance } from "@/services/accountMaintenance.service";
 import { auditSummary, runExpAudit } from "@/services/expAudit.service";
 import { runRetention } from "@/services/retention.service";
@@ -46,4 +47,19 @@ export const expAudit = inngest.createFunction(
 export const rankingRefresh = inngest.createFunction(
     { id: "ranking-refresh", triggers: [{ cron: "0 * * * *" }], concurrency: 1, retries: 1 },
     async ({ step }) => step.run("refresh", () => refreshRankingSnapshot())
+);
+
+/** Deletes blog posts hidden for more than BLOG_HIDDEN_PURGE_DAYS, with the files only they used. */
+export const blogPurge = inngest.createFunction(
+    { id: "blog-purge", triggers: [{ cron: "15 3 * * *" }], concurrency: 1, retries: 2 },
+    async ({ step }) => {
+        const totals = { purged: 0, files: 0 };
+        for (let batch = 0; batch < MAX_BATCHES; batch++) {
+            const report = await step.run(`batch-${batch}`, () => blogService.runHiddenPurge({ limit: 50 }));
+            totals.purged += report.purged;
+            totals.files += report.files;
+            if (report.purged === 0) break;
+        }
+        return totals;
+    }
 );

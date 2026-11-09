@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/error/apiError";
 import { decodeCursor, encodeCursor, pageOf } from "@/lib/keysetCursor";
 import { isAllowedMediaUrl, mediaOrigins } from "@/lib/media/mediaOrigins.mjs";
 import { revalidateBlog } from "@/lib/pageCache";
+import { dispatchAuthOutbox } from "@/services/authOutbox.service";
 
 const PAGE = 12;
 const DAY = 86400000;
@@ -16,6 +17,9 @@ const DAY = 86400000;
 const purgeDays = Number(process.env.BLOG_HIDDEN_PURGE_DAYS);
 /** Days a hidden post is kept before the purge job deletes it. */
 export const BLOG_HIDDEN_PURGE_DAYS = Number.isInteger(purgeDays) && purgeDays > 0 ? purgeDays : 30;
+
+/** When a hidden post is deleted: hidden_at plus the grace period. */
+export const purgeAtOf = (status, hiddenAt) => (status === "hidden" && hiddenAt ? new Date(new Date(hiddenAt).getTime() + BLOG_HIDDEN_PURGE_DAYS * DAY) : null);
 
 const notFound = () => new ApiError("Post not found", 404);
 const author = (row) => ({ id: row.author_id, username: row.author_username, image: row.author_image });
@@ -91,7 +95,7 @@ export const blogService = {
             items: rows.map((row) => ({
                 id: row.id, slug: row.slug, title: row.title, status: row.status, rejectReason: row.reject_reason,
                 hiddenReason: row.hidden_reason, hiddenAt: row.hidden_at, appealedAt: row.appealed_at,
-                purgeAt: row.status === "hidden" && row.hidden_at ? new Date(new Date(row.hidden_at).getTime() + BLOG_HIDDEN_PURGE_DAYS * DAY) : null,
+                purgeAt: purgeAtOf(row.status, row.hidden_at),
                 updatedAt: row.updated_at,
             })),
         };
@@ -116,5 +120,23 @@ export const blogService = {
     getPublishedBySlug: async (slug) => {
         const row = await blogDb.getPublishedBySlug(slug);
         return row && { ...publicPost(row), body: row.body, updatedAt: row.updated_at };
+    },
+
+    /** Deletes posts hidden for more than `days`, with the assets only they used; storage files go through the outbox. */
+    runHiddenPurge: async ({ limit = 50, days = BLOG_HIDDEN_PURGE_DAYS } = {}) => {
+        const result = await withTransaction(async (client) => {
+            const posts = await blogDb.lockExpiredHidden(client, { days, limit });
+            if (!posts.length) return { posts, files: [], outboxIds: [] };
+            const ids = posts.map((post) => post.id);
+            const files = (await blogDb.retireOrphanAssets(client, { postIds: ids })).filter((f) => f.key).map((f) => ({ provider: f.provider, key: f.key, bucket: null }));
+            await blogDb.deletePosts(client, { ids });
+            return { posts, files, outboxIds: files.length ? [await blogDb.queueStoragePurge(client, { files })] : [] };
+        });
+        if (result.outboxIds.length) {
+            // The rows are committed; the outbox worker retries anything undelivered.
+            await dispatchAuthOutbox(result.outboxIds).catch((error) => console.error("[blog-purge] outbox dispatch failed", error));
+        }
+        result.posts.forEach((post) => revalidateBlog(post.public_id));
+        return { purged: result.posts.length, files: result.files.length, outboxIds: result.outboxIds };
     },
 };
