@@ -29,7 +29,9 @@ const BlogMarkdown = dynamic(() => import("@/components/blog/markdown"), { loadi
 const MEDIA_ORIGINS = (process.env.NEXT_PUBLIC_MEDIA_ORIGINS || "https://res.cloudinary.com").split(",");
 
 const MAX_TAGS = 5;
-const PLACEHOLDER = "![Uploading…]()";
+const placeholder = (n) => `![Uploading… ${n}]()`;
+// Same rule as normalizeTags in lib/blog/text.mjs, inlined because that module pulls the Markdown parser into the client.
+const normalizeTag = (tag) => tag.trim().toLowerCase().replace(/\s+/g, "-");
 
 function Form({ post, trusted }) {
     const router = useRouter();
@@ -39,6 +41,7 @@ function Form({ post, trusted }) {
     const upload = useUploadBlogImage();
     const textareaRef = useRef(null);
     const fileRef = useRef(null);
+    const uploadCount = useRef(0);
 
     const [title, setTitle] = useState(post?.title || "");
     const [tags, setTags] = useState(post?.tags || []);
@@ -46,15 +49,16 @@ function Form({ post, trusted }) {
     const [body, setBody] = useState(post?.body || "");
     const [appealReason, setAppealReason] = useState("");
     const [uploading, setUploading] = useState(0);
+    const [created, setCreated] = useState(false);
 
     const appealing = post?.status === "hidden" && !post.appealedAt;
     const locked = post?.status === "hidden" && !!post.appealedAt;
     const pending = create.isPending || update.isPending;
-    const busy = pending || uploading > 0;
+    const busy = pending || created || uploading > 0;
     const submitLabel = appealing ? "Send appeal" : trusted ? "Publish" : "Submit for review";
 
     const addTag = (raw) => {
-        const tag = raw.trim();
+        const tag = normalizeTag(raw);
         if (tag && !tags.includes(tag) && tags.length < MAX_TAGS) setTags([...tags, tag]);
         setTagInput("");
     };
@@ -71,13 +75,14 @@ function Form({ post, trusted }) {
     const uploadImage = async (file) => {
         const area = textareaRef.current;
         const at = area ? area.selectionStart : body.length;
-        setBody((current) => current.slice(0, at) + PLACEHOLDER + current.slice(at));
+        const token = placeholder(++uploadCount.current);
+        setBody((current) => current.slice(0, at) + token + current.slice(at));
         setUploading((n) => n + 1);
         try {
             const { url } = await upload.mutateAsync(file);
-            setBody((current) => current.replace(PLACEHOLDER, `![image](${url})`));
+            setBody((current) => current.replace(token, `![image](${url})`));
         } catch (error) {
-            setBody((current) => current.replace(PLACEHOLDER, ""));
+            setBody((current) => current.replace(token, ""));
             showAlert(error?.status || 500, error?.message || "The image was not uploaded");
         } finally {
             setUploading((n) => n - 1);
@@ -121,6 +126,7 @@ function Form({ post, trusted }) {
         } else {
             create.mutate(input, {
                 onSuccess: (saved) => {
+                    setCreated(true);
                     showAlert(200, submit ? "Post submitted" : "Draft saved");
                     router.replace(submit ? "/blog/me" : `/blog/edit/${saved.id}`);
                 },
@@ -132,7 +138,7 @@ function Form({ post, trusted }) {
     return (
         <form
             className="flex flex-col gap-5"
-            onSubmit={(event) => { event.preventDefault(); if (!busy) save(true); }}
+            onSubmit={(event) => event.preventDefault()}
             aria-busy={pending}
         >
             {post?.status === "rejected" && post.rejectReason && (
@@ -163,18 +169,16 @@ function Form({ post, trusted }) {
                             </button>
                         </Badge>
                     ))}
-                    {tags.length < MAX_TAGS && (
-                        <Input
-                            id="post-tags"
-                            className="w-40 flex-1"
-                            value={tagInput}
-                            placeholder="Add a tag"
-                            disabled={locked}
-                            onChange={(event) => setTagInput(event.target.value)}
-                            onKeyDown={onTagKeyDown}
-                            onBlur={() => addTag(tagInput)}
-                        />
-                    )}
+                    <Input
+                        id="post-tags"
+                        className="w-40 flex-1"
+                        value={tagInput}
+                        placeholder="Add a tag"
+                        disabled={locked || tags.length >= MAX_TAGS}
+                        onChange={(event) => setTagInput(event.target.value)}
+                        onKeyDown={onTagKeyDown}
+                        onBlur={() => addTag(tagInput)}
+                    />
                 </div>
                 <FieldDescription>Press Enter or comma to add. Up to {MAX_TAGS} tags.</FieldDescription>
             </Field>
@@ -220,7 +224,7 @@ function Form({ post, trusted }) {
 
             {!locked && (
                 <div className="flex flex-wrap gap-2">
-                    <Button type="submit" disabled={busy}>
+                    <Button type="button" disabled={busy} onClick={() => save(true)}>
                         {pending && <Spinner />}
                         {submitLabel}
                     </Button>
@@ -246,13 +250,13 @@ export default function PostEditor({ id }) {
     if (mine.isPending || (id && post.isPending)) {
         return <Skeleton className="h-96 w-full" />;
     }
-    if (mine.isError || (id && post.isError)) {
-        const error = post.error || mine.error;
+    if (id && post.isError) {
+        const error = post.error;
         return (
             <p role="alert" className="text-sm">
                 {error?.status === 404 ? "This post does not exist." : error?.message || "Could not load the editor."}
             </p>
         );
     }
-    return <Form post={id ? post.data : null} trusted={mine.data.trusted} />;
+    return <Form post={id ? post.data : null} trusted={mine.data?.trusted ?? false} />;
 }

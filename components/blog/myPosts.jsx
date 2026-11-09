@@ -106,7 +106,7 @@ export default function MyPosts() {
                 open={!!target}
                 onOpenChange={(open) => !open && setTarget(null)}
                 title="Delete this post?"
-                description={`"${target?.title}" will be deleted for good.`}
+                description={target ? `"${target.title}" will be deleted for good.` : "This post will be deleted for good."}
                 confirmLabel="Delete post"
                 onConfirm={confirmDelete}
             />
