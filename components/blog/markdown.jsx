@@ -10,13 +10,15 @@ export default function BlogMarkdown({ body, origins }) {
         // The block <code> renders its own wrapper, so drop react-markdown's <pre>.
         pre: ({ children }) => <>{children}</>,
         code: ({ className, children }) => {
-            const code = String(children).replace(/\n$/, "");
+            const raw = String(children);
             const language = /language-([\w+#-]+)/.exec(className || "")?.[1];
-            if (!language && !code.includes("\n")) return <code>{children}</code>;
+            // Fenced blocks always end in a newline, so decide before stripping it.
+            if (!language && !raw.includes("\n")) return <code>{children}</code>;
+            const code = raw.replace(/\n$/, "");
             return <CodeBlock value={{ language, code }} />;
         },
         a: ({ href, children }) =>
-            /^https?:\/\//i.test(href || "") ? (
+            /^(https?:)?\/\//i.test(href || "") ? (
                 <a href={href} target="_blank" rel="nofollow ugc noopener">{children}</a>
             ) : (
                 <a href={href}>{children}</a>
