@@ -44,6 +44,14 @@ describe("build-lesson --target", () => {
         expect(String(err.stderr)).toContain('image "d" is not in assets.local.json - run upload-media.mjs');
     });
 
+    it("sanity target names the production upload when a key is missing", () => {
+        const dir = lesson({ local: { images: { d: entry("http://127.0.0.1:3010/d.svg") } } });
+        let err;
+        try { build(dir); } catch (e) { err = e; }
+        expect(err.status).not.toBe(0);
+        expect(String(err.stderr)).toContain('image "d" is not in assets.json - run upload-media.mjs <lesson> --env .env.production');
+    });
+
     it("video blocks carry the manifest file", () => {
         const dir = lesson({ local: { images: { d: entry("http://127.0.0.1:3010/d.svg") }, videos: video("http://127.0.0.1:3010/v.mp4") } });
         build(dir, "--target", "payload");

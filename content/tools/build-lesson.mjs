@@ -27,6 +27,8 @@ const targetName = argv.includes("--target") ? argv[argv.indexOf("--target") + 1
 if (!["sanity", "payload"].includes(targetName)) throw new Error(`--target must be sanity or payload, got "${targetName}"`);
 const manifestName = targetName === "payload" ? "assets.local.json" : "assets.json";
 const assetsPath = path.join(lessonDir, manifestName);
+// assets.json is the production (Cloudinary) manifest: build-course's default upload goes to the local CMS instead.
+const uploadHint = targetName === "payload" ? "run upload-media.mjs" : "run upload-media.mjs <lesson> --env .env.production";
 const { images = {}, videos = {} } = fs.existsSync(assetsPath) ? JSON.parse(fs.readFileSync(assetsPath, "utf8")) : {};
 const { challenges = [] } = JSON.parse(fs.readFileSync(path.join(lessonDir, "challenges.json"), "utf8"));
 
@@ -58,12 +60,12 @@ const helpers = {
     callout: (type, title, content) => ({ _type: "callout", _key: key(content), type, title, content }),
     image: (name, { alt, caption }) => {
         const img = images[name];
-        if (!img) throw new Error(`image "${name}" is not in ${manifestName} - run upload-media.mjs`);
+        if (!img) throw new Error(`image "${name}" is not in ${manifestName} - ${uploadHint}`);
         return { _type: "cloudinaryImage", _key: key(name), url: img.url, publicId: img.publicId ?? img.key, alt, ...(caption && { caption }), width: img.width, height: img.height };
     },
     video: (name, { title }) => {
         const file = videos[name];
-        if (!file) throw new Error(`video "${name}" is not in ${manifestName} - run upload-media.mjs`);
+        if (!file) throw new Error(`video "${name}" is not in ${manifestName} - ${uploadHint}`);
         return { _type: "video", _key: key(name), url: file.url, title, width: file.width, height: file.height, mime: file.mime };
     },
     challenge: (challengePublicId, hint) => {
