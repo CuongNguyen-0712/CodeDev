@@ -48,7 +48,7 @@ describe("BlogMarkdown", () => {
         expect(isInternalHref("#a")).toBe(true);
     });
     it("wraps the body in the lesson prose container", () => {
-        expect(render("## Title\n\ntext")).toMatch(/^<div class="lesson-prose"><div class="portable_text_container"><h2 class="lesson_h2">Title<\/h2>/);
+        expect(render("## Title\n\ntext")).toMatch(/^<div class="lesson-prose"><div class="portable_text_container"><h2 id="title" class="lesson_h2 scroll-mt-20">Title<\/h2>/);
     });
     it("renders GFM tables", () => {
         expect(render("|a|b|\n|-|-|\n|1|2|")).toContain("<table");

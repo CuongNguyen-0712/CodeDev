@@ -2,7 +2,10 @@ import { notFound } from "next/navigation";
 
 import PostPage from "@/components/blog/postPage";
 
-import { getPrerenderedPostSlugs, getPublicPost } from "@/lib/cachedData";
+import { getBlogPage, getPrerenderedPostSlugs, getPublicPost } from "@/lib/cachedData";
+import { extractHeadings } from "@/lib/blog/text.mjs";
+
+const RELATED = 3;
 
 // `params` stays outside <Suspense>, as on app/course/[id]; `instant = false` only turns that check off.
 export const instant = false;
@@ -42,5 +45,9 @@ export default async function Page({ params }) {
     const post = await getPublicPost(slug);
     if (!post) notFound();
 
-    return <PostPage post={post} />;
+    // Other posts on the first topic (cached list); the article still renders when this read fails.
+    const sameTopic = await getBlogPage(post.tags?.[0] ?? null).catch(() => null);
+    const related = (sameTopic?.items || []).filter((item) => item.id !== post.id).slice(0, RELATED);
+
+    return <PostPage post={post} headings={extractHeadings(post.body)} related={related} />;
 }

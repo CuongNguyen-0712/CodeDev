@@ -21,7 +21,7 @@ export default function LoadMore({ tag, initialCursor }) {
     return (
         <>
             {items.length > 0 && (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="divide-y border-b">
                     {items.map((post) => <PostCard key={post.id} post={post} />)}
                 </div>
             )}
