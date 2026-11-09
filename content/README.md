@@ -9,14 +9,14 @@ Source of truth for courses built with the content pipeline. Each course lives i
 | Local Payload CMS (`lessons`) | The same lesson documents, from `lesson.sanity.json` | Local development lesson store (docs/payload-cms.md) |
 | Postgres `challenge.*` | Quiz options with `is_correct`, test cases, coding configs | Answers stay server-side |
 | Object storage, public bucket | `challenges/<language>/<id>/starter.<ext>` (+ `harness.js` for javascript), lesson starter zips | Loaded by the editor and the browser sandbox |
-| Cloudinary | `diagrams/*.svg` rendered as PNG | Image delivery |
+| Cloudinary (production) / local Payload `media` | `diagrams/*.svg` rendered as PNG, covers, lesson videos | Media delivery; Cloudinary only in production, local Payload elsewhere |
 
 ## Layout
 
 ```
 courses/<course>/
   course.json                    course, modules and lessons (lesson.sanityId = Sanity _id)
-  cover.svg                      course cover, 1600x900 (16:9); upload-cover.mjs writes its URL to course.json "image"
+  cover.svg                      course cover, 1600x900 (16:9); upload-media.mjs writes its URL to course.json "image" (course.local.json locally)
   <NN-lesson>/
     lesson.source.mjs            narrative (helpers: h2, p, code, callout, image, challenge ...)
     challenges.json              challenges, quiz questions, coding config and tests
@@ -25,7 +25,9 @@ courses/<course>/
                                  harness.js (javascript and config files)
     diagrams/*.svg               lesson diagrams
     starter-template/            optional local lab (zipped and uploaded)
-    assets.json                  written by upload-images.mjs (commit it)
+    videos/*.mp4|webm            optional lesson videos (Git LFS, max 200 MB)
+    assets.json                  written by upload-media.mjs in production (commit it)
+    assets.local.json            written by upload-media.mjs elsewhere, local Payload (git-ignored)
     storage-manifest.json        written by upload-storage.mjs (commit it)
     lesson.sanity.json           written by build-lesson.mjs (git-ignored)
 ```
@@ -63,9 +65,10 @@ node content/tools/build-course.mjs content/courses/<course>          # every le
 node content/tools/build-course.mjs content/courses/<course> --push   # also write the Sanity drafts
 ```
 
-Course cover: `node content/tools/upload-cover.mjs content/courses/<course>` renders `cover.svg` to PNG,
-uploads it to Cloudinary (`codedev/courses/<course>/cover`) and sets `image` in `course.json`
-(`update.image` for an `existing` course). Rebuild the seed afterwards; covers are 16:9, logos and other
+Course cover: `node content/tools/upload-media.mjs course content/courses/<course>` renders `cover.svg` to PNG
+and uploads it: production (`APP_ENV` of `--env`) to Cloudinary (`codedev/production/courses/<course>/cover`),
+setting `image` and `imageChecksum` in `course.json` (`update.image` for an `existing` course); anywhere else to
+the local Payload CMS, writing the git-ignored `course.local.json`. Rebuild the seed afterwards; covers are 16:9, logos and other
 shapes are shown whole (`lib/coverFit.js`).
 
 V1.3 track courses: run `node content/tools/verify-course.mjs content/courses/<course>` first (no network).
@@ -75,9 +78,9 @@ Step by step, per lesson (`tools/`):
 1. `build-pieces.mjs <lesson>`: writes `starter.<ext>` and `pieces.json` of piece-assembly challenges.
    `verify-challenges.mjs <lesson>`: starter fails, solution passes every test, variants fail (pieces: the
    generated files are current, base + pieces passes, each distractor in place of its piece fails).
-2. `upload-images.mjs <lesson>`: Cloudinary, writes `assets.json`.
+2. `upload-media.mjs lesson <lesson>`: Cloudinary (production) writes `assets.json`; local Payload writes `assets.local.json`.
 3. `upload-storage.mjs <lesson> [--env .env.production]`: object storage, writes `storage-manifest.json`.
-4. `build-lesson.mjs <lesson>`: writes `lesson.sanity.json`.
+4. `build-lesson.mjs <lesson> [--target payload]`: writes `lesson.sanity.json` (or `lesson.payload.json` from `assets.local.json`).
 5. `build-seed.mjs <course>`: writes `db/seeds/<course>.sql` (idempotent; also gives learners who
    enrolled earlier the history rows for new lessons).
 6. `push-lesson.mjs <lesson> --env .env.production`: writes the Sanity draft; publish it in the Studio

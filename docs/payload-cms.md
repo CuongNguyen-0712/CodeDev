@@ -38,7 +38,7 @@ Answers, test cases and starter files live in Postgres and object storage in eve
    ```
 
 3. Load every written course. Lessons whose `lesson.sanity.json` is missing or older than the
-   source are rebuilt first (offline: images come from the committed `assets.json`).
+   source are rebuilt first. Media is uploaded to the CMS first (see Media below), so the CMS must be running.
 
    ```bash
    npm run cms:sync
@@ -49,6 +49,36 @@ Answers, test cases and starter files live in Postgres and object storage in eve
 4. The admin is at http://127.0.0.1:3010/admin, and the app reads it while `npm run dev` runs.
 
 Stop it with `npm run cms:down`. The data stays in the `codedev_cms-db-data` volume.
+
+## Media
+
+Outside production every uploaded file lives in the local CMS; Cloudinary is production only.
+
+- **Collection `media`** (`cms/src/collections/Media.ts`): upload collection with `key` (unique),
+  `purpose` (`content` or `avatar`) and `alt`. Reads are public; writes need the API key. Avatars
+  accept only jpeg, png, gif and webp and are resized to fit 512 px on create and update.
+- **Storage:** MinIO bucket `S3_MEDIA_BUCKET` (default `media`) through `@payloadcms/storage-s3`.
+  `npm run storage:init` creates it. Files are served at `<PAYLOAD_URL>/api/media/file/<filename>`;
+  Payload may rename a file, so always use the URL it returns.
+- **Avatars:** `lib/media/mediaStore.js` sends them to Payload outside production and to Cloudinary
+  (`<root>/production/users/...`) in production. `storage.assets.provider` can be `payload`.
+- **Course and lesson media:** `node content/tools/upload-media.mjs <course|lesson> [--env file] [--dry-run]`.
+  The target follows `APP_ENV` of the env file:
+
+  | `APP_ENV` | Target | Manifests (course / lesson) |
+  |---|---|---|
+  | production | Cloudinary `codedev/production/courses/...` | `course.json` (`image`, `imageChecksum`), `assets.json`, both committed |
+  | anything else | local Payload | `course.local.json`, `assets.local.json`, both git-ignored |
+
+  `build-lesson.mjs --target payload` reads `assets.local.json` and writes `lesson.payload.json`;
+  the default `--target sanity` is unchanged. `npm run cms:sync` runs the upload for every course,
+  then builds and pushes the lessons. `apply-seed.mjs` against a local database sets course covers
+  from `course.local.json`.
+- **Videos:** put `*.mp4` / `*.webm` (max 200 MB) in `<lesson>/videos/`. They are stored with Git LFS:
+  run `git lfs install` once per machine.
+- **Renderer allowlist:** `lib/media/mediaOrigins.mjs`. `next.config.js` exposes it as
+  `NEXT_PUBLIC_MEDIA_ORIGINS` (Cloudinary always, the Payload origin only outside production).
+  Restart the dev server after changing `PAYLOAD_URL`.
 
 ### Change the collections
 

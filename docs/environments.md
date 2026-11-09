@@ -14,11 +14,11 @@ decides which; `lib/appEnv.mjs` is the single definition used by the app, the te
 | Object storage | **MinIO** (`compose.yml` profile `dev`, `MINIO_ENDPOINT`) | **Neon S3** (`AWS_ENDPOINT_URL_S3`) |
 | Mail | Mailpit (`compose.yml` profile `dev`, inbox `http://127.0.0.1:8025`; `AGENTMAIL_API_KEY` and `MAIL_PASSWORD` empty) | AgentMail `smtp.agentmail.to:465` (`AGENTMAIL_API_KEY` + `AGENTMAIL_FROM` = the inbox); fallback on any AgentMail error: Gmail `smtp.gmail.com:465` (`MAIL_FROM` + `MAIL_PASSWORD`) |
 | Code runner | `compose.yml` profile `dev` (`CODE_RUNNER_URL=http://127.0.0.1:4100`) | optional; browser-reported grading when unset ([sandbox.md](sandbox.md)) |
-| Images (Cloudinary) | folder `codedev/development/...` | folder `codedev/production/...` |
+| Media (images, avatars, lesson videos) | local Payload CMS `media` collection, files in the MinIO bucket `S3_MEDIA_BUCKET` (`media`); `CLOUDINARY_*` is ignored | Cloudinary, folder `codedev/production/...` (Cloudinary is production only) |
 | Schema | `npm run db:migrate` | `npm run db:migrate:prod -- --yes`; `npm run db:compare` must report "in sync" |
-| Buckets | `public`, `private` | `public`, `private` |
+| Buckets | `public`, `private`, `media` (Payload files) | `public`, `private` |
 
-`.env` holds only the values that are the same locally and in production (Sanity, Cloudinary, S3 storage,
+`.env` holds only the values that are the same locally and in production (Sanity, S3 storage,
 Pusher cluster, ...); `.env.local` holds only local values. A key lives in exactly one of the two. Scripts
 read their env file (default `.env.local`, or `--env .env.production`) with `.env` under it, like Next.js.
 
@@ -34,10 +34,12 @@ variables, never values:
 
 - **fatal in production**: storage on the development MinIO or on a local endpoint,
   `NEXTAUTH_URL` without https.
+- **production, media**: `CLOUDINARY_*` is required; a `PAYLOAD_URL` is an error.
 - **error, logged**: a required variable is missing (`DATABASE_URL`, `NEXTAUTH_SECRET`,
   `REFRESH_TOKEN_HASH_SECRET`, storage endpoint / credentials).
 - **development**: storage must be local. Remote storage needs an explicit `STORAGE_PROVIDER=s3`
   (warned at start), so test submissions never land in the production bucket by accident.
+  `CLOUDINARY_*` is warned as ignored, and uploads are disabled (warned) without `PAYLOAD_URL` / `PAYLOAD_API_KEY`.
 
 The database driver follows the host (`*.neon.tech` -> Neon driver, anything else -> `pg`;
 override with `DB_DRIVER`), so production against a self-hosted PostgreSQL works as well.

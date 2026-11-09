@@ -1636,7 +1636,7 @@ Table storage.assets {
   id bigint [pk, increment]
   public_id varchar(100) [not null, unique]
   provider varchar(30) [not null]
-  object_key text [note: 'S3 object key, or the Cloudinary public_id']
+  object_key text [note: 'S3 object key, the Cloudinary public_id, or the Payload document id']
   external_url text [note: 'Delivery URL (Cloudinary secure_url); NULL for S3 objects read through the API']
   resource_type varchar(50) [not null]
   mine_type varchar(100) [note: 'MIME type (column name misspelled historically; kept for compatibility)']

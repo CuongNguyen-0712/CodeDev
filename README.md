@@ -144,10 +144,13 @@ All variables are documented in [`.env.example`](.env.example); real values live
 | Mail | AgentMail: `AGENTMAIL_API_KEY`, `AGENTMAIL_FROM`, optional `AGENTMAIL_HOST`; Gmail fallback: `MAIL_FROM`, `MAIL_PASSWORD`, optional `MAIL_HOST` / `MAIL_PORT` |
 | Database | `DATABASE_URL`, `DATABASE_URL_UNPOOLED` |
 | Redis | `REDIS_URL`, `REDIS_TOKEN` |
-| Storage | `STORAGE_PROVIDER`, `S3_BUCKET`, `S3_PRIVATE_BUCKET`, `MINIO_*` or `AWS_*` |
+| Storage | `STORAGE_PROVIDER`, `S3_BUCKET`, `S3_PRIVATE_BUCKET`, `S3_MEDIA_BUCKET` (local Payload media), `MINIO_*` or `AWS_*` |
 | Code runner | `CODE_RUNNER_URL`, `CODE_RUNNER_TOKEN`, or `CODE_RUNNER_PROVIDER=vercel` |
 | Realtime | `PUSHER_*`, `NEXT_PUBLIC_PUSHER_*` |
-| Content | `NEXT_PUBLIC_SANITY_*`, `SANITY_API_TOKEN`, `CLOUDINARY_*` |
+| Content | `NEXT_PUBLIC_SANITY_*`, `SANITY_API_TOKEN`, `CLOUDINARY_*` (production only; elsewhere media lives in the local Payload CMS: `PAYLOAD_URL`, `PAYLOAD_API_KEY`) |
+
+Lesson videos (`content/courses/<course>/<lesson>/videos/*.mp4|webm`, max 200 MB) are tracked with
+Git LFS: run `git lfs install` once per machine.
 
 `instrumentation.js` validates the wiring at server start and refuses to run production against
 local or development services. Details: [docs/environments.md](docs/environments.md).
