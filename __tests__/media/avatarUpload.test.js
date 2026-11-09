@@ -71,7 +71,10 @@ describe.skipIf(!hasDb)("avatar upload (PostgreSQL)", () => {
             `UPDATE profile.info SET image = $1, avatar_asset_id = $2 WHERE user_id = (SELECT id FROM identity.users WHERE public_id = $3)`,
             [original.image, original.avatarAssetId, userId]
         );
-        await sql(`DELETE FROM storage.assets WHERE provider = 'cloudinary' AND object_key LIKE 'codedev/test/%'`);
+        await sql(
+            `DELETE FROM storage.assets WHERE provider = 'cloudinary' AND (object_key = 'codedev/test/other' OR object_key LIKE $1)`,
+            [`codedev/production/users/${userId}/%`]
+        );
     });
 
     beforeEach(() => {
