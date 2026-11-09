@@ -20,4 +20,11 @@ export const blogQueries = {
             ...QUERY_TIMES.catalog,
         };
     },
-}
+    mine() {
+        return { queryKey: blogKeys.mine(), queryFn: () => blogClient.getMine(), ...QUERY_TIMES.personal };
+    },
+    // gcTime 0: the editor must open on fresh server state, never a cached copy of another session.
+    post(id) {
+        return { queryKey: blogKeys.post(id), queryFn: () => blogClient.getPost(id), staleTime: 0, gcTime: 0 };
+    },
+};
