@@ -142,6 +142,9 @@ production and for staging; set it before the first admin enrols in two-factor a
 Web push is optional: `BEAMS_INSTANCE_ID` and `NEXT_PUBLIC_BEAMS_INSTANCE_ID` (the Beams Instance
 ID) plus `BEAMS_SECRET_KEY` (the Primary key, server only); without them the Settings switch shows
 "Not supported" and nothing is pushed ([spec](superpowers/specs/2026-11-07-beams-web-push-design.md)).
+`NEXT_PUBLIC_BEAMS_INSTANCE_ID` is inlined at build time: after adding or changing it, redeploy
+(Vercel: Redeploy without the build cache). A 503 from `/api/pusher/beams-auth` means the two
+server variables are missing in that deployment.
 Outside Vercel, `CLIENT_IP_HEADER` names the one header the proxy sets to the client address.
 `DB_POOL_MAX` is optional: the pool defaults to 3 connections
 per instance on Vercel and 10 elsewhere; point `DATABASE_URL` at the Neon `-pooler` host.
