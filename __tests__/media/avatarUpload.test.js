@@ -66,9 +66,10 @@ describe.skipIf(!hasDb)("avatar upload (PostgreSQL)", () => {
             `UPDATE profile.info SET image = $1, avatar_asset_id = $2 WHERE user_id = (SELECT id FROM identity.users WHERE public_id = $3)`,
             [original.image, original.avatarAssetId, userId]
         );
+        // Only rows this file created: the hand-inserted one and the fake store's keys for this run.
         await sql(
-            `DELETE FROM storage.assets WHERE object_key = 'codedev/test/other' OR owner_id = (SELECT id FROM identity.users WHERE public_id = $1)`,
-            [userId]
+            `DELETE FROM storage.assets WHERE object_key = 'codedev/test/other' OR (provider = 'payload' AND object_key LIKE $1)`,
+            [`t${fake.run}%`]
         );
     });
 
