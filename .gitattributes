@@ -9,3 +9,7 @@ db/backups/** -text
 *.dump -text
 # Executed through its shebang inside Linux images.
 sandbox/vercel/run-job text eol=lf
+
+# Lesson videos live in Git LFS.
+*.mp4 filter=lfs diff=lfs merge=lfs -text
+*.webm filter=lfs diff=lfs merge=lfs -text

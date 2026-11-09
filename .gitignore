@@ -75,3 +75,7 @@ sanity.config.js
 
 # Others
 future-plan.txt
+# Local media manifests written by content/tools/upload-media.mjs (local Payload CMS URLs)
+/content/courses/**/assets.local.json
+/content/courses/*/course.local.json
+/content/courses/*/*/lesson.payload.json

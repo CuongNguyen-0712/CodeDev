@@ -2,7 +2,7 @@
 /**
  * Runs the lesson pipeline for every lesson listed in content/courses/<course>/course.json:
  *
- *   build-pieces -> verify-challenges -> upload-images -> upload-storage -> build-lesson   (per lesson)
+ *   build-pieces -> verify-challenges -> upload-media -> upload-storage -> build-lesson   (per lesson)
  *   build-seed                                                            (once, whole course)
  *   push-lesson                                                           (per lesson, with --push)
  *   push-lesson-payload                                                   (per lesson, with --payload)
@@ -15,7 +15,7 @@
  *   --push-env <file>  env file for push-lesson (default .env.production; must be production or staging)
  *   node content/tools/build-course.mjs content/courses/<course> --only 02-event-loop-async-pitfalls
  *   --payload        also write the lessons to the local Payload CMS (docs/payload-cms.md)
- *   --skip-uploads   reuse assets.json / storage-manifest.json (no Cloudinary / S3 calls)
+ *   --skip-uploads   reuse the media manifests / storage-manifest.json (no Cloudinary / Payload / S3 calls)
  *   --storage-env <file>   env file for upload-storage (default .env.local)
  *   --storage-only   only run upload-storage for every lesson (e.g. with --storage-env .env.production)
  */
@@ -56,7 +56,7 @@ for (const lesson of lessons) {
     run("build-pieces.mjs", dir);
     run("verify-challenges.mjs", dir);
     if (!flag("--skip-uploads")) {
-        if (fs.existsSync(path.join(dir, "diagrams"))) run("upload-images.mjs", dir);
+        if (["diagrams", "videos"].some((d) => fs.existsSync(path.join(dir, d)))) run("upload-media.mjs", dir);
         run("upload-storage.mjs", dir, "--env", storageEnv);
     }
     run("build-lesson.mjs", dir);
