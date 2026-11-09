@@ -152,6 +152,8 @@ export default function Dashboard() {
                           "relative text-foreground/85 [&>svg]:text-muted-foreground hover:[&>svg]:text-foreground",
                           "data-[active=true]:bg-primary-soft data-[active=true]:font-semibold data-[active=true]:text-primary-soft-foreground data-[active=true]:[&>svg]:text-primary-ink",
                           "data-[active=true]:before:absolute data-[active=true]:before:inset-y-2 data-[active=true]:before:left-0 data-[active=true]:before:w-[3px] data-[active=true]:before:rounded-r-full data-[active=true]:before:bg-primary",
+                          // Collapsed to icons: the pill alone marks the page, the edge bar read as a heavy border.
+                          "group-data-[collapsible=icon]:before:hidden",
                           hit
                         )}
                       >

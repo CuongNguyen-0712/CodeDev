@@ -2,10 +2,13 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
 import { useOpenHint } from "@/mutations/challenge.mutation";
 import { userKeys } from "@/keys/user.keys";
+import { userQueries } from "@/queries/user.query";
+import { hintCost } from "@/lib/challenges/hintCost";
 import { EMPTY_PROGRESS, useLessonProgressStore } from "@/stores/lessonProgressStore";
 
 import { Badge } from "@/components/shadcn/badge";
@@ -14,7 +17,7 @@ import { Button } from "@/components/shadcn/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/shadcn/alert-dialog";
 
-import { LuBug, LuCheck, LuCode, LuLightbulb, LuListChecks, LuLoaderCircle, LuLock } from "react-icons/lu";
+import { LuBug, LuCheck, LuCode, LuCoins, LuLightbulb, LuListChecks, LuLoaderCircle, LuLock } from "react-icons/lu";
 import QuizText from "./challenges/quizText";
 
 function ChallengeSkeleton() {
@@ -101,13 +104,16 @@ function ChallengeHeader({ challenge, isDone, isExhausted }) {
 
 const HINT_LABELS = { 1: "A question to guide you", 2: "Where to look", 3: "A similar example" };
 
-// Static hints, opened one level at a time on the server. Level 3 (a worked example) opened before
-// the first pass halves the challenge EXP. Challenges without hints keep the single Sanity hint.
+// Static hints, opened one level at a time on the server. Level 3 (a worked example) costs points
+// when opened before the first pass (lib/challenges/hintCost, charged once by the server).
+// Challenges without hints keep the single Sanity hint.
 function ChallengeHints({ challenge, isDone, legacyHint }) {
     const total = Number(challenge.hints_total) || 0;
     const [opened, setOpened] = useState(() => challenge.hints || []);
     const [confirmLevel3, setConfirmLevel3] = useState(false);
     const openHint = useOpenHint();
+    const { status } = useSession();
+    const { data: me } = useQuery(userQueries.me(status));
 
     if (total === 0) {
         return legacyHint ? (
@@ -119,70 +125,82 @@ function ChallengeHints({ challenge, isDone, legacyHint }) {
     }
 
     const next = opened.length + 1;
-    const assisted = opened.some((h) => h.level === 3);
-    const costsExp = next === 3 && !isDone;
+    const paid = next === 3 && !isDone;
+    const cost = hintCost(challenge.points);
+    const balance = me ? Number(me.points) || 0 : null;
+    const shortBy = paid && balance != null ? Math.max(0, cost - balance) : 0;
 
     const handleOpen = () => openHint.mutate(
         { challengeId: challenge.id, level: next },
         { onSuccess: (hint) => setOpened((prev) => [...prev.filter((h) => h.level !== hint.level), hint]) }
     );
 
-    const onButtonClick = () => {
-        if (costsExp) {
-            setConfirmLevel3(true);
-        } else {
-            handleOpen();
-        }
-    };
-
     return (
-        <div className="space-y-3 rounded-md border border-dashed px-3 py-2 text-sm">
-            <div className="flex items-center gap-2 font-medium">
-                <LuLightbulb className="size-4 text-muted-foreground" aria-hidden="true" />
-                Hints
-                <span className="text-xs font-normal text-muted-foreground tabular">{opened.length}/{total}</span>
-            </div>
+        <section aria-label="Hints" className="rounded-lg border bg-muted/30 text-sm">
+            <header className="flex items-center gap-2.5 border-b px-4 py-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-warning-soft text-warning" aria-hidden="true">
+                    <LuLightbulb className="size-4" />
+                </span>
+                <h4 className="font-semibold">Hints</h4>
+                <span className="ml-auto text-xs text-muted-foreground tabular">{opened.length} of {total} open</span>
+            </header>
 
             {opened.length > 0 && (
-                // list-none: the "Hint N" label carries the number (the lesson's list styles add markers outside the box).
-                <ol className="list-none space-y-3 p-0">
+                // list-none: the badge carries the number (the lesson's list styles add markers outside the box).
+                <ol className="m-0 list-none divide-y p-0">
                     {opened.map((hint) => (
-                        <li key={hint.level} className="m-0">
-                            <p className="text-xs font-medium text-muted-foreground">Hint {hint.level}: {HINT_LABELS[hint.level]}</p>
-                            <QuizText text={hint.body} className="mt-0.5 leading-relaxed" />
+                        <li key={hint.level} className="m-0 grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-3 px-4 py-3">
+                            <span className="mt-px flex size-6 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary-ink tabular" aria-hidden="true">
+                                {hint.level}
+                            </span>
+                            <div className="min-w-0 space-y-1">
+                                <p className="text-xs font-medium text-muted-foreground">
+                                    <span className="sr-only">Hint {hint.level}: </span>{HINT_LABELS[hint.level]}
+                                </p>
+                                <QuizText text={hint.body} className="leading-relaxed" />
+                            </div>
                         </li>
                     ))}
                 </ol>
             )}
 
-            {assisted && !isDone && (
-                <p className="text-xs text-warning">Hint 3 is open, so this challenge gives half EXP when you pass it.</p>
-            )}
-
             {next <= total && (
-                <div className="space-y-1.5">
-                    {costsExp && (
-                        <p className="text-xs text-muted-foreground">
-                            Hint 3 is a worked example. Opening it before you pass halves the EXP for this challenge.
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t px-4 py-3 first:border-t-0">
+                    {paid && (
+                        <p className="flex min-w-0 flex-1 basis-60 items-start gap-2 text-xs text-muted-foreground">
+                            <LuCoins className="mt-px size-3.5 shrink-0 text-xp" aria-hidden="true" />
+                            <span>
+                                Hint 3 is a worked example and costs <span className="font-medium text-foreground tabular">{cost} points</span> before you pass.
+                                {balance != null && <> You have <span className="tabular">{balance.toLocaleString()}</span>.</>}
+                            </span>
                         </p>
                     )}
-                    <Button variant="outline" size="sm" onClick={onButtonClick} disabled={openHint.isPending}>
-                        {openHint.isPending && <LuLoaderCircle className="animate-spin" aria-hidden="true" />}
-                        {costsExp ? "Show hint 3 (half EXP)" : `Show hint ${next}`}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="ml-auto"
+                        onClick={() => (paid ? setConfirmLevel3(true) : handleOpen())}
+                        disabled={openHint.isPending || shortBy > 0}
+                    >
+                        {openHint.isPending ? <LuLoaderCircle className="animate-spin" aria-hidden="true" /> : paid && <LuCoins className="text-xp" aria-hidden="true" />}
+                        {paid ? `Show hint 3 · ${cost} pts` : `Show hint ${next}`}
                     </Button>
+                    {shortBy > 0 && (
+                        <p className="basis-full text-right text-xs text-muted-foreground">You need {shortBy} more points.</p>
+                    )}
 
                     <AlertDialog open={confirmLevel3} onOpenChange={setConfirmLevel3}>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Reveal Hint 3?</AlertDialogTitle>
+                                <AlertDialogTitle>Spend {cost} points on hint 3?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    Hint 3 provides a worked solution example. Opening it before passing this challenge will reduce the EXP earned for this challenge by 50%.
+                                    Hint 3 is a worked example of a similar problem. It costs {cost} points now, once; your EXP for this challenge stays the same.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Keep trying</AlertDialogCancel>
                                 <AlertDialogAction onClick={() => { setConfirmLevel3(false); handleOpen(); }}>
-                                    Reveal hint (half EXP)
+                                    Spend {cost} points
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
@@ -191,9 +209,9 @@ function ChallengeHints({ challenge, isDone, legacyHint }) {
             )}
 
             {openHint.isError && (
-                <p role="alert" className="text-xs text-destructive">{openHint.error.message}</p>
+                <p role="alert" className="border-t px-4 py-2.5 text-xs text-destructive">{openHint.error.message}</p>
             )}
-        </div>
+        </section>
     );
 }
 

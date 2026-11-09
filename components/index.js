@@ -63,7 +63,7 @@ const LOOP = [
     },
     {
         term: "Ask for a hint, not the answer",
-        detail: "Most challenges have three hints that get more specific one at a time. Opening the last one before you pass halves the EXP, so try first.",
+        detail: "Most challenges have three hints that get more specific one at a time. The last one is a worked example that costs points before you pass, so try first.",
     },
     {
         term: "Submit for grading",

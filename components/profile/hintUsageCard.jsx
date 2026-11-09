@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 const BUCKETS = [
     { key: "noHint", label: "No hints", bar: "bg-success", dot: "bg-success" },
     { key: "light", label: "Hints 1-2", bar: "bg-info", dot: "bg-info" },
-    { key: "assisted", label: "Hint 3 (half EXP)", bar: "bg-warning", dot: "bg-warning" },
+    { key: "assisted", label: "Hint 3 (worked example)", bar: "bg-warning", dot: "bg-warning" },
 ];
 
 /** The learner's own hint use on passed coding challenges (hints opened before the first pass). */

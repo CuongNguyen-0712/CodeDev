@@ -5,6 +5,7 @@ import { challengeDb } from "@/db/challenge.db";
 import { s3, bucketForKey } from "@/lib/s3";
 import { redis } from "@/lib/cache";
 import { cacheKeys, TTL, invalidateUserCache } from "@/lib/cacheKeys";
+import { hintCost } from "@/lib/challenges/hintCost";
 import { publishToUser } from "@/lib/pusher";
 import { events } from "@/lib/realtime";
 import { notificationService } from "@/services/notification.service";
@@ -924,7 +925,7 @@ export const challengeService = {
 
     /**
      * Opens hint `level` (1-3, in order) and returns its text. Level 3 opened before the first
-     * pass halves the challenge EXP (challengeDb awardChallengeRewards).
+     * pass costs points (lib/challenges/hintCost), charged once; too few points answers 402.
      */
     openHint: async ({ userId, challengeId, level }) => {
         const n = Number(level);
@@ -933,14 +934,14 @@ export const challengeService = {
         }
 
         const ctx = await resolveContext({ userId, challengeId });
-        const hint = await challengeDb.openHint({ userDbId: ctx.user_db_id, challengeId: ctx.id, level: n });
+        const hint = await challengeDb.openHint({ userDbId: ctx.user_db_id, challengeId: ctx.id, level: n, cost: hintCost(ctx.points) });
 
         if (!hint) throw new ApiError("This challenge has no such hint", 404);
         if (hint.locked) throw new ApiError("Open the previous hint first", 409);
 
-        // The learning_progress payload (cached per user) lists the opened hints.
+        // The learning_progress payload (cached per user) lists the opened hints; the profile holds the points.
         await invalidateUserCache(userId);
-        return { level: n, body: hint.body };
+        return { level: n, body: hint.body, charged: hint.charged || 0, balance: hint.balance };
     },
 
     // Removes grading data the browser must never see from the learning_progress payload.

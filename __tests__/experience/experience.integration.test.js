@@ -138,7 +138,7 @@ describe.skipIf(!hasDb)("EXP and levels (PostgreSQL)", () => {
         expect(error.message).toMatch(/\d+ more seconds? before your next attempt/);
     });
 
-    it("opens hints in order and halves EXP once hint 3 is open (assisted)", async () => {
+    it("opens hints in order and charges points for hint 3 before the pass, keeping full EXP", async () => {
         const user = await makeUser("hinted");
         const other = await makeUser("unhinted");
         const quiz = await makeChallenge(course.lessons[0], course.module, { type: "quiz", difficulty: "medium", points: 10 });
@@ -150,29 +150,44 @@ describe.skipIf(!hasDb)("EXP and levels (PostgreSQL)", () => {
             `INSERT INTO challenge.questions (challenge_id, question, type, order_index, points) VALUES ($1, 'Q', 'single_choice', 1, 10) RETURNING id`,
             [quiz.id]
         );
-        const open = (u, level) => challengeDb.openHint({ userDbId: u.id, challengeId: quiz.id, level });
+        const open = (u, level) => challengeDb.openHint({ userDbId: u.id, challengeId: quiz.id, level, cost: 5 });
         const pass = (u) => challengeDb.saveQuizAttempt({
             userDbId: u.id, challengeId: quiz.id, passed: true, points: 10, maxAttempts: 3, cooldownSec: 0,
             rows: [{ questionId: question.id, optionId: null, isCorrect: true }],
         });
+        const grant = (u, amount) => one(
+            `SELECT * FROM public.post_points($1::bigint, 'credit', 'adjusted', $2::bigint, 'adjustment', $3::bigint)`,
+            [u.id, amount, Number(u.id)]
+        );
 
         expect(await open(user, 2)).toEqual({ locked: true });
-        expect(await open(user, 1)).toEqual({ body: "h1" });
-        expect(await open(user, 1)).toEqual({ body: "h1" }); // reopening is a no-op
-        expect(await open(user, 2)).toEqual({ body: "h2" });
-        expect(await open(user, 3)).toEqual({ body: "h3" });
+        expect(await open(user, 1)).toMatchObject({ body: "h1", charged: 0 });
+        expect(await open(user, 1)).toMatchObject({ body: "h1", charged: 0 }); // reopening is a no-op
+        expect(await open(user, 2)).toMatchObject({ body: "h2", charged: 0 });
 
-        // quiz.medium = 8 EXP; assisted: 8 * 0.5 = 4. Points are not reduced.
-        expect(await pass(user)).toMatchObject({ awardedPoints: 10, awardedExp: 4 });
+        // Hint 3 with no points: refused, and not recorded as opened.
+        await expect(open(user, 3)).rejects.toMatchObject({ code: "CD402" });
+        expect(await one(
+            `SELECT COUNT(*)::int AS n FROM challenge.hint_views WHERE user_id = $1 AND challenge_id = $2 AND level = 3`, [user.id, quiz.id]
+        )).toEqual({ n: 0 });
+
+        await grant(user, 12);
+        expect(await open(user, 3)).toMatchObject({ body: "h3", charged: 5, balance: 7 });
+        expect(await open(user, 3)).toMatchObject({ body: "h3", charged: 0 }); // charged once
+        expect(Number((await profileOf(user.id)).points)).toBe(7);
+
+        // Full EXP now (quiz.medium = 8); the row still says the pass was assisted.
+        expect(await pass(user)).toMatchObject({ awardedPoints: 10, awardedExp: 8 });
         const tx = await one(
             `SELECT metadata FROM profile.exp_transaction WHERE user_id = $1 AND source_id = $2`, [user.id, quiz.id]
         );
         expect(tx.metadata).toMatchObject({ assisted: true });
 
-        // Hints 1-2 only: full EXP.
+        // After the pass, hint 3 is free.
         await open(other, 1);
         await open(other, 2);
         expect(await pass(other)).toMatchObject({ awardedPoints: 10, awardedExp: 8 });
+        expect(await open(other, 3)).toMatchObject({ body: "h3", charged: 0 });
     });
 
     it("jumps several levels at once and floors adjustments at 0", async () => {

@@ -8,6 +8,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
  * (stores/lessonProgressStore.js). The quiz / coding bodies are replaced by a stub that reports
  * a pass the way they do (onPassed / onExhausted, with `initial` for a pass from an earlier visit).
  */
+// The hints read the points balance through the session; signed out here.
+vi.mock("next-auth/react", () => ({ useSession: () => ({ status: "unauthenticated" }) }));
+
 vi.mock("next/dynamic", () => ({
     default: () => function ChallengeBodyStub({ challenge, onPassed, onExhausted }) {
         return (

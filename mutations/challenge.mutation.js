@@ -69,7 +69,10 @@ export const useOpenHint = () => {
     return useMutation({
         mutationFn: async (data) => unwrapActionResult(await callWithAuthRetry(() => openChallengeHintAction(data))),
         // The lesson payload lists opened hints: refetch it on the next mount, not now (no re-render mid-lesson).
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: [...userKeys.all, 'learningProgress'], refetchType: 'none' }),
+        onSuccess: (hint) => {
+            queryClient.invalidateQueries({ queryKey: [...userKeys.all, 'learningProgress'], refetchType: 'none' });
+            if (hint?.charged) queryClient.invalidateQueries({ queryKey: userKeys.me() });
+        },
     });
 };
 

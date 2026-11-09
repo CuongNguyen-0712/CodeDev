@@ -28,8 +28,8 @@ async function withTransaction(callback) {
 // Credits a passed challenge once per (user, challenge): points through public.post_points and EXP
 // through public.award_challenge_exp (rule from the challenge type/difficulty, times expMultiplier).
 // Both writers lock the profile row and are idempotent per source; points first, then EXP.
-// Hint level 3 (a worked example) opened before this first pass halves the EXP ("assisted");
-// points are not affected.
+// Hint level 3 (a worked example) is paid for in points when opened (openHint), so the pass keeps
+// its full EXP; the EXP row still records `assisted` for the hint self-assessment.
 async function awardChallengeRewards(client, { userDbId, challengeId, amount, expMultiplier = 1 }) {
     let awardedPoints = 0;
     if (amount > 0) {
@@ -50,7 +50,7 @@ async function awardChallengeRewards(client, { userDbId, challengeId, amount, ex
          ) a
          CROSS JOIN LATERAL public.award_challenge_exp(
              $1::bigint, $2::bigint,
-             $3::numeric * CASE WHEN a.assisted THEN 0.5 ELSE 1 END,
+             $3::numeric,
              CASE WHEN a.assisted THEN '{"assisted": true}'::jsonb END
          ) e`,
         [userDbId, challengeId, expMultiplier]
@@ -253,9 +253,12 @@ export const challengeDb = {
     /**
      * Opens hint `level` for a learner and returns its text. Levels open in order: level n needs
      * level n-1 opened first. Opening again is a no-op (the first opened_at is kept).
-     * Returns null when the challenge has no such hint, { locked: true } when out of order.
+     * Level 3 costs `cost` points the first time it opens before the challenge is passed, debited in
+     * the same transaction (one charge per user and challenge; "Not enough points" rolls it back).
+     * Returns null when the challenge has no such hint, { locked: true } when out of order,
+     * else { body, charged, balance }.
      */
-    openHint: async ({ userDbId, challengeId, level }) => {
+    openHint: async ({ userDbId, challengeId, level, cost = 0 }) => {
         return await withTransaction(async (client) => {
             const { rows } = await client.query(
                 `SELECT h.body,
@@ -271,13 +274,37 @@ export const challengeDb = {
             if (!hint) return null;
             if (!hint.unlocked) return { locked: true };
 
-            await client.query(
+            const { rowCount: firstOpen } = await client.query(
                 `INSERT INTO challenge.hint_views (user_id, challenge_id, level)
                  VALUES ($1::bigint, $2::bigint, $3::smallint)
                  ON CONFLICT DO NOTHING`,
                 [userDbId, challengeId, level]
             );
-            return { body: hint.body };
+
+            let charged = 0;
+            let balance = null;
+            if (level === 3 && firstOpen && cost > 0) {
+                const { rows: passed } = await client.query(
+                    `SELECT EXISTS (
+                         SELECT 1 FROM profile.exp_transaction
+                         WHERE user_id = $1::bigint AND source_type = 'challenge' AND source_id = $2::bigint
+                     ) OR EXISTS (
+                         SELECT 1 FROM profile.point_transaction
+                         WHERE user_id = $1::bigint AND source_type = 'challenge' AND source_id = $2::bigint AND action = 'credit'
+                     ) AS passed`,
+                    [userDbId, challengeId]
+                );
+                if (!passed[0]?.passed) {
+                    const { rows: debit } = await client.query(
+                        `SELECT balance_after, created
+                         FROM public.post_points($1::bigint, 'debit', 'spent', $3::bigint, 'hint', $2::bigint, NULL, NULL, NULL, 'Hint 3 (worked example)')`,
+                        [userDbId, challengeId, cost]
+                    );
+                    if (debit[0]?.created) charged = cost;
+                    balance = Number(debit[0]?.balance_after);
+                }
+            }
+            return { body: hint.body, charged, balance };
         });
     },
 
