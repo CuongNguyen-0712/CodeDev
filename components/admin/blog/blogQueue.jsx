@@ -15,7 +15,7 @@ import RowAction from "@/components/admin/ui/rowAction";
 import TabBar from "@/components/admin/ui/tabBar";
 import { useUrlFilters } from "@/components/admin/ui/useUrlFilters";
 import { formatDate, formatRelative } from "@/components/admin/ui/format";
-import { useAdminBlogAction } from "@/mutations/premium.mutation";
+import { useAdminBlogAction, useAdminSetBlogCommentHidden } from "@/mutations/premium.mutation";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
@@ -30,15 +30,17 @@ const DAY = 86400000;
 const TABS = [
     { key: "pending", label: "Pending" },
     { key: "appeal", label: "Appeals" },
+    { key: "reported", label: "Reported" },
     { key: "hidden", label: "Hidden" },
     { key: "rejected", label: "Rejected" },
     { key: "published", label: "Published" },
+    { key: "comments", label: "Comments" },
 ];
 const EMPTY = {
-    pending: "No first posts are waiting for review.", appeal: "No appeals are waiting.", hidden: "No hidden posts.",
-    rejected: "No rejected posts.", published: "No published posts yet.",
+    pending: "No first posts are waiting for review.", appeal: "No appeals are waiting.", reported: "No posts have open reports.",
+    hidden: "No hidden posts.", rejected: "No rejected posts.", published: "No published posts yet.", comments: "No comments yet.",
 };
-const DONE = { approve: "Post approved", reject: "Post rejected", hide: "Post hidden", show: "Post shown" };
+const DONE = { approve: "Post approved", reject: "Post rejected", hide: "Post hidden", show: "Post shown", dismiss: "Reports dismissed" };
 const STATUS = {
     pending: { label: "Pending", variant: "info" }, published: { label: "Published", variant: "success" },
     hidden: { label: "Hidden", variant: "warning" }, rejected: { label: "Rejected", variant: "muted" },
@@ -76,6 +78,92 @@ function PreviewDialog({ post, onClose }) {
     );
 }
 
+// Blog comments for moderators: hide takes a comment off the post with a reason (as in the course comment list).
+function CommentsPanel() {
+    const { showAlert } = useApp();
+    const setHidden = useAdminSetBlogCommentHidden();
+    const [target, setTarget] = useState(null);
+    const query = useInfiniteQuery({
+        queryKey: adminKeys.blogComments(),
+        queryFn: ({ pageParam }) => adminClient.listBlogComments({ cursor: pageParam || undefined }),
+        initialPageParam: null,
+        getNextPageParam: (page) => page.nextCursor || undefined,
+        ...QUERY_TIMES.live,
+        retry: retryTransient,
+    });
+    const comments = (query.data?.pages || []).flatMap((page) => page.items);
+
+    return (
+        <>
+            <div className="overflow-hidden rounded-lg border border-border bg-card" aria-busy={query.isPending}>
+                {query.isPending ? (
+                    <ul className="divide-y divide-border">
+                        {Array.from({ length: 4 }, (_, index) => <li key={index} className="px-4 py-3"><Skeleton className="h-12 w-full" /></li>)}
+                    </ul>
+                ) : query.isError ? (
+                    <p className="p-4 text-sm">Couldn&apos;t load the comments. <button type="button" className="font-medium text-primary-ink hover:underline" onClick={() => query.refetch()}>Retry</button></p>
+                ) : comments.length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground">{EMPTY.comments}</p>
+                ) : (
+                    <ul className="divide-y divide-border">
+                        {comments.map((comment) => (
+                            <li key={comment.id} className="flex items-start gap-3 px-4 py-3">
+                                <div className="min-w-0 flex-1 space-y-1">
+                                    <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                                        <span className="font-medium text-foreground">{comment.author.username}</span>
+                                        <span title={formatDate(comment.createdAt)}>{formatRelative(comment.createdAt)}</span>
+                                        {comment.hidden && <Badge variant="muted">Hidden</Badge>}
+                                    </p>
+                                    <p className={comment.hidden ? "line-clamp-3 text-sm break-words whitespace-pre-line text-muted-foreground" : "line-clamp-3 text-sm break-words whitespace-pre-line"}>{comment.body}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        On <Link href={`/blog/${comment.post.slug}#comments`} target="_blank" rel="noopener" className="font-medium text-foreground hover:underline">{comment.post.title}</Link>
+                                    </p>
+                                </div>
+                                <RowAction
+                                    icon={comment.hidden ? LuEye : LuEyeOff}
+                                    label={comment.hidden ? "Show" : "Hide"}
+                                    target={`the comment by ${comment.author.username}`}
+                                    tone={comment.hidden ? "primary" : "danger"}
+                                    disabled={setHidden.isPending}
+                                    onClick={() => setTarget(comment)}
+                                />
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+
+            {query.hasNextPage && (
+                <div className="mt-3 flex justify-center">
+                    <Button variant="outline" size="sm" onClick={() => query.fetchNextPage()} disabled={query.isFetchingNextPage}>
+                        {query.isFetchingNextPage ? "Loading…" : "Load more"}
+                    </Button>
+                </div>
+            )}
+
+            <ConfirmDialog
+                open={Boolean(target)}
+                onOpenChange={(value) => !value && setTarget(null)}
+                title={target ? `${target.hidden ? "Show" : "Hide"} the comment by ${target.author.username}` : ""}
+                description={target?.hidden
+                    ? "The comment appears on the post again."
+                    : "The comment leaves the post for everyone. The text is kept and can be shown again."}
+                confirmLabel={target?.hidden ? "Show comment" : "Hide comment"}
+                destructive={!target?.hidden}
+                reasonLabel="Reason"
+                minReason={10}
+                onConfirm={(reason) => setHidden.mutate(
+                    { commentId: target.id, hidden: !target.hidden, reason },
+                    {
+                        onSuccess: (result) => showAlert(200, result?.changed === false ? "Already done" : target.hidden ? "Comment shown" : "Comment hidden"),
+                        onError: (error) => showAlert(error?.status || 500, error?.message || "The comment was not changed"),
+                    }
+                )}
+            />
+        </>
+    );
+}
+
 /** Blog moderation (blog.moderate): first-post review, appeals, hide / show, and when hidden posts are deleted. */
 export default function BlogQueue() {
     const { showAlert } = useApp();
@@ -83,6 +171,7 @@ export default function BlogQueue() {
     const [{ status }, update] = useUrlFilters({ status: TABS.map((tab) => tab.key) }, { status: "pending" });
     const [preview, setPreview] = useState(null);
     const [target, setTarget] = useState(null);
+    const [dismissing, setDismissing] = useState(null);
     const filters = { status };
     const query = useInfiniteQuery({
         queryKey: adminKeys.blog(filters),
@@ -91,6 +180,7 @@ export default function BlogQueue() {
         getNextPageParam: (page) => page.nextCursor || undefined,
         ...QUERY_TIMES.live,
         retry: retryTransient,
+        enabled: status !== "comments",
     });
     const posts = (query.data?.pages || []).flatMap((page) => page.items);
 
@@ -108,6 +198,7 @@ export default function BlogQueue() {
             <PageHeader title="Blog" description="Review first posts, decide appeals, and see when hidden posts are deleted." />
             <TabBar tabs={TABS} value={status} onChange={(key) => update({ status: key })} label="Blog queues" />
 
+            {status === "comments" ? <CommentsPanel /> : <>
             <div className="overflow-hidden rounded-lg border border-border bg-card" aria-busy={query.isPending}>
                 {query.isPending ? (
                     <ul className="divide-y divide-border">
@@ -129,6 +220,7 @@ export default function BlogQueue() {
                                             <span className="font-medium text-foreground">{post.author.username}</span>
                                             <span>{formatRelative(post.updatedAt)}</span>
                                             <Badge variant={appeal ? "primary" : STATUS[post.status]?.variant || "muted"}>{appeal ? "Appeal" : STATUS[post.status]?.label || post.status}</Badge>
+                                            {status === "reported" && <Badge variant="warning">{post.reportCount} {post.reportCount === 1 ? "report" : "reports"}</Badge>}
                                             {purge && <Badge variant="warning" title={`Deleted on ${formatDate(post.purgeAt)}`}>{purge}</Badge>}
                                         </p>
                                         <p className="text-sm font-medium break-words">{post.title}</p>
@@ -138,6 +230,11 @@ export default function BlogQueue() {
                                                 <span className="font-medium">Appeal: </span>{post.appealReason || "No reason given."}
                                                 {post.hiddenReason && <span className="block text-muted-foreground"><span className="font-medium">Hidden because: </span>{post.hiddenReason}</span>}
                                             </p>
+                                        )}
+                                        {status === "reported" && (
+                                            <ul className="list-disc space-y-0.5 pl-4 text-sm break-words text-muted-foreground">
+                                                {(post.reports || []).map((report, index) => <li key={index}>{report.reason}</li>)}
+                                            </ul>
                                         )}
                                         {post.status === "hidden" && post.hiddenReason && <p className="text-sm break-words text-muted-foreground"><span className="font-medium">Hidden because: </span>{post.hiddenReason}</p>}
                                         {post.status === "rejected" && post.rejectReason && <p className="text-sm break-words text-muted-foreground"><span className="font-medium">Rejected because: </span>{post.rejectReason}</p>}
@@ -164,6 +261,9 @@ export default function BlogQueue() {
                                         {post.status === "published" && (
                                             <RowAction icon={LuEyeOff} label="Hide" target={post.title} tone="danger" disabled={busy} onClick={() => setTarget({ post, action: "hide" })} />
                                         )}
+                                        {status === "reported" && (
+                                            <RowAction icon={LuCheck} label="Dismiss reports" target={post.title} tone="primary" disabled={busy} onClick={() => setDismissing(post)} />
+                                        )}
                                     </div>
                                 </li>
                             );
@@ -179,6 +279,7 @@ export default function BlogQueue() {
                     </Button>
                 </div>
             )}
+            </>}
 
             <PreviewDialog post={preview} onClose={() => setPreview(null)} />
             <ConfirmDialog
@@ -194,6 +295,15 @@ export default function BlogQueue() {
                 reasonLabel="Reason"
                 minReason={10}
                 onConfirm={(reason) => run(target.post, target.action, reason)}
+            />
+            <ConfirmDialog
+                open={Boolean(dismissing)}
+                onOpenChange={(value) => !value && setDismissing(null)}
+                title={dismissing ? `Dismiss the reports on "${dismissing.title}"` : ""}
+                description="The post stays published and the open reports are closed."
+                confirmLabel="Dismiss reports"
+                destructive={false}
+                onConfirm={() => run(dismissing, "dismiss")}
             />
         </>
     );
