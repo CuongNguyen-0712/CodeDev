@@ -64,7 +64,7 @@ async function findOwnAvatar(client, { ownerId, assetPublicId }) {
  */
 export const mediaDb = {
     /**
-     * Records an uploaded Cloudinary avatar and makes it the user's profile image.
+     * Records an uploaded avatar (asset.provider: cloudinary | payload) and makes it the user's profile image.
      * @returns {Promise<{ assetId: string, pruned: { provider: string, objectKey: string }[] } | null>}
      *          null when the user does not exist.
      */
@@ -73,11 +73,11 @@ export const mediaDb = {
             `INSERT INTO storage.assets
                 (public_id, provider, object_key, external_url, resource_type, mine_type, file_size,
                  original_name, owner_id, purpose, width, height, format, version, checksum)
-             VALUES ($1, 'cloudinary', $2, $3, 'image', $4, $5, $6, $7, 'avatar', $8, $9, $10, $11, $12)
+             VALUES ($1, $13, $2, $3, 'image', $4, $5, $6, $7, 'avatar', $8, $9, $10, $11, $12)
              RETURNING id::text`,
             [
                 asset.publicId, asset.objectKey, asset.url, asset.mime, asset.size,
-                asset.originalName, ownerId, asset.width, asset.height, asset.format, asset.version, asset.checksum,
+                asset.originalName, ownerId, asset.width, asset.height, asset.format, asset.version, asset.checksum, asset.provider,
             ]
         );
         const assetId = inserted.rows[0].id;

@@ -1,7 +1,8 @@
 import crypto from "crypto";
 import { ulid } from "ulid";
 
-import { cloudinaryFolder, destroyAsset, isCloudinaryConfigured, uploadBuffer } from "@/lib/cloudinary";
+import { destroyStoredFile, mediaStore } from "@/lib/media/mediaStore";
+import { isProductionEnv } from "@/lib/appEnv.mjs";
 import { detectImageType, ACCEPTED_IMAGE_FORMATS } from "@/lib/imageType";
 import { ApiError } from "@/lib/error/apiError";
 import { invalidateUserCache } from "@/lib/cacheKeys";
@@ -10,7 +11,7 @@ import { events } from "@/lib/realtime";
 import { mediaDb } from "@/db/media.db";
 
 export const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
-// Incoming transformation: Cloudinary stores at most 512x512, so the original is never kept.
+// The store keeps at most 512x512 (Cloudinary transformation / Payload resize), so the original is never kept.
 const AVATAR_MAX_SIDE = 512;
 
 function isFileLike(file) {
@@ -20,11 +21,12 @@ function isFileLike(file) {
 /**
  * Avatar upload:
  *   1. validate size and the real format (magic bytes, not the client MIME type);
- *   2. upload to <root>/<APP_ENV>/users/<userId>/avatars/<ulid> (folder chosen by the server);
+ *   2. upload through the media store (Cloudinary in production, the local Payload CMS elsewhere) to
+ *      users/<userId>/avatars/<ulid> (key chosen by the server);
  *   3. one DB transaction: storage.assets row + profile.info.image / avatar_asset_id; earlier
  *      avatars stay as history, those past the newest 10 are marked deleted;
- *   4. after commit: delete the pruned Cloudinary files, drop the user's caches, notify tabs.
- * If step 3 fails the new upload is deleted again, so no orphan stays in Cloudinary.
+ *   4. after commit: delete the pruned files, drop the user's caches, notify tabs.
+ * If step 3 fails the new upload is deleted again, so no orphan stays in the store.
  */
 export const mediaService = {
     uploadAvatar: async ({ userId, file }) => {
@@ -32,7 +34,11 @@ export const mediaService = {
         if (!isFileLike(file)) throw new ApiError("Choose an image file to upload", 400);
         if (file.size === 0) throw new ApiError("The image file is empty", 400);
         if (file.size > MAX_AVATAR_BYTES) throw new ApiError("Images can be at most 5 MB", 413);
-        if (!isCloudinaryConfigured()) throw new ApiError("Image uploads are not available right now", 503, { expose: true });
+        const store = mediaStore();
+        if (!store.isConfigured()) {
+            if (!isProductionEnv()) console.warn("[media] start the local CMS: npm run cms:up");
+            throw new ApiError("Image uploads are not available right now", 503, { expose: true });
+        }
 
         const buffer = Buffer.from(await file.arrayBuffer());
         const type = detectImageType(buffer);
@@ -41,29 +47,26 @@ export const mediaService = {
         }
 
         const checksum = crypto.createHash("sha256").update(buffer).digest("hex");
-        const folder = cloudinaryFolder("users", userId, "avatars");
 
         let uploaded;
         try {
-            uploaded = await uploadBuffer(buffer, {
-                folder,
-                public_id: ulid().toLowerCase(),
-                resource_type: "image",
-                allowed_formats: ACCEPTED_IMAGE_FORMATS,
-                overwrite: false,
-                transformation: [{ width: AVATAR_MAX_SIDE, height: AVATAR_MAX_SIDE, crop: "limit" }],
-                tags: ["avatar"],
-                context: { purpose: "avatar" },
+            uploaded = await store.upload(buffer, {
+                key: `users/${userId}/avatars/${ulid().toLowerCase()}`,
+                mime: type.mime,
+                filename: `avatar.${type.format}`,
+                maxSide: AVATAR_MAX_SIDE,
+                purpose: "avatar",
             });
         } catch (error) {
-            console.error("[media] Cloudinary upload failed:", error?.http_code, error?.message);
+            console.error(`[media] ${store.provider} upload failed:`, error?.http_code ?? error?.status, error?.message);
             throw new ApiError("Failed to upload the image, try again later", 502, { expose: true });
         }
 
         const asset = {
             publicId: `ast_${ulid().toLowerCase()}`,
-            objectKey: uploaded.public_id,
-            url: uploaded.secure_url,
+            provider: uploaded.provider,
+            objectKey: uploaded.objectKey,
+            url: uploaded.url,
             mime: type.mime,
             size: uploaded.bytes ?? file.size,
             originalName: typeof file.name === "string" ? file.name.slice(0, 255) : null,
@@ -78,14 +81,14 @@ export const mediaService = {
         try {
             saved = await mediaDb.setAvatar({ userId, asset });
         } catch (error) {
-            await destroyAsset(uploaded.public_id).catch((cleanupError) => {
-                console.error("[media] Failed to remove orphaned upload:", uploaded.public_id, cleanupError?.message);
+            await store.destroy(uploaded.objectKey).catch((cleanupError) => {
+                console.error("[media] Failed to remove orphaned upload:", uploaded.objectKey, cleanupError?.message);
             });
             throw error;
         }
 
         if (!saved) {
-            await destroyAsset(uploaded.public_id).catch(() => { });
+            await store.destroy(uploaded.objectKey).catch(() => { });
             throw new ApiError("User not found", 404);
         }
 
@@ -127,8 +130,8 @@ export const mediaService = {
 
 // Best effort: the DB no longer uses the file; a leftover file is only storage.
 async function destroyFile({ provider, objectKey }) {
-    if (provider !== "cloudinary" || !objectKey) return;
-    await destroyAsset(objectKey).catch((error) => {
+    if (!objectKey) return;
+    await destroyStoredFile({ provider, objectKey }).catch((error) => {
         console.error("[media] Failed to delete avatar file:", objectKey, error?.message);
     });
 }

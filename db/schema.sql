@@ -4183,7 +4183,7 @@ CREATE TABLE storage.assets (
     checksum character varying(64),
     deleted_at timestamp with time zone,
     CONSTRAINT chk_assets_dimensions CHECK ((((width IS NULL) OR (width > 0)) AND ((height IS NULL) OR (height > 0)))),
-    CONSTRAINT chk_assets_provider CHECK (((provider)::text = ANY ((ARRAY['s3'::character varying, 'cloudinary'::character varying])::text[])))
+    CONSTRAINT chk_assets_provider CHECK (((provider)::text = ANY ((ARRAY['s3'::character varying, 'cloudinary'::character varying, 'payload'::character varying])::text[])))
 );
 
 

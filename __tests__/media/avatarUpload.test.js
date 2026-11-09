@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Avatar upload flow: real PostgreSQL (DATABASE_URL), Cloudinary mocked. Checks the format
+ * Avatar upload flow: real PostgreSQL (DATABASE_URL), media store mocked. Checks the format
  * sniffing, the server-chosen folder, the single transaction (asset row + profile pointer), the
  * kept history (newest 10, restore, delete) and the cleanup of uploads that could not be saved.
  * The test user's profile image is restored afterwards.
@@ -10,27 +10,22 @@ const hasDb = Boolean(process.env.DATABASE_URL);
 
 const uploads = [];
 const destroyed = [];
+const purged = [];
+const fake = { configured: true, seq: 0, run: Math.random().toString(36).slice(2, 8) };
 
-vi.mock("@/lib/cloudinary", async () => {
-    const actual = await vi.importActual("@/lib/cloudinary");
-    return {
-        ...actual,
-        isCloudinaryConfigured: () => true,
-        uploadBuffer: vi.fn(async (buffer, options) => {
-            const publicId = `${options.folder}/${options.public_id}`;
-            uploads.push({ publicId, options, bytes: buffer.length });
-            return {
-                public_id: publicId,
-                secure_url: `https://res.cloudinary.com/test/image/upload/v1/${publicId}.png`,
-                bytes: buffer.length, width: 64, height: 64, format: "png", version: 1,
-            };
-        }),
-        destroyAsset: vi.fn(async (publicId) => {
-            destroyed.push(publicId);
-            return "ok";
-        }),
-    };
-});
+vi.mock("@/lib/media/mediaStore", () => ({
+    mediaStore: () => ({
+        provider: "payload",
+        isConfigured: () => fake.configured,
+        upload: async (buffer, options) => {
+            const objectKey = `t${fake.run}${fake.seq++}`;
+            uploads.push({ objectKey, options, bytes: buffer.length });
+            return { provider: "payload", objectKey, url: `http://127.0.0.1:3010/api/media/file/${objectKey}.png`, width: 64, height: 64, format: "png", version: null, bytes: buffer.length };
+        },
+        destroy: async (id) => { destroyed.push(id); return "ok"; },
+    }),
+    destroyStoredFile: async ({ provider, objectKey }) => { destroyed.push(objectKey); purged.push({ provider, objectKey }); },
+}));
 
 // 1x1 PNG.
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
@@ -72,20 +67,31 @@ describe.skipIf(!hasDb)("avatar upload (PostgreSQL)", () => {
             [original.image, original.avatarAssetId, userId]
         );
         await sql(
-            `DELETE FROM storage.assets WHERE provider = 'cloudinary' AND (object_key = 'codedev/test/other' OR object_key LIKE $1)`,
-            [`codedev/production/users/${userId}/%`]
+            `DELETE FROM storage.assets WHERE object_key = 'codedev/test/other' OR owner_id = (SELECT id FROM identity.users WHERE public_id = $1)`,
+            [userId]
         );
     });
 
     beforeEach(() => {
         uploads.length = 0;
         destroyed.length = 0;
+        purged.length = 0;
+        fake.configured = true;
     });
 
     const profile = async () => (await sql(
         `SELECT i.image, i.avatar_asset_id::text AS asset_id FROM profile.info i JOIN identity.users u ON u.id = i.user_id WHERE u.public_id = $1`,
         [userId]
     )).rows[0];
+
+    it("returns 503 when the store is not configured, without a new asset row", async () => {
+        fake.configured = false;
+        const count = async () => (await sql(`SELECT count(*)::int AS n FROM storage.assets`)).rows[0].n;
+        const before = await count();
+        await expect(mediaService.uploadAvatar({ userId, file: fileOf(PNG) })).rejects.toMatchObject({ status: 503 });
+        expect(await count()).toBe(before);
+        expect(uploads).toHaveLength(0);
+    });
 
     it("rejects files whose bytes are not an accepted image, whatever the declared type", async () => {
         await expect(mediaService.uploadAvatar({ userId, file: fileOf(Buffer.from("<svg onload=alert(1)>" + " ".repeat(20)), "x.png") }))
@@ -99,21 +105,21 @@ describe.skipIf(!hasDb)("avatar upload (PostgreSQL)", () => {
         const result = await mediaService.uploadAvatar({ userId, file: fileOf(PNG) });
 
         expect(uploads).toHaveLength(1);
-        expect(uploads[0].options.folder).toBe(`codedev/production/users/${userId}/avatars`);
-        expect(uploads[0].options).toMatchObject({ resource_type: "image", overwrite: false });
+        expect(uploads[0].options.key).toMatch(new RegExp(`^users/${userId}/avatars/[0-9a-z]{26}$`));
+        expect(uploads[0].options.maxSide).toBe(512);
 
         const current = await profile();
         expect(current.image).toBe(result.image);
         const asset = (await sql(`SELECT * FROM storage.assets WHERE id = $1`, [current.asset_id])).rows[0];
-        expect(asset).toMatchObject({ provider: "cloudinary", purpose: "avatar", mine_type: "image/png", format: "png", width: 64, deleted_at: null });
-        expect(asset.object_key).toBe(uploads[0].publicId);
+        expect(asset).toMatchObject({ provider: "payload", purpose: "avatar", mine_type: "image/png", format: "png", width: 64, deleted_at: null });
+        expect(asset.object_key).toBe(uploads[0].objectKey);
         expect(asset.checksum).toMatch(/^[0-9a-f]{64}$/);
     });
 
     it("replacing an avatar keeps the previous one as history", async () => {
         await mediaService.uploadAvatar({ userId, file: fileOf(PNG) });
         const first = await profile();
-        const firstKey = uploads.at(-1).publicId;
+        const firstKey = uploads.at(-1).objectKey;
 
         await mediaService.uploadAvatar({ userId, file: fileOf(PNG) });
         const second = await profile();
@@ -130,7 +136,7 @@ describe.skipIf(!hasDb)("avatar upload (PostgreSQL)", () => {
 
     it("keeps at most 10 avatars and deletes the files of older ones", async () => {
         for (let i = 0; i < 11; i++) await mediaService.uploadAvatar({ userId, file: fileOf(PNG) });
-        const keys = uploads.map((u) => u.publicId);
+        const keys = uploads.map((u) => u.objectKey);
 
         const list = await mediaService.listAvatars({ userId });
         expect(list).toHaveLength(10);
@@ -152,7 +158,7 @@ describe.skipIf(!hasDb)("avatar upload (PostgreSQL)", () => {
 
     it("deletes a kept avatar and its file", async () => {
         await mediaService.uploadAvatar({ userId, file: fileOf(PNG) });
-        const oldKey = uploads.at(-1).publicId;
+        const oldKey = uploads.at(-1).objectKey;
         await mediaService.uploadAvatar({ userId, file: fileOf(PNG) });
         const [, older] = await mediaService.listAvatars({ userId });
 
@@ -184,7 +190,7 @@ describe.skipIf(!hasDb)("avatar upload (PostgreSQL)", () => {
         const spy = vi.spyOn(mediaDb, "setAvatar").mockRejectedValueOnce(new Error("db down"));
 
         await expect(mediaService.uploadAvatar({ userId, file: fileOf(PNG) })).rejects.toThrow("db down");
-        expect(destroyed).toContain(uploads.at(-1).publicId);
+        expect(destroyed).toContain(uploads.at(-1).objectKey);
         expect(await profile()).toEqual(before);
         spy.mockRestore();
     });

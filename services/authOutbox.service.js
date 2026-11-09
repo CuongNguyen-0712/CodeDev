@@ -47,13 +47,11 @@ const handlers = {
         await accountLinkService.sendLinkEmail(payload);
     },
 
-    // Files of a purged account (plan 11.2). Both deletes are idempotent, so a retry is safe.
+    // Files of a purged account (plan 11.2). Every delete is idempotent, so a retry is safe.
     "storage.purge": async (payload) => {
-        const { s3 } = await import("@/lib/s3");
-        const { destroyAsset } = await import("@/lib/cloudinary");
+        const { destroyStoredFile } = await import("@/lib/media/mediaStore");
         for (const file of payload.files || []) {
-            if (file.provider === "cloudinary") await destroyAsset(file.key);
-            else await s3.delete(file.key, file.bucket ? { bucket: file.bucket } : undefined);
+            await destroyStoredFile({ provider: file.provider, objectKey: file.key, bucket: file.bucket });
         }
     },
 

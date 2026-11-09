@@ -1660,7 +1660,7 @@ Table storage.assets {
 
   Note: '''
   chk_assets_dimensions: CHECK ((((width IS NULL) OR (width > 0)) AND ((height IS NULL) OR (height > 0))))
-  chk_assets_provider: CHECK (((provider)::text = ANY (ARRAY[('s3'::character varying)::text, ('cloudinary'::character varying)::text])))
+  chk_assets_provider: CHECK (((provider)::text = ANY (ARRAY[('s3'::character varying)::text, ('cloudinary'::character varying)::text, ('payload'::character varying)::text])))
   '''
 }
 
