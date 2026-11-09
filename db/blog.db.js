@@ -96,6 +96,12 @@ export const blogDb = {
         )).rows;
     },
 
+    getAdmin: async (publicId) => (await sql(
+        `SELECT p.public_id AS id, p.slug, p.title, p.excerpt, p.status, p.body_md AS body, p.reject_reason, p.hidden_reason, p.hidden_at, p.appealed_at, p.appeal_reason, p.updated_at,
+                u.public_id AS author_id, u.username AS author_username, i.image AS author_image
+         FROM community.post p ${AUTHOR} WHERE p.public_id = $1 AND p.deleted_at IS NULL`, [publicId]
+    )).rows[0] || null,
+
     lockForModeration: async (client, publicId) => (await client.query(
         `SELECT p.id::text AS id, p.slug, p.status, p.appealed_at, p.hidden_at, u.public_id AS author_public_id
          FROM community.post p JOIN identity.users u ON u.id = p.author_id

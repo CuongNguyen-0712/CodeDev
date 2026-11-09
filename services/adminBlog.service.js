@@ -47,6 +47,13 @@ export const adminBlogService = {
         return { items: items.map(item), nextCursor };
     },
 
+    // Moderators read the whole post before approving; the list only carries the excerpt.
+    get: async ({ postId }) => {
+        const row = await blogDb.getAdmin(postId);
+        if (!row) throw new ApiError("Post not found", 404);
+        return { ...item(row), body: row.body };
+    },
+
     act: async ({ actor, postId, action, reason = null, ip = null }) => {
         const result = await withTransaction(async (client) => {
             const post = await blogDb.lockForModeration(client, postId);

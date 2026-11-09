@@ -146,6 +146,12 @@ describe.skipIf(!hasDb)("admin blog moderation (PostgreSQL)", () => {
         expect(item.author).toMatchObject({ id: author.publicId });
     });
 
+    it("get returns the body of a pending post, and 404 for an unknown id", async () => {
+        const id = await post("pending");
+        await expect(adminBlogService.get({ postId: id })).resolves.toMatchObject({ id, status: "pending", body: "Hello", title: "A fine post title" });
+        await expect(adminBlogService.get({ postId: `pst_${"0".repeat(26)}` })).rejects.toMatchObject({ status: 404 });
+    });
+
     it("refuses impossible moves with 409 and answers a repeat with changed false", async () => {
         const draft = await post("draft");
         await expect(act(draft, "approve")).rejects.toMatchObject({ status: 409, message: "Not allowed from draft" });

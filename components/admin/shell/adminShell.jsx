@@ -25,13 +25,13 @@ import { useAdminTimeZoneStore } from "@/stores/adminTimeZoneStore";
 
 import {
     LuActivity, LuArrowLeft, LuBookOpen, LuTags, LuClipboardList, LuKeyRound, LuLayoutDashboard, LuLoaderCircle,
-    LuLogOut, LuMegaphone, LuMessageSquareText, LuMoon, LuPlay, LuReceipt, LuSearch, LuServer, LuSettings, LuSun, LuTarget, LuUsers,
+    LuLogOut, LuMegaphone, LuMessageSquareText, LuMoon, LuNewspaper, LuPlay, LuReceipt, LuSearch, LuServer, LuSettings, LuSun, LuTarget, LuUsers,
 } from "react-icons/lu";
 
 const ICONS = {
     overview: LuLayoutDashboard, users: LuUsers, courses: LuBookOpen, catalog: LuTags, challenges: LuTarget, runs: LuPlay,
     access: LuKeyRound, orders: LuReceipt, feedback: LuMessageSquareText, announcements: LuMegaphone, audit: LuClipboardList,
-    system: LuServer, settings: LuSettings,
+    system: LuServer, settings: LuSettings, blog: LuNewspaper,
 };
 
 // Highest role rank (lib/authz) to the name shown under the username.

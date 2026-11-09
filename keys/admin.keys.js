@@ -19,6 +19,8 @@ export const adminKeys = {
     ratings: (courseId) => [...adminKeys.all, 'ratings', courseId],
     comments: (filters) => [...adminKeys.all, 'comments', filters],
     feedback: (filters) => [...adminKeys.all, 'feedback', filters],
+    blog: (filters) => [...adminKeys.all, 'blog', filters],
+    blogPost: (postId) => [...adminKeys.all, 'blogPost', postId],
     announcements: () => [...adminKeys.all, 'announcements'],
     announcementAudience: (audience) => [...adminKeys.all, 'announcementAudience', audience],
 }
