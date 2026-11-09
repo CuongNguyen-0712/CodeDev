@@ -9,7 +9,8 @@
  *   --scope orphans  codedev/** not referenced by a content assets.json, a course cover, or a live
  *                    cloudinary row in storage.assets (DATABASE_URL of --env). Needs all three sources.
  *   --env <file>     Cloudinary credentials. Default .env.production. For orphans it is mandatory, must set APP_ENV=production
- *                    and supplies the remote DATABASE_URL and Sanity settings (never read from .env). --allow-empty-db accepts an empty storage.assets.
+ *                    and supplies the remote DATABASE_URL and Sanity settings (never read from .env). --allow-empty-db / --allow-empty-sanity /
+ *                    --allow-empty-db-covers accept an empty storage.assets / Sanity / catalog.course source.
  *   --local-db       with --scope dev --apply: soft-delete cloudinary rows in the LOCAL database (.env.local) and clear
  *                    profile avatars that point at them. Refuses a non-local database.
  *   --apply          delete for real after typing the cloud name on stdin. Deletion is permanent.
@@ -78,7 +79,7 @@ if (scope === "orphans") {
     const db = await readDbRefs(dbUrl);
     referenced = { manifests: readManifests(root), covers: readCovers(root), ...db, sanity: await readSanityRefs(envValues) };
     try {
-        checkOrphansPreconditions({ envValues, referenced, allowEmptyDb });
+        checkOrphansPreconditions({ envValues, referenced, allowEmptyDb, allowEmptySanity: args.includes("--allow-empty-sanity"), allowEmptyDbCovers: args.includes("--allow-empty-db-covers") });
     } catch (e) {
         fail(e.message);
     }
@@ -127,6 +128,7 @@ if (answer.trim() !== env.CLOUDINARY_CLOUD_NAME) fail("confirmation does not mat
 
 let deleted = 0;
 const deletes = [];
+const writeReport = () => fs.writeFileSync(report, JSON.stringify({ scope, cloud: env.CLOUDINARY_CLOUD_NAME, listed: assets.length, ...(counts && { referenceCounts: counts }), candidates, deletes }, null, 2));
 for (const resourceType of ["image", "video"]) {
     const ids = candidates.filter((a) => a.resourceType === resourceType).map((a) => a.publicId);
     for (let i = 0; i < ids.length; i += 100) {
@@ -135,9 +137,10 @@ for (const resourceType of ["image", "video"]) {
         const n = states.filter((x) => x === "deleted").length;
         deletes.push({ resourceType, batch: i / 100, requested: Math.min(100, ids.length - i), deleted: n, not_found: states.filter((x) => x === "not_found").length, partial: !!r.partial });
         deleted += n;
+        writeReport(); // after every batch: earlier deletions stay recorded if a later call throws
     }
 }
-fs.writeFileSync(report, JSON.stringify({ scope, cloud: env.CLOUDINARY_CLOUD_NAME, listed: assets.length, ...(counts && { referenceCounts: counts }), candidates, deletes }, null, 2));
+writeReport();
 console.log(`${deleted} deleted of ${candidates.length} (details in report)`);
 
 if (localDb) {

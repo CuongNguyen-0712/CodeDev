@@ -68,7 +68,7 @@ describe("coverPublicId", () => {
 
 describe("checkOrphansPreconditions", () => {
     const prod = { APP_ENV: "production", DATABASE_URL: "postgres://u:p@db.invalid/x" };
-    const full = () => refs({ manifests: new Set(["a"]), covers: new Set(["b"]), dbKeys: new Set(["c"]) });
+    const full = () => refs({ manifests: new Set(["a"]), covers: new Set(["b"]), dbKeys: new Set(["c"]), dbCovers: new Set(["d"]), sanity: new Set(["e"]) });
     const check = (over = {}) => checkOrphansPreconditions({ envValues: prod, referenced: full(), ...over });
 
     it("passes with a production env, remote DB and non-empty sources", () => {
@@ -79,7 +79,7 @@ describe("checkOrphansPreconditions", () => {
         expect(() => check({ envValues: { DATABASE_URL: prod.DATABASE_URL } })).toThrow("APP_ENV=production");
     });
     it("refuses local databases, including a host= parameter", () => {
-        for (const url of ["postgres://u:p@localhost/x", "postgres://u:p@127.0.0.1:5432/x", "postgres://u:p@[::1]/x", "postgres://u:p@db.invalid/x?host=localhost", "postgres://u:p@db.invalid/x?host=/var/run/postgresql", "not a url"]) {
+        for (const url of ["postgres://u:p@localhost/x", "postgres://u:p@127.0.0.1:5432/x", "postgres://u:p@[::1]/x", "postgres://u:p@db.invalid/x?host=localhost", "postgres://u:p@db.invalid/x?host=/var/run/postgresql", "postgres://u:p@127.1/x", "postgres://u:p@127.5.6.7/x", "postgres://u:p@0.0.0.0/x", "postgres://u:p@LOCALHOST./x", "postgres://u:p@localhost./x", "postgres://u:p@%2fvar%2frun/x", "postgres://u:p@%2Fvar%2Frun/x", "postgres://u:p@db.invalid/x?host=%2Fvar%2Frun", "not a url"]) {
             expect(isLocalDbUrl(url)).toBe(true);
             expect(() => check({ envValues: { ...prod, DATABASE_URL: url } })).toThrow("local database");
         }
@@ -95,6 +95,13 @@ describe("checkOrphansPreconditions", () => {
     it("refuses empty dbKeys unless allowed", () => {
         expect(() => check({ referenced: { ...full(), dbKeys: new Set() } })).toThrow("empty: dbKeys");
         expect(() => check({ referenced: { ...full(), dbKeys: new Set() }, allowEmptyDb: true })).not.toThrow();
+    });
+    it("refuses empty sanity or dbCovers unless allowed", () => {
+        expect(() => check({ referenced: { ...full(), sanity: new Set() } })).toThrow("empty: sanity");
+        expect(() => check({ referenced: { ...full(), sanity: new Set() }, allowEmptySanity: true })).not.toThrow();
+        expect(() => check({ referenced: { ...full(), dbCovers: new Set() } })).toThrow("empty: dbCovers");
+        expect(() => check({ referenced: { ...full(), dbCovers: new Set() }, allowEmptyDbCovers: true })).not.toThrow();
+        expect(() => check({ referenced: { ...full(), sanity: new Set() }, allowEmptyDbCovers: true })).toThrow("empty: sanity");
     });
     it("refuses a null source", () => {
         expect(() => check({ referenced: { ...full(), sanity: null } })).toThrow("reference source missing: sanity");
