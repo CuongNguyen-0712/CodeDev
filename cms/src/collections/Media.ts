@@ -24,13 +24,13 @@ export const Media: CollectionConfig = {
         const { req } = args
         const file = req?.file
         if ((operation !== 'create' && operation !== 'update') || !file) return
-        let purpose = args.data?.purpose
         const { id } = args as { id?: number | string }
-        // An update may send only the file: the purpose is then the stored one.
-        if (!purpose && operation === 'update' && id) {
-          purpose = (await req.payload.findByID({ collection: 'media', id, depth: 0, req })).purpose
+        let isAvatar = args.data?.purpose === 'avatar'
+        // An update may change the purpose while replacing the file: a stored avatar stays an avatar.
+        if (!isAvatar && operation === 'update' && id) {
+          isAvatar = (await req.payload.findByID({ collection: 'media', id, depth: 0, req })).purpose === 'avatar'
         }
-        if (purpose !== 'avatar') return
+        if (!isAvatar) return
         if (!AVATAR_TYPES.includes(file.mimetype)) {
           throw new APIError(`Avatars must be ${AVATAR_TYPES.join(', ')}; got ${file.mimetype}.`, 400)
         }
