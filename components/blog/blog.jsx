@@ -61,10 +61,10 @@ export default function Blog({ initial, tag }) {
     const items = initial?.items || [];
     const tags = [...new Set(items.flatMap((post) => post.tags || []))];
     if (tag && !tags.includes(tag)) tags.unshift(tag);
-    const [lead, ...rest] = items;
+
 
     return (
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pt-6 pb-12 sm:px-6 lg:pt-10">
+        <div className="mx-auto flex w-full max-w-[61rem] flex-col gap-8 px-4 pt-6 pb-12 sm:px-6 lg:pt-10">
             <header className="flex flex-col gap-2">
                 <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
                     {tag ? `Posts about ${tag}` : "Blog"}
@@ -105,13 +105,10 @@ export default function Blog({ initial, tag }) {
                             </EmptyContent>
                         </Empty>
                     ) : (
-                        <div className="flex flex-col gap-4">
-                            <PostCard post={lead} featured />
-                            {rest.length > 0 && (
-                                <div className="divide-y border-b">
-                                    {rest.map((post) => <PostCard key={post.id} post={post} />)}
-                                </div>
-                            )}
+                        <div className="flex flex-col gap-6">
+                            <div className="flex flex-col gap-4">
+                                {items.map((post) => <PostCard key={post.id} post={post} />)}
+                            </div>
                             {/* Keyed by tag so a filter change starts from a fresh page list. */}
                             <LoadMore key={tag || "all"} tag={tag} initialCursor={initial.nextCursor} />
                         </div>

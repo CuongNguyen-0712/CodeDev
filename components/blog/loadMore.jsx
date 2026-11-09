@@ -21,7 +21,7 @@ export default function LoadMore({ tag, initialCursor }) {
     return (
         <>
             {items.length > 0 && (
-                <div className="divide-y border-b">
+                <div className="flex flex-col gap-4">
                     {items.map((post) => <PostCard key={post.id} post={post} />)}
                 </div>
             )}

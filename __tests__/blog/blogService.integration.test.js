@@ -127,7 +127,7 @@ describe.skipIf(!hasDb)("blog service (PostgreSQL)", () => {
         const second = await blogService.listPublished({ tag: `${TAG}t`, cursor: first.nextCursor });
         expect(second.items).toHaveLength(1);
         expect(second.nextCursor).toBeNull();
-        expect(first.items[0]).toMatchObject({ readingMinutes: 1, author: { id: d, username: d } });
+        expect(first.items[0]).toMatchObject({ readingMinutes: 1, cover: null, author: { id: d, username: d } });
         expect(await blogService.listPublished({ tag: `${TAG}x` })).toMatchObject({ items: [] });
         expect(await blogService.getPublishedBySlug(made[0].slug)).toMatchObject({ id: made[0].id, body: "Hello world" });
     });

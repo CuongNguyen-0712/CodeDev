@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { extractImageUrls, makeExcerpt, normalizeTags, postSlug, readingMinutes } from "@/lib/blog/text.mjs";
+import { coverImage, extractImageUrls, makeExcerpt, normalizeTags, postSlug, readingMinutes } from "@/lib/blog/text.mjs";
 
 const id = "pst_01hjabcdefghjkmnpqrstvwxyz";
 
@@ -70,4 +70,16 @@ describe("readingMinutes", () => {
 
 describe("normalizeTags", () => {
     it("trims, lowercases, hyphenates, dedupes", () => expect(normalizeTags([" Next JS ", "nextjs", "next-js"])).toEqual(["next-js", "nextjs"]));
+});
+
+describe("coverImage", () => {
+    const origins = ["https://res.cloudinary.com"];
+    it("is the first image from an allowed origin", () => {
+        const md = "![x](https://evil.example/a.png)\n\ntext ![y](https://res.cloudinary.com/b.png) ![z](https://res.cloudinary.com/c.png)";
+        expect(coverImage(md, origins)).toBe("https://res.cloudinary.com/b.png");
+    });
+    it("is null without an allowed image or inside code", () => {
+        expect(coverImage("no images", origins)).toBeNull();
+        expect(coverImage("```\n![a](https://res.cloudinary.com/a.png)\n```", origins)).toBeNull();
+    });
 });

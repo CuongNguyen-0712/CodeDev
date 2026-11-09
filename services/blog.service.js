@@ -2,7 +2,8 @@ import { ulid } from "ulid";
 
 import { blogDb } from "@/db/blog.db";
 import { userDb } from "@/db/user.db";
-import { BLOG_LIMITS, extractImageUrls, makeExcerpt, postSlug, readingMinutes } from "@/lib/blog/text.mjs";
+import { BLOG_LIMITS, coverImage, extractImageUrls, makeExcerpt, postSlug, readingMinutes } from "@/lib/blog/text.mjs";
+import { mediaOrigins } from "@/lib/media/mediaOrigins.mjs";
 import { nextStatus } from "@/lib/blog/status.mjs";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
@@ -24,7 +25,7 @@ const notFound = () => new ApiError("Post not found", 404);
 const author = (row) => ({ id: row.author_id, username: row.author_username, image: row.author_image });
 const publicPost = (row) => ({
     id: row.id, slug: row.slug, title: row.title, excerpt: row.excerpt, tags: row.tags, publishedAt: row.published_at,
-    readingMinutes: readingMinutes(row.body), author: author(row),
+    readingMinutes: readingMinutes(row.body), cover: coverImage(row.body, mediaOrigins()), author: author(row),
 });
 
 function checkImages(body) {

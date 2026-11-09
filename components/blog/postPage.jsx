@@ -89,7 +89,7 @@ export default function PostPage({ post, headings = [], related = [] }) {
                     <h2 id="related-heading" className="text-lg font-semibold tracking-tight text-foreground">
                         {topic ? `More about ${topic}` : "More posts"}
                     </h2>
-                    <div className="divide-y">
+                    <div className="flex flex-col gap-4 pt-2">
                         {related.map((item) => <PostCard key={item.id} post={item} />)}
                     </div>
                 </section>

@@ -45,7 +45,7 @@
 | `lib/validation/blog.js` | `commentInputSchema`, `reportSchema`, `adminBlogListSchema` + `reported`, `adminBlogActionSchema` + `dismiss` |
 | `app/api/blog/posts/[id]/{like,viewer,comments,report}/route.js`, `app/api/blog/comments/[id]/route.js` | learner routes |
 | `app/api/admin/blog/comments/route.js`, `app/api/admin/blog/comments/[id]/route.js` | admin comment moderation |
-| `components/blog/postCard.jsx` | like and comment counts in `PostMeta` |
+| `components/blog/postCard.jsx` | feed card: Like joins the action bar; the counts row already reads `likeCount`/`commentCount` |
 | `components/blog/postActions.jsx` | client island: like button, counts, report dialog |
 | `components/blog/postComments.jsx` | client island: comment list, form, delete |
 | `components/admin/blog/blogQueue.jsx` | Reported tab with Dismiss; Comments tab |
@@ -216,14 +216,12 @@ Same migration style as `20261109_021_community_blog.sql`. Do not edit `db/schem
 ### Task 5: Counts on the list, like and report on the post page
 
 **Files:**
-- Modify: `components/blog/postCard.jsx` (`PostMeta` shows counts), `components/blog/postPage.jsx`, `clients/blog.client.js`, `keys/blog.keys.js`, `queries/blog.query.js`, `mutations/blog.mutation.js`
+- Modify: `components/blog/postCard.jsx` (feed card: Like in the action bar), `components/blog/postPage.jsx`, `clients/blog.client.js`, `keys/blog.keys.js`, `queries/blog.query.js`, `mutations/blog.mutation.js`
 - Create: `components/blog/postActions.jsx` (`"use client"`)
 
 **Interfaces:**
 - Consumes the routes from Tasks 2 and 4. The post page passes `post.id`, `post.slug`, and the cached `post.likeCount` / `post.commentCount` as initial values.
-- `PostMeta`:
-  - Append `LuHeart` + count and `LuMessageCircle` + count, each wrapped in a `<span>` with `aria-label="N likes"` / `"N comments"`, `whitespace-nowrap` and `tabular-nums`.
-  - Hide a count when it is 0, so a new post's row stays clean.
+- Feed card (`PostCard`, already a social-feed layout): its counts row already shows `N likes · N comments` when either is above 0, once `publicPost` returns the counts (Task 2). Add Like as the first button of its action bar (`grid-cols-3`: Like, Comment, Share), reusing the same like control as `postActions.jsx`; signed-out clicks go to `/auth?next=/blog`.
 - `postActions.jsx`, placed between the body and the author box:
   - A row with these controls:
     - Like: a `Button variant="outline"` with `aria-pressed={liked}`. When liked, the heart is filled (`LuHeart` plus `fill-current text-primary`). The like count sits inside the button.
