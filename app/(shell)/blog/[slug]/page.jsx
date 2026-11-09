@@ -2,11 +2,18 @@ import { notFound } from "next/navigation";
 
 import PostPage from "@/components/blog/postPage";
 
-import { getPublicPost } from "@/lib/cachedData";
+import { getPrerenderedPostSlugs, getPublicPost } from "@/lib/cachedData";
 
-// ISR per slug on first visit (user content, so no generateStaticParams). `params` stays outside
-// <Suspense>, as on app/course/[id]; `instant = false` only turns that check off.
+// `params` stays outside <Suspense>, as on app/course/[id]; `instant = false` only turns that check off.
 export const instant = false;
+
+// The newest posts are built ahead; any other slug is generated on first visit. A declared list is
+// what makes an unknown slug answer a real 404, and Cache Components rejects an empty one, so
+// "__none__" stands in (it resolves to notFound()).
+export async function generateStaticParams() {
+    const slugs = await getPrerenderedPostSlugs().catch(() => []);
+    return (slugs.length ? slugs : ["__none__"]).map((slug) => ({ slug }));
+}
 
 export async function generateMetadata({ params }) {
     const { slug } = await params;

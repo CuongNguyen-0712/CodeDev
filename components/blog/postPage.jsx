@@ -4,20 +4,11 @@ import BlogMarkdown from "@/components/blog/markdown";
 import { formatPostDate } from "@/components/blog/postCard";
 import { Badge } from "@/components/shadcn/badge";
 
+import { blogPostingJsonLd } from "@/lib/blog/jsonLd.mjs";
 import { mediaOrigins } from "@/lib/media/mediaOrigins.mjs";
 
 export default function PostPage({ post }) {
-    // `<` escaped so a title or excerpt cannot close the script tag.
-    const jsonLd = JSON.stringify({
-        "@context": "https://schema.org",
-        "@type": "BlogPosting",
-        headline: post.title,
-        description: post.excerpt,
-        datePublished: new Date(post.publishedAt).toISOString(),
-        dateModified: new Date(post.updatedAt || post.publishedAt).toISOString(),
-        author: { "@type": "Person", name: post.author.username, url: `/profile/${post.author.id}` },
-        mainEntityOfPage: `/blog/${post.slug}`,
-    }).replace(/</g, "\u003c");
+    const jsonLd = blogPostingJsonLd(post);
 
     return (
         <article className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
