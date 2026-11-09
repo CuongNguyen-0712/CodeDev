@@ -36,3 +36,18 @@ describe("media settings in the start-up check", () => {
         expect(checkEnvironment({ APP_ENV: "development", PAYLOAD_URL: "http://127.0.0.1:3010" }).warnings.some((m) => m.includes("uploads are disabled"))).toBe(false);
     });
 });
+
+describe("media settings on staging", () => {
+    const staging = { ...production, APP_ENV: "staging" };
+    const stagingWarning = (env) => checkEnvironment(env).warnings.find((m) => m.includes("disabled on staging"));
+
+    it("warns that avatar uploads are disabled on staging without a reachable CMS", () => {
+        expect(stagingWarning(staging)).toMatch(/PAYLOAD_URL/);
+        expect(stagingWarning({ ...staging, PAYLOAD_URL: "http://127.0.0.1:3010" })).toBeTruthy();
+        expect(checkEnvironment(staging).errors.some((m) => m.includes("PAYLOAD_URL"))).toBe(false);
+    });
+
+    it("no staging warning when PAYLOAD_URL points at a remote CMS", () => {
+        expect(stagingWarning({ ...staging, PAYLOAD_URL: "https://cms.staging.example.com" })).toBeUndefined();
+    });
+});
