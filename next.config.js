@@ -1,3 +1,11 @@
+const { appEnv } = require('./lib/appEnv.mjs');
+const { mediaOrigins } = require('./lib/media/mediaOrigins.mjs');
+
+// Local Payload serves lesson/avatar/cover files outside production (never in production builds).
+const payloadOrigin = appEnv(process.env) !== 'production' && process.env.PAYLOAD_URL
+    ? new URL(process.env.PAYLOAD_URL)
+    : null;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     // Standalone server is for the Docker image only; Vercel packages its own functions.
@@ -14,6 +22,8 @@ const nextConfig = {
         // (the default 1 MB would reject larger photos before validation runs).
         serverActions: { bodySizeLimit: '6mb' },
     },
+    // Renderer allowlist for lesson media (see lib/media/mediaOrigins.mjs).
+    env: { NEXT_PUBLIC_MEDIA_ORIGINS: mediaOrigins(process.env).join(',') },
     images: {
         remotePatterns: [
             {
@@ -33,7 +43,13 @@ const nextConfig = {
                 hostname: "lh3.googleusercontent.com",
                 port: "",
                 pathname: "/**"
-            }
+            },
+            ...(payloadOrigin ? [{
+                protocol: payloadOrigin.protocol.replace(':', ''),
+                hostname: payloadOrigin.hostname,
+                port: payloadOrigin.port,
+                pathname: '/api/media/file/**',
+            }] : []),
         ],
         deviceSizes: [320, 480, 768, 1024, 1280, 1600, 1920],
         imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],

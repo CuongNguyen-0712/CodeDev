@@ -5,6 +5,7 @@ import { PortableText } from "@portabletext/react";
 import createImageUrlBuilder from "@sanity/image-url";
 import CodeBlock from "@/components/ui/codeBlock";
 import { ImageLightbox } from "@/components/ui/imageLightbox";
+import { isAllowedMediaUrl } from "@/lib/media/mediaOrigins.mjs";
 
 import {
     LuCircleAlert,
@@ -17,6 +18,8 @@ import {
 
 const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "4sw0c7mz";
 const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET || "production";
+// Inlined at build time by next.config.js (env.NEXT_PUBLIC_MEDIA_ORIGINS).
+const MEDIA_ORIGINS = (process.env.NEXT_PUBLIC_MEDIA_ORIGINS || "https://res.cloudinary.com").split(",");
 const imageBuilder = (projectId && dataset) ? createImageUrlBuilder({ projectId, dataset }) : null;
 
 function urlForImage(source) {
@@ -104,10 +107,10 @@ function ImageBlock({ value }) {
     );
 }
 
-// Image hosted on Cloudinary (lesson diagrams); width/height reserve space to avoid layout shift.
-function CloudinaryImage({ value }) {
+// Lesson diagram from an allowed media origin (Cloudinary, or local Payload outside production); width/height reserve space to avoid layout shift.
+function MediaImage({ value }) {
     const { url, alt, caption, width, height } = value || {};
-    if (!url || !url.startsWith("https://res.cloudinary.com/")) return null;
+    if (!isAllowedMediaUrl(url, MEDIA_ORIGINS)) return null;
 
     return (
         <figure className="lesson_image_wrapper">
@@ -139,6 +142,7 @@ function VideoEmbed({ value }) {
     }
 
     const isIframe = embedUrl.includes("youtube.com") || embedUrl.includes("vimeo.com");
+    if (!isIframe && !isAllowedMediaUrl(url, MEDIA_ORIGINS)) return null;
 
     return (
         <div className="lesson_video_container">
@@ -175,7 +179,7 @@ export default function PortableTextRenderer({ value, types = null }) {
                     codeBlock: ({ value }) => <CodeBlock value={value} />,
                     callout: ({ value }) => <Callout value={value} />,
                     image: ({ value }) => <ImageBlock value={value} />,
-                    cloudinaryImage: ({ value }) => <CloudinaryImage value={value} />,
+                    cloudinaryImage: ({ value }) => <MediaImage value={value} />,
                     video: ({ value }) => <VideoEmbed value={value} />,
                     challengeEmbed: () => null,
                     ...types,
