@@ -41,7 +41,7 @@ export default function Blog({ initial, tag }) {
 
             {tags.length > 0 && (
                 <nav aria-label="Filter by tag">
-                    <ul className="flex flex-wrap gap-2">
+                    <ul className="flex list-none flex-wrap gap-2 p-0">
                         <li>
                             <Badge asChild variant={tag ? "outline" : "primary"}>
                                 <Link href="/blog" aria-current={tag ? undefined : "true"}>All posts</Link>

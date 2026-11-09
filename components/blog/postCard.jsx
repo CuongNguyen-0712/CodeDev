@@ -19,7 +19,7 @@ export default function PostCard({ post }) {
                 <p className="line-clamp-3 text-sm text-muted-foreground">{post.excerpt}</p>
             )}
             {post.tags?.length > 0 && (
-                <ul className="flex flex-wrap gap-1.5">
+                <ul className="flex list-none flex-wrap gap-1.5 p-0">
                     {post.tags.map((tag) => (
                         <li key={tag}><Badge variant="muted">{tag}</Badge></li>
                     ))}

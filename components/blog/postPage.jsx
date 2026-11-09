@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import BlogMarkdown from "@/components/blog/markdown";
 import { formatPostDate } from "@/components/blog/postCard";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
 import { Badge } from "@/components/shadcn/badge";
 
 import { blogPostingJsonLd } from "@/lib/blog/jsonLd.mjs";
@@ -19,6 +20,12 @@ export default function PostPage({ post }) {
                     {post.title}
                 </h1>
                 <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+                    <Avatar size="sm">
+                        <AvatarImage src={post.author.image || undefined} alt="" />
+                        <AvatarFallback className="bg-primary-soft text-xs font-semibold text-primary-soft-foreground">
+                            {post.author.username.slice(0, 1).toUpperCase()}
+                        </AvatarFallback>
+                    </Avatar>
                     <Link href={`/profile/${post.author.id}`} className="font-medium text-foreground hover:underline">
                         {post.author.username}
                     </Link>
@@ -28,7 +35,7 @@ export default function PostPage({ post }) {
                     <span>{post.readingMinutes} min read</span>
                 </p>
                 {post.tags?.length > 0 && (
-                    <ul className="flex flex-wrap gap-1.5">
+                    <ul className="flex list-none flex-wrap gap-1.5 p-0">
                         {post.tags.map((tag) => (
                             <li key={tag}>
                                 <Badge asChild variant="outline">

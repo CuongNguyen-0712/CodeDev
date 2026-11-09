@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import BlogMarkdown from "@/components/blog/markdown";
+import BlogMarkdown, { isInternalHref } from "@/components/blog/markdown";
 
 vi.mock("@/components/ui/codeBlock", () => ({
     default: ({ value }) => <pre data-lang={value.language}>{value.code}</pre>,
@@ -36,6 +36,20 @@ describe("BlogMarkdown", () => {
     it("gives protocol-relative links the ugc rel", () => {
         expect(render("[x](//spam.example)")).toContain('rel="nofollow ugc noopener"');
     });
+    it("treats a slash-backslash link as external (browsers read it as //host)", () => {
+        // Markdown hands the link over as "/%5Cevil.example"; the raw form is checked on the helper.
+        const html = render("[x](/\\evil.example)");
+        expect(html).toContain('target="_blank"');
+        expect(html).toContain('rel="nofollow ugc noopener"');
+        expect(isInternalHref("/\\evil.example")).toBe(false);
+        expect(isInternalHref("//evil.example")).toBe(false);
+        expect(isInternalHref("https://evil.example")).toBe(false);
+        expect(isInternalHref("/course/x")).toBe(true);
+        expect(isInternalHref("#a")).toBe(true);
+    });
+    it("wraps the body in the lesson prose container", () => {
+        expect(render("## Title\n\ntext")).toMatch(/^<div class="lesson-prose"><div class="portable_text_container"><h2 class="lesson_h2">Title<\/h2>/);
+    });
     it("renders GFM tables", () => {
         expect(render("|a|b|\n|-|-|\n|1|2|")).toContain("<table");
     });
@@ -43,7 +57,7 @@ describe("BlogMarkdown", () => {
         expect(render("```js\nlet a = 1;\n```")).toContain('data-lang="js"');
         expect(render("```\nfoo\n```")).toContain("<pre");
         const inline = render("use `x` here");
-        expect(inline).toContain("<code>x</code>");
+        expect(inline).toContain('<code class="lesson_inline_code">x</code>');
         expect(inline).not.toContain("<pre");
     });
 });

@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
-import { Field, FieldDescription, FieldLabel } from "@/components/shadcn/field";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/shadcn/field";
 import { Input } from "@/components/shadcn/input";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Spinner } from "@/components/shadcn/spinner";
@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/ta
 import { Textarea } from "@/components/shadcn/textarea";
 
 import { useApp } from "@/contexts/appContext";
+import { addTags } from "@/lib/blog/tags.mjs";
 import { retryTransient } from "@/lib/queryTimes";
 import { useCreatePost, useUpdatePost, useUploadBlogImage } from "@/mutations/blog.mutation";
 import { blogQueries } from "@/queries/blog.query";
@@ -30,8 +31,8 @@ const MEDIA_ORIGINS = (process.env.NEXT_PUBLIC_MEDIA_ORIGINS || "https://res.clo
 
 const MAX_TAGS = 5;
 const placeholder = (n) => `![Uploading… ${n}]()`;
-// Same rule as normalizeTags in lib/blog/text.mjs, inlined because that module pulls the Markdown parser into the client.
-const normalizeTag = (tag) => tag.trim().toLowerCase().replace(/\s+/g, "-");
+// The server prefixes zod issues with their field path ("tags.0: Invalid tag"); the author only needs the message.
+const errorText = (error) => (error?.message || "The post was not saved").replace(/^(title|tags|body|submit|appealReason)(\.\d+)?: /, "");
 
 function Form({ post, trusted }) {
     const router = useRouter();
@@ -46,27 +47,41 @@ function Form({ post, trusted }) {
     const [title, setTitle] = useState(post?.title || "");
     const [tags, setTags] = useState(post?.tags || []);
     const [tagInput, setTagInput] = useState("");
+    const [tagError, setTagError] = useState("");
     const [body, setBody] = useState(post?.body || "");
     const [appealReason, setAppealReason] = useState("");
     const [uploading, setUploading] = useState(0);
     const [created, setCreated] = useState(false);
 
     const appealing = post?.status === "hidden" && !post.appealedAt;
-    const locked = post?.status === "hidden" && !!post.appealedAt;
+    // A pending post with appealedAt is the appeal under review; the server answers 409 to any save on it.
+    const underAppeal = post?.status === "pending" && !!post.appealedAt;
+    const locked = (post?.status === "hidden" && !!post.appealedAt) || underAppeal;
+    const live = post?.status === "published";
     const pending = create.isPending || update.isPending;
     const busy = pending || created || uploading > 0;
-    const submitLabel = appealing ? "Send appeal" : trusted ? "Publish" : "Submit for review";
+    const submitLabel = appealing ? "Send appeal" : live ? "Save changes" : trusted ? "Publish" : "Submit for review";
 
-    const addTag = (raw) => {
-        const tag = normalizeTag(raw);
-        if (tag && !tags.includes(tag) && tags.length < MAX_TAGS) setTags([...tags, tag]);
-        setTagInput("");
+    // Every part is a tag; `rest` (the text after the last comma) stays in the input.
+    const takeTags = (parts, rest = "") => {
+        const result = addTags(tags, parts, MAX_TAGS);
+        setTags(result.tags);
+        setTagError(result.invalid.length ? `"${result.invalid.join('", "')}" is not a valid tag. Use letters, numbers and hyphens, up to 30 characters.` : "");
+        setTagInput(rest);
+    };
+
+    // Splitting on change (not keydown) also covers paste and IME keyboards that report "Process" or "Unidentified".
+    const onTagChange = (event) => {
+        const parts = event.target.value.split(",");
+        const rest = parts.pop();
+        if (parts.length) takeTags(parts, rest);
+        else setTagInput(rest);
     };
 
     const onTagKeyDown = (event) => {
-        if (event.key === "Enter" || event.key === ",") {
+        if (event.key === "Enter") {
             event.preventDefault();
-            addTag(tagInput);
+            takeTags([tagInput]);
         } else if (event.key === "Backspace" && !tagInput) {
             setTags(tags.slice(0, -1));
         }
@@ -104,6 +119,7 @@ function Form({ post, trusted }) {
 
     const save = (submit) => {
         if (!title.trim()) return showAlert(400, "Add a title first");
+        if (!tags.length) return showAlert(400, "Add at least one tag");
         if (appealing && !appealReason.trim()) return showAlert(400, "Explain why this post should be restored");
 
         const input = {
@@ -113,12 +129,12 @@ function Form({ post, trusted }) {
             submit,
             ...(appealing ? { appealReason: appealReason.trim() } : {}),
         };
-        const onError = (error) => showAlert(error?.status || 500, error?.message || "The post was not saved");
+        const onError = (error) => showAlert(error?.status || 500, errorText(error));
 
         if (post) {
             update.mutate({ id: post.id, ...input }, {
                 onSuccess: () => {
-                    showAlert(200, appealing ? "Appeal sent" : submit ? "Post submitted" : "Draft saved");
+                    showAlert(200, appealing ? "Appeal sent" : live ? "Changes saved" : submit ? "Post submitted" : "Draft saved");
                     if (submit) router.push("/blog/me");
                 },
                 onError,
@@ -149,7 +165,12 @@ function Form({ post, trusted }) {
             {post?.status === "hidden" && (
                 <p role="status" className="rounded-lg border border-warning/20 bg-warning-soft p-3 text-sm text-warning">
                     This post was hidden{post.hiddenReason ? `: ${post.hiddenReason}` : "."}
-                    {locked ? " Your appeal was rejected." : ""}
+                    {locked ? " Your appeal was already used." : ""}
+                </p>
+            )}
+            {underAppeal && (
+                <p role="status" className="rounded-lg border border-warning/20 bg-warning-soft p-3 text-sm text-warning">
+                    Your appeal is waiting for review.
                 </p>
             )}
 
@@ -175,11 +196,14 @@ function Form({ post, trusted }) {
                         value={tagInput}
                         placeholder="Add a tag"
                         disabled={locked || tags.length >= MAX_TAGS}
-                        onChange={(event) => setTagInput(event.target.value)}
+                        aria-invalid={tagError ? true : undefined}
+                        aria-describedby={tagError ? "post-tags-error" : undefined}
+                        onChange={onTagChange}
                         onKeyDown={onTagKeyDown}
-                        onBlur={() => addTag(tagInput)}
+                        onBlur={() => tagInput.trim() && takeTags([tagInput])}
                     />
                 </div>
+                {tagError && <FieldError id="post-tags-error">{tagError}</FieldError>}
                 <FieldDescription>Press Enter or comma to add. Up to {MAX_TAGS} tags.</FieldDescription>
             </Field>
 
@@ -224,11 +248,12 @@ function Form({ post, trusted }) {
 
             {!locked && (
                 <div className="flex flex-wrap gap-2">
-                    <Button type="button" disabled={busy} onClick={() => save(true)}>
+                    {/* A live post stays published on save (lib/blog/status.mjs), so it has one "Save changes" button. */}
+                    <Button type="button" disabled={busy} onClick={() => save(!live)}>
                         {pending && <Spinner />}
                         {submitLabel}
                     </Button>
-                    {!appealing && (
+                    {!appealing && !live && (
                         <Button type="button" variant="outline" disabled={busy} onClick={() => save(false)}>
                             Save draft
                         </Button>
