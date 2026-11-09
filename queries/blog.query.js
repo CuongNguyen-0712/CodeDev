@@ -20,6 +20,13 @@ export const blogQueries = {
             ...QUERY_TIMES.catalog,
         };
     },
+    viewer(id) {
+        return { queryKey: blogKeys.viewer(id), queryFn: () => blogClient.getViewer(id), ...QUERY_TIMES.personal };
+    },
+    // One request per page of posts, shared by every Like button on it.
+    liked(ids, enabled) {
+        return { queryKey: blogKeys.liked(ids), queryFn: () => blogClient.getLiked(ids), enabled: enabled && ids.length > 0, ...QUERY_TIMES.personal };
+    },
     mine() {
         return { queryKey: blogKeys.mine(), queryFn: () => blogClient.getMine(), ...QUERY_TIMES.personal };
     },

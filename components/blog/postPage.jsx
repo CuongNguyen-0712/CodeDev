@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import BlogMarkdown from "@/components/blog/markdown";
+import PostActions from "@/components/blog/postActions";
 import PostCard, { AuthorAvatar, PostMeta } from "@/components/blog/postCard";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -66,6 +67,8 @@ export default function PostPage({ post, headings = [], related = [] }) {
                 </header>
 
                 <BlogMarkdown body={post.body} origins={mediaOrigins()} className="text-[1.0625rem] leading-[1.75]" />
+
+                <PostActions postId={post.id} likeCount={post.likeCount ?? 0} commentCount={post.commentCount ?? 0} />
 
                 <footer className="flex items-center gap-4 border-t pt-8">
                     <AuthorAvatar author={post.author} size="lg" />

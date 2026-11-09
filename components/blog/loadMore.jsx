@@ -13,7 +13,8 @@ import { retryTransient } from "@/lib/queryTimes";
 export default function LoadMore({ tag, initialCursor }) {
     const query = useInfiniteQuery({ ...blogQueries.list(tag, initialCursor), retry: retryTransient });
 
-    const items = (query.data?.pages || []).flatMap((page) => page.items);
+    const pages = query.data?.pages || [];
+    const items = pages.flatMap((page) => page.items);
     const hasMore = !query.data || query.hasNextPage;
 
     if (!initialCursor) return null;
@@ -22,7 +23,10 @@ export default function LoadMore({ tag, initialCursor }) {
         <>
             {items.length > 0 && (
                 <div className="flex flex-col gap-4">
-                    {items.map((post) => <PostCard key={post.id} post={post} />)}
+                    {pages.flatMap((page) => {
+                        const pageIds = page.items.map((post) => post.id);
+                        return page.items.map((post) => <PostCard key={post.id} post={post} pageIds={pageIds} />);
+                    })}
                 </div>
             )}
             {query.isError && (
