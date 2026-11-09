@@ -60,6 +60,11 @@ export const mediaService = {
             });
         } catch (error) {
             console.error(`[media] ${store.provider} upload failed:`, error?.http_code ?? error?.status, error?.message);
+            // No HTTP status: the store was not reached (local CMS down while PAYLOAD_URL is set).
+            if (!isProductionEnv() && error?.status == null && error?.http_code == null) {
+                console.warn("[media] start the local CMS: npm run cms:up");
+                throw new ApiError("Image uploads are not available right now", 503, { expose: true });
+            }
             throw new ApiError("Failed to upload the image, try again later", 502, { expose: true });
         }
 
