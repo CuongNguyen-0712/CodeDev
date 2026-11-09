@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listSitemap = vi.fn();
-vi.mock("@/services/blog.service", () => ({ blogService: { listSitemap: (...a) => listSitemap(...a) } }));
-vi.mock("@/lib/cachedData", () => ({ getPrerenderedCourseIds: async () => ["crs_1"] }));
+vi.mock("@/lib/cachedData", () => ({ getSitemapPosts: (...a) => listSitemap(...a), getPrerenderedCourseIds: async () => ["crs_1"] }));
 
 import sitemap from "@/app/sitemap";
 import robots from "@/app/robots";
+import { siteOrigin } from "@/lib/siteUrl";
 
 const saved = process.env.NEXTAUTH_URL;
 beforeEach(() => { process.env.NEXTAUTH_URL = "https://codedev.example/some/path"; });
@@ -32,9 +32,17 @@ describe("sitemap", () => {
 });
 
 describe("robots", () => {
-    it("disallows private areas and points at the sitemap", () => {
+    it("disallows private areas without blocking post slugs", () => {
         const r = robots();
-        expect(r.rules.disallow).toContain("/blog/new");
+        expect(r.rules.disallow).toEqual(["/admin", "/studio", "/api", "/learning", "/settings", "/blog/new$", "/blog/me$", "/blog/edit/"]);
+        const blocks = (rule, path) => (rule.endsWith("$") ? path === rule.slice(0, -1) : path.startsWith(rule));
+        for (const path of ["/blog/news-x", "/blog/memory-x"]) expect(r.rules.disallow.some((d) => blocks(d, path))).toBe(false);
+        for (const path of ["/blog/new", "/blog/me", "/blog/edit/pst_1"]) expect(r.rules.disallow.some((d) => blocks(d, path))).toBe(true);
         expect(r.sitemap).toBe("https://codedev.example/sitemap.xml");
+    });
+
+    it("falls back to localhost on a bad NEXTAUTH_URL", () => {
+        process.env.NEXTAUTH_URL = "not a url";
+        expect(siteOrigin()).toBe("http://localhost:3000");
     });
 });
