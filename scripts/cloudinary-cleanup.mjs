@@ -5,9 +5,10 @@
  * Usage:
  *   node scripts/cloudinary-cleanup.mjs --scope dev|orphans [--env .env.production] [--local-db] [--apply]
  *
- *   --scope dev      codedev/development/** and codedev/test/**
+ *   --scope dev      codedev/development/**, codedev/test/** and codedev/staging/**
  *   --scope orphans  codedev/** not referenced by a content assets.json, a course cover, or a live
  *                    cloudinary row in storage.assets (DATABASE_URL of --env). Needs all three sources.
+ *                    Assets created less than an hour before the references were read are kept (reason too-new).
  *   --env <file>     Cloudinary credentials. Default .env.production. For orphans it is mandatory, must set APP_ENV=production
  *                    and supplies the remote DATABASE_URL and Sanity settings (never read from .env). --allow-empty-db / --allow-empty-sanity /
  *                    --allow-empty-db-covers accept an empty storage.assets / Sanity / catalog.course source.
@@ -66,6 +67,7 @@ if (localDb) {
 const allowEmptyDb = args.includes("--allow-empty-db");
 let referenced = null;
 let counts = null;
+let referencesReadAt = null;
 if (scope === "orphans") {
     if (!opt("--env")) fail("--scope orphans requires --env <production env file>");
     const envValues = dotenv.parse(fs.readFileSync(envPath));
@@ -75,6 +77,7 @@ if (scope === "orphans") {
     } catch (e) {
         fail(e.message);
     }
+    referencesReadAt = Date.now();
     // A source that cannot be read stays null; the check below then refuses.
     const db = await readDbRefs(dbUrl);
     referenced = { manifests: readManifests(root), covers: readCovers(root), ...db, sanity: await readSanityRefs(envValues) };
@@ -95,21 +98,26 @@ for (const resourceType of ["image", "video"]) {
     let cursor;
     do {
         const r = await cloudinary.api.resources({ type: "upload", prefix: "codedev/", resource_type: resourceType, max_results: 500, next_cursor: cursor });
-        for (const x of r.resources) assets.push({ publicId: x.public_id, resourceType });
+        for (const x of r.resources) assets.push({ publicId: x.public_id, resourceType, createdAt: x.created_at });
         cursor = r.next_cursor;
     } while (cursor);
 }
 
 let candidates;
+let skipped = [];
 if (scope === "dev") candidates = devAssets(assets).map((a) => ({ ...a, reason: "dev-folder" }));
-else candidates = findOrphans({ assets, referenced }).orphans.map((a) => ({ ...a, reason: "unreferenced" }));
+else {
+    const found = findOrphans({ assets, referenced, notAfter: referencesReadAt - 60 * 60 * 1000 });
+    candidates = found.orphans.map((a) => ({ ...a, reason: "unreferenced" }));
+    skipped = found.tooNew.map((a) => ({ ...a, reason: "too-new" }));
+}
 // Last line of defence, whatever the scope logic did.
 candidates = candidates.filter((a) => a.publicId.startsWith("codedev/"));
-if (scope === "dev") candidates = candidates.filter((a) => /^codedev\/(development|test)\//.test(a.publicId));
+if (scope === "dev") candidates = candidates.filter((a) => /^codedev\/(development|test|staging)\//.test(a.publicId));
 
 const report = path.join(os.tmpdir(), `cloudinary-cleanup-${scope}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-fs.writeFileSync(report, JSON.stringify({ scope, cloud: env.CLOUDINARY_CLOUD_NAME, listed: assets.length, ...(counts && { referenceCounts: counts }), candidates }, null, 2));
-console.log(`listed ${assets.length}, ${candidates.length} candidates (${scope})\nreport: ${report}`);
+fs.writeFileSync(report, JSON.stringify({ scope, cloud: env.CLOUDINARY_CLOUD_NAME, listed: assets.length, ...(counts && { referenceCounts: counts }), candidates, skipped }, null, 2));
+console.log(`listed ${assets.length}, ${candidates.length} candidates, ${skipped.length} skipped as too new (${scope})\nreport: ${report}`);
 
 if (!apply) {
     if (localDb) console.log("dry run: --local-db would soft-delete cloudinary rows in storage.assets and clear matching profile.info avatars");
@@ -128,7 +136,7 @@ if (answer.trim() !== env.CLOUDINARY_CLOUD_NAME) fail("confirmation does not mat
 
 let deleted = 0;
 const deletes = [];
-const writeReport = () => fs.writeFileSync(report, JSON.stringify({ scope, cloud: env.CLOUDINARY_CLOUD_NAME, listed: assets.length, ...(counts && { referenceCounts: counts }), candidates, deletes }, null, 2));
+const writeReport = () => fs.writeFileSync(report, JSON.stringify({ scope, cloud: env.CLOUDINARY_CLOUD_NAME, listed: assets.length, ...(counts && { referenceCounts: counts }), candidates, skipped, deletes }, null, 2));
 for (const resourceType of ["image", "video"]) {
     const ids = candidates.filter((a) => a.resourceType === resourceType).map((a) => a.publicId);
     for (let i = 0; i < ids.length; i += 100) {

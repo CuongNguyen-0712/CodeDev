@@ -2,13 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { checkOrphansPreconditions, coverPublicId, devAssets, findOrphans, isLocalDbUrl } from "@/lib/media/cloudinaryOrphans.mjs";
 
-const img = (publicId) => ({ publicId, resourceType: "image" });
+const img = (publicId, createdAt = "2020-01-01T00:00:00Z") => ({ publicId, resourceType: "image", createdAt });
+const NOW = Date.parse("2026-11-09T12:00:00Z");
 const refs = (over = {}) => ({ manifests: new Set(), covers: new Set(), dbKeys: new Set(), dbCovers: new Set(), sanity: new Set(), ...over });
 
 describe("findOrphans", () => {
     it("keeps assets referenced by any of the three sources", () => {
         const assets = [img("codedev/a"), img("codedev/b"), img("codedev/c"), img("codedev/d")];
         const { keep, orphans } = findOrphans({
+            notAfter: NOW,
             assets,
             referenced: refs({ manifests: new Set(["codedev/a"]), covers: new Set(["codedev/b"]), dbKeys: new Set(["codedev/c"]) }),
         });
@@ -18,6 +20,7 @@ describe("findOrphans", () => {
 
     it("orphans the old codedev/courses tree once references moved to production/", () => {
         const { orphans } = findOrphans({
+            notAfter: NOW,
             assets: [img("codedev/courses/x/cover"), img("codedev/production/courses/x/cover")],
             referenced: refs({ dbKeys: new Set(["codedev/production/courses/x/cover"]) }),
         });
@@ -26,29 +29,45 @@ describe("findOrphans", () => {
 
     it("refuses without every reference source", () => {
         for (const name of ["manifests", "covers", "dbKeys", "dbCovers", "sanity"]) {
-            expect(() => findOrphans({ assets: [img("codedev/a")], referenced: refs({ [name]: null }) })).toThrow(`reference source missing: ${name}`);
+            expect(() => findOrphans({ notAfter: NOW, assets: [img("codedev/a")], referenced: refs({ [name]: null }) })).toThrow(`reference source missing: ${name}`);
         }
     });
 
     it("keeps assets referenced by DB covers or Sanity lessons", () => {
         const { orphans } = findOrphans({
+            notAfter: NOW,
             assets: [img("codedev/a"), img("codedev/b"), img("codedev/c")],
             referenced: refs({ dbCovers: new Set(["codedev/a"]), sanity: new Set(["codedev/b"]) }),
         });
         expect(orphans.map((a) => a.publicId)).toEqual(["codedev/c"]);
     });
 
+    it("never orphans assets created after the cutoff (uploaded while references were read)", () => {
+        const { keep, orphans, tooNew } = findOrphans({
+            notAfter: NOW,
+            assets: [img("codedev/old"), img("codedev/new", "2026-11-09T12:00:01Z"), img("codedev/edge", "2026-11-09T12:00:00Z"), img("codedev/nodate", null)],
+            referenced: refs(),
+        });
+        expect(orphans.map((a) => a.publicId)).toEqual(["codedev/old", "codedev/edge"]);
+        expect(tooNew.map((a) => a.publicId)).toEqual(["codedev/new", "codedev/nodate"]);
+        expect(keep).toEqual([]);
+    });
+
+    it("refuses without a cutoff", () => {
+        expect(() => findOrphans({ assets: [img("codedev/a")], referenced: refs() })).toThrow(/notAfter/);
+    });
+
     it("never touches assets outside codedev/", () => {
-        const { keep, orphans } = findOrphans({ assets: [img("other/a")], referenced: refs() });
+        const { keep, orphans } = findOrphans({ notAfter: NOW, assets: [img("other/a")], referenced: refs() });
         expect(orphans).toEqual([]);
         expect(keep).toHaveLength(1);
     });
 });
 
 describe("devAssets", () => {
-    it("matches only dev and test folders", () => {
-        const got = devAssets([img("codedev/development/a"), img("codedev/test/b"), img("codedev/production/users/c"), img("codedev/developmentx/d"), img("codedev/courses/e")]);
-        expect(got.map((a) => a.publicId)).toEqual(["codedev/development/a", "codedev/test/b"]);
+    it("matches only development, test and staging folders", () => {
+        const got = devAssets([img("codedev/development/a"), img("codedev/test/b"), img("codedev/staging/f"), img("codedev/production/users/c"), img("codedev/developmentx/d"), img("codedev/stagingx/g"), img("codedev/courses/e")]);
+        expect(got.map((a) => a.publicId)).toEqual(["codedev/development/a", "codedev/test/b", "codedev/staging/f"]);
     });
 });
 
