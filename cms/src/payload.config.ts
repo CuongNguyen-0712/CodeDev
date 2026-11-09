@@ -1,9 +1,12 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
+import { s3Storage } from '@payloadcms/storage-s3'
 import path from 'path'
 import { buildConfig } from 'payload'
+import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
 import { Lessons } from './collections/Lessons'
+import { Media } from './collections/Media'
 import { Users } from './collections/Users'
 import { migrations } from './migrations'
 
@@ -14,7 +17,25 @@ export default buildConfig({
     user: Users.slug,
     importMap: { baseDir: path.resolve(dirname) },
   },
-  collections: [Users, Lessons],
+  collections: [Users, Lessons, Media],
+  sharp,
+  upload: { limits: { fileSize: 200 * 1024 * 1024 } },
+  // Media files live in MinIO (compose.yml `minio`); the app reads them through /api/media/file/<name>.
+  plugins: [
+    s3Storage({
+      collections: { media: true },
+      bucket: process.env.S3_MEDIA_BUCKET || 'media',
+      config: {
+        endpoint: process.env.MINIO_ENDPOINT,
+        region: process.env.MINIO_REGION || 'us-east-1',
+        forcePathStyle: true,
+        credentials: {
+          accessKeyId: process.env.MINIO_ACCESS_KEY || process.env.MINIO_ROOT_USER || '',
+          secretAccessKey: process.env.MINIO_SECRET_KEY || process.env.MINIO_ROOT_PASSWORD || '',
+        },
+      },
+    }),
+  ],
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },
   db: postgresAdapter({

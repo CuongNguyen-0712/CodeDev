@@ -59,7 +59,8 @@ if (!isLocalUrl(targetConfig.endpoint)) {
 const source = initOnly ? null : new S3Client(s3ClientOptions(sourceConfig));
 const target = new S3Client(s3ClientOptions(targetConfig));
 
-const buckets = [targetConfig.buckets.public, targetConfig.buckets.private]
+// The Payload `media` bucket holds uploads, not a copy of the remote: only --init creates it.
+const buckets = [targetConfig.buckets.public, targetConfig.buckets.private, ...(initOnly ? [process.env.S3_MEDIA_BUCKET || "media"] : [])]
     .filter((bucket) => !onlyBucket || bucket === onlyBucket);
 
 if (!initOnly) console.log(`source: ${describeStorage(sourceConfig)}`);

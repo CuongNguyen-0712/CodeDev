@@ -143,6 +143,10 @@ services:
       CMS_ADMIN_EMAIL: ${CMS_ADMIN_EMAIL:-}
       CMS_ADMIN_PASSWORD: ${CMS_ADMIN_PASSWORD:-}
       CMS_API_KEY: ${CMS_API_KEY:-}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
+      S3_MEDIA_BUCKET: ${S3_MEDIA_BUCKET:-media}
     ports:
       - "127.0.0.1:${CMS_PORT:-3010}:3000"
     networks: [backend]
