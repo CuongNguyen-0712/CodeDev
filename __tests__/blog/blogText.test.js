@@ -21,7 +21,8 @@ describe("extractImageUrls (rendered images only)", () => {
     const u = "https://evil.example/a.png";
     const BT = "`";
     it.each([
-        ["escaped backticks", `\${BT}![x](${u})\${BT}`],
+        // A backslash before each backtick: the backticks are literal, so the image renders.
+        ["escaped backticks", `\\${BT}![x](${u})\\${BT}`],
         ["single-quote title", `![x](${u} 'T')`],
         ["paren title", `![x](${u} (T))`],
         ["nested brackets in alt", `![a [b]](${u})`],

@@ -32,6 +32,10 @@ describe("postInputSchema", () => {
         expect(postInputSchema.safeParse({ ...base, tags: ["a".repeat(31)] }).success).toBe(false);
         expect(postInputSchema.safeParse({ ...base, tags: ["-"] }).success).toBe(true);
     });
+    it("rejects no tags, also after normalizing", () => {
+        expect(postInputSchema.safeParse({ ...base, tags: [] }).error?.issues[0].message).toBe("Add at least one tag");
+        expect(postInputSchema.safeParse({ ...base, tags: ["  "] }).success).toBe(false);
+    });
     it("rejects 6 tags", () => expect(postInputSchema.safeParse({ ...base, tags: ["a", "b", "c", "d", "e", "f"] }).success).toBe(false));
     it("rejects a 2-character title", () => expect(postInputSchema.safeParse({ ...base, title: "ab" }).success).toBe(false));
     it("defaults submit to false", () => expect(postInputSchema.parse(base).submit).toBe(false));

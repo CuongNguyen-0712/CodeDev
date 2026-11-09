@@ -7,7 +7,6 @@ import { nextStatus } from "@/lib/blog/status.mjs";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
 import { decodeCursor, encodeCursor, pageOf } from "@/lib/keysetCursor";
-import { isAllowedMediaUrl, mediaOrigins } from "@/lib/media/mediaOrigins.mjs";
 import { revalidateBlog } from "@/lib/pageCache";
 import { dispatchAuthOutbox } from "@/services/authOutbox.service";
 
@@ -31,9 +30,13 @@ const publicPost = (row) => ({
 function checkImages(body) {
     const urls = extractImageUrls(body);
     if (urls.length > BLOG_LIMITS.images) throw new ApiError(`At most ${BLOG_LIMITS.images} images per post`, 400);
-    const origins = mediaOrigins();
-    if (urls.some((url) => !isAllowedMediaUrl(url, origins))) throw new ApiError("Images must be uploaded to CodeDev", 400);
     return urls;
+}
+
+// Ruling R: every image must be one of the author's own live blog uploads; throwing rolls the write back.
+async function linkImages(client, { postDbId, authorDbId, urls }) {
+    const matched = new Set(await blogDb.replaceAssets(client, { postDbId, authorDbId, urls }));
+    if (urls.some((url) => !matched.has(url))) throw new ApiError("Images must be uploaded to CodeDev", 400);
 }
 
 // One transaction for create and update; postId null means create.
@@ -58,15 +61,16 @@ async function write({ userId, postId = null, input }) {
             slug = postSlug(input.title, publicId);
             ({ id: dbId } = await blogDb.insert(client, { publicId, authorDbId: user.id, slug, ...fields }));
         }
-        await blogDb.replaceAssets(client, { postDbId: dbId, authorDbId: user.id, urls });
+        await linkImages(client, { postDbId: dbId, authorDbId: user.id, urls });
         return { id: publicId, slug, status, wasPublished: current?.status === "published" };
     });
     revalidateAfter(result);
     return { id: result.id, slug: result.slug, status: result.status };
 }
 
+// Only an edit of a live post may be served stale once; a post that appears or disappears expires at once.
 function revalidateAfter({ id, status, wasPublished }) {
-    if (status === "published" || wasPublished) revalidateBlog(id);
+    if (status === "published" || wasPublished) revalidateBlog(id, { immediate: !(wasPublished && status === "published") });
 }
 
 export const blogService = {
@@ -80,7 +84,7 @@ export const blogService = {
             const current = user && await blogDb.lockOwn(client, { authorDbId: user.id, publicId: postId });
             if (!current || current.deleted_at) throw notFound();
             await blogDb.softDelete(client, { id: current.id });
-            return { id: postId, status: current.status, wasPublished: current.status === "published" };
+            return { id: postId, status: "deleted", wasPublished: current.status === "published" };
         });
         revalidateAfter(result);
         return { deleted: true };
@@ -138,7 +142,7 @@ export const blogService = {
             // The rows are committed; the outbox worker retries anything undelivered.
             await dispatchAuthOutbox(result.outboxIds).catch((error) => console.error("[blog-purge] outbox dispatch failed", error));
         }
-        result.posts.forEach((post) => revalidateBlog(post.public_id));
+        result.posts.forEach((post) => revalidateBlog(post.public_id, { immediate: true }));
         return { purged: result.posts.length, files: result.files.length, outboxIds: result.outboxIds };
     },
 };

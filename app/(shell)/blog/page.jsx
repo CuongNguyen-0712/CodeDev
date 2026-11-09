@@ -3,6 +3,7 @@ import { Suspense } from "react"
 import Blog from "@/components/blog/blog"
 import { PageSkeleton } from "@/components/ui/loading"
 
+import { TAG_PATTERN } from "@/lib/blog/tags.mjs";
 import { getBlogPage } from "@/lib/cachedData";
 
 export const metadata = {
@@ -14,7 +15,8 @@ export const metadata = {
 // list itself comes from the cached getter.
 async function BlogList({ searchParams }) {
     const { tag } = await searchParams;
-    const tagValue = typeof tag === "string" && tag ? tag : null;
+    // Only a well-formed tag reaches the cached getter, so arbitrary strings cannot fill the cache.
+    const tagValue = typeof tag === "string" && TAG_PATTERN.test(tag) ? tag : null;
 
     // Errors are never cached: an outage shows the empty state instead of a 500.
     const initial = await getBlogPage(tagValue).catch((error) => {

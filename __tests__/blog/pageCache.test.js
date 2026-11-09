@@ -19,6 +19,11 @@ describe("blog cache tags", () => {
         expect(revalidateTag.mock.calls).toEqual([["blog", "max"], ["post:pst_x", "max"]]);
     });
 
+    it("expires both at once in immediate mode", () => {
+        revalidateBlog("pst_x", { immediate: true });
+        expect(revalidateTag.mock.calls).toEqual([["blog", { expire: 0 }], ["post:pst_x", { expire: 0 }]]);
+    });
+
     it("revalidates only the index without a post", () => {
         revalidateBlog();
         expect(revalidateTag.mock.calls).toEqual([["blog", "max"]]);

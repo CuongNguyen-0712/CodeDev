@@ -14,10 +14,10 @@ describe("GET /api/blog/posts", () => {
         expect((await call("?cursor=not-a-cursor")).status).toBe(400);
     });
 
-    it.skipIf(!process.env.DATABASE_URL)("returns a cacheable page", async () => {
+    it.skipIf(!process.env.DATABASE_URL)("returns a page that is never cached", async () => {
         const res = await call("");
         expect(res.status).toBe(200);
-        expect(res.headers.get("Cache-Control")).toBe("public, s-maxage=60, stale-while-revalidate=300");
+        expect(res.headers.get("Cache-Control")).toBe("private, no-store");
         const body = await res.json();
         expect(body.success).toBe(true);
         expect(Array.isArray(body.data.items)).toBe(true);

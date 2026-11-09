@@ -19,9 +19,10 @@ describe("nextStatus", () => {
     it("published stays published", () => expect(run({ current: "published" }).status).toBe("published"));
     it("hidden first appeal -> pending", () => expect(run({ current: "hidden", appealing: true })).toEqual({ status: "pending", appeal: true }));
     it("hidden without appeal -> 403", () => {
-        expect(() => run({ current: "hidden" })).toThrow(expect.objectContaining({ status: 403 }));
+        expect(() => run({ current: "hidden" })).toThrow(expect.objectContaining({ status: 403, message: "This post was hidden; you can appeal once" }));
     });
     it("hidden second appeal -> 403", () => {
-        expect(() => run({ current: "hidden", appealing: true, appealedAt: new Date() })).toThrow(expect.objectContaining({ status: 403 }));
+        expect(() => run({ current: "hidden", appealing: true, appealedAt: new Date() }))
+            .toThrow(expect.objectContaining({ status: 403, message: "This post was hidden and its appeal was already used" }));
     });
 });

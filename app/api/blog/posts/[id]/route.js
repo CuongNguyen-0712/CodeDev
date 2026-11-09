@@ -17,10 +17,10 @@ export const GET = apiRoute(
     { context: "api/blog/posts/[id]" }
 );
 
-// PATCH { title, tags, body, submit }: edit or resubmit an own post.
+// PATCH { title, tags, body, submit }: edit or resubmit an own post (same 160 KB cap as POST).
 export const PATCH = apiRoute(
     async ({ req, userId, params }) =>
-        blogService.update({ userId, postId: postId(params.id), input: parseOrThrow(postPatchSchema, await readJson(req)) }),
+        blogService.update({ userId, postId: postId(params.id), input: parseOrThrow(postPatchSchema, await readJson(req, 160 * 1024)) }),
     { context: "api/blog/posts/[id]", csrf: true, limiter: rateLimiters.blogWrite }
 );
 

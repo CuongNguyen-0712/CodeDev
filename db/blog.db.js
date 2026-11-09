@@ -35,16 +35,21 @@ export const blogDb = {
         [id, title, excerpt, body, tags, status, appeal, appealReason]
     ),
 
-    /** Links the author's own live blog assets whose delivery URL the post uses; replaces earlier links. */
+    /** Links the author's own live blog assets whose delivery URL the post uses (replacing earlier links); returns the matched URLs. */
     replaceAssets: async (client, { postDbId, authorDbId, urls }) => {
         await client.query(`DELETE FROM community.post_asset WHERE post_id = $1`, [postDbId]);
-        if (!urls.length) return;
-        await client.query(
-            `INSERT INTO community.post_asset (post_id, asset_id)
-             SELECT $1, a.id FROM storage.assets a
-             WHERE a.owner_id = $2 AND a.purpose = 'blog' AND a.deleted_at IS NULL AND a.external_url = ANY($3)`,
+        if (!urls.length) return [];
+        const { rows } = await client.query(
+            `WITH matched AS (
+                 SELECT a.id, a.external_url FROM storage.assets a
+                 WHERE a.owner_id = $2 AND a.purpose = 'blog' AND a.deleted_at IS NULL AND a.external_url = ANY($3)
+             ), linked AS (
+                 INSERT INTO community.post_asset (post_id, asset_id) SELECT $1, id FROM matched
+             )
+             SELECT DISTINCT external_url FROM matched`,
             [postDbId, authorDbId, urls]
         );
+        return rows.map((row) => row.external_url);
     },
 
     softDelete: async (client, { id }) => client.query(`UPDATE community.post SET deleted_at = now(), updated_at = now() WHERE id = $1`, [id]),

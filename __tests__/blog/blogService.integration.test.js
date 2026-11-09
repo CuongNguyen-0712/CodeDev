@@ -1,6 +1,8 @@
 // Author writes and public reads against real PostgreSQL; test users are deleted afterwards (posts cascade).
 import crypto from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 const TAG = `bs${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")}`;
@@ -81,10 +83,16 @@ describe.skipIf(!hasDb)("blog service (PostgreSQL)", () => {
             [`${TAG}_ast${n}`, img(n), ids[owner]]
         );
         await asset("a", 1);
-        // Same URL pattern but owned by B: never linked to A's post.
+        // Same URL pattern but owned by B: A may not use it, and nothing is written.
         await asset("b", 2);
         const count = async (id) => (await sql(`SELECT count(*)::int AS n FROM community.post_asset pa JOIN community.post p ON p.id = pa.post_id WHERE p.public_id = $1`, [id])).rows[0].n;
-        const post = await blogService.create({ userId: a, input: input({ body: `![x](${img(1)})\n\n![y](${img(2)})` }) });
+        await expect(blogService.create({ userId: a, input: input({ title: "Borrowed image", body: `![x](${img(1)})\n\n![y](${img(2)})` }) }))
+            .rejects.toMatchObject({ status: 400, message: "Images must be uploaded to CodeDev" });
+        expect((await sql(`SELECT count(*)::int AS n FROM community.post WHERE author_id = $1 AND title = 'Borrowed image'`, [ids.a])).rows[0].n).toBe(0);
+        // A Cloudinary URL that is no one's asset is refused too, although its origin is allowed.
+        await expect(blogService.create({ userId: a, input: input({ body: `![z](${img(99)})` }) }))
+            .rejects.toMatchObject({ status: 400, message: "Images must be uploaded to CodeDev" });
+        const post = await blogService.create({ userId: a, input: input({ body: `![x](${img(1)})` }) });
         expect(await count(post.id)).toBe(1);
         await blogService.update({ userId: a, postId: post.id, input: input({ body: "no images" }) });
         expect(await count(post.id)).toBe(0);
@@ -130,7 +138,13 @@ describe.skipIf(!hasDb)("blog service (PostgreSQL)", () => {
         await approve(first.id);
         const post = await blogService.create({ userId: e, input: input({ submit: true, title: "To be removed" }) });
         expect(await blogService.getPublishedBySlug(post.slug)).not.toBeNull();
+        const { revalidateTag } = await import("next/cache");
+        revalidateTag.mockClear();
+        await blogService.update({ userId: e, postId: post.id, input: input({ submit: true, title: "To be removed, edited" }) });
+        // An edit of a live post may be served stale once; a removal expires at once.
+        expect(revalidateTag).toHaveBeenLastCalledWith(`post:${post.id}`, "max");
         await expect(blogService.remove({ userId: e, postId: post.id })).resolves.toEqual({ deleted: true });
+        expect(revalidateTag).toHaveBeenLastCalledWith(`post:${post.id}`, { expire: 0 });
         expect(await blogService.getPublishedBySlug(post.slug)).toBeNull();
         expect((await blogService.listMine({ userId: e })).items.some((item) => item.id === post.id)).toBe(false);
     });

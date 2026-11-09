@@ -98,6 +98,15 @@ describe.skipIf(!hasDb)("admin blog moderation (PostgreSQL)", () => {
         const note = (await sql(`SELECT title, message FROM profile.notification WHERE user_id = $1 AND dedupe_key LIKE $2`, [author.id, `blog:${id}:reject:%`])).rows[0];
         expect(note.title).toBe("Appeal rejected");
         expect(note.message).toContain(due);
+        expect(note.message).toContain("Still breaks the rules");
+    });
+
+    it("a hide after the appeal was used says so instead of offering one", async () => {
+        const id = await post("published", "published_at = now(), appealed_at = now() - interval '1 day'");
+        await act(id, "hide", "Spam again");
+        const { message } = (await sql(`SELECT message FROM profile.notification WHERE user_id = $1 AND dedupe_key LIKE $2`, [author.id, `blog:${id}:hide:%`])).rows[0];
+        expect(message).toContain("Your appeal was already used.");
+        expect(message).not.toContain("You can appeal once");
     });
 
     it("rejecting an appeal twice is a repeat, not a 409", async () => {

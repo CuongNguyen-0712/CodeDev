@@ -72,6 +72,12 @@ describe.skipIf(!hasDb)("blog image upload (PostgreSQL)", () => {
         expect(rows[0]).toMatchObject({ external_url: result.url, deleted_at: null, object_key: uploads[0].objectKey });
     });
 
+    it("keeps a long file name to the column's 100 characters", async () => {
+        const result = await mediaService.uploadBlogImage({ userId: verified, file: fileOf(PNG, `${"n".repeat(150)}.png`) });
+        const { rows } = await sql(`SELECT original_name FROM storage.assets WHERE external_url = $1`, [result.url]);
+        expect(rows[0].original_name).toBe("n".repeat(100));
+    });
+
     it("rejects a file over 5 MB with 413", async () => {
         await expect(mediaService.uploadBlogImage({ userId: verified, file: fileOf(Buffer.alloc(6 * 1024 * 1024)) }))
             .rejects.toMatchObject({ status: 413 });
