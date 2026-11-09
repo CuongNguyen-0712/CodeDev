@@ -40,3 +40,32 @@ describe("isAllowedMediaUrl", () => {
         expect(isAllowedMediaUrl(undefined, origins)).toBe(false);
     });
 });
+
+describe("next.config.js image remote patterns", () => {
+    const loadConfig = async (env) => {
+        const { createRequire } = await import("node:module");
+        const path = await import("node:path");
+        const require = createRequire(import.meta.url);
+        const file = path.resolve("next.config.js");
+        const saved = { APP_ENV: process.env.APP_ENV, PAYLOAD_URL: process.env.PAYLOAD_URL };
+        Object.assign(process.env, env);
+        delete require.cache[file];
+        try {
+            return require(file);
+        } finally {
+            for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+            delete require.cache[file];
+        }
+    };
+    const payloadPattern = (config) => config.images.remotePatterns.find((p) => p.pathname === "/api/media/file/**");
+
+    it("tolerates an unparseable PAYLOAD_URL", async () => {
+        const config = await loadConfig({ APP_ENV: "development", PAYLOAD_URL: "not a url" });
+        expect(payloadPattern(config)).toBeUndefined();
+    });
+
+    it("adds the Payload origin outside production only", async () => {
+        expect(payloadPattern(await loadConfig({ APP_ENV: "development", PAYLOAD_URL: PAYLOAD }))).toMatchObject({ protocol: "http", hostname: "127.0.0.1", port: "3010" });
+        expect(payloadPattern(await loadConfig({ APP_ENV: "production", PAYLOAD_URL: PAYLOAD }))).toBeUndefined();
+    });
+});

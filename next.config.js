@@ -1,10 +1,8 @@
-const { appEnv } = require('./lib/appEnv.mjs');
 const { mediaOrigins } = require('./lib/media/mediaOrigins.mjs');
 
 // Local Payload serves lesson/avatar/cover files outside production (never in production builds).
-const payloadOrigin = appEnv(process.env) !== 'production' && process.env.PAYLOAD_URL
-    ? new URL(process.env.PAYLOAD_URL)
-    : null;
+// Taken from mediaOrigins(), which already drops an unparseable PAYLOAD_URL.
+const [, payloadOrigin = null] = mediaOrigins(process.env).map((origin) => new URL(origin));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
