@@ -2,27 +2,11 @@ import { adminDb } from "@/db/admin.db";
 import { adminFeedbackDb, COMMENT_STATES, FEEDBACK_STATES } from "@/db/adminFeedback.db";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
+import { decodeCursor, encodeCursor, pageOf } from "@/lib/keysetCursor";
 import { notificationService } from "@/services/notification.service";
 
 const PAGE = 30;
-const encodeCursor = (createdAt, id) => Buffer.from(JSON.stringify([createdAt, id])).toString("base64url");
-
-function decodeCursor(raw, idPattern) {
-    if (!raw) return null;
-    try {
-        const [createdAt, id] = JSON.parse(Buffer.from(String(raw), "base64url").toString("utf-8"));
-        if (/^\d{4}-\d{2}-\d{2}[ T][\d:.+-]{8,22}$/.test(createdAt) && idPattern.test(id)) return { createdAt, id };
-    } catch {
-        // fall through
-    }
-    throw new ApiError("Invalid cursor", 400);
-}
-
-const page = (rows, cursorOf) => {
-    const items = rows.slice(0, PAGE);
-    const last = items[items.length - 1];
-    return { items: items.map(({ cursor_at, cursor_id, ...item }) => item), nextCursor: rows.length > PAGE && last ? cursorOf(last) : null };
-};
+const page = (rows, cursorOf) => pageOf(rows, PAGE, cursorOf);
 
 /**
  * Course comments (comment.moderate) and the CodeDev feedback inbox (feedback.read), docs/admin-panel-plan.md 11.3.
