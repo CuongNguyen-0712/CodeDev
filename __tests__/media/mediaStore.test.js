@@ -100,25 +100,32 @@ describe("deleteFromPayload", () => {
 
 describe("destroyStoredFile", () => {
     it("dispatches by provider", async () => {
-        await destroyStoredFile({ provider: "cloudinary", objectKey: "a" });
+        await destroyStoredFile({ provider: "cloudinary", objectKey: "a" }, { APP_ENV: "production" });
         expect(destroyAsset).toHaveBeenCalledWith("a");
 
-        const prev = { ...process.env };
-        Object.assign(process.env, { PAYLOAD_URL: "http://127.0.0.1:3010", PAYLOAD_API_KEY: "k" });
         global.fetch = vi.fn(async () => new Response("{}", { status: 200 }));
-        try {
-            await destroyStoredFile({ provider: "payload", objectKey: "7" });
-        } finally {
-            process.env.PAYLOAD_URL = prev.PAYLOAD_URL;
-            process.env.PAYLOAD_API_KEY = prev.PAYLOAD_API_KEY;
-            if (prev.PAYLOAD_URL === undefined) delete process.env.PAYLOAD_URL;
-            if (prev.PAYLOAD_API_KEY === undefined) delete process.env.PAYLOAD_API_KEY;
-        }
+        await destroyStoredFile({ provider: "payload", objectKey: "7" }, PAYLOAD_ENV);
         expect(global.fetch.mock.calls[0][0]).toBe("http://127.0.0.1:3010/api/media/7");
         expect(global.fetch.mock.calls[0][1].method).toBe("DELETE");
 
         await destroyStoredFile({ provider: "s3", objectKey: "coding/x", bucket: "private" });
         expect(s3Delete).toHaveBeenCalledWith("coding/x", { bucket: "private" });
+    });
+
+    it("skips Cloudinary deletes outside production", async () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        for (const APP_ENV of ["development", "test", "staging"]) {
+            await expect(destroyStoredFile({ provider: "cloudinary", objectKey: "a" }, { APP_ENV })).resolves.toBe("skipped");
+        }
+        expect(destroyAsset).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalled();
+        warn.mockRestore();
+    });
+
+    it("refuses Payload deletes in production", async () => {
+        global.fetch = vi.fn();
+        await expect(destroyStoredFile({ provider: "payload", objectKey: "7" }, { ...PAYLOAD_ENV, APP_ENV: "production" })).rejects.toThrow(/production/);
+        expect(global.fetch).not.toHaveBeenCalled();
     });
 });
 

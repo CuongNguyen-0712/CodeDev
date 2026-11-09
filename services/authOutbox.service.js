@@ -48,6 +48,7 @@ const handlers = {
     },
 
     // Files of a purged account (plan 11.2). Every delete is idempotent, so a retry is safe.
+    // A "skipped" result (a Cloudinary file outside production) counts as done, so it is not retried.
     "storage.purge": async (payload) => {
         const { destroyStoredFile } = await import("@/lib/media/mediaStore");
         for (const file of payload.files || []) {
