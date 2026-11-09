@@ -17,7 +17,40 @@ describe("extractImageUrls", () => {
     });
 });
 
+describe("extractImageUrls (rendered images only)", () => {
+    const u = "https://evil.example/a.png";
+    const BT = "`";
+    it.each([
+        ["escaped backticks", `\${BT}![x](${u})\${BT}`],
+        ["single-quote title", `![x](${u} 'T')`],
+        ["paren title", `![x](${u} (T))`],
+        ["nested brackets in alt", `![a [b]](${u})`],
+        ["fake fence with backtick info", `${BT.repeat(3)} ${BT}
+![x](${u})`],
+        ["reference image", `![x][R]
+
+[r]: ${u}`],
+    ])("finds %s", (_, md) => expect(extractImageUrls(md)).toEqual([u]));
+
+    it("skips an indented code block", () => expect(extractImageUrls(`text
+
+    ![x](${u})
+`)).toEqual([]));
+    it("does not close a fence on an info-string line", () => {
+        expect(extractImageUrls(`${BT.repeat(3)}
+${BT.repeat(3)}js
+![x](${u})
+${BT.repeat(3)}
+`)).toEqual([]);
+    });
+});
+
 describe("makeExcerpt", () => {
+    it("keeps # and _ in prose", () => {
+        const out = makeExcerpt("C# tips for snake_case");
+        expect(out).toContain("C# tips");
+        expect(out).toContain("snake_case");
+    });
     it("keeps only prose", () => {
         const md = "# Title\n\nHello **world** with [a link](http://x.y).\n\n```js\nconst secret = 1;\n```\n\n![img](http://i.png)";
         expect(makeExcerpt(md)).toBe("Title Hello world with a link.");
