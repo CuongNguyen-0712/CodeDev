@@ -52,6 +52,14 @@ describe.skipIf(!hasDb)("blog reports (PostgreSQL)", () => {
         await expect(report(fan, post.id)).rejects.toMatchObject({ status: 409 });
     });
 
+    it("a dismissed report still counts as reported for its reporter", async () => {
+        const post = await publish();
+        await report(fan, post.id);
+        await act(post.id, "dismiss");
+        expect(await svc.viewer({ userId: fan, postId: post.id })).toMatchObject({ reported: true });
+        await expect(report(fan, post.id)).rejects.toMatchObject({ status: 409 });
+    });
+
     it("cannot report own post", async () => {
         const post = await publish();
         await expect(report(author, post.id)).rejects.toMatchObject({ status: 400 });

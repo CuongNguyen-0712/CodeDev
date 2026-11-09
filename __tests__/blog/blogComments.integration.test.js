@@ -8,7 +8,7 @@ const hasDb = Boolean(process.env.DATABASE_URL);
 const TAG = `bc${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")}`;
 
 describe.skipIf(!hasDb)("blog comments (PostgreSQL)", () => {
-    let sql, blogService, svc, adminBlogService, commentInputSchema;
+    let sql, dbPool, blogService, svc, adminBlogService, commentInputSchema;
     let author, fan, other;
     const actor = { id: null, publicId: `${TAG}_admin`, rank: 80 };
     const newUser = async (name) => {
@@ -26,7 +26,7 @@ describe.skipIf(!hasDb)("blog comments (PostgreSQL)", () => {
     const hide = (commentId, hidden) => adminBlogService.setCommentHidden({ actor, commentId, hidden, reason: "Off topic", ip: "127.0.0.1" });
 
     beforeAll(async () => {
-        ({ sql } = await import("@/lib/db"));
+        ({ sql, dbPool } = await import("@/lib/db"));
         ({ blogService } = await import("@/services/blog.service"));
         ({ blogInteractionService: svc } = await import("@/services/blogInteraction.service"));
         ({ adminBlogService } = await import("@/services/adminBlog.service"));
@@ -108,8 +108,41 @@ describe.skipIf(!hasDb)("blog comments (PostgreSQL)", () => {
         const c = await svc.addComment({ userId: fan, postId: post.id, input: { body: "Admin sees" } });
         await hide(c.id, true);
         const { items } = await adminBlogService.listComments({});
-        expect(items.find((x) => x.id === c.id)).toMatchObject({ hidden: true, post: { id: post.id, title: "A commentable post title" } });
+        expect(items.find((x) => x.id === c.id)).toMatchObject({ hidden: true, post: { id: post.id, title: "A commentable post title", status: "published", deleted: false } });
         const audit = (await sql(`SELECT action, target_type FROM identity.audit_log WHERE actor_id = $1 AND target_id = $2`, [actor.id, c.id])).rows;
         expect(audit).toEqual([{ action: "blog.comment_hide", target_type: "post_comment" }]);
+    });
+
+    it("admin list carries the post's status and whether it is deleted", async () => {
+        const hiddenPost = await publish();
+        const deletedPost = await publish();
+        const a = await svc.addComment({ userId: fan, postId: hiddenPost.id, input: { body: "On a hidden post" } });
+        const b = await svc.addComment({ userId: fan, postId: deletedPost.id, input: { body: "On a deleted post" } });
+        await sql(`UPDATE community.post SET status = 'hidden', hidden_at = now() WHERE public_id = $1`, [hiddenPost.id]);
+        await sql(`UPDATE community.post SET deleted_at = now() WHERE public_id = $1`, [deletedPost.id]);
+        const { items } = await adminBlogService.listComments({});
+        expect(items.find((x) => x.id === a.id).post).toMatchObject({ status: "hidden", deleted: false });
+        expect(items.find((x) => x.id === b.id).post).toMatchObject({ deleted: true });
+    });
+
+    // The purge locks the post, then its comments; deleting a comment must take the same order or the two deadlock (40P01).
+    it("deleting a comment locks the post before the comment", async () => {
+        const post = await publish();
+        const c = await svc.addComment({ userId: fan, postId: post.id, input: { body: "Lock order" } });
+        const client = await dbPool.connect();
+        try {
+            await client.query("BEGIN");
+            await client.query(`SELECT 1 FROM community.post WHERE public_id = $1 FOR UPDATE`, [post.id]);
+            const deleting = svc.deleteComment({ userId: fan, commentId: c.id });
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            // Waiting on the post, the delete must not hold the comment yet.
+            await client.query(`SELECT 1 FROM community.post_comment WHERE public_id = $1 FOR UPDATE NOWAIT`, [c.id]);
+            await client.query("COMMIT");
+            expect(await deleting).toEqual({ deleted: true });
+        } finally {
+            await client.query("ROLLBACK").catch(() => {});
+            client.release();
+        }
+        expect(await count(post.id)).toBe(0);
     });
 });

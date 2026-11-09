@@ -87,17 +87,33 @@ describe.skipIf(!hasDb)("blog likes (PostgreSQL)", () => {
         expect(await blogService.getPublishedBySlug(post.slug)).toMatchObject({ likeCount: 1, commentCount: 0 });
     });
 
-    it("likedIds: signed out gets none, liked and un-liked are told apart", async () => {
+    it("feedState: signed out gets no ids but real counts", async () => {
         const liked = await publish();
         const other = await publish();
         await svc.like({ userId: fan, postId: liked.id });
         const postIds = [liked.id, other.id, "not-an-id"];
-        expect(await svc.likedIds({ userId: null, postIds })).toEqual([]);
-        expect(await svc.likedIds({ userId: fan, postIds })).toEqual([liked.id]);
+        expect(await svc.feedState({ userId: null, postIds })).toEqual({
+            ids: [],
+            counts: { [liked.id]: { likeCount: 1, commentCount: 0 }, [other.id]: { likeCount: 0, commentCount: 0 } },
+        });
+        expect((await svc.feedState({ userId: fan, postIds })).ids).toEqual([liked.id]);
     });
 
-    it("likedIds: 51 ids is a 400", async () => {
+    it("feedState: counts match the rows after a like and a comment", async () => {
+        const post = await publish();
+        await svc.like({ userId: fan, postId: post.id });
+        await svc.addComment({ userId: fan, postId: post.id, input: { body: "Counted comment" } });
+        const rows = (await sql(
+            `SELECT (SELECT count(*)::int FROM community.post_like l WHERE l.post_id = p.id) AS likes,
+                    (SELECT count(*)::int FROM community.post_comment c WHERE c.post_id = p.id) AS comments
+             FROM community.post p WHERE p.public_id = $1`, [post.id]
+        )).rows[0];
+        expect(rows).toEqual({ likes: 1, comments: 1 });
+        expect((await svc.feedState({ userId: fan, postIds: [post.id] })).counts[post.id]).toEqual({ likeCount: rows.likes, commentCount: rows.comments });
+    });
+
+    it("feedState: 51 ids is a 400", async () => {
         const postIds = Array.from({ length: 51 }, (_, i) => `pst_${String(i).padStart(26, "0")}`);
-        await expect(svc.likedIds({ userId: fan, postIds })).rejects.toMatchObject({ status: 400 });
+        await expect(svc.feedState({ userId: fan, postIds })).rejects.toMatchObject({ status: 400 });
     });
 });

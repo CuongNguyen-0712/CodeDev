@@ -46,12 +46,19 @@ export const blogInteractionService = {
         return { likeCount: row.like_count, commentCount: row.comment_count, liked: row.liked, reported: row.reported, own: row.own };
     },
 
-    /** Which of the (at most 50) post ids the viewer has liked; ids of the wrong shape are ignored. */
-    likedIds: async ({ userId, postIds }) => {
+    /**
+     * For a feed page of (at most 50) post ids: `ids` the viewer liked ([] signed out) and the live
+     * `counts` of each published post. Ids of the wrong shape are ignored.
+     */
+    feedState: async ({ userId, postIds }) => {
         if (postIds.length > MAX_IDS) throw new ApiError(`At most ${MAX_IDS} ids`, 400);
         const valid = postIds.filter((id) => POST_ID.test(id));
-        const userDbId = userId && valid.length ? await blogDb.userDbId(userId) : null;
-        return userDbId ? blogDb.likedIds(userDbId, valid) : [];
+        if (!valid.length) return { ids: [], counts: {} };
+        const rows = await blogDb.feedState(userId ? await blogDb.userDbId(userId) : null, valid);
+        return {
+            ids: rows.filter((row) => row.liked).map((row) => row.id),
+            counts: Object.fromEntries(rows.map((row) => [row.id, { likeCount: row.like_count, commentCount: row.comment_count }])),
+        };
     },
 
     listComments: async ({ userId, postId, cursor = null }) => {

@@ -128,7 +128,7 @@ export const adminBlogService = {
             items: items.map((row) => ({
                 id: row.id, body: row.body, createdAt: row.created_at, hidden: row.is_hidden,
                 author: { id: row.author_id, username: row.author_username, image: row.author_image },
-                post: { id: row.post_id, slug: row.post_slug, title: row.post_title },
+                post: { id: row.post_id, slug: row.post_slug, title: row.post_title, status: row.post_status, deleted: row.post_deleted },
             })),
             nextCursor,
         };

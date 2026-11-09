@@ -120,12 +120,21 @@ export const blogDb = {
         `UPDATE community.post SET comment_count = GREATEST(comment_count + $2::int, 0) WHERE id = $1`, [postId, delta]
     ),
 
-    /** Locks one comment with its author's public id; deleted comments are not found. */
-    lockComment: async (client, publicId) => (await client.query(
-        `SELECT c.id::text AS id, c.post_id::text AS post_id, c.is_hidden, u.public_id AS author_public_id
-         FROM community.post_comment c JOIN identity.users u ON u.id = c.user_id
-         WHERE c.public_id = $1 AND NOT c.is_deleted FOR UPDATE OF c`, [publicId]
-    )).rows[0] || null,
+    /**
+     * Locks one comment with its author's public id; deleted comments are not found.
+     * The post is locked first, as every other path and the purge do, so they cannot deadlock (40P01).
+     */
+    lockComment: async (client, publicId) => {
+        const post = (await client.query(
+            `SELECT p.id FROM community.post p WHERE p.id = (SELECT post_id FROM community.post_comment WHERE public_id = $1) FOR UPDATE`, [publicId]
+        )).rows[0];
+        if (!post) return null;
+        return (await client.query(
+            `SELECT c.id::text AS id, c.post_id::text AS post_id, c.is_hidden, u.public_id AS author_public_id
+             FROM community.post_comment c JOIN identity.users u ON u.id = c.user_id
+             WHERE c.public_id = $1 AND NOT c.is_deleted FOR UPDATE OF c`, [publicId]
+        )).rows[0] || null;
+    },
 
     markCommentDeleted: async (client, { id }) => client.query(`UPDATE community.post_comment SET is_deleted = true, updated_at = now() WHERE id = $1`, [id]),
 
@@ -148,7 +157,8 @@ export const blogDb = {
     /** Moderation list: every non-deleted comment, newest first, with its post. */
     listCommentsAdmin: async ({ cursor, limit }) => (await sql(
         `SELECT c.public_id AS id, c.body, c.created_at, c.is_hidden, u.public_id AS author_id, u.username AS author_username, i.image AS author_image,
-                p.public_id AS post_id, p.slug AS post_slug, p.title AS post_title, c.created_at::text AS cursor_at, c.public_id AS cursor_id
+                p.public_id AS post_id, p.slug AS post_slug, p.title AS post_title, p.status AS post_status,
+                p.deleted_at IS NOT NULL AS post_deleted, c.created_at::text AS cursor_at, c.public_id AS cursor_id
          FROM community.post_comment c JOIN community.post p ON p.id = c.post_id
               JOIN identity.users u ON u.id = c.user_id LEFT JOIN profile.info i ON i.user_id = u.id
          WHERE NOT c.is_deleted
@@ -157,19 +167,21 @@ export const blogDb = {
         [cursor?.createdAt ?? null, cursor?.id ?? null, limit]
     )).rows,
 
-    /** Counters plus the viewer's flags; userDbId null (signed out) gives all false. */
+    /** Counters plus the viewer's flags; userDbId null (signed out) gives all false. Any report counts, dismissed ones too. */
     viewerState: async (publicId, userDbId) => (await sql(
         `SELECT p.like_count, p.comment_count,
                 EXISTS (SELECT 1 FROM community.post_like l WHERE l.post_id = p.id AND l.user_id = $2::bigint) AS liked,
-                EXISTS (SELECT 1 FROM community.post_report r WHERE r.post_id = p.id AND r.reporter_id = $2::bigint AND r.resolved_at IS NULL) AS reported,
+                EXISTS (SELECT 1 FROM community.post_report r WHERE r.post_id = p.id AND r.reporter_id = $2::bigint) AS reported,
                 COALESCE(p.author_id = $2::bigint, false) AS own
          FROM community.post p WHERE p.public_id = $1 AND p.status = 'published' AND p.deleted_at IS NULL`, [publicId, userDbId]
     )).rows[0] || null,
 
-    likedIds: async (userDbId, publicIds) => (await sql(
-        `SELECT p.public_id FROM community.post_like l JOIN community.post p ON p.id = l.post_id
-         WHERE l.user_id = $1 AND p.public_id = ANY($2::text[])`, [userDbId, publicIds]
-    )).rows.map((row) => row.public_id),
+    /** Live counters of the published posts among `publicIds`, and whether the viewer liked each; userDbId null gives liked false. */
+    feedState: async (userDbId, publicIds) => (await sql(
+        `SELECT p.public_id AS id, p.like_count, p.comment_count,
+                EXISTS (SELECT 1 FROM community.post_like l WHERE l.post_id = p.id AND l.user_id = $1::bigint) AS liked
+         FROM community.post p WHERE p.public_id = ANY($2::text[]) AND p.status = 'published' AND p.deleted_at IS NULL`, [userDbId, publicIds]
+    )).rows,
 
     listSitemap: async () => (await sql(
         `SELECT slug, updated_at FROM community.post
