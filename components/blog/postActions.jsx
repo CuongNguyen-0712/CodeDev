@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
@@ -23,44 +23,57 @@ const MAX_REASON = 500;
 // Drops the zod path prefix the API puts on field errors.
 const errorText = (error) => (error?.message || "Something went wrong").replace(/^reason: /, "");
 
-// Signed-out users go to sign-in and come back to the page they were on.
+// Signed-out users go to sign-in and come back to the page they were on, filters included.
 function useSignedIn() {
     const { status } = useSession();
     const router = useRouter();
-    const pathname = usePathname();
-    return { signedIn: status === "authenticated", loading: status === "loading", toSignIn: () => router.push(`/auth?next=${pathname}`) };
+    const toSignIn = () => router.push(`/auth?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+    return { signedIn: status === "authenticated", loading: status === "loading", toSignIn };
 }
 
 /**
- * `pageIds` are all post ids on the page; every LikeButton there reads its liked state from one
- * shared query. The count is the cached one until the first click, then follows the clicks.
+ * Owns its { liked, count }. The feed seeds liked from the one query shared by the page's buttons
+ * (`pageIds`); the post page (`onPost`) seeds both from the viewer state. A click flips both at once,
+ * then takes the server's answer, or goes back on error. Re-seeding waits while a click is pending.
  */
-export function LikeButton({ postId, pageIds, likeCount, variant = "outline", className }) {
+export function LikeButton({ postId, pageIds, likeCount, onPost = false, variant = "outline", className }) {
     const { showAlert } = useApp();
     const { signedIn, loading, toSignIn } = useSignedIn();
-    const { data } = useQuery(blogQueries.liked(pageIds, signedIn));
+    const sharedLiked = useQuery(blogQueries.liked(pageIds, signedIn && !onPost));
+    const viewer = useQuery({ ...blogQueries.viewer(postId), enabled: onPost });
     const setLike = useSetLike();
-    const [count, setCount] = useState(likeCount);
-    const liked = Boolean(data?.ids?.includes(postId));
+    const resolved = onPost ? viewer.isSuccess : sharedLiked.isSuccess;
+    const sourceLiked = onPost ? Boolean(viewer.data?.liked) : Boolean(sharedLiked.data?.ids?.includes(postId));
+    const sourceCount = onPost ? (viewer.data?.likeCount ?? likeCount) : likeCount;
+    const [state, setState] = useState({ liked: sourceLiked, count: sourceCount });
+
+    // Re-seed during render when the source changes (not while a click is pending).
+    const seed = `${sourceLiked}:${sourceCount}`;
+    const [seeded, setSeeded] = useState(seed);
+    if (seed !== seeded && !setLike.isPending) {
+        setSeeded(seed);
+        setState({ liked: sourceLiked, count: sourceCount });
+    }
 
     const toggle = () => {
-        if (loading) return;
         if (!signedIn) return toSignIn();
-        const before = count;
-        setCount(Math.max(0, count + (liked ? -1 : 1)));
-        setLike.mutate({ id: postId, liked: !liked, pageIds }, {
-            onSuccess: (result) => setCount(result.likeCount),
+        const before = state;
+        const liked = !before.liked;
+        setState({ liked, count: Math.max(0, before.count + (liked ? 1 : -1)) });
+        setLike.mutate({ id: postId, liked, pageIds }, {
+            onSuccess: (result) => setState({ liked: result.liked, count: result.likeCount }),
             onError: (error) => {
-                setCount(before);
+                setState(before);
                 showAlert(error?.status || 500, errorText(error));
             },
         });
     };
 
+    const disabled = loading || setLike.isPending || (signedIn && !resolved) || Boolean(onPost && viewer.data?.own);
     return (
-        <Button variant={variant} className={cn(className, liked && "text-primary")} aria-pressed={liked} disabled={setLike.isPending} onClick={toggle}>
-            <LuHeart className={cn(liked && "fill-current text-primary")} />
-            Like{count > 0 && ` ${count}`}
+        <Button variant={variant} className={cn(className, state.liked && "text-primary")} aria-pressed={state.liked} disabled={disabled} onClick={toggle}>
+            <LuHeart className={cn(state.liked && "fill-current text-primary")} />
+            Like{state.count > 0 && ` ${state.count}`}
         </Button>
     );
 }
@@ -123,14 +136,14 @@ export default function PostActions({ postId, likeCount, commentCount }) {
 
     return (
         <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-            <LikeButton postId={postId} pageIds={[postId]} likeCount={likeCount} />
+            <LikeButton postId={postId} pageIds={[postId]} likeCount={likeCount} onPost />
             <Button asChild variant="ghost" className="text-muted-foreground">
                 <Link href="#comments">
                     <LuMessageCircle />
                     {comments > 0 ? `${comments} ${comments === 1 ? "comment" : "comments"}` : "Comment"}
                 </Link>
             </Button>
-            {!viewer?.own && (
+            {viewer && !viewer.own && (
                 <Button variant="ghost" className="ml-auto text-muted-foreground" disabled={reported} onClick={startReport}>
                     <LuFlag />
                     {reported ? "Reported" : "Report"}

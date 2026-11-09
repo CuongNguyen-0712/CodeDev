@@ -93,7 +93,7 @@ export default function PostPage({ post, headings = [], related = [] }) {
                         {topic ? `More about ${topic}` : "More posts"}
                     </h2>
                     <div className="flex flex-col gap-4 pt-2">
-                        {related.map((item) => <PostCard key={item.id} post={item} />)}
+                        {related.map((item) => <PostCard key={item.id} post={item} pageIds={related.map((p) => p.id)} />)}
                     </div>
                 </section>
             )}

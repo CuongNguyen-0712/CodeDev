@@ -18,22 +18,15 @@ function useBlogWrite(mutationFn) {
 export const useCreatePost = () => useBlogWrite((input) => blogClient.createPost(input));
 export const useUpdatePost = () => useBlogWrite((input) => blogClient.updatePost(input));
 export const useDeletePost = () => useBlogWrite((id) => blogClient.deletePost(id));
-// Optimistic: flips the post in the page's shared liked list; the caller restores its own count.
+// The button owns its optimistic state; this only syncs the server truth afterwards.
 export function useSetLike() {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: ({ id, liked }) => (liked ? blogClient.likePost(id) : blogClient.unlikePost(id)),
-        onMutate: async ({ id, liked, pageIds }) => {
-            const key = blogKeys.liked(pageIds);
-            await queryClient.cancelQueries({ queryKey: key });
-            const previous = queryClient.getQueryData(key);
-            queryClient.setQueryData(key, (old) => {
-                const rest = (old?.ids || []).filter((x) => x !== id);
-                return { ids: liked ? [...rest, id] : rest };
-            });
-            return { previous };
+        onSettled: (_, __, { id, pageIds }) => {
+            queryClient.invalidateQueries({ queryKey: blogKeys.liked(pageIds) });
+            queryClient.invalidateQueries({ queryKey: blogKeys.viewer(id) });
         },
-        onError: (_, { pageIds }, context) => queryClient.setQueryData(blogKeys.liked(pageIds), context?.previous),
     });
 }
 export const useReportPost = () => useMutation({ mutationFn: (input) => blogClient.reportPost(input) });
