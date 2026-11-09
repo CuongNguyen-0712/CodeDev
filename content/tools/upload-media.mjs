@@ -17,7 +17,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-import { cloudinaryEntry, cloudinaryPublicId, duplicateNames, mediaKey, needsUpload, payloadEntry, resolveMediaTarget } from "./mediaTarget.mjs";
+import { cloudinaryEntry, cloudinaryPublicId, duplicateNames, editCourseText, mediaKey, needsUpload, payloadEntry, resolveMediaTarget } from "./mediaTarget.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const require = createRequire(path.join(root, "package.json"));
@@ -132,26 +132,8 @@ async function uploadLesson(lessonDir) {
     }
 }
 
-/** Edit the text, not a re-serialised object, so course.json keeps its hand-written layout. */
 function writeProductionCover(coursePath, url, checksum) {
-    let text = fs.readFileSync(coursePath, "utf8");
-    const course = JSON.parse(text);
-    text = /^  "image": (".*"|null),$/m.test(text)
-        ? text.replace(/^  "image": (".*"|null),$/m, `  "image": ${JSON.stringify(url)},`)
-        : text.replace(/^(  "publicId": .*,)$/m, `$1\n  "image": ${JSON.stringify(url)},`);
-    const checksumLine = `  "imageChecksum": ${JSON.stringify(checksum)},`;
-    text = /^  "imageChecksum": ".*",$/m.test(text)
-        ? text.replace(/^  "imageChecksum": ".*",$/m, checksumLine)
-        : text.replace(/^(  "image": .*,)$/m, `$1
-${checksumLine}`);
-    if (course.existing) {
-        const update = JSON.stringify({ ...(course.update || {}), image: url }).replace(/":/g, '": ').replace(/,"/g, ', "');
-        text = /^  "update": .*,$/m.test(text)
-            ? text.replace(/^  "update": .*,$/m, `  "update": ${update.replace(/^\{/, "{ ").replace(/\}$/, " }")},`)
-            : text.replace(/^(  "existing": true,)$/m, `$1\n  "update": ${update},`);
-    }
-    if (JSON.parse(text).image !== url || JSON.parse(text).imageChecksum !== checksum) throw new Error("could not write image to course.json");
-    fs.writeFileSync(coursePath, text);
+    fs.writeFileSync(coursePath, editCourseText(fs.readFileSync(coursePath, "utf8"), url, checksum));
 }
 
 async function uploadCover(courseDir) {

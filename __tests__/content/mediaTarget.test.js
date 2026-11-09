@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cloudinaryEntry, cloudinaryPublicId, duplicateNames, mediaKey, needsUpload, payloadEntry, resolveMediaTarget } from "../../content/tools/mediaTarget.mjs";
+import { cloudinaryEntry, cloudinaryPublicId, duplicateNames, editCourseText, mediaKey, needsUpload, payloadEntry, resolveMediaTarget } from "../../content/tools/mediaTarget.mjs";
 
 const cloudinary = { CLOUDINARY_CLOUD_NAME: "c", CLOUDINARY_API_KEY: "k", CLOUDINARY_API_SECRET: "s" };
 const payload = { PAYLOAD_URL: "http://127.0.0.1:3010", PAYLOAD_API_KEY: "key" };
@@ -73,5 +73,38 @@ describe("manifest entries", () => {
     it("finds a diagram and a video sharing a name", () => {
         expect(duplicateNames(["a.svg", "b.png"], ["b.mp4", "c.webm"])).toEqual([["b.png", "b.mp4"]]);
         expect(duplicateNames(["a.svg"], ["c.mp4"])).toEqual([]);
+    });
+});
+
+describe("editCourseText", () => {
+    const check = (text) => {
+        const out = editCourseText(text, "https://x/c.png", "abc");
+        expect(JSON.parse(out)).toMatchObject({ image: "https://x/c.png", imageChecksum: "abc" });
+        return out;
+    };
+    const doc = (...lines) => `{\n${lines.map((l) => `  ${l}`).join("\n")}\n}\n`;
+
+    it("handles image mid-object (with comma), new and already set", () => {
+        const out = check(doc('"publicId": "c",', '"image": "old",', '"level": "x"'));
+        expect(out).toContain('  "level": "x"\n}');
+        check(out);
+    });
+    it("handles image as the last property (no comma)", () => {
+        const out = check(doc('"publicId": "c",', '"image": "old"'));
+        expect(out).toContain('"image": "https://x/c.png",\n  "imageChecksum": "abc"\n}');
+    });
+    it("adds image when missing and updates update.image for an existing course", () => {
+        const out = check(doc('"publicId": "c",', '"existing": true,', '"update": { "title": "t" },', '"level": "x"'));
+        expect(JSON.parse(out).update).toEqual({ title: "t", image: "https://x/c.png" });
+    });
+    it("handles an existing course whose update is the last property", () => {
+        const out = check(doc('"publicId": "c",', '"image": null,', '"existing": true,', '"update": { "title": "t" }'));
+        expect(JSON.parse(out).update.image).toBe("https://x/c.png");
+    });
+    it("handles CRLF files with a multi-line update block", () => {
+        const text = doc('"publicId": "c",', '"image": "old",', '"existing": true,', '"update": {', '  "durationMinutes": 4,', '  "image": "old"', '},', '"title": "t"').replaceAll("\n", "\r\n");
+        const out = check(text);
+        expect(JSON.parse(out).update).toEqual({ durationMinutes: 4, image: "https://x/c.png" });
+        expect(out.replaceAll("\r\n", "")).not.toContain("\n");
     });
 });

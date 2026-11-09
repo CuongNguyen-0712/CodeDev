@@ -55,3 +55,31 @@ export const duplicateNames = (imageFiles, videoFiles) => {
     const images = new Map(imageFiles.map((f) => [stem(f), f]));
     return videoFiles.filter((f) => images.has(stem(f))).map((f) => [images.get(stem(f)), f]);
 };
+
+/** Sets a top-level property in course.json text (2-space layout, LF or CRLF), keeping the hand-written formatting; the property line may or may not end in a comma. */
+function setLine(text, key, value, anchor) {
+    const own = new RegExp(`^  "${key}": .*?(,?)(\r?)$`, "m");
+    if (own.test(text)) return text.replace(own, (_, comma, cr) => `  "${key}": ${value}${comma}${cr}`);
+    const after = new RegExp(`^(  "${anchor}": .*?)(,?)(\r?)$`, "m");
+    if (!after.test(text)) throw new Error(`course.json has no "${key}" or "${anchor}" line to edit`);
+    return text.replace(after, (_, line, comma, cr) => `${line},${cr}\n  "${key}": ${value}${comma}${cr}`);
+}
+
+/** Writes `image` + `imageChecksum` (and `update.image` for an existing course) into course.json text. */
+export function editCourseText(text, url, checksum) {
+    const course = JSON.parse(text);
+    let out = setLine(text, "image", JSON.stringify(url), "publicId");
+    out = setLine(out, "imageChecksum", JSON.stringify(checksum), "image");
+    if (course.existing) {
+        // A multi-line update block that already has image: replace just that value.
+        const nested = /^(  "update": \{\r?\n[\s\S]*?^    "image": )".*?"/m;
+        if (nested.test(out) && !/^  "update": \{.*\}/m.test(out)) out = out.replace(nested, `$1${JSON.stringify(url)}`);
+        else {
+            const update = JSON.stringify({ ...(course.update || {}), image: url }).replace(/":/g, '": ').replace(/,"/g, ', "');
+            out = setLine(out, "update", update.replace(/^\{/, "{ ").replace(/\}$/, " }"), "existing");
+        }
+    }
+    const parsed = JSON.parse(out);
+    if (parsed.image !== url || parsed.imageChecksum !== checksum || (course.existing && parsed.update?.image !== url)) throw new Error("could not write image to course.json");
+    return out;
+}
