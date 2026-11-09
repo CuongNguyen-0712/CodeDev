@@ -52,7 +52,7 @@ describe("keys", () => {
     it("builds keys and public ids", () => {
         expect(mediaKey({ course: "c", lesson: "l", name: "d" })).toBe("courses/c/l/d");
         expect(mediaKey({ course: "c", name: "cover" })).toBe("courses/c/cover");
-        expect(cloudinaryPublicId("courses/c/cover")).toBe("codedev/production/courses/c/cover");
+        expect(cloudinaryPublicId("courses/c/cover")).toBe("codedev/courses/c/cover");
     });
 });
 
@@ -64,7 +64,7 @@ describe("manifest entries", () => {
         });
     });
     it("maps a Cloudinary video with duration and an image without", () => {
-        const result = { public_id: "codedev/production/k", width: 1, height: 2, format: "mp4", bytes: 7, duration: 3.5 };
+        const result = { public_id: "codedev/k", width: 1, height: 2, format: "mp4", bytes: 7, duration: 3.5 };
         expect(cloudinaryEntry({ key: "k", result, url: "u", mime: "video/mp4", checksum: "c", video: true })).toEqual({
             key: "k", publicId: result.public_id, url: "u", width: 1, height: 2, format: "mp4", bytes: 7, duration: 3.5, checksum: "c", provider: "cloudinary", mime: "video/mp4",
         });

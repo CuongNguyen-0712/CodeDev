@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-09-media-payload-cloudinary-design.md`
 
+> **Revision 2026-11-09 (after execution):** the Cloudinary account is production only with dynamic folders `codedev/courses/...` and `codedev/users/...`. Every `codedev/production/` path below is now `codedev/` (`cloudinaryFolder` -> `<root>/<parts>`, `cloudinaryPublicId(key)` -> `codedev/<key>`), and Task 10 no longer re-uploads content; see the "Production cutover" section of `docs/payload-cms.md`.
+
 ## Global Constraints
 
 - Production (`APP_ENV=production`) uses Cloudinary only; every other `APP_ENV` uses Payload only. No fallback between them.

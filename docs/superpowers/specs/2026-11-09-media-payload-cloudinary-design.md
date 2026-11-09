@@ -1,16 +1,18 @@
 # Media storage: Payload CMS locally, Cloudinary for production only
 
-Date: 2026-11-09. Status: design approved in chat, awaiting spec review.
+Date: 2026-11-09. Status: implemented (Tasks 1-9). Revised 2026-11-09: the Cloudinary account is
+production only and uses dynamic folders `codedev/courses/...` and `codedev/users/...` (no environment
+segment); see section 5.
 
 ## 1. Goal
 
 - Local development and test never read from or write to Cloudinary. Every image and video
   upload (lesson diagrams, course covers, lesson videos, user avatars) goes to the local Payload
   CMS, which keeps the files in the MinIO of `compose.yml`.
-- Production keeps Cloudinary for delivery. Cloudinary holds production files only, all under
-  `codedev/production/`.
+- Production keeps Cloudinary for delivery. Cloudinary holds production files only, in the
+  folders `codedev/courses/` and `codedev/users/`.
 - The existing Cloudinary account is cleaned up: development and test files deleted, orphans
-  deleted, production content moved under the environment folder.
+  deleted.
 
 Success criteria:
 
@@ -19,7 +21,7 @@ Success criteria:
 2. Avatar upload, history, restore and delete work locally against Payload.
 3. A development run cannot overwrite a production asset (no shared public id, no Cloudinary
    credentials needed).
-4. After cleanup, every Cloudinary asset sits under `codedev/production/` and is referenced by
+4. After cleanup, every Cloudinary asset under `codedev/` is referenced by
    the repo, Sanity or the production database.
 
 ## 2. Current state (for reference)
@@ -58,7 +60,7 @@ Default env file `.env.local`. The target follows `APP_ENV` of that file (`lib/a
 
 | APP_ENV | Target | Manifest |
 |---|---|---|
-| `production` | Cloudinary, public id `codedev/production/courses/<course>/<lesson>/<name>` (cover: `codedev/production/courses/<course>/cover`); videos with `resource_type: "video"` | `assets.json` / `course.json` `image` (committed) |
+| `production` | Cloudinary, public id `codedev/courses/<course>/<lesson>/<name>` (cover: `codedev/courses/<course>/cover`); videos with `resource_type: "video"` | `assets.json` / `course.json` `image` (committed) |
 | `development`, `test` | Payload `media` collection over REST (`PAYLOAD_URL`, `PAYLOAD_API_KEY`), `key` = `courses/<course>/<lesson>/<name>` | `assets.local.json` / `course.local.json` (gitignored) |
 
 - Guards: production target requires `APP_ENV=production` in the env file; local target refuses a
@@ -121,7 +123,7 @@ store.destroy(objectKey): "ok" | "not found"       // throws on other failures
 ```
 
 - `cloudinaryStore` (`lib/media/cloudinaryStore.js`): production only; wraps today's
-  `lib/cloudinary.js`. Folder `<CLOUDINARY_ROOT_FOLDER>/production/...`.
+  `lib/cloudinary.js`. Folder `<CLOUDINARY_ROOT_FOLDER>/users/<id>/avatars`.
 - `payloadStore` (`lib/media/payloadStore.js`): development and test; `POST
   <PAYLOAD_URL>/api/media` multipart with `key`, `purpose`; `DELETE /api/media/<id>`
   (`objectKey` = Payload document id). 404 on delete counts as `not found`.
@@ -150,11 +152,12 @@ store.destroy(objectKey): "ok" | "not found"       // throws on other failures
 
 Order matters: references move before any file is deleted.
 
-1. **Re-upload production content** (no `rename`, which would break live URLs at once):
-   `upload-media.mjs --env .env.production` for every course, rebuild `assets.json`,
-   `course.json`, seeds; push Sanity (`build-course.mjs --push`); apply the seed to production.
-2. **Verify**: no reference to `codedev/courses/` remains in the repo, in Sanity lesson
-   documents, or in production `catalog.course.image`.
+1. **No re-upload** (revised): the account owner moved the asset folders to `codedev/courses/`
+   and `codedev/users/`. Content public ids already are `codedev/courses/...`; avatars uploaded
+   before the move keep `codedev/production/users/...` public ids, which stay referenced by
+   `storage.assets`.
+2. **Verify**: the dry-run reports list no file that the repo, Sanity or the production
+   database still uses.
 3. **`scripts/cloudinary-cleanup.mjs`**: read-only by default, writes a report;
    deletes only with `--apply` and the cloud name typed to confirm.
    - `--scope dev`: every asset under `codedev/development/` and `codedev/test/`; with

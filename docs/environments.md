@@ -14,7 +14,7 @@ decides which; `lib/appEnv.mjs` is the single definition used by the app, the te
 | Object storage | **MinIO** (`compose.yml` profile `dev`, `MINIO_ENDPOINT`) | **Neon S3** (`AWS_ENDPOINT_URL_S3`) |
 | Mail | Mailpit (`compose.yml` profile `dev`, inbox `http://127.0.0.1:8025`; `AGENTMAIL_API_KEY` and `MAIL_PASSWORD` empty) | AgentMail `smtp.agentmail.to:465` (`AGENTMAIL_API_KEY` + `AGENTMAIL_FROM` = the inbox); fallback on any AgentMail error: Gmail `smtp.gmail.com:465` (`MAIL_FROM` + `MAIL_PASSWORD`) |
 | Code runner | `compose.yml` profile `dev` (`CODE_RUNNER_URL=http://127.0.0.1:4100`) | optional; browser-reported grading when unset ([sandbox.md](sandbox.md)) |
-| Media (images, avatars, lesson videos) | local Payload CMS `media` collection, files in the MinIO bucket `S3_MEDIA_BUCKET` (`media`); `CLOUDINARY_*` is ignored | Cloudinary, folder `codedev/production/...` (Cloudinary is production only) |
+| Media (images, avatars, lesson videos) | local Payload CMS `media` collection, files in the MinIO bucket `S3_MEDIA_BUCKET` (`media`); `CLOUDINARY_*` is ignored | Cloudinary, folders `codedev/users/...` and `codedev/courses/...` (the account is production only) |
 | Schema | `npm run db:migrate` | `npm run db:migrate:prod -- --yes`; `npm run db:compare` must report "in sync" |
 | Buckets | `public`, `private`, `media` (Payload files) | `public`, `private` |
 

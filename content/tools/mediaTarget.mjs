@@ -38,7 +38,8 @@ export const needsUpload = (entry, checksum, { remoteExists }) => !entry || entr
 
 export const mediaKey = ({ course, lesson, name }) => ["courses", course, lesson, name].filter(Boolean).join("/");
 
-export const cloudinaryPublicId = (key) => `codedev/production/${key}`;
+// The Cloudinary account is production only: public id = codedev/<key> (same ids the committed manifests already use).
+export const cloudinaryPublicId = (key) => `codedev/${key}`;
 
 const formatOf = (mime) => String(mime || "").split("/")[1]?.replace(/\+.*/, "") || null;
 

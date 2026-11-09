@@ -78,7 +78,7 @@ node content/tools/build-course.mjs content/courses/<course> --skip-uploads --pu
 ```
 
 Course cover: `node content/tools/upload-media.mjs content/courses/<course>` renders `cover.svg` to PNG
-and uploads it: production (`APP_ENV` of `--env`) to Cloudinary (`codedev/production/courses/<course>/cover`),
+and uploads it: production (`APP_ENV` of `--env`) to Cloudinary (`codedev/courses/<course>/cover`),
 setting `image` and `imageChecksum` in `course.json` (`update.image` for an `existing` course); anywhere else to
 the local Payload CMS, writing the git-ignored `course.local.json`. Rebuild the seed afterwards; covers are 16:9, logos and other
 shapes are shown whole (`lib/coverFit.js`).

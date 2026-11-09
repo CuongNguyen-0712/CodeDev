@@ -61,7 +61,7 @@ Outside production every uploaded file lives in the local CMS; Cloudinary is pro
   `npm run storage:init` creates it. Files are served at `<PAYLOAD_URL>/api/media/file/<filename>`;
   Payload may rename a file, so always use the URL it returns.
 - **Avatars:** `lib/media/mediaStore.js` sends them to Payload outside production and to Cloudinary
-  (`<root>/production/users/...`) in production. `storage.assets.provider` can be `payload`.
+  (`<root>/users/<id>/avatars/...`) in production. `storage.assets.provider` can be `payload`.
 - **Course and lesson media:** `node content/tools/upload-media.mjs <course|lesson> [--env file] [--dry-run]`.
   The target follows `APP_ENV` of the env file. A shell `APP_ENV` that differs from the env file is
   refused, except `APP_ENV=development` (forces the local target; `payload-sync.mjs` uses it).
@@ -69,7 +69,7 @@ Outside production every uploaded file lives in the local CMS; Cloudinary is pro
 
   | `APP_ENV` | Target | Manifests (course / lesson) |
   |---|---|---|
-  | production | Cloudinary `codedev/production/courses/...` | `course.json` (`image`, `imageChecksum`), `assets.json`, both committed |
+  | production | Cloudinary `codedev/courses/...` | `course.json` (`image`, `imageChecksum`), `assets.json`, both committed |
   | anything else | local Payload | `course.local.json`, `assets.local.json`, both git-ignored |
 
   `build-lesson.mjs --target payload` reads `assets.local.json` and writes `lesson.payload.json`;
@@ -103,16 +103,20 @@ unless `--apply` (then the cloud name must be typed). The report goes to the OS 
    Production scope, then remove them from `.env`.
 2. `.env.production` needs `NEXT_PUBLIC_SANITY_PROJECT_ID`, `NEXT_PUBLIC_SANITY_DATASET`,
    `NEXT_PUBLIC_SANITY_API_VERSION` and `SANITY_READ_TOKEN` for `--scope orphans`.
-3. Order:
-   1. Re-upload each course: `node content/tools/upload-media.mjs content/courses/<course> --env .env.production`.
-   2. Rebuild: `node content/tools/build-course.mjs content/courses/<course> --skip-uploads`.
-   3. Commit `assets.json`, `course.json`, the lessons and the seeds.
-   4. Push the Sanity lessons and apply the seeds to production.
-   5. Verify: `git grep -n "codedev/courses/" content db/seeds` returns nothing (URLs and `publicId`
-      values), and neither Sanity lessons nor `catalog.course` covers still point at `codedev/courses/`.
-   6. `node scripts/cloudinary-cleanup.mjs --scope dev --env .env.production` (dry run).
-   7. `node scripts/cloudinary-cleanup.mjs --scope orphans --env .env.production` (dry run).
-   8. Read both reports, then run each again with `--apply`.
+3. Folder layout on the production account (dynamic folders): `codedev/courses/<course>/...` for
+   covers, diagrams and videos, `codedev/users/<id>/avatars/...` for avatars. Content already uses
+   these public ids (the committed `assets.json` / `course.json`), so nothing is re-uploaded.
+   Avatars uploaded before 2026-11-09 sit in `codedev/users/...` as asset folder but keep their
+   `codedev/production/users/...` public ids; `storage.assets` and profile URLs point at those, so
+   they stay valid and the orphan scope keeps them.
+4. Order:
+   1. `node scripts/cloudinary-cleanup.mjs --scope dev --env .env.production` (dry run; expect 0).
+   2. `node scripts/cloudinary-cleanup.mjs --scope orphans --env .env.production` (dry run).
+   3. Read both reports, then run each again with `--apply` only if a report lists files you want gone.
+5. Later media changes: `node content/tools/upload-media.mjs <course or lesson folder> --env .env.production`,
+   commit `assets.json` / `course.json`, then `build-course.mjs <course> --skip-uploads --push` and apply
+   the seed. The first production run per course re-uploads its cover once (no `imageChecksum` yet),
+   to the same public id.
 
 ### Change the collections
 

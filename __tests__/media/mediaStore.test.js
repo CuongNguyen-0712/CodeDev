@@ -4,7 +4,7 @@ import { mediaStore, destroyStoredFile } from "@/lib/media/mediaStore";
 import { deleteFromPayload } from "@/lib/media/payloadMedia.mjs";
 
 const destroyAsset = vi.fn(async () => "ok");
-const uploadBuffer = vi.fn(async () => ({ public_id: "codedev/production/users/u1/avatars/x", secure_url: "https://c/x.png", width: 1, height: 1, format: "png", version: 1, bytes: 3 }));
+const uploadBuffer = vi.fn(async () => ({ public_id: "codedev/users/u1/avatars/x", secure_url: "https://c/x.png", width: 1, height: 1, format: "png", version: 1, bytes: 3 }));
 const s3Delete = vi.fn(async () => {});
 vi.mock("@/lib/cloudinary", async () => {
     const actual = await vi.importActual("@/lib/cloudinary");
@@ -33,7 +33,7 @@ describe("mediaStore", () => {
             key: "users/u1/avatars/x", mime: "image/png", maxSide: 512, purpose: "avatar", allowedFormats: ["jpg", "png"],
         });
         expect(uploadBuffer.mock.calls[0][1]).toEqual({
-            folder: "codedev/production/users/u1/avatars",
+            folder: "codedev/users/u1/avatars",
             public_id: "x",
             resource_type: "image",
             overwrite: false,
@@ -42,7 +42,7 @@ describe("mediaStore", () => {
             allowed_formats: ["jpg", "png"],
             transformation: [{ width: 512, height: 512, crop: "limit" }],
         });
-        expect(out).toMatchObject({ provider: "cloudinary", objectKey: "codedev/production/users/u1/avatars/x" });
+        expect(out).toMatchObject({ provider: "cloudinary", objectKey: "codedev/users/u1/avatars/x" });
     });
 
     it("payload store is not configured without PAYLOAD_URL or key", () => {
@@ -130,13 +130,13 @@ describe("destroyStoredFile", () => {
 });
 
 describe("cloudinaryFolder", () => {
-    it("always uses the production segment", async () => {
+    it("uses no environment segment (the account is production only)", async () => {
         const { cloudinaryFolder } = await import("@/lib/cloudinary");
         const prev = { a: process.env.APP_ENV, r: process.env.CLOUDINARY_ROOT_FOLDER };
         process.env.APP_ENV = "development";
         delete process.env.CLOUDINARY_ROOT_FOLDER;
         try {
-            expect(cloudinaryFolder("users", "u1")).toBe("codedev/production/users/u1");
+            expect(cloudinaryFolder("users", "u1")).toBe("codedev/users/u1");
         } finally {
             if (prev.a === undefined) delete process.env.APP_ENV; else process.env.APP_ENV = prev.a;
             if (prev.r !== undefined) process.env.CLOUDINARY_ROOT_FOLDER = prev.r;

@@ -42,8 +42,8 @@ describe("image type detection", () => {
 
     it("builds upload folders per environment from server-side values only", async () => {
         const { cloudinaryFolder } = await vi.importActual("@/lib/cloudinary");
-        expect(cloudinaryFolder("users", "abc-123", "avatars")).toBe("codedev/production/users/abc-123/avatars");
-        expect(cloudinaryFolder("users", "../../etc", "avatars")).toBe("codedev/production/users/______etc/avatars");
+        expect(cloudinaryFolder("users", "abc-123", "avatars")).toBe("codedev/users/abc-123/avatars");
+        expect(cloudinaryFolder("users", "../../etc", "avatars")).toBe("codedev/users/______etc/avatars");
     });
 });
 

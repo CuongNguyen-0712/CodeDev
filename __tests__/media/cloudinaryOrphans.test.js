@@ -18,13 +18,13 @@ describe("findOrphans", () => {
         expect(orphans.map((a) => a.publicId)).toEqual(["codedev/d"]);
     });
 
-    it("orphans the old codedev/courses tree once references moved to production/", () => {
+    it("orphans a stale tree once references moved away from it", () => {
         const { orphans } = findOrphans({
             notAfter: NOW,
-            assets: [img("codedev/courses/x/cover"), img("codedev/production/courses/x/cover")],
-            referenced: refs({ dbKeys: new Set(["codedev/production/courses/x/cover"]) }),
+            assets: [img("codedev/courses/x/old-cover"), img("codedev/courses/x/cover")],
+            referenced: refs({ dbKeys: new Set(["codedev/courses/x/cover"]) }),
         });
-        expect(orphans.map((a) => a.publicId)).toEqual(["codedev/courses/x/cover"]);
+        expect(orphans.map((a) => a.publicId)).toEqual(["codedev/courses/x/old-cover"]);
     });
 
     it("refuses without every reference source", () => {
