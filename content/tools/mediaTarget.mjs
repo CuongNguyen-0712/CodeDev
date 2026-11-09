@@ -13,6 +13,27 @@ export function resolveMediaTarget(env) {
     return { provider: "payload", manifestName: "assets.local.json", courseManifestName: "course.local.json" };
 }
 
+/**
+ * The target must come from the env file, not from a stray shell APP_ENV (dotenv never overrides the
+ * shell). Only a forced `development` may differ: payload-sync sets it to keep the local target.
+ * `processEnv` is process.env after loading, `fileEnv` the parsed env file (+ shared .env).
+ */
+export function checkAppEnvOverride(processEnv, fileEnv) {
+    const running = appEnv(processEnv);
+    const file = appEnv(fileEnv);
+    if (running === file || running === "development") return;
+    throw new Error(`APP_ENV from the shell (${running}) differs from the env file (${file}); unset APP_ENV or pick the matching --env file`);
+}
+
+const CHUNKED_VIDEO_BYTES = 20 * 1024 * 1024;
+
+/** Starts a Cloudinary upload stream (SDK v2: options, callback); videos over 20 MB use the chunked API. */
+export function cloudinaryUploadStream(uploader, { kind, size, options }, callback) {
+    return kind === "video" && size > CHUNKED_VIDEO_BYTES
+        ? uploader.upload_chunked_stream({ ...options, chunk_size: CHUNKED_VIDEO_BYTES }, callback)
+        : uploader.upload_stream(options, callback);
+}
+
 export const needsUpload = (entry, checksum, { remoteExists }) => !entry || entry.checksum !== checksum || remoteExists === false;
 
 export const mediaKey = ({ course, lesson, name }) => ["courses", course, lesson, name].filter(Boolean).join("/");

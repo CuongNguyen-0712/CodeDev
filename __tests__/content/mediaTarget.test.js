@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { cloudinaryEntry, cloudinaryPublicId, duplicateNames, editCourseText, mediaKey, needsUpload, payloadEntry, resolveMediaTarget } from "../../content/tools/mediaTarget.mjs";
+import { checkAppEnvOverride, cloudinaryEntry, cloudinaryPublicId, cloudinaryUploadStream, duplicateNames, editCourseText, mediaKey, needsUpload, payloadEntry, resolveMediaTarget } from "../../content/tools/mediaTarget.mjs";
 
 const cloudinary = { CLOUDINARY_CLOUD_NAME: "c", CLOUDINARY_API_KEY: "k", CLOUDINARY_API_SECRET: "s" };
 const payload = { PAYLOAD_URL: "http://127.0.0.1:3010", PAYLOAD_API_KEY: "key" };
@@ -106,5 +106,48 @@ describe("editCourseText", () => {
         const out = check(text);
         expect(JSON.parse(out).update).toEqual({ durationMinutes: 4, image: "https://x/c.png" });
         expect(out.replaceAll("\r\n", "")).not.toContain("\n");
+    });
+});
+
+describe("cloudinaryUploadStream", () => {
+    const MB = 1024 * 1024;
+    const uploader = () => ({ upload_stream: vi.fn(() => "plain"), upload_chunked_stream: vi.fn(() => "chunked") });
+    const done = () => {};
+
+    it("sends videos over 20 MB through the chunked API (options, then callback)", () => {
+        const u = uploader();
+        expect(cloudinaryUploadStream(u, { kind: "video", size: 20 * MB + 1, options: { public_id: "p" } }, done)).toBe("chunked");
+        expect(u.upload_chunked_stream).toHaveBeenCalledWith({ public_id: "p", chunk_size: 20 * MB }, done);
+        expect(u.upload_stream).not.toHaveBeenCalled();
+    });
+
+    it("uses the plain stream for images and videos up to 20 MB", () => {
+        const u = uploader();
+        expect(cloudinaryUploadStream(u, { kind: "video", size: 20 * MB, options: { public_id: "v" } }, done)).toBe("plain");
+        expect(cloudinaryUploadStream(u, { kind: "image", size: 50 * MB, options: { public_id: "i" } }, done)).toBe("plain");
+        expect(u.upload_stream).toHaveBeenCalledWith({ public_id: "v" }, done);
+        expect(u.upload_chunked_stream).not.toHaveBeenCalled();
+    });
+
+    it("matches the installed SDK", async () => {
+        const { v2 } = await import("cloudinary");
+        expect(typeof v2.uploader.upload_chunked_stream).toBe("function");
+    });
+});
+
+describe("checkAppEnvOverride", () => {
+    it("accepts the env file's own environment", () => {
+        expect(() => checkAppEnvOverride({ APP_ENV: "production" }, { APP_ENV: "production" })).not.toThrow();
+        expect(() => checkAppEnvOverride({ APP_ENV: "development" }, { APP_ENV: "development" })).not.toThrow();
+    });
+
+    it("lets the shell force development (payload-sync's local target)", () => {
+        expect(() => checkAppEnvOverride({ APP_ENV: "development" }, { APP_ENV: "production" })).not.toThrow();
+    });
+
+    it("refuses a shell APP_ENV that moves toward production or anything else", () => {
+        expect(() => checkAppEnvOverride({ APP_ENV: "production" }, { APP_ENV: "development" })).toThrow(/APP_ENV/);
+        expect(() => checkAppEnvOverride({ APP_ENV: "production" }, {})).toThrow(/APP_ENV/);
+        expect(() => checkAppEnvOverride({ APP_ENV: "staging" }, { APP_ENV: "production" })).toThrow(/APP_ENV/);
     });
 });

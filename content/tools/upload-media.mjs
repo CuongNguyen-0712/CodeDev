@@ -17,7 +17,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-import { cloudinaryEntry, cloudinaryPublicId, duplicateNames, editCourseText, mediaKey, needsUpload, payloadEntry, resolveMediaTarget } from "./mediaTarget.mjs";
+import { checkAppEnvOverride, cloudinaryEntry, cloudinaryPublicId, cloudinaryUploadStream, duplicateNames, editCourseText, mediaKey, needsUpload, payloadEntry, resolveMediaTarget } from "./mediaTarget.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const require = createRequire(path.join(root, "package.json"));
@@ -28,6 +28,8 @@ require("dotenv").config({ path: path.join(root, envFile), quiet: true });
 // Shared values (.env) under the env file above, the order Next.js uses.
 require("dotenv").config({ path: path.join(root, ".env"), quiet: true });
 
+const parseEnv = (file) => (fs.existsSync(path.join(root, file)) ? require("dotenv").parse(fs.readFileSync(path.join(root, file))) : {});
+checkAppEnvOverride(process.env, { ...parseEnv(".env"), ...parseEnv(envFile) });
 const target = resolveMediaTarget(process.env);
 const MAX_BYTES = 200 * 1024 * 1024;
 const MIME = { ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".mp4": "video/mp4", ".webm": "video/webm" };
@@ -62,8 +64,7 @@ async function send({ key, buffer, filename, mime, kind, cover, checksum }) {
     const options = { public_id: cloudinaryPublicId(key), overwrite: true, invalidate: true, resource_type: kind };
     const result = await new Promise((resolve, reject) => {
         const done = (error, res) => (error ? reject(error) : resolve(res));
-        if (kind === "video" && buffer.length > 20 * 1024 * 1024) cloudinary.uploader.upload_large_stream({ ...options, chunk_size: 20 * 1024 * 1024 }, done).end(buffer);
-        else cloudinary.uploader.upload_stream(options, done).end(buffer);
+        cloudinaryUploadStream(cloudinary.uploader, { kind, size: buffer.length, options }, done).end(buffer);
     });
     if (kind === "video") return cloudinaryEntry({ key, result, url: result.secure_url, mime, checksum, video: true });
     // Covers: the browser picks WebP/AVIF. Diagrams: SVG sources are rasterised to PNG at delivery.
