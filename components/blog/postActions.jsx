@@ -9,6 +9,7 @@ import { useSession } from "next-auth/react";
 import { Button } from "@/components/shadcn/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
 import { Field, FieldDescription, FieldLabel } from "@/components/shadcn/field";
+import { Spinner } from "@/components/shadcn/spinner";
 import { Textarea } from "@/components/shadcn/textarea";
 import { useApp } from "@/contexts/appContext";
 import { nextLikeState } from "@/lib/blog/likeState.mjs";
@@ -77,12 +78,21 @@ export function LikeButton({ postId, pageIds, likeCount, authorId, onPost = fals
 
     const disabled = loading || setLike.isPending || (signedIn && !settled) || own;
     return (
-        <Button variant={variant} className={cn(className, state.liked && "text-primary")} aria-pressed={state.liked} disabled={disabled} onClick={toggle}>
-            <LuHeart className={cn(state.liked && "fill-current text-primary")} />
+        <Button
+            variant={variant}
+            className={cn(className, state.liked && "text-primary")}
+            aria-label={state.count > 0 ? `Like, ${state.count} ${state.count === 1 ? "like" : "likes"}` : "Like"}
+            aria-pressed={state.liked}
+            disabled={disabled}
+            onClick={toggle}
+        >
+            <LuHeart className={cn(state.liked && "fill-current text-primary")} aria-hidden="true" />
             Like{state.count > 0 && ` ${state.count}`}
         </Button>
     );
 }
+
+const commentLabel = (count) => (count > 0 ? `${count} ${count === 1 ? "comment" : "comments"}` : "Comment");
 
 /** The feed's Comment link, with the live count from the page's shared feed-state query. */
 export function CommentButton({ postId, pageIds, slug, commentCount, className }) {
@@ -90,8 +100,8 @@ export function CommentButton({ postId, pageIds, slug, commentCount, className }
     const count = data?.counts?.[postId]?.commentCount ?? commentCount;
     return (
         <Button asChild variant="ghost" className={className}>
-            <Link href={`/blog/${slug}#comments`}>
-                <LuMessageCircle />
+            <Link href={`/blog/${slug}#comments`} aria-label={commentLabel(count)}>
+                <LuMessageCircle aria-hidden="true" />
                 Comment{count > 0 && ` ${count}`}
             </Link>
         </Button>
@@ -132,7 +142,10 @@ function ReportDialog({ open, onOpenChange, postId, onReported }) {
                 </Field>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button disabled={reason.trim().length < MIN_REASON || report.isPending} onClick={submit}>Report post</Button>
+                    <Button disabled={reason.trim().length < MIN_REASON || report.isPending} onClick={submit}>
+                        {report.isPending && <Spinner />}
+                        Report post
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -159,15 +172,15 @@ export default function PostActions({ postId, likeCount, commentCount }) {
         <div className="flex flex-wrap items-center gap-2 border-t pt-4">
             <LikeButton postId={postId} pageIds={[postId]} likeCount={likeCount} onPost />
             <Button asChild variant="ghost" className="text-muted-foreground">
-                <Link href="#comments">
-                    <LuMessageCircle />
-                    {comments > 0 ? `${comments} ${comments === 1 ? "comment" : "comments"}` : "Comment"}
+                <Link href="#comments" aria-label={commentLabel(comments)}>
+                    <LuMessageCircle aria-hidden="true" />
+                    Comment{comments > 0 && ` ${comments}`}
                 </Link>
             </Button>
             {/* If the viewer read fails, Report still shows; the server rejects your own post with 400. */}
             {(viewer ? !viewer.own : viewerQuery.isError) && (
                 <Button variant="ghost" className="ml-auto text-muted-foreground" disabled={reported} onClick={startReport}>
-                    <LuFlag />
+                    <LuFlag aria-hidden="true" />
                     {reported ? "Reported" : "Report"}
                 </Button>
             )}

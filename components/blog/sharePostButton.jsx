@@ -20,7 +20,7 @@ export default function SharePostButton({ slug, className }) {
 
     return (
         <Button variant="ghost" className={className} onClick={share}>
-            <LuShare2 />
+            <LuShare2 aria-hidden="true" />
             Share
         </Button>
     );
