@@ -5,10 +5,11 @@ import { formatPostDate } from "@/components/blog/postCard";
 import { Badge } from "@/components/shadcn/badge";
 
 import { blogPostingJsonLd } from "@/lib/blog/jsonLd.mjs";
+import { siteOrigin } from "@/lib/siteUrl";
 import { mediaOrigins } from "@/lib/media/mediaOrigins.mjs";
 
 export default function PostPage({ post }) {
-    const jsonLd = blogPostingJsonLd(post);
+    const jsonLd = blogPostingJsonLd(post, siteOrigin());
 
     return (
         <article className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">

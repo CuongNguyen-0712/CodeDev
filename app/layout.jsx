@@ -3,10 +3,13 @@ import './globals.css';
 import { fontVariables } from './fonts';
 
 import { THEME_SCRIPT } from '@/lib/themeScript';
+import { siteOrigin } from '@/lib/siteUrl';
 
 import { Provider } from '@/contexts/providers';
 import { AuthSessionWatcher } from '@/components/auth/sessionWatcher';
 import ViewportReset from '@/components/ui/viewportReset';
+
+export const metadata = { metadataBase: new URL(siteOrigin()) };
 
 export default async function RootLayout({ children }) {
   return (

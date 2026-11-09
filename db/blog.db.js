@@ -77,6 +77,11 @@ export const blogDb = {
          WHERE p.slug = $1 AND p.status = 'published' AND p.deleted_at IS NULL`, [slug]
     )).rows[0] || null,
 
+    listSitemap: async () => (await sql(
+        `SELECT slug, updated_at FROM community.post
+         WHERE status = 'published' AND deleted_at IS NULL ORDER BY published_at DESC, id DESC LIMIT 5000`
+    )).rows,
+
     /** Review queues: oldest first on updated_at, published newest first on published_at. */
     listAdmin: async ({ status, cursor, limit }) => {
         const published = status === "published";

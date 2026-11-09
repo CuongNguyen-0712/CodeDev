@@ -122,6 +122,8 @@ export const blogService = {
         return row && { ...publicPost(row), body: row.body, updatedAt: row.updated_at };
     },
 
+    listSitemap: async () => (await blogDb.listSitemap()).map((r) => ({ slug: r.slug, updatedAt: r.updated_at })),
+
     /** Deletes posts hidden for more than `days`, with the assets only they used; storage files go through the outbox. */
     runHiddenPurge: async ({ limit = 50, days = BLOG_HIDDEN_PURGE_DAYS } = {}) => {
         const result = await withTransaction(async (client) => {
