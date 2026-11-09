@@ -5,5 +5,6 @@ export const blogKeys = {
     post: (id) => [...blogKeys.all, 'post', id],
     viewer: (id) => [...blogKeys.all, 'viewer', id],
     comments: (id) => [...blogKeys.all, 'comments', id],
-    liked: (ids) => [...blogKeys.all, 'liked', ids.join(',')],
+    // No ids: the prefix of every page's feed state.
+    feedState: (ids) => (ids ? [...blogKeys.all, 'feed-state', ids.join(',')] : [...blogKeys.all, 'feed-state']),
 }

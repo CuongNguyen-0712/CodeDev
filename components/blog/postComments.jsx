@@ -119,7 +119,14 @@ export default function PostComments({ postId, slug, initialCount }) {
         <section id="comments" aria-labelledby="comments-heading" className="flex min-w-0 flex-col gap-6 border-t pt-8 xl:col-start-1">
             <h2 id="comments-heading" className="text-lg font-semibold tracking-tight text-foreground">Comments ({count})</h2>
             <CommentForm postId={postId} slug={slug} />
-            {query.isError && <p role="alert" className="text-sm text-destructive">Could not load comments. Try again.</p>}
+            {query.isError && (
+                <p role="alert" className="text-sm text-destructive">
+                    Could not load comments.{" "}
+                    <button type="button" className="font-medium underline underline-offset-4" disabled={query.isFetching} onClick={() => query.refetch()}>
+                        Try again
+                    </button>
+                </p>
+            )}
             {query.isSuccess && items.length === 0 && (
                 <p className="text-sm text-muted-foreground">No comments yet. Be the first to share what you think.</p>
             )}

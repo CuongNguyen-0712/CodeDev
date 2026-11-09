@@ -32,9 +32,9 @@ export const blogQueries = {
             ...QUERY_TIMES.live,
         };
     },
-    // One request per page of posts, shared by every Like button on it.
-    liked(ids, enabled) {
-        return { queryKey: blogKeys.liked(ids), queryFn: () => blogClient.getLiked(ids), enabled: enabled && ids.length > 0, ...QUERY_TIMES.personal };
+    // One request per page of posts, shared by every Like and Comment button on it; runs signed out too (live counts).
+    feedState(ids, enabled = true) {
+        return { queryKey: blogKeys.feedState(ids), queryFn: () => blogClient.getFeedState(ids), enabled: enabled && ids.length > 0, ...QUERY_TIMES.personal };
     },
     mine() {
         return { queryKey: blogKeys.mine(), queryFn: () => blogClient.getMine(), ...QUERY_TIMES.personal };

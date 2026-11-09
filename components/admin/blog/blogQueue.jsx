@@ -116,7 +116,13 @@ function CommentsPanel() {
                                     </p>
                                     <p className={comment.hidden ? "line-clamp-3 text-sm break-words whitespace-pre-line text-muted-foreground" : "line-clamp-3 text-sm break-words whitespace-pre-line"}>{comment.body}</p>
                                     <p className="text-xs text-muted-foreground">
-                                        On <Link href={`/blog/${comment.post.slug}#comments`} target="_blank" rel="noopener" className="font-medium text-foreground hover:underline">{comment.post.title}</Link>
+                                        On {comment.post.status === "published" && !comment.post.deleted ? (
+                                            <Link href={`/blog/${comment.post.slug}#comments`} target="_blank" rel="noopener" className="font-medium text-foreground hover:underline">{comment.post.title}</Link>
+                                        ) : (
+                                            <>
+                                                <span className="font-medium text-foreground">{comment.post.title}</span> ({comment.post.deleted ? "post deleted" : "post hidden"})
+                                            </>
+                                        )}
                                     </p>
                                 </div>
                                 <RowAction

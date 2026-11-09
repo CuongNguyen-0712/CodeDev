@@ -23,23 +23,28 @@ export function useSetLike() {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: ({ id, liked }) => (liked ? blogClient.likePost(id) : blogClient.unlikePost(id)),
-        onSettled: (_, __, { id, pageIds }) => {
-            queryClient.invalidateQueries({ queryKey: blogKeys.liked(pageIds) });
+        // Every feed page may show this post, so the whole feed-state prefix goes stale.
+        onSettled: (_, __, { id }) => {
+            queryClient.invalidateQueries({ queryKey: blogKeys.feedState() });
             queryClient.invalidateQueries({ queryKey: blogKeys.viewer(id) });
         },
     });
 }
-// The new comment goes on top of the cached first page; the viewer query carries the count.
+// The new comment goes on top of the cached first page (or the list refetches when nothing is cached); the viewer query carries the count.
 export function useAddComment(postId) {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: (body) => blogClient.addComment({ id: postId, body }),
         onSuccess: (comment) => {
-            queryClient.setQueryData(blogKeys.comments(postId), (data) => data && {
-                ...data,
-                pages: data.pages.map((page, index) => (index === 0 ? { ...page, items: [comment, ...page.items] } : page)),
-            });
+            const key = blogKeys.comments(postId);
+            if (queryClient.getQueryData(key)) {
+                queryClient.setQueryData(key, (data) => ({
+                    ...data,
+                    pages: data.pages.map((page, index) => (index === 0 ? { ...page, items: [comment, ...page.items] } : page)),
+                }));
+            } else queryClient.invalidateQueries({ queryKey: key });
             queryClient.invalidateQueries({ queryKey: blogKeys.viewer(postId) });
+            queryClient.invalidateQueries({ queryKey: blogKeys.feedState() });
         },
     });
 }
@@ -50,6 +55,7 @@ export function useDeleteComment(postId) {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: blogKeys.comments(postId) });
             queryClient.invalidateQueries({ queryKey: blogKeys.viewer(postId) });
+            queryClient.invalidateQueries({ queryKey: blogKeys.feedState() });
         },
     });
 }

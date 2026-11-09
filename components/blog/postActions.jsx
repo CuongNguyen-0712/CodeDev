@@ -26,26 +26,30 @@ const errorText = (error) => (error?.message || "Something went wrong").replace(
 
 // Signed-out users go to sign-in and come back to the page they were on, filters included.
 function useSignedIn() {
-    const { status } = useSession();
+    const { status, data } = useSession();
     const router = useRouter();
     const toSignIn = () => router.push(`/auth?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
-    return { signedIn: status === "authenticated", loading: status === "loading", toSignIn };
+    // session.user.id is the user's public id, the same kind as post.author.id.
+    return { signedIn: status === "authenticated", loading: status === "loading", userId: data?.user?.id ?? null, toSignIn };
 }
 
 /**
- * Owns its { liked, count }. The feed seeds liked from the one query shared by the page's buttons
- * (`pageIds`); the post page (`onPost`) seeds both from the viewer state. A click flips both at once,
- * then takes the server's answer, or goes back on error. Re-seeding waits while a click is pending.
+ * Owns its { liked, count }. The feed seeds both from the one feed-state query shared by the page's
+ * buttons (`pageIds`); the post page (`onPost`) seeds both from the viewer state. A click flips both
+ * at once, then takes the server's answer, or goes back on error. Re-seeding waits while a click is pending.
  */
-export function LikeButton({ postId, pageIds, likeCount, onPost = false, variant = "outline", className }) {
+export function LikeButton({ postId, pageIds, likeCount, authorId, onPost = false, variant = "outline", className }) {
     const { showAlert } = useApp();
-    const { signedIn, loading, toSignIn } = useSignedIn();
-    const sharedLiked = useQuery(blogQueries.liked(pageIds, signedIn && !onPost));
+    const { signedIn, loading, userId, toSignIn } = useSignedIn();
+    const feed = useQuery(blogQueries.feedState(pageIds, !onPost));
     const viewer = useQuery({ ...blogQueries.viewer(postId), enabled: onPost });
     const setLike = useSetLike();
-    const resolved = onPost ? viewer.isSuccess : sharedLiked.isSuccess;
-    const sourceLiked = onPost ? Boolean(viewer.data?.liked) : Boolean(sharedLiked.data?.ids?.includes(postId));
-    const sourceCount = onPost ? (viewer.data?.likeCount ?? likeCount) : likeCount;
+    const read = onPost ? viewer : feed;
+    // A failed read falls back to not liked and enabled; the server still enforces every rule.
+    const settled = read.isSuccess || read.isError;
+    const sourceLiked = onPost ? Boolean(viewer.data?.liked) : Boolean(feed.data?.ids?.includes(postId));
+    const sourceCount = onPost ? (viewer.data?.likeCount ?? likeCount) : (feed.data?.counts?.[postId]?.likeCount ?? likeCount);
+    const own = onPost ? Boolean(viewer.data?.own) : Boolean(userId) && userId === authorId;
     const [state, setState] = useState({ liked: sourceLiked, count: sourceCount });
 
     // Re-seed during render from each source on its own (see nextLikeState).
@@ -62,7 +66,7 @@ export function LikeButton({ postId, pageIds, likeCount, onPost = false, variant
         const before = state;
         const liked = !before.liked;
         setState({ liked, count: Math.max(0, before.count + (liked ? 1 : -1)) });
-        setLike.mutate({ id: postId, liked, pageIds }, {
+        setLike.mutate({ id: postId, liked }, {
             onSuccess: (result) => setState({ liked: result.liked, count: result.likeCount }),
             onError: (error) => {
                 setState(before);
@@ -71,11 +75,25 @@ export function LikeButton({ postId, pageIds, likeCount, onPost = false, variant
         });
     };
 
-    const disabled = loading || setLike.isPending || (signedIn && !resolved) || Boolean(onPost && viewer.data?.own);
+    const disabled = loading || setLike.isPending || (signedIn && !settled) || own;
     return (
         <Button variant={variant} className={cn(className, state.liked && "text-primary")} aria-pressed={state.liked} disabled={disabled} onClick={toggle}>
             <LuHeart className={cn(state.liked && "fill-current text-primary")} />
             Like{state.count > 0 && ` ${state.count}`}
+        </Button>
+    );
+}
+
+/** The feed's Comment link, with the live count from the page's shared feed-state query. */
+export function CommentButton({ postId, pageIds, slug, commentCount, className }) {
+    const { data } = useQuery(blogQueries.feedState(pageIds));
+    const count = data?.counts?.[postId]?.commentCount ?? commentCount;
+    return (
+        <Button asChild variant="ghost" className={className}>
+            <Link href={`/blog/${slug}#comments`}>
+                <LuMessageCircle />
+                Comment{count > 0 && ` ${count}`}
+            </Link>
         </Button>
     );
 }
@@ -124,7 +142,8 @@ function ReportDialog({ open, onOpenChange, postId, onReported }) {
 /** Like, comments and report for the post page; `likeCount` and `commentCount` are the cached values. */
 export default function PostActions({ postId, likeCount, commentCount }) {
     const { loading, signedIn, toSignIn } = useSignedIn();
-    const { data: viewer } = useQuery(blogQueries.viewer(postId));
+    const viewerQuery = useQuery(blogQueries.viewer(postId));
+    const viewer = viewerQuery.data;
     const [open, setOpen] = useState(false);
     const [reportedNow, setReportedNow] = useState(false);
     const reported = reportedNow || Boolean(viewer?.reported);
@@ -145,7 +164,8 @@ export default function PostActions({ postId, likeCount, commentCount }) {
                     {comments > 0 ? `${comments} ${comments === 1 ? "comment" : "comments"}` : "Comment"}
                 </Link>
             </Button>
-            {viewer && !viewer.own && (
+            {/* If the viewer read fails, Report still shows; the server rejects your own post with 400. */}
+            {(viewer ? !viewer.own : viewerQuery.isError) && (
                 <Button variant="ghost" className="ml-auto text-muted-foreground" disabled={reported} onClick={startReport}>
                     <LuFlag />
                     {reported ? "Reported" : "Report"}

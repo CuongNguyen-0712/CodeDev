@@ -2,11 +2,8 @@ import Link from "next/link";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/shadcn/button";
-import { LikeButton } from "@/components/blog/postActions";
+import { CommentButton, LikeButton } from "@/components/blog/postActions";
 import SharePostButton from "@/components/blog/sharePostButton";
-
-import { LuMessageCircle } from "react-icons/lu";
 
 // UTC so the server and the browser print the same day.
 export const formatPostDate = (value) =>
@@ -45,10 +42,11 @@ export function PostMeta({ post, linkAuthor = false, className }) {
 
 /**
  * A feed post, like a social timeline: who and when on top, then the title and the start of the
- * text, the post's first image full width, the comment count, and an action bar. The title's
+ * text, the post's first image full width, and an action bar with live counts. The title's
  * link stretches over the card; the author link and the action buttons sit above it.
  */
 export default function PostCard({ post, pageIds }) {
+    const ids = pageIds ?? [post.id];
     return (
         <article className="group relative overflow-hidden rounded-xl border bg-card">
             <header className="flex items-center gap-3 px-4 pt-4">
@@ -91,20 +89,16 @@ export default function PostCard({ post, pageIds }) {
                 </div>
             )}
 
-            {post.commentCount > 0 && (
-                <p className="px-4 pt-3 text-sm text-muted-foreground">
-                    {post.commentCount} {post.commentCount === 1 ? "comment" : "comments"}
-                </p>
-            )}
-
             <div className="relative z-10 mx-4 mt-3 mb-2 grid grid-cols-3 border-t pt-1">
-                <LikeButton postId={post.id} pageIds={pageIds ?? [post.id]} likeCount={post.likeCount ?? 0} variant="ghost" className="text-muted-foreground" />
-                <Button asChild variant="ghost" className="text-muted-foreground">
-                    <Link href={`/blog/${post.slug}#comments`}>
-                        <LuMessageCircle />
-                        Comment
-                    </Link>
-                </Button>
+                <LikeButton
+                    postId={post.id}
+                    pageIds={ids}
+                    likeCount={post.likeCount ?? 0}
+                    authorId={post.author.id}
+                    variant="ghost"
+                    className="text-muted-foreground"
+                />
+                <CommentButton postId={post.id} pageIds={ids} slug={post.slug} commentCount={post.commentCount ?? 0} className="text-muted-foreground" />
                 <SharePostButton slug={post.slug} className="text-muted-foreground" />
             </div>
         </article>
