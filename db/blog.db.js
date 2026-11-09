@@ -100,6 +100,53 @@ export const blogDb = {
         `UPDATE community.post SET like_count = GREATEST(like_count + $2::int, 0) WHERE id = $1 RETURNING like_count`, [postId, delta]
     )).rows[0].like_count,
 
+    insertComment: async (client, { publicId, postId, userId, body }) => (await client.query(
+        `WITH c AS (INSERT INTO community.post_comment (public_id, post_id, user_id, body) VALUES ($1, $2, $3, $4) RETURNING created_at)
+         SELECT c.created_at, u.username, i.image FROM c, identity.users u LEFT JOIN profile.info i ON i.user_id = u.id WHERE u.id = $3`,
+        [publicId, postId, userId, body]
+    )).rows[0],
+
+    bumpComments: async (client, { postId, delta }) => client.query(
+        `UPDATE community.post SET comment_count = GREATEST(comment_count + $2::int, 0) WHERE id = $1`, [postId, delta]
+    ),
+
+    /** Locks one comment with its author's public id; deleted comments are not found. */
+    lockComment: async (client, publicId) => (await client.query(
+        `SELECT c.id::text AS id, c.post_id::text AS post_id, c.is_hidden, u.public_id AS author_public_id
+         FROM community.post_comment c JOIN identity.users u ON u.id = c.user_id
+         WHERE c.public_id = $1 AND NOT c.is_deleted FOR UPDATE OF c`, [publicId]
+    )).rows[0] || null,
+
+    markCommentDeleted: async (client, { id }) => client.query(`UPDATE community.post_comment SET is_deleted = true, updated_at = now() WHERE id = $1`, [id]),
+
+    setCommentHidden: async (client, { id, hidden, reason }) => (await client.query(
+        `UPDATE community.post_comment SET is_hidden = $2, hidden_reason = $3, updated_at = now() WHERE id = $1 RETURNING updated_at`, [id, hidden, reason]
+    )).rows[0].updated_at,
+
+    /** Visible comments of a post, newest first. */
+    listComments: async ({ postId, cursor, limit }) => (await sql(
+        `SELECT c.public_id AS id, c.body, c.created_at, u.public_id AS author_id, u.username AS author_username, i.image AS author_image,
+                c.created_at::text AS cursor_at, c.public_id AS cursor_id
+         FROM community.post_comment c JOIN community.post p ON p.id = c.post_id
+              JOIN identity.users u ON u.id = c.user_id LEFT JOIN profile.info i ON i.user_id = u.id
+         WHERE p.public_id = $1 AND NOT c.is_deleted AND NOT c.is_hidden
+           AND ($2::timestamptz IS NULL OR (c.created_at <= $2::timestamptz AND (c.created_at, c.public_id) < ($2::timestamptz, $3::text)))
+         ORDER BY c.created_at DESC, c.public_id DESC LIMIT $4`,
+        [postId, cursor?.createdAt ?? null, cursor?.id ?? null, limit]
+    )).rows,
+
+    /** Moderation list: every non-deleted comment, newest first, with its post. */
+    listCommentsAdmin: async ({ cursor, limit }) => (await sql(
+        `SELECT c.public_id AS id, c.body, c.created_at, c.is_hidden, u.public_id AS author_id, u.username AS author_username, i.image AS author_image,
+                p.public_id AS post_id, p.slug AS post_slug, p.title AS post_title, c.created_at::text AS cursor_at, c.public_id AS cursor_id
+         FROM community.post_comment c JOIN community.post p ON p.id = c.post_id
+              JOIN identity.users u ON u.id = c.user_id LEFT JOIN profile.info i ON i.user_id = u.id
+         WHERE NOT c.is_deleted
+           AND ($1::timestamptz IS NULL OR (c.created_at <= $1::timestamptz AND (c.created_at, c.public_id) < ($1::timestamptz, $2::text)))
+         ORDER BY c.created_at DESC, c.public_id DESC LIMIT $3`,
+        [cursor?.createdAt ?? null, cursor?.id ?? null, limit]
+    )).rows,
+
     /** Counters plus the viewer's flags; userDbId null (signed out) gives all false. */
     viewerState: async (publicId, userDbId) => (await sql(
         `SELECT p.like_count, p.comment_count,

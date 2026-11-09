@@ -88,4 +88,42 @@ export const adminBlogService = {
         revalidateBlog(postId, { immediate: true });
         return { changed: true, status: result.status };
     },
+
+    listComments: async ({ cursor = null }) => {
+        const rows = await blogDb.listCommentsAdmin({ cursor: decodeCursor(cursor, /^pcm_[0-9a-z]{26}$/), limit: PAGE + 1 });
+        const { items, nextCursor } = pageOf(rows, PAGE, (last) => encodeCursor(last.cursor_at, last.cursor_id));
+        return {
+            items: items.map((row) => ({
+                id: row.id, body: row.body, createdAt: row.created_at, hidden: row.is_hidden,
+                author: { id: row.author_id, username: row.author_username, image: row.author_image },
+                post: { id: row.post_id, slug: row.post_slug, title: row.post_title },
+            })),
+            nextCursor,
+        };
+    },
+
+    // The counter moves only when visibility changes; a deleted comment is already gone (404).
+    setCommentHidden: async ({ actor, commentId, hidden, reason = null, ip = null }) => {
+        const result = await withTransaction(async (client) => {
+            const comment = await blogDb.lockComment(client, commentId);
+            if (!comment) throw new ApiError("Comment not found", 404);
+            if (comment.is_hidden === hidden) return { changed: false };
+            const updatedAt = await blogDb.setCommentHidden(client, { id: comment.id, hidden, reason: hidden ? reason : null });
+            await blogDb.bumpComments(client, { postId: comment.post_id, delta: hidden ? -1 : 1 });
+            await adminDb.audit(client, {
+                actorId: actor.id, action: hidden ? "blog.comment_hide" : "blog.comment_show", targetType: "post_comment", targetId: commentId, reason,
+                before: { hidden: !hidden }, after: { hidden }, ip,
+            });
+            return { changed: true, comment, updatedAt };
+        });
+        if (!result.changed) return { changed: false };
+        if (hidden) {
+            await notificationService.notify(result.comment.author_public_id, {
+                kind: "content_hidden", title: "Comment hidden", link: "/blog",
+                message: `Your comment was hidden: ${(reason ?? "").replace(/\.$/, "")}.`,
+                dedupeKey: `blog-comment:${commentId}:hide:${result.updatedAt.toISOString()}`,
+            });
+        }
+        return { changed: true };
+    },
 };
