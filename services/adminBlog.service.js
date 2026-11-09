@@ -9,6 +9,21 @@ import { notificationService } from "@/services/notification.service";
 
 const PAGE = 20;
 const DAY = 86400000;
+const POST_ID = /^pst_[0-9a-z]{26}$/;
+
+// Reported queue cursor: [report_count, last_report_at, post id], base64url JSON like lib/keysetCursor.
+const encodeReportedCursor = (last) => Buffer.from(JSON.stringify([last.report_count, last.cursor_at, last.cursor_id])).toString("base64url");
+function decodeReportedCursor(raw) {
+    if (!raw) return null;
+    try {
+        const [count, createdAt, id] = JSON.parse(Buffer.from(String(raw), "base64url").toString("utf-8"));
+        if (Number.isInteger(count) && count >= 1 && /^\d{4}-\d{2}-\d{2}[ T][\d:.+-]{8,22}$/.test(createdAt) && POST_ID.test(id)) return { count, createdAt, id };
+    } catch {
+        // fall through
+    }
+    throw new ApiError("Invalid cursor", 400);
+}
+
 const iso = (date) => date.toISOString().slice(0, 10);
 
 const TARGET = { approve: "published", reject: "rejected", hide: "hidden", show: "published" };
@@ -43,10 +58,11 @@ function notice({ action, appeal, post, reason, purgeDate }) {
 
 /** Blog moderation: review queues, approve / reject / hide / show and appeal decisions, all audited. */
 export const adminBlogService = {
-    list: async ({ status, cursor = null }) => {
-        const args = { cursor: decodeCursor(cursor, /^pst_[0-9a-z]{26}$/), limit: PAGE + 1 };
-        const rows = status === "reported" ? await blogDb.listReported(args) : await blogDb.listAdmin({ ...args, status });
-        const { items, nextCursor } = pageOf(rows, PAGE, (last) => encodeCursor(last.cursor_at, last.cursor_id));
+    list: async ({ status, cursor = null, pageSize = PAGE }) => {
+        const reported = status === "reported";
+        const args = { cursor: reported ? decodeReportedCursor(cursor) : decodeCursor(cursor, POST_ID), limit: pageSize + 1 };
+        const rows = reported ? await blogDb.listReported(args) : await blogDb.listAdmin({ ...args, status });
+        const { items, nextCursor } = pageOf(rows, pageSize, reported ? encodeReportedCursor : (last) => encodeCursor(last.cursor_at, last.cursor_id));
         return { items: items.map(item), nextCursor };
     },
 

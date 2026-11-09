@@ -196,7 +196,7 @@ export const blogDb = {
     },
 
     /** Published posts with open reports: most reports first, then newest report. */
-    // shortcut: the cursor holds only (last_report_at, id), so a report landing between pages can move a row; fine for a moderator queue.
+    // shortcut: the cursor is (report_count, last_report_at, id), so a static queue pages completely, but a report landing mid-paging can still move a row.
     listReported: async ({ cursor, limit }) => (await sql(
         `SELECT p.public_id AS id, p.slug, p.title, p.excerpt, p.status, p.reject_reason, p.hidden_reason, p.hidden_at, p.appealed_at, p.appeal_reason, p.updated_at,
                 u.public_id AS author_id, u.username AS author_username, i.image AS author_image, g.report_count,
@@ -207,9 +207,9 @@ export const blogDb = {
               JOIN (SELECT post_id, count(*)::int AS report_count, max(created_at) AS last_report_at
                     FROM community.post_report WHERE resolved_at IS NULL GROUP BY post_id) g ON g.post_id = p.id
          WHERE p.status = 'published' AND p.deleted_at IS NULL
-           AND ($1::timestamptz IS NULL OR (g.last_report_at, p.public_id) < ($1::timestamptz, $2::text))
-         ORDER BY g.report_count DESC, g.last_report_at DESC, p.public_id DESC LIMIT $3`,
-        [cursor?.createdAt ?? null, cursor?.id ?? null, limit]
+           AND ($1::int IS NULL OR (g.report_count, g.last_report_at, p.public_id) < ($1::int, $2::timestamptz, $3::text))
+         ORDER BY g.report_count DESC, g.last_report_at DESC, p.public_id DESC LIMIT $4`,
+        [cursor?.count ?? null, cursor?.createdAt ?? null, cursor?.id ?? null, limit]
     )).rows,
 
     getAdmin: async (publicId) => (await sql(

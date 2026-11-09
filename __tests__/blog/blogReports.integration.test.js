@@ -9,7 +9,7 @@ const TAG = `br${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")
 
 describe.skipIf(!hasDb)("blog reports (PostgreSQL)", () => {
     let sql, blogService, svc, adminBlogService, reportSchema;
-    let author, fan, other;
+    let author, fan, other, fresh, extra = [];
     const actor = { id: null, publicId: `${TAG}_admin`, rank: 80 };
     const newUser = async (name) => {
         const publicId = `${TAG}_${name}`;
@@ -36,6 +36,9 @@ describe.skipIf(!hasDb)("blog reports (PostgreSQL)", () => {
         fan = (await newUser("fan")).publicId;
         other = (await newUser("other")).publicId;
         actor.id = (await newUser("admin")).id;
+        fresh = (await newUser("fresh")).publicId;
+        await sql(`UPDATE identity.users SET email_verified = false WHERE public_id = $1`, [fresh]);
+        for (let i = 0; i < 6; i++) extra.push((await newUser(`r${i}`)).publicId);
     });
 
     afterAll(async () => {
@@ -73,5 +76,45 @@ describe.skipIf(!hasDb)("blog reports (PostgreSQL)", () => {
 
         await act(b.id, "hide", "Violates the rules");
         expect(await queue([b.id])).toHaveLength(0);
+    });
+
+    it("reasons cap at 5, newest first", async () => {
+        const post = await publish();
+        for (let i = 0; i < 6; i++) await report(extra[i], post.id, `Reason number ${i}`);
+        const [item] = await queue([post.id]);
+        expect(item.reportCount).toBe(6);
+        expect(item.reports.map((r) => r.reason)).toEqual([5, 4, 3, 2, 1].map((i) => `Reason number ${i}`));
+    });
+
+    it("unverified user cannot report", async () => {
+        const post = await publish();
+        await expect(report(fresh, post.id)).rejects.toMatchObject({ status: 403 });
+    });
+
+    it("hidden post cannot be reported", async () => {
+        const post = await publish();
+        await sql(`UPDATE community.post SET status = 'hidden' WHERE public_id = $1`, [post.id]);
+        await expect(report(fan, post.id)).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("queue pages completely by count, last report, id", async () => {
+        const many = await publish();   // more reports, older last report
+        const few = await publish();    // fewer reports, newer last report
+        const solo = await publish();
+        await report(fan, many.id); await report(other, many.id);
+        await report(fan, few.id);
+        await report(fan, solo.id);
+        const ids = [many.id, few.id, solo.id];
+        const seen = [];
+        let cursor = null;
+        for (let n = 0; n < 200; n++) {
+            const page = await adminBlogService.list({ status: "reported", cursor, pageSize: 1 });
+            seen.push(...page.items.map((i) => i.id));
+            if (!(cursor = page.nextCursor)) break;
+        }
+        const mine = seen.filter((id) => ids.includes(id));
+        expect(mine.sort()).toEqual([...ids].sort());
+        expect(new Set(seen).size).toBe(seen.length);
+        await expect(adminBlogService.list({ status: "reported", cursor: "bogus" })).rejects.toMatchObject({ status: 400 });
     });
 });
