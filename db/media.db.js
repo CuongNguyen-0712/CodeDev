@@ -92,6 +92,26 @@ export const mediaDb = {
         return { assetId, pruned };
     }),
 
+    /**
+     * Records an uploaded asset for a user (by public id) with the given purpose, e.g. 'blog'.
+     * @returns {Promise<{ assetId: string } | null>} null when the user does not exist.
+     */
+    insertAsset: async ({ ownerId, asset, purpose }) => {
+        const { rows } = await sql(
+            `INSERT INTO storage.assets
+                (public_id, provider, object_key, external_url, resource_type, mine_type, file_size,
+                 original_name, owner_id, purpose, width, height, format, version, checksum)
+             SELECT $1, $2, $3, $4, 'image', $5, $6, $7, u.id, $8, $9, $10, $11, $12, $13
+             FROM identity.users u WHERE u.public_id = $14
+             RETURNING id::text AS "assetId"`,
+            [
+                asset.publicId, asset.provider, asset.objectKey, asset.url, asset.mime, asset.size,
+                asset.originalName, purpose, asset.width, asset.height, asset.format, asset.version, asset.checksum, ownerId,
+            ]
+        );
+        return rows[0] || null;
+    },
+
     /** The user's kept avatars, newest first; `current` marks the one on the profile. */
     listAvatars: async ({ userId }) => {
         const { rows } = await sql(
