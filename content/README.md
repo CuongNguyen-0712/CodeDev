@@ -6,7 +6,7 @@ Source of truth for courses built with the content pipeline. Each course lives i
 | Where it ends up | What | Why there |
 |---|---|---|
 | Sanity (`lesson` documents) | Lesson narrative, diagrams (Cloudinary URLs), `challengeEmbed` blocks | Production and staging lesson store |
-| Local Payload CMS (`lessons`) | The same lesson documents, from `lesson.sanity.json` | Local development lesson store (docs/payload-cms.md) |
+| Local Payload CMS (`lessons`) | The same lesson documents, from `lesson.payload.json` | Local development lesson store (docs/payload-cms.md) |
 | Postgres `challenge.*` | Quiz options with `is_correct`, test cases, coding configs | Answers stay server-side |
 | Object storage, public bucket | `challenges/<language>/<id>/starter.<ext>` (+ `harness.js` for javascript), lesson starter zips | Loaded by the editor and the browser sandbox |
 | Cloudinary (production) / local Payload `media` | `diagrams/*.svg` rendered as PNG, covers, lesson videos | Media delivery; Cloudinary only in production, local Payload elsewhere |
@@ -30,6 +30,8 @@ courses/<course>/
     assets.local.json            written by upload-media.mjs elsewhere, local Payload (git-ignored)
     storage-manifest.json        written by upload-storage.mjs (commit it)
     lesson.sanity.json           written by build-lesson.mjs (git-ignored)
+    lesson.payload.json          written by build-lesson.mjs --target payload (git-ignored)
+  course.local.json              written by upload-media.mjs course outside production (git-ignored)
 ```
 
 A course created before this pipeline sets `"existing": true` in `course.json` (only the
