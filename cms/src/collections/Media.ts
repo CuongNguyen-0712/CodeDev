@@ -1,5 +1,8 @@
-import type { Access, CollectionConfig } from 'payload'
+import { APIError, type Access, type CollectionConfig } from 'payload'
 import sharp from 'sharp'
+
+// Same set as lib/imageType.js in the app.
+const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
 const signedIn: Access = ({ req }) => Boolean(req.user)
 
@@ -18,9 +21,23 @@ export const Media: CollectionConfig = {
   hooks: {
     beforeOperation: [
       async ({ args, operation }) => {
-        const file = args.req?.file
-        if (operation !== 'create' || !file || args.data?.purpose !== 'avatar') return
-        file.data = await sharp(file.data).resize(512, 512, { fit: 'inside', withoutEnlargement: true }).toBuffer()
+        const { req } = args
+        const file = req?.file
+        if ((operation !== 'create' && operation !== 'update') || !file) return
+        let purpose = args.data?.purpose
+        const { id } = args as { id?: number | string }
+        // An update may send only the file: the purpose is then the stored one.
+        if (!purpose && operation === 'update' && id) {
+          purpose = (await req.payload.findByID({ collection: 'media', id, depth: 0, req })).purpose
+        }
+        if (purpose !== 'avatar') return
+        if (!AVATAR_TYPES.includes(file.mimetype)) {
+          throw new APIError(`Avatars must be ${AVATAR_TYPES.join(', ')}; got ${file.mimetype}.`, 400)
+        }
+        file.data = await sharp(file.data, { animated: true })
+          .rotate()
+          .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
+          .toBuffer()
         file.size = file.data.length
       },
     ],
