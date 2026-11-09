@@ -8,7 +8,8 @@
  *   --scope dev      codedev/development/** and codedev/test/**
  *   --scope orphans  codedev/** not referenced by a content assets.json, a course cover, or a live
  *                    cloudinary row in storage.assets (DATABASE_URL of --env). Needs all three sources.
- *   --env <file>     Cloudinary credentials (and, for orphans, the production DATABASE_URL). Default .env.production.
+ *   --env <file>     Cloudinary credentials. Default .env.production. For orphans it is mandatory, must set APP_ENV=production
+ *                    and supplies the remote DATABASE_URL and Sanity settings (never read from .env). --allow-empty-db accepts an empty storage.assets.
  *   --local-db       with --scope dev --apply: soft-delete cloudinary rows in the LOCAL database (.env.local) and clear
  *                    profile avatars that point at them. Refuses a non-local database.
  *   --apply          delete for real after typing the cloud name on stdin. Deletion is permanent.
@@ -20,7 +21,8 @@ import path from "node:path";
 import readline from "node:readline";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { coverPublicId, devAssets, findOrphans } from "../lib/media/cloudinaryOrphans.mjs";
+import { SOURCES, findOrphans, checkOrphansEnv, checkOrphansPreconditions, devAssets } from "../lib/media/cloudinaryOrphans.mjs";
+import { readCovers, readDbRefs, readManifests, readSanityRefs } from "../lib/media/cloudinaryReferences.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(path.join(root, "package.json"));
@@ -59,75 +61,29 @@ if (localDb) {
     if (!isLocalUrl(localUrl)) fail("--local-db: refusing a non-local database");
 }
 
-// A source that cannot be read stays null; findOrphans then refuses.
-function readManifests() {
+// --scope orphans: the --env file must be the production one; DB and Sanity values come from it alone (never .env).
+const allowEmptyDb = args.includes("--allow-empty-db");
+let referenced = null;
+let counts = null;
+if (scope === "orphans") {
+    if (!opt("--env")) fail("--scope orphans requires --env <production env file>");
+    const envValues = dotenv.parse(fs.readFileSync(envPath));
+    let dbUrl;
     try {
-        const ids = new Set();
-        const walk = (dir) => {
-            for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-                const p = path.join(dir, e.name);
-                if (e.isDirectory()) walk(p);
-                else if (e.name === "assets.json") {
-                    const j = JSON.parse(fs.readFileSync(p, "utf8"));
-                    for (const kind of [j.images, j.videos]) for (const v of Object.values(kind || {})) if (v?.publicId) ids.add(v.publicId);
-                }
-            }
-        };
-        walk(path.join(root, "content", "courses"));
-        return ids;
-    } catch (e) {
-        console.error(`manifests: ${e.message}`);
-        return null;
-    }
-}
-
-function readCovers() {
-    try {
-        const ids = new Set();
-        const dir = path.join(root, "content", "courses");
-        for (const name of fs.readdirSync(dir)) {
-            const file = path.join(dir, name, "course.json");
-            if (!fs.existsSync(file)) continue;
-            const c = JSON.parse(fs.readFileSync(file, "utf8"));
-            for (const url of [c.image, c.update?.image]) {
-                const id = coverPublicId(url);
-                if (id) ids.add(id);
-            }
-        }
-        return ids;
-    } catch (e) {
-        console.error(`covers: ${e.message}`);
-        return null;
-    }
-}
-
-async function readDbKeys() {
-    const url = env.DATABASE_URL_UNPOOLED || env.DATABASE_URL;
-    if (!url) {
-        console.error("dbKeys: DATABASE_URL is not set");
-        return null;
-    }
-    const { Client } = require("pg");
-    const client = new Client({ connectionString: url });
-    try {
-        await client.connect();
-        const r = await client.query("SELECT object_key FROM storage.assets WHERE provider = 'cloudinary' AND deleted_at IS NULL");
-        return new Set(r.rows.map((x) => x.object_key));
-    } catch (e) {
-        console.error(`dbKeys: ${e.message}`);
-        return null;
-    } finally {
-        await client.end().catch(() => {});
-    }
-}
-
-const referenced = scope === "orphans" ? { manifests: readManifests(), covers: readCovers(), dbKeys: await readDbKeys() } : null;
-if (referenced) {
-    try {
-        findOrphans({ assets: [], referenced }); // guard: stop before any listing
+        dbUrl = checkOrphansEnv(envValues);
     } catch (e) {
         fail(e.message);
     }
+    // A source that cannot be read stays null; the check below then refuses.
+    const db = await readDbRefs(dbUrl);
+    referenced = { manifests: readManifests(root), covers: readCovers(root), ...db, sanity: await readSanityRefs(envValues) };
+    try {
+        checkOrphansPreconditions({ envValues, referenced, allowEmptyDb });
+    } catch (e) {
+        fail(e.message);
+    }
+    counts = Object.fromEntries(SOURCES.map((n) => [n, referenced[n].size]));
+    console.log("reference sources: " + SOURCES.map((n) => n + "=" + counts[n]).join(", "));
 }
 
 const { v2: cloudinary } = require("cloudinary");
@@ -151,7 +107,7 @@ candidates = candidates.filter((a) => a.publicId.startsWith("codedev/"));
 if (scope === "dev") candidates = candidates.filter((a) => /^codedev\/(development|test)\//.test(a.publicId));
 
 const report = path.join(os.tmpdir(), `cloudinary-cleanup-${scope}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-fs.writeFileSync(report, JSON.stringify({ scope, cloud: env.CLOUDINARY_CLOUD_NAME, listed: assets.length, candidates }, null, 2));
+fs.writeFileSync(report, JSON.stringify({ scope, cloud: env.CLOUDINARY_CLOUD_NAME, listed: assets.length, ...(counts && { referenceCounts: counts }), candidates }, null, 2));
 console.log(`listed ${assets.length}, ${candidates.length} candidates (${scope})\nreport: ${report}`);
 
 if (!apply) {
@@ -162,7 +118,7 @@ if (!apply) {
 
 const rl = readline.createInterface({ input: process.stdin });
 const answer = await new Promise((resolve) => {
-    process.stdout.write(`Type the cloud name (${env.CLOUDINARY_CLOUD_NAME}) to delete ${candidates.length} assets permanently: `);
+    process.stdout.write(`Type the cloud name to delete ${candidates.length} assets permanently: `);
     rl.once("line", resolve);
     rl.once("close", () => resolve(""));
 });
@@ -170,14 +126,19 @@ rl.close();
 if (answer.trim() !== env.CLOUDINARY_CLOUD_NAME) fail("confirmation does not match; nothing deleted");
 
 let deleted = 0;
+const deletes = [];
 for (const resourceType of ["image", "video"]) {
     const ids = candidates.filter((a) => a.resourceType === resourceType).map((a) => a.publicId);
     for (let i = 0; i < ids.length; i += 100) {
-        await cloudinary.api.delete_resources(ids.slice(i, i + 100), { resource_type: resourceType, invalidate: true });
-        deleted += Math.min(100, ids.length - i);
+        const r = await cloudinary.api.delete_resources(ids.slice(i, i + 100), { resource_type: resourceType, invalidate: true });
+        const states = Object.values(r.deleted || {});
+        const n = states.filter((x) => x === "deleted").length;
+        deletes.push({ resourceType, batch: i / 100, requested: Math.min(100, ids.length - i), deleted: n, not_found: states.filter((x) => x === "not_found").length, partial: !!r.partial });
+        deleted += n;
     }
 }
-console.log(`${deleted} deleted`);
+fs.writeFileSync(report, JSON.stringify({ scope, cloud: env.CLOUDINARY_CLOUD_NAME, listed: assets.length, ...(counts && { referenceCounts: counts }), candidates, deletes }, null, 2));
+console.log(`${deleted} deleted of ${candidates.length} (details in report)`);
 
 if (localDb) {
     const { Client } = require("pg");
