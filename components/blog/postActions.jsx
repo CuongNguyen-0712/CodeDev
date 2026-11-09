@@ -92,7 +92,7 @@ export function LikeButton({ postId, pageIds, likeCount, authorId, onPost = fals
     );
 }
 
-const commentLabel = (count) => (count > 0 ? `${count} ${count === 1 ? "comment" : "comments"}` : "Comment");
+const commentLabel = (count) => (count > 0 ? `Comment, ${count} ${count === 1 ? "comment" : "comments"}` : "Comment");
 
 /** The feed's Comment link, with the live count from the page's shared feed-state query. */
 export function CommentButton({ postId, pageIds, slug, commentCount, className }) {

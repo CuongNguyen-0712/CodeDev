@@ -86,9 +86,9 @@ function CommentForm({ postId, slug }) {
     if (status === "loading") return null;
     if (status !== "authenticated") {
         return (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3.5">
+            <div className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground">Sign in to join the discussion.</p>
-                <Button asChild variant="outline" size="sm">
+                <Button asChild variant="outline" size="sm" className="self-start sm:self-auto">
                     <Link href={`/auth?next=${encodeURIComponent(`/blog/${slug}#comments`)}`}>
                         <LuLogIn aria-hidden="true" />
                         Sign in to comment
@@ -154,7 +154,7 @@ export default function PostComments({ postId, slug, initialCount }) {
                         <EmptyMedia variant="icon">
                             <LuMessagesSquare aria-hidden="true" />
                         </EmptyMedia>
-                        <EmptyTitle>No comments yet</EmptyTitle>
+                        <EmptyTitle><h3 className="text-sm font-semibold">No comments yet</h3></EmptyTitle>
                         <EmptyDescription>Be the first to share what you think.</EmptyDescription>
                     </EmptyHeader>
                 </Empty>
