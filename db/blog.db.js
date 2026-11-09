@@ -1,7 +1,7 @@
 import { sql } from "@/lib/db";
 
 const AUTHOR = `JOIN identity.users u ON u.id = p.author_id LEFT JOIN profile.info i ON i.user_id = u.id`;
-const PUBLIC_COLS = `p.public_id AS id, p.slug, p.title, p.excerpt, p.tags, p.published_at, u.public_id AS author_id, u.username AS author_username, i.image AS author_image`;
+const PUBLIC_COLS = `p.public_id AS id, p.slug, p.title, p.excerpt, p.tags, p.published_at, p.like_count, p.comment_count, u.public_id AS author_id, u.username AS author_username, i.image AS author_image`;
 
 /** SQL for community.post and post_asset; ids that leave this file are public ids. */
 export const blogDb = {
@@ -81,6 +81,38 @@ export const blogDb = {
          FROM community.post p ${AUTHOR}
          WHERE p.slug = $1 AND p.status = 'published' AND p.deleted_at IS NULL`, [slug]
     )).rows[0] || null,
+
+    /** Locks a live published post so concurrent counter changes serialize. */
+    lockLive: async (client, publicId) => (await client.query(
+        `SELECT id::text AS id, author_id::text AS author_id FROM community.post
+         WHERE public_id = $1 AND status = 'published' AND deleted_at IS NULL FOR UPDATE`, [publicId]
+    )).rows[0] || null,
+
+    insertLike: async (client, { postId, userId }) => (await client.query(
+        `INSERT INTO community.post_like (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [postId, userId]
+    )).rowCount,
+
+    deleteLike: async (client, { postId, userId }) => (await client.query(
+        `DELETE FROM community.post_like WHERE post_id = $1 AND user_id = $2`, [postId, userId]
+    )).rowCount,
+
+    bumpLikes: async (client, { postId, delta }) => (await client.query(
+        `UPDATE community.post SET like_count = GREATEST(like_count + $2::int, 0) WHERE id = $1 RETURNING like_count`, [postId, delta]
+    )).rows[0].like_count,
+
+    /** Counters plus the viewer's flags; userDbId null (signed out) gives all false. */
+    viewerState: async (publicId, userDbId) => (await sql(
+        `SELECT p.like_count, p.comment_count,
+                EXISTS (SELECT 1 FROM community.post_like l WHERE l.post_id = p.id AND l.user_id = $2::bigint) AS liked,
+                EXISTS (SELECT 1 FROM community.post_report r WHERE r.post_id = p.id AND r.reporter_id = $2::bigint AND r.resolved_at IS NULL) AS reported,
+                COALESCE(p.author_id = $2::bigint, false) AS own
+         FROM community.post p WHERE p.public_id = $1 AND p.status = 'published' AND p.deleted_at IS NULL`, [publicId, userDbId]
+    )).rows[0] || null,
+
+    likedIds: async (userDbId, publicIds) => (await sql(
+        `SELECT p.public_id FROM community.post_like l JOIN community.post p ON p.id = l.post_id
+         WHERE l.user_id = $1 AND p.public_id = ANY($2::text[])`, [userDbId, publicIds]
+    )).rows.map((row) => row.public_id),
 
     listSitemap: async () => (await sql(
         `SELECT slug, updated_at FROM community.post

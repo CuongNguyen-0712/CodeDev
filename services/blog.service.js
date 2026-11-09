@@ -25,7 +25,7 @@ const notFound = () => new ApiError("Post not found", 404);
 const author = (row) => ({ id: row.author_id, username: row.author_username, image: row.author_image });
 const publicPost = (row) => ({
     id: row.id, slug: row.slug, title: row.title, excerpt: row.excerpt, tags: row.tags, publishedAt: row.published_at,
-    readingMinutes: readingMinutes(row.body), cover: coverImage(row.body, mediaOrigins()), author: author(row),
+    likeCount: row.like_count, commentCount: row.comment_count, readingMinutes: readingMinutes(row.body), cover: coverImage(row.body, mediaOrigins()), author: author(row),
 });
 
 function checkImages(body) {
