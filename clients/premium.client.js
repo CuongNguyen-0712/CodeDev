@@ -6,10 +6,6 @@ import { apiClient } from '@/clients/api.client';
 export const onboardingClient = {
     getCatalog: async () => (await apiClient.get('/onboarding/catalog')).data,
     getStatus: async () => (await apiClient.get('/onboarding/status')).data,
-    saveStep: async (input) => (await apiClient.post('/onboarding/preferences', input)).data,
-    updatePreferences: async (input) => (await apiClient.patch('/onboarding/preferences', input)).data,
-    complete: async () => (await apiClient.post('/onboarding/complete', {})).data,
-    skip: async () => (await apiClient.post('/onboarding/skip', {})).data,
     getRecommendations: async (limit = 6) => (await apiClient.get('/recommendations', { params: { limit } })).data,
 };
 

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@/actions/onboarding.actions", () => ({ saveOnboardingStepAction: vi.fn(), updatePreferencesAction: vi.fn(), completeOnboardingAction: vi.fn(), skipOnboardingAction: vi.fn() }));
+
 import { normaliseProfile, rankCourses, scoreCourse } from "@/services/recommendation.service";
 import { computeSignature, signatureHeader, verifySignatureHeader } from "@/services/payments/signature";
 import { ownershipChangeKeys } from "@/mutations/premium.mutation";

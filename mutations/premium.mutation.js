@@ -1,6 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { adminClient, commerceClient, onboardingClient } from "@/clients/premium.client";
+import { completeOnboardingAction, saveOnboardingStepAction, skipOnboardingAction, updatePreferencesAction } from "@/actions/onboarding.actions";
+import { adminClient, commerceClient } from "@/clients/premium.client";
+
+import { callAction } from "@/lib/actionResult";
 
 import { adminKeys } from "@/keys/admin.keys";
 import { commerceKeys } from "@/keys/commerce.keys";
@@ -73,10 +76,10 @@ function useOnboardingWrite(mutationFn) {
     });
 }
 
-export const useSaveOnboardingStep = () => useOnboardingWrite((input) => onboardingClient.saveStep(input));
-export const useCompleteOnboarding = () => useOnboardingWrite(() => onboardingClient.complete());
-export const useSkipOnboarding = () => useOnboardingWrite(() => onboardingClient.skip());
-export const useUpdatePreferences = () => useOnboardingWrite((input) => onboardingClient.updatePreferences(input));
+export const useSaveOnboardingStep = () => useOnboardingWrite((input) => callAction(() => saveOnboardingStepAction(input)));
+export const useCompleteOnboarding = () => useOnboardingWrite(() => callAction(() => completeOnboardingAction()));
+export const useSkipOnboarding = () => useOnboardingWrite(() => callAction(() => skipOnboardingAction()));
+export const useUpdatePreferences = () => useOnboardingWrite((input) => callAction(() => updatePreferencesAction(input)));
 
 function useAdminWrite(mutationFn) {
     const queryClient = useQueryClient();
