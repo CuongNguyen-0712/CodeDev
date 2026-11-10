@@ -1,7 +1,6 @@
 import { Suspense } from "react"
 
-import Blog from "@/components/blog/blog"
-import { PageSkeleton } from "@/components/ui/loading"
+import Blog, { BlogSkeleton } from "@/components/blog/blog"
 
 import { TAG_PATTERN } from "@/lib/blog/tags.mjs";
 import { getBlogPage, getBlogTopics } from "@/lib/cachedData";
@@ -36,7 +35,7 @@ async function BlogList({ searchParams }) {
 
 export default function Page({ searchParams }) {
     return (
-        <Suspense fallback={<PageSkeleton />}>
+        <Suspense fallback={<BlogSkeleton />}>
             <BlogList searchParams={searchParams} />
         </Suspense>
     );

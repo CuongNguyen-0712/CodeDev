@@ -42,8 +42,23 @@ export default function MyPosts() {
 
     if (query.isPending) {
         return (
-            <ul className="flex flex-col gap-3" aria-busy="true">
-                {Array.from({ length: 3 }, (_, index) => <li key={index}><Skeleton className="h-20 w-full" /></li>)}
+            // A row's shape: title, then status · date · counts; Edit and delete on the right from sm.
+            <ul className="flex flex-col gap-3" aria-busy="true" aria-label="Loading your posts">
+                {Array.from({ length: 3 }, (_, index) => (
+                    <li key={index} className="flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-start">
+                        <div className="min-w-0 flex-1 space-y-2">
+                            <Skeleton className="h-5 w-2/3" />
+                            <div className="flex items-center gap-2">
+                                <Skeleton className="h-5 w-16" />
+                                <Skeleton className="h-3.5 w-32" />
+                            </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1 self-end sm:self-start">
+                            <Skeleton className="h-9 w-16 sm:h-8" />
+                            <Skeleton className="size-9 sm:size-8" />
+                        </div>
+                    </li>
+                ))}
             </ul>
         );
     }

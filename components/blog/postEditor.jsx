@@ -358,7 +358,31 @@ export default function PostEditor({ id }) {
     const post = useQuery({ ...blogQueries.post(id), enabled: !!id, retry: retryTransient });
 
     if (mine.isPending || (id && post.isPending)) {
-        return <Skeleton className="h-96 w-full" />;
+        // The form's shape: Title, Tags (with its help line), Write/Preview with Add image, the body, the actions.
+        return (
+            <div className="flex flex-col gap-5" aria-busy="true" aria-label="Loading the editor">
+                <div className="flex flex-col gap-3">
+                    <Skeleton className="h-4 w-10" />
+                    <Skeleton className="h-10 w-full" />
+                </div>
+                <div className="flex flex-col gap-3">
+                    <Skeleton className="h-4 w-10" />
+                    <Skeleton className="h-9 w-full" />
+                    <Skeleton className="h-3.5 w-56" />
+                </div>
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                        <Skeleton className="h-9 w-36" />
+                        <Skeleton className="h-8 w-28" />
+                    </div>
+                    <Skeleton className="h-80 w-full" />
+                </div>
+                <div className="flex gap-2 border-t py-3">
+                    <Skeleton className="h-9 w-24" />
+                    <Skeleton className="h-9 w-28" />
+                </div>
+            </div>
+        );
     }
     if (id && post.isError) {
         // A missing post has nothing to retry; anything else gets the house retry block.
