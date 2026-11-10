@@ -1,6 +1,6 @@
 # Community Blog P3 (Rewards) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Pay authors at fixed milestones: 20 EXP the first time a post is published, and 10/30/60 points when a post reaches 10/50/100 likes.
 
@@ -50,18 +50,18 @@
 **Interfaces:**
 - Produces: `BLOG_LIKE_MILESTONES` (array above), `BLOG_PUBLISH_EXP_RULE = "blog.post_published"`, `milestoneAt(likeCount: number) -> { likes, points } | null` (exact match only), all from `lib/blog/rewards.mjs`.
 
-- [ ] **Step 1: Write the failing unit test** `__tests__/blog/blogRewards.test.js`:
+- [x] **Step 1: Write the failing unit test** `__tests__/blog/blogRewards.test.js`:
   - `milestoneAt(9)` → `null`; `milestoneAt(10)` → `{ likes: 10, points: 10 }`; `milestoneAt(11)` → `null`; `milestoneAt(50)` → `{ likes: 50, points: 30 }`; `milestoneAt(100)` → `{ likes: 100, points: 60 }`; `milestoneAt(150)` → `null`.
   - The sum of `points` in `BLOG_LIKE_MILESTONES` is `100`.
-- [ ] **Step 2:** `npx vitest run __tests__/blog/blogRewards.test.js` → FAIL (module not found).
-- [ ] **Step 3: Implement `lib/blog/rewards.mjs`.**
-- [ ] **Step 4: Write the migration**, in the header-comment and `BEGIN/COMMIT` style of `20261024_005_achievements.sql`:
+- [x] **Step 2:** `npx vitest run __tests__/blog/blogRewards.test.js` → FAIL (module not found).
+- [x] **Step 3: Implement `lib/blog/rewards.mjs`.**
+- [x] **Step 4: Write the migration**, in the header-comment and `BEGIN/COMMIT` style of `20261024_005_achievements.sql`:
   - `INSERT INTO profile.exp_rule (rule_key, amount, is_active) VALUES ('blog.post_published', 20, true) ON CONFLICT (rule_key) DO NOTHING;`
   - Drop and re-add `exp_transaction_source_type_check` with `('lesson', 'challenge', 'course', 'achievement', 'adjustment', 'blog_post')`.
   - Header comment states D1 (points use `blog_likes_<n>` because of `uq_point_transaction_source`).
-- [ ] **Step 5: Add schema assertions** to `blogInteractionSchema.integration.test.js`: rule `blog.post_published` exists with amount 20 and `is_active`; an `INSERT` into `profile.exp_transaction` with `source_type = 'blog_post'` is accepted by the CHECK (inside a rolled-back transaction or a savepoint, like the file's existing checks).
-- [ ] **Step 6:** `npm run db:migrate`, then `npx vitest run __tests__/blog/blogRewards.test.js __tests__/blog/blogInteractionSchema.integration.test.js` → PASS.
-- [ ] **Step 7: Commit** `feat(blog): reward rule, EXP source type and like milestones`.
+- [x] **Step 5: Add schema assertions** to `blogInteractionSchema.integration.test.js`: rule `blog.post_published` exists with amount 20 and `is_active`; an `INSERT` into `profile.exp_transaction` with `source_type = 'blog_post'` is accepted by the CHECK (inside a rolled-back transaction or a savepoint, like the file's existing checks).
+- [x] **Step 6:** `npm run db:migrate`, then `npx vitest run __tests__/blog/blogRewards.test.js __tests__/blog/blogInteractionSchema.integration.test.js` → PASS.
+- [x] **Step 7: Commit** `feat(blog): reward rule, EXP source type and like milestones`.
 
 ### Task 2: EXP when a post is first published
 
@@ -76,19 +76,19 @@
 - Consumes: `BLOG_PUBLISH_EXP_RULE` (Task 1).
 - Produces: `blogDb.awardPublishExp(client, { authorDbId: string, postDbId: string }) -> { awarded: number, level: number, previousLevel: number } | null`. It locks `profile.info` of the author `FOR UPDATE`, returns `null` when a `blog_post` EXP row exists in the last 24 hours (D2), else calls `public.award_exp($1, 'blog.post_published', 'blog_post', $2)` and maps `awarded`, `new_level`, `previous_level`.
 
-- [ ] **Step 1: Write failing integration tests** in `blogRewards.integration.test.js`. Use the `newUser`/`TAG`/cleanup pattern of `blogLikes.integration.test.js` plus a `profile.info` row. Helper `expRows(postPublicId)` counts `profile.exp_transaction` rows with `source_type = 'blog_post'` for that post.
+- [x] **Step 1: Write failing integration tests** in `blogRewards.integration.test.js`. Use the `newUser`/`TAG`/cleanup pattern of `blogLikes.integration.test.js` plus a `profile.info` row. Helper `expRows(postPublicId)` counts `profile.exp_transaction` rows with `source_type = 'blog_post'` for that post.
   - `trusted author's publish earns 20 EXP once`: mark the author trusted (one post with `approved_at`), create a post with `submit: true` → one row, amount 20; `profile.info.exp` up by 20. `update` the same post again → still one row.
   - `second publish within 24 hours earns nothing`: second post → 0 rows.
   - `draft earns nothing`: `submit: false` → 0 rows.
   - `admin approve pays the first post`: a new author's pending post, `adminBlogService.act(..., "approve")` → one row of 20.
   - `hide keeps EXP and show does not pay twice`: approve, `hide`, `show` → still one row; `profile.info.exp` unchanged by hide.
-- [ ] **Step 2:** `npx vitest run __tests__/blog/blogRewards.integration.test.js` → FAIL (0 rows).
-- [ ] **Step 3: Implement `awardPublishExp`** in `db/blog.db.js`.
-- [ ] **Step 4: Wire `write`.** Inside the transaction, when `status === "published" && current?.status !== "published"`, call `awardPublishExp` with the author's db id and the post's db id. Return the result out of the transaction. After commit, when it is non-null, call `notificationService.notifyRewards(userId, { level, previousLevel })`. The service response gains `rewards: { awardedExp, level, previousLevel }` only when EXP was awarded; otherwise it stays `{ id, slug, status }`. Add a test assertion: the trusted publish returns `rewards.awardedExp === 20`, and the update returns no `rewards`.
-- [ ] **Step 5: Wire `act`.** Inside the transaction, when `to === "published"`, call `awardPublishExp({ authorDbId: post.author_id, postDbId: post.id })`. After commit, `notifyRewards(post.author_public_id, …)` next to the existing `notify` call.
-- [ ] **Step 6: Add `profile.info` to the fixtures** listed under Files.
-- [ ] **Step 7:** `npx vitest run __tests__/blog` → all PASS.
-- [ ] **Step 8: Commit** `feat(blog): 20 EXP when a post is first published`.
+- [x] **Step 2:** `npx vitest run __tests__/blog/blogRewards.integration.test.js` → FAIL (0 rows).
+- [x] **Step 3: Implement `awardPublishExp`** in `db/blog.db.js`.
+- [x] **Step 4: Wire `write`.** Inside the transaction, when `status === "published" && current?.status !== "published"`, call `awardPublishExp` with the author's db id and the post's db id. Return the result out of the transaction. After commit, when it is non-null, call `notificationService.notifyRewards(userId, { level, previousLevel })`. The service response gains `rewards: { awardedExp, level, previousLevel }` only when EXP was awarded; otherwise it stays `{ id, slug, status }`. Add a test assertion: the trusted publish returns `rewards.awardedExp === 20`, and the update returns no `rewards`.
+- [x] **Step 5: Wire `act`.** Inside the transaction, when `to === "published"`, call `awardPublishExp({ authorDbId: post.author_id, postDbId: post.id })`. After commit, `notifyRewards(post.author_public_id, …)` next to the existing `notify` call.
+- [x] **Step 6: Add `profile.info` to the fixtures** listed under Files.
+- [x] **Step 7:** `npx vitest run __tests__/blog` → all PASS.
+- [x] **Step 8: Commit** `feat(blog): 20 EXP when a post is first published`.
 
 ### Task 3: Points at 10/50/100 likes
 
@@ -104,16 +104,16 @@
   - `blogDb.awardLikeMilestone(client, { authorDbId, postDbId, postPublicId, title, likes, points }) -> boolean` (the `created` flag). It calls `public.post_points(author, 'credit', 'earned', points, 'blog_likes_' || likes, postDbId, 'blog-likes:' || postPublicId || ':' || likes, NULL, NULL, '<likes> likes on "<title>"')`.
   - `notifyRewards(userId, { level, previousLevel, achievements, milestones })`. Each `milestones` item is `{ likes, points, slug, postId }` and sends `notify(userId, { kind: "reward", title: "Your post reached <likes> likes", message: "+<points> points", link: "/blog/<slug>", dedupeKey: "blog-likes:<postId>:<likes>" })`.
 
-- [ ] **Step 1: Write failing tests** (verified fans created in a loop; helper `points(user)` reads `profile.info.points`; helper `credits(postId)` lists `source_type` from `profile.point_transaction` with `source_id` = post db id):
+- [x] **Step 1: Write failing tests** (verified fans created in a loop; helper `points(user)` reads `profile.info.points`; helper `credits(postId)` lists `source_type` from `profile.point_transaction` with `source_id` = post db id):
   - `10th like pays 10 points once`: 10 fans like → author points +10; credits `['blog_likes_10']`.
   - `unlike and like again at 10 pays nothing more`: fan 10 unlikes then likes → still +10, one credit.
   - `50 and 100 pay their own amounts`: `UPDATE community.post SET like_count = 49`, one new fan likes → +30 under `blog_likes_50`. Set it to 99, one more fan → +60 under `blog_likes_100`. Credits hold all three.
   - `9 likes pay nothing`.
   - `milestone notifies the author`: after the 10th like, `profile.notification` has a row of kind `reward` for the author with dedupe key `blog-likes:<post public id>:10`.
-- [ ] **Step 2:** run → FAIL.
-- [ ] **Step 3: Implement.** In `setLiked`, only when `liked && changed`: `const m = milestoneAt(likeCount)`. When `m` is set, call `awardLikeMilestone` and keep `{ ...m, slug, postId }` when it returns `true`. After the transaction, `notifyRewards(authorPublicId, { milestones: [milestone] })`. `lockLive` or one more select supplies the author public id. The route response stays `{ liked, likeCount }`.
-- [ ] **Step 4:** `npx vitest run __tests__/blog` → PASS.
-- [ ] **Step 5: Commit** `feat(blog): points when a post reaches 10, 50 and 100 likes`.
+- [x] **Step 2:** run → FAIL.
+- [x] **Step 3: Implement.** In `setLiked`, only when `liked && changed`: `const m = milestoneAt(likeCount)`. When `m` is set, call `awardLikeMilestone` and keep `{ ...m, slug, postId }` when it returns `true`. After the transaction, `notifyRewards(authorPublicId, { milestones: [milestone] })`. `lockLive` or one more select supplies the author public id. The route response stays `{ liked, likeCount }`.
+- [x] **Step 4:** `npx vitest run __tests__/blog` → PASS.
+- [x] **Step 5: Commit** `feat(blog): points when a post reaches 10, 50 and 100 likes`.
 
 ### Task 4: Ledger labels
 
@@ -125,11 +125,11 @@
 
 This is a small change to existing positions: a map entry and a label next to their neighbours. Follow `ui-consistency:adjusting` → `verifying` at the size of the change.
 
-- [ ] **Step 1: Failing test:** `experienceService` ledger for the author lists the publish row with `source: "blog_post"` and `sourceTitle` = the post title. After `DELETE FROM community.post` it is still listed, with `sourceTitle` `null`.
-- [ ] **Step 2:** run → FAIL (`sourceTitle` null while the post exists).
-- [ ] **Step 3: Implement the three edits.** In `ordersPage.jsx`, strip a trailing `_<digits>` from `tx.source` before `humanize`.
-- [ ] **Step 4:** `npx vitest run __tests__/blog`, then `npm test` and `npm run build` → PASS.
-- [ ] **Step 5: Commit** `feat(blog): blog rewards in the EXP and points history`.
+- [x] **Step 1: Failing test:** `experienceService` ledger for the author lists the publish row with `source: "blog_post"` and `sourceTitle` = the post title. After `DELETE FROM community.post` it is still listed, with `sourceTitle` `null`.
+- [x] **Step 2:** run → FAIL (`sourceTitle` null while the post exists).
+- [x] **Step 3: Implement the three edits.** In `ordersPage.jsx`, strip a trailing `_<digits>` from `tx.source` before `humanize`.
+- [x] **Step 4:** `npx vitest run __tests__/blog`, then `npm test` and `npm run build` → PASS.
+- [x] **Step 5: Commit** `feat(blog): blog rewards in the EXP and points history`.
 
 ### Task 5: Reward toast in the editor
 
@@ -142,11 +142,11 @@ This is a small change to existing positions: a map entry and a label next to th
 
 This is a small change to one page: follow `ui-consistency:adjusting` → `implementing` → `verifying`. The reference is how `components/learning/[id]/lessons.jsx` announces a lesson reward.
 
-- [ ] **Step 1: Failing test:**
+- [x] **Step 1: Failing test:**
   - `announces EXP when the publish paid`: create resolves with `{ id, slug, status: "published", rewards: { awardedExp: 20, level: 2, previousLevel: 1 } }`. `announceRewards` is called once with those `rewards` and `{ title: "Post published", id: "blog-published:<id>" }`. `showAlert` is not called with a success.
   - `keeps the plain alert without rewards`: create resolves without `rewards`. `announceRewards` is not called, and `showAlert(200, "Post submitted")` is.
   - The same pair for `update`, on a draft submitted by a trusted author.
-- [ ] **Step 2:** `npx vitest run __tests__/blog/postEditorRewards.test.jsx` → FAIL.
-- [ ] **Step 3: Implement.** In both `onSuccess` handlers: `if (saved?.rewards) announceRewards(saved.rewards, { title: "Post published", id: \`blog-published:${saved.id}\` }); else showAlert(…existing copy…)`. Navigation stays as it is. `update.mutate` must hand the response to `onSuccess`; check `mutations/blog.mutation.js` returns it.
-- [ ] **Step 4:** `npx vitest run __tests__/blog`, then `npm test` and `npm run build` → PASS.
-- [ ] **Step 5: Commit** `feat(blog): reward toast when a post is published`.
+- [x] **Step 2:** `npx vitest run __tests__/blog/postEditorRewards.test.jsx` → FAIL.
+- [x] **Step 3: Implement.** In both `onSuccess` handlers: `if (saved?.rewards) announceRewards(saved.rewards, { title: "Post published", id: \`blog-published:${saved.id}\` }); else showAlert(…existing copy…)`. Navigation stays as it is. `update.mutate` must hand the response to `onSuccess`; check `mutations/blog.mutation.js` returns it.
+- [x] **Step 4:** `npx vitest run __tests__/blog`, then `npm test` and `npm run build` → PASS.
+- [x] **Step 5: Commit** `feat(blog): reward toast when a post is published`.

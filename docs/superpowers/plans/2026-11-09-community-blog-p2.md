@@ -1,6 +1,6 @@
 # Community Blog P2 (likes, comments, reports) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Readers like a post, comment under it and report it. Admins see reported posts and blog comments, and can hide them. The redesigned list and post page show live like and comment counts.
 
@@ -85,15 +85,15 @@
 
 Same migration style as `20261109_021_community_blog.sql`. Do not edit `db/schema.sql` and do not run `db:compare` (P1 Ruling D).
 
-- [ ] **Step 1: Write the failing test.** Follow `__tests__/blog/blogSchema.integration.test.js`: TAG users, a published post, cleanup.
+- [x] **Step 1: Write the failing test.** Follow `__tests__/blog/blogSchema.integration.test.js`: TAG users, a published post, cleanup.
   - `"one like per user"`: a second insert into `post_like` with the same pair throws 23505.
   - `"comment body limits"`: an empty body and a 2001-character body throw 23514.
   - `"one report per user"`: a second report by the same user throws 23505.
   - `"deleting the post cascades"`: likes, comments and reports are gone after `DELETE FROM community.post`.
-- [ ] **Step 2: Run** `npx vitest run __tests__/blog/blogInteractionSchema.integration.test.js`. Expected: FAIL (relation does not exist).
-- [ ] **Step 3: Write the migration.**
-- [ ] **Step 4: Run** `npm run db:migrate`, then the test. Expected: the migration applies and the test passes.
-- [ ] **Step 5: Commit** `feat(blog): post_like, post_comment and post_report tables`
+- [x] **Step 2: Run** `npx vitest run __tests__/blog/blogInteractionSchema.integration.test.js`. Expected: FAIL (relation does not exist).
+- [x] **Step 3: Write the migration.**
+- [x] **Step 4: Run** `npm run db:migrate`, then the test. Expected: the migration applies and the test passes.
+- [x] **Step 5: Commit** `feat(blog): post_like, post_comment and post_report tables`
 
 ---
 
@@ -121,7 +121,7 @@ Same migration style as `20261109_021_community_blog.sql`. Do not edit `db/schem
   - `GET /api/blog/posts/[id]/viewer`: `auth: "optional"`, default `private, no-store`.
 - Cache: like changes do NOT revalidate the blog cache. The list and post-page counts may lag by up to the page cache life; the island shows live counts.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `"like twice counts once"`: two `like` calls give `likeCount` 1, and there is one row.
   - `"unlike without a like changes nothing"`: `likeCount` stays 0.
   - `"cannot like own post"`: rejects `{ status: 400, message: "You cannot like your own post" }`.
@@ -129,10 +129,10 @@ Same migration style as `20261109_021_community_blog.sql`. Do not edit `db/schem
   - `"hidden post is 404"`: set the post to `hidden` in SQL; `like` rejects `{ status: 404 }`.
   - `"viewer state"`: signed out gives `liked: false, own: false`. After a like, `liked: true`. For the author, `own: true`.
   - `"public reads carry counts"`: `getPublishedBySlug` returns `likeCount` 1 and `commentCount` 0.
-- [ ] **Step 2: Run** `npx vitest run __tests__/blog/blogLikes.integration.test.js`. Expected: FAIL.
-- [ ] **Step 3: Implement** the db functions, the service, `publicPost` and the routes.
-- [ ] **Step 4: Run** that test, then `npx vitest run __tests__/blog`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(blog): likes with counters and viewer state`
+- [x] **Step 2: Run** `npx vitest run __tests__/blog/blogLikes.integration.test.js`. Expected: FAIL.
+- [x] **Step 3: Implement** the db functions, the service, `publicPost` and the routes.
+- [x] **Step 4: Run** that test, then `npx vitest run __tests__/blog`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(blog): likes with counters and viewer state`
 
 ---
 
@@ -166,17 +166,17 @@ Same migration style as `20261109_021_community_blog.sql`. Do not edit `db/schem
   - Admin `PATCH`: `requirePermission(["blog.moderate"])` with `csrf`, `rateLimiters.admin`, and `adminCommentHideSchema` from `lib/validation/admin.js`.
   - The comment id regex is `/^pcm_[0-9a-z]{26}$/`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `"comment and count"`: `addComment` gives `commentCount` 1, and the item has `own: true` for its author.
   - `"blank comment rejected"`: the schema rejects `"   "`.
   - `"only the author deletes"`: another user gets `{ status: 404 }`. The author deletes it, and `commentCount` goes back to 0.
   - `"hide then delete counts once"`: an admin hides it (count 0), then the author deletes it (count still 0). `setCommentHidden(false)` on the deleted comment rejects `{ status: 404 }`.
   - `"hidden comments are not listed"` and `"hidden post blocks comments"` (404).
   - `"admin list"` shows the post title, and audit rows `blog.comment_hide` exist.
-- [ ] **Step 2: Run** `npx vitest run __tests__/blog/blogComments.integration.test.js`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** the test, then `npx vitest run __tests__/blog`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(blog): comments with counters, author delete and admin hide`
+- [x] **Step 2: Run** `npx vitest run __tests__/blog/blogComments.integration.test.js`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** the test, then `npx vitest run __tests__/blog`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(blog): comments with counters, author delete and admin hide`
 
 ---
 
@@ -199,17 +199,17 @@ Same migration style as `20261109_021_community_blog.sql`. Do not edit `db/schem
 - The P1 `hide` action now also sets `resolved_at = now()` on the post's unresolved reports, in the same transaction.
 - Route: `POST /api/blog/posts/[id]/report` with `csrf`, `limiter: rateLimiters.feedback`, returns status 201.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `"report once"`: the second report gives `{ status: 409 }`.
   - `"cannot report own post"`: `{ status: 400 }`.
   - `"reported queue order"`: post A has 2 reports and post B has 1. The list is `[A, B]`, `A.reportCount` is 2, and `A.reports` holds both reasons.
   - `"dismiss resolves"`: after `act({ action: "dismiss" })`, A is gone from `reported` and is still published.
   - `"hide resolves reports"`: hiding B removes it from `reported`.
   - `"dismiss without reports"`: `{ status: 409 }`.
-- [ ] **Step 2: Run** `npx vitest run __tests__/blog/blogReports.integration.test.js`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** the test, then `npx vitest run __tests__/blog`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(blog): reports, Reported queue and dismiss`
+- [x] **Step 2: Run** `npx vitest run __tests__/blog/blogReports.integration.test.js`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** the test, then `npx vitest run __tests__/blog`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(blog): reports, Reported queue and dismiss`
 
 ---
 
@@ -238,9 +238,9 @@ Same migration style as `20261109_021_community_blog.sql`. Do not edit `db/schem
     - after success, Report turns into a disabled "Reported" button;
     - a 409 also shows the "Reported" state.
 
-- [ ] **Step 1: Implement.**
-- [ ] **Step 2: Verify** with `npx vitest run __tests__/blog`, eslint on the changed files, and `npm run build`. List what you could not check without a browser (the controller checks it).
-- [ ] **Step 3: Commit** `feat(blog): like and comment counts, like button and report dialog`
+- [x] **Step 1: Implement.**
+- [x] **Step 2: Verify** with `npx vitest run __tests__/blog`, eslint on the changed files, and `npm run build`. List what you could not check without a browser (the controller checks it).
+- [x] **Step 3: Commit** `feat(blog): like and comment counts, like button and report dialog`
 
 ---
 
@@ -267,15 +267,15 @@ Same migration style as `20261109_021_community_blog.sql`. Do not edit `db/schem
   - Empty state: "No comments yet. Be the first to share what you think."
 - Comment text style: `text-[0.9375rem] leading-relaxed`, matching the reading column.
 
-- [ ] **Step 1: Write the failing render test.** Render `CommentItem` (export it) with body `"**bold** <img src=x onerror=alert(1)>\nline 2"`:
+- [x] **Step 1: Write the failing render test.** Render `CommentItem` (export it) with body `"**bold** <img src=x onerror=alert(1)>\nline 2"`:
   - the output contains the literal text `**bold**`;
   - it contains no `<img` element;
   - it contains no `<strong>`;
   - it keeps the newline inside a `whitespace-pre-wrap` element.
-- [ ] **Step 2: Run** `npx vitest run __tests__/blog/postComments.test.jsx`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** the test, eslint and `npm run build`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(blog): comment section on the post page`
+- [x] **Step 2: Run** `npx vitest run __tests__/blog/postComments.test.jsx`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** the test, eslint and `npm run build`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(blog): comment section on the post page`
 
 ---
 
@@ -294,20 +294,20 @@ Same migration style as `20261109_021_community_blog.sql`. Do not edit `db/schem
   - Actions: Hide (reason dialog) or Show.
 - Follow `components/admin/feedback/commentList.jsx` for the comment row and the hide flow.
 
-- [ ] **Step 1: Implement.**
-- [ ] **Step 2: Verify** with eslint and `npm run build`.
-- [ ] **Step 3: Commit** `feat(blog): admin Reported and Comments tabs`
+- [x] **Step 1: Implement.**
+- [x] **Step 2: Verify** with eslint and `npm run build`.
+- [x] **Step 3: Commit** `feat(blog): admin Reported and Comments tabs`
 
 ---
 
 ### Task 8: Verification (controller)
 
-- [ ] **Step 1: Run** `npm run lint`, `npm test` and `npm run build`. Expected: everything passes, except the lint error in `components/settings/webPushSection.jsx` that predates this branch.
-- [ ] **Step 2: Browser** (`next start`, local QA learner plus a second QA learner):
+- [x] **Step 1: Run** `npm run lint`, `npm test` and `npm run build`. Expected: everything passes, except the lint error in `components/settings/webPushSection.jsx` that predates this branch.
+- [x] **Step 2: Browser** (`next start`, local QA learner plus a second QA learner):
   1. On the list, counts appear only when they are not 0.
   2. Like, unlike and reload show the right state and count; liking your own post shows no Report button and gives a 400 on like.
   3. Signed out, Like goes to `/auth?next=…`.
   4. Comment, see it at the top, delete it, and see the count drop.
   5. Report a post; the second attempt shows "Reported".
   6. Check at 375 px and in dark mode.
-- [ ] **Step 3: Admin tabs.** These need MFA, so this step goes to the user (P1 Ruling T).
+- [x] **Step 3: Admin tabs.** These need MFA, so this step goes to the user (P1 Ruling T).

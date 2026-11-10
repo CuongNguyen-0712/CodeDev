@@ -1,6 +1,6 @@
 # Community Blog P1 (core posts) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Learners write Markdown blog posts with images. A learner's first post waits for an admin; later posts publish at once. Admins approve, reject, hide and show posts, and settle a one-time appeal. Posts hidden for more than N days are deleted for good. The public list and post pages are cached and indexable.
 
@@ -102,15 +102,15 @@
 
 Permission: `blog.moderate` with the description "Approve, reject, hide or show learners' blog posts". Insert it with the same `INSERT … WHERE NOT EXISTS` and `setval` pattern as `20261103_014_rating_moderation.sql`, and grant it to `super_admin`, `admin` and `course_manager`.
 
-- [ ] **Step 1: Write the failing test** `blogSchema.integration.test.js` (skip without `DATABASE_URL`, following the `adminRating.integration.test.js` pattern with a TAG prefix and cleanup by `public_id LIKE`):
+- [x] **Step 1: Write the failing test** `blogSchema.integration.test.js` (skip without `DATABASE_URL`, following the `adminRating.integration.test.js` pattern with a TAG prefix and cleanup by `public_id LIKE`):
   - `it("rejects an unknown status")`: inserting `status = 'archived'` throws, and the error code is `23514`.
   - `it("rejects six tags")`: `tags = '{a,b,c,d,e,f}'` throws `23514`.
   - `it("cascades post_asset when the post is deleted")`: insert a post and an asset, link them, delete the post; `post_asset` has 0 rows for that post.
   - `it("grants blog.moderate to admin")`: a join over `role_permissions` returns rows for exactly `['admin','course_manager','super_admin']`.
-- [ ] **Step 2: Run** `npx vitest run __tests__/blog/blogSchema.integration.test.js`. Expected: FAIL (`relation "community.post" does not exist`).
-- [ ] **Step 3: Write the migration** (in `BEGIN; … COMMIT;` with a header comment like the existing ones) and append the same DDL to `db/schema.sql`.
-- [ ] **Step 4: Run** `npm run db:migrate`, then `npm run db:compare`, then the test. Expected: the migration is applied, compare reports no differences, and the test PASSES.
-- [ ] **Step 5: Commit** `feat(blog): community.post and post_asset tables, blog.moderate permission`
+- [x] **Step 2: Run** `npx vitest run __tests__/blog/blogSchema.integration.test.js`. Expected: FAIL (`relation "community.post" does not exist`).
+- [x] **Step 3: Write the migration** (in `BEGIN; … COMMIT;` with a header comment like the existing ones) and append the same DDL to `db/schema.sql`.
+- [x] **Step 4: Run** `npm run db:migrate`, then `npm run db:compare`, then the test. Expected: the migration is applied, compare reports no differences, and the test PASSES.
+- [x] **Step 5: Commit** `feat(blog): community.post and post_asset tables, blog.moderate permission`
 
 ---
 
@@ -159,7 +159,7 @@ Permission: `blog.moderate` with the description "Approve, reject, hide or show 
   - `decodeCursor(raw, idPattern)`, which throws `ApiError` 400
   - `pageOf(rows, size, cursorOf)`, which returns `{ items, nextCursor }`
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `blogText.test.js`:
     - `postSlug("Học React từ đầu", "pst_01hjabcdefghjkmnpqrstvwxyz")` → `"hoc-react-tu-dau-tvwxyz"` (the last 6 characters of the id).
     - `postSlug("🔥🔥", id)` matches `^post-[a-z0-9]{6}$`.
@@ -169,10 +169,10 @@ Permission: `blog.moderate` with the description "Approve, reject, hide or show 
     - `readingMinutes("")` → 1; `readingMinutes` of 401 words → 3.
     - `normalizeTags([" Next JS ", "nextjs", "next-js"])` → `["next-js", "nextjs"]`.
   - `blogStatus.test.js`: one `it` per table row, including both throws with `status` 409 and 403.
-- [ ] **Step 2: Run** `npx vitest run __tests__/blog/blogText.test.js __tests__/blog/blogStatus.test.js`. Expected: FAIL (module not found).
-- [ ] **Step 3: Implement** the three `lib/blog`/`lib/validation` files and `lib/keysetCursor.js`. Switch `adminFeedback.service.js` to the shared cursor helpers.
-- [ ] **Step 4: Run** those tests plus `npx vitest run __tests__/admin/adminFeedback.integration.test.js`. Expected: all PASS.
-- [ ] **Step 5: Commit** `feat(blog): slug, excerpt, image-url and status helpers, zod schemas; shared keyset cursor`
+- [x] **Step 2: Run** `npx vitest run __tests__/blog/blogText.test.js __tests__/blog/blogStatus.test.js`. Expected: FAIL (module not found).
+- [x] **Step 3: Implement** the three `lib/blog`/`lib/validation` files and `lib/keysetCursor.js`. Switch `adminFeedback.service.js` to the shared cursor helpers.
+- [x] **Step 4: Run** those tests plus `npx vitest run __tests__/admin/adminFeedback.integration.test.js`. Expected: all PASS.
+- [x] **Step 5: Commit** `feat(blog): slug, excerpt, image-url and status helpers, zod schemas; shared keyset cursor`
 
 ---
 
@@ -195,16 +195,16 @@ Permission: `blog.moderate` with the description "Approve, reject, hide or show 
   - A block (has `language-x` class or a newline) uses `CodeBlock` from `components/ui/codeBlock.jsx` (read its props first).
   - Inline code stays a `<code>`.
 
-- [ ] **Step 1: Write the failing tests.** Render with `renderToStaticMarkup` and `origins=["https://res.cloudinary.com"]`.
+- [x] **Step 1: Write the failing tests.** Render with `renderToStaticMarkup` and `origins=["https://res.cloudinary.com"]`.
   - `<script>alert(1)</script>` in the body → the output does not contain `<script`.
   - `[x](javascript:alert(1))` → the output does not contain `javascript:`.
   - `![a](https://evil.example/a.png)` → no `<img`; `![a](https://res.cloudinary.com/a.png)` → one `<img` with `loading="lazy"`.
   - `[site](https://example.com)` → contains `rel="nofollow ugc noopener"`.
   - A GFM table renders `<table`.
-- [ ] **Step 2: Run** `npx vitest run __tests__/blog/markdown.test.jsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** `components/blog/markdown.jsx`.
-- [ ] **Step 4: Run** the test. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(blog): safe Markdown renderer (no raw HTML, allowed image origins, ugc links)`
+- [x] **Step 2: Run** `npx vitest run __tests__/blog/markdown.test.jsx`. Expected: FAIL.
+- [x] **Step 3: Implement** `components/blog/markdown.jsx`.
+- [x] **Step 4: Run** the test. Expected: PASS.
+- [x] **Step 5: Commit** `feat(blog): safe Markdown renderer (no raw HTML, allowed image origins, ugc links)`
 
 ---
 
@@ -241,7 +241,7 @@ Permission: `blog.moderate` with the description "Approve, reject, hide or show 
   - Revalidate the `blog` tag when the status is or was `published`.
   - Revalidate the `post:<publicId>` tag on every change to a published post.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `"first submitted post waits for review"`: create with `submit: true` → `status: "pending"`.
   - `"a trusted author publishes at once"`: set `approved_at` on post 1 directly in SQL, then create post 2 with `submit: true` → `"published"`, and `published_at` is not null.
   - `"draft stays draft"`: `submit: false` → `"draft"`.
@@ -256,10 +256,10 @@ Permission: `blog.moderate` with the description "Approve, reject, hide or show 
     - `listPublished({ tag })` filters by tag.
     - 13 published posts give `nextCursor`, and the second page has 1 item.
   - `"remove hides it from public reads"`.
-- [ ] **Step 2: Run** `npx vitest run __tests__/blog/blogService.integration.test.js`. Expected: FAIL.
-- [ ] **Step 3: Implement** `db/blog.db.js` (SQL only, `client.query` inside transactions, `sql` outside) and `services/blog.service.js`.
-- [ ] **Step 4: Run** the test. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(blog): author writes with first-post review and one appeal, public reads`
+- [x] **Step 2: Run** `npx vitest run __tests__/blog/blogService.integration.test.js`. Expected: FAIL.
+- [x] **Step 3: Implement** `db/blog.db.js` (SQL only, `client.query` inside transactions, `sql` outside) and `services/blog.service.js`.
+- [x] **Step 4: Run** the test. Expected: PASS.
+- [x] **Step 5: Commit** `feat(blog): author writes with first-post review and one appeal, public reads`
 
 ---
 
@@ -275,15 +275,15 @@ Permission: `blog.moderate` with the description "Approve, reject, hide or show 
 - Store `purpose: "content"`, because Payload `media.purpose` only accepts `content|avatar`. The `storage.assets.purpose` is `'blog'`.
 - If saving the row fails, destroy the upload, as `uploadAvatar` does.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - A 1×1 PNG → resolves `{ url }`; the mock store saw a key matching `^users/[^/]+/blog/[0-9a-z]{26}$` and `maxSide: 1600`; one `storage.assets` row with `purpose = 'blog'`.
   - A 6 MB buffer → `{ status: 413 }`.
   - A text file → `{ status: 415 }`.
   - Unverified email → `{ status: 403 }`.
-- [ ] **Step 2: Run** `npx vitest run __tests__/media/blogImageUpload.test.js`. Expected: FAIL.
-- [ ] **Step 3: Implement.** Extract the shared validate-and-upload part of `uploadAvatar` into a private `uploadImage({ userId, file, key, maxSide, storePurpose })`, so the two functions do not duplicate it. `uploadAvatar`'s behavior stays the same.
-- [ ] **Step 4: Run** this test plus `npx vitest run __tests__/media`. Expected: all PASS.
-- [ ] **Step 5: Commit** `feat(blog): image upload to the media store as storage.assets purpose blog`
+- [x] **Step 2: Run** `npx vitest run __tests__/media/blogImageUpload.test.js`. Expected: FAIL.
+- [x] **Step 3: Implement.** Extract the shared validate-and-upload part of `uploadAvatar` into a private `uploadImage({ userId, file, key, maxSide, storePurpose })`, so the two functions do not duplicate it. `uploadAvatar`'s behavior stays the same.
+- [x] **Step 4: Run** this test plus `npx vitest run __tests__/media`. Expected: all PASS.
+- [x] **Step 5: Commit** `feat(blog): image upload to the media store as storage.assets purpose blog`
 
 ---
 
@@ -313,16 +313,16 @@ Permission: `blog.moderate` with the description "Approve, reject, hide or show 
 - `POST /api/blog/images` reads `(await req.formData()).get("file")`.
 - `[id]` is a post `public_id` checked with `/^pst_[0-9a-z]{26}$/`, else 400.
 
-- [ ] **Step 1: Write the failing test.** Import `GET` from `app/api/blog/posts/route.js` and call it with a `Request`; this route uses `auth: "none"`, so it needs no session.
+- [x] **Step 1: Write the failing test.** Import `GET` from `app/api/blog/posts/route.js` and call it with a `Request`; this route uses `auth: "none"`, so it needs no session.
   - `?tag=Bad%20Tag!` → status 400.
   - `?cursor=not-a-cursor` → status 400.
   - With `DATABASE_URL` set, a valid request returns 200 with `{ success: true, data: { items, nextCursor } }` and the header `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`.
 
   The protected routes are covered by the service tests (Task 4) and the preview steps (Task 9).
-- [ ] **Step 2: Run** `npx vitest run __tests__/blog/blogRoutes.test.js`. Expected: FAIL.
-- [ ] **Step 3: Implement** the routes and limiters.
-- [ ] **Step 4: Run** the test. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(blog): learner API routes and rate limits`
+- [x] **Step 2: Run** `npx vitest run __tests__/blog/blogRoutes.test.js`. Expected: FAIL.
+- [x] **Step 3: Implement** the routes and limiters.
+- [x] **Step 4: Run** the test. Expected: PASS.
+- [x] **Step 5: Commit** `feat(blog): learner API routes and rate limits`
 
 ---
 
@@ -373,7 +373,7 @@ Permission: `blog.moderate` with the description "Approve, reject, hide or show 
   - Batches loop like `accountMaintenance` with `MAX_BATCHES`; stop when `purged === 0`; return the totals.
   - Add it to `functions` in `jobs/index.js`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `adminBlog.integration.test.js`:
     - approve pending → published, and an audit row `blog.approve`.
     - After approve, the author's next submit publishes at once (calls `blogService.create`).
@@ -389,10 +389,10 @@ Permission: `blog.moderate` with the description "Approve, reject, hide or show 
     - Shown (`hidden_at` null, `published`) → kept.
     - Shared asset: post X (hidden 31 days) and post Y (published) both link asset S, and X alone links asset T. After the purge, T has `deleted_at` set and is in the outbox payload; S has no `deleted_at` and is absent from the payload.
     - A second run → `{ purged: 0 }` and no new outbox row.
-- [ ] **Step 2: Run** `npx vitest run __tests__/blog/adminBlog.integration.test.js __tests__/blog/blogPurge.integration.test.js`. Expected: FAIL.
-- [ ] **Step 3: Implement** the service, the routes, the purge and the cron.
-- [ ] **Step 4: Run** both tests plus `npx vitest run __tests__/auth/inngestEnv.test.js` (function registry). Expected: PASS.
-- [ ] **Step 5: Commit** `feat(blog): moderation with appeal decisions, audit and notices; nightly purge of posts hidden past N days`
+- [x] **Step 2: Run** `npx vitest run __tests__/blog/adminBlog.integration.test.js __tests__/blog/blogPurge.integration.test.js`. Expected: FAIL.
+- [x] **Step 3: Implement** the service, the routes, the purge and the cron.
+- [x] **Step 4: Run** both tests plus `npx vitest run __tests__/auth/inngestEnv.test.js` (function registry). Expected: PASS.
+- [x] **Step 5: Commit** `feat(blog): moderation with appeal decisions, audit and notices; nightly purge of posts hidden past N days`
 
 ---
 
@@ -421,15 +421,15 @@ Before any UI code: run the skill `ui-consistency:finding-patterns` for the blog
   - JSON-LD `BlogPosting` (`headline`, `description`, `datePublished`, `dateModified`, `author: { @type: Person, name, url: /profile/<id> }`, `mainEntityOfPage`), with `<` escaped as `<` in the serialized JSON.
   - No `generateStaticParams` (user content; ISR per slug on first visit).
 
-- [ ] **Step 1: Run** `ui-consistency:finding-patterns` and save the checklist.
-- [ ] **Step 2: Implement** the cache tags, getters, pages and island.
-- [ ] **Step 3: Verify** with `npm run build`. Expected: the build passes; `/blog` and `/blog/[slug]` are not listed as fully dynamic (`ƒ`) because of a cookie or header read.
-- [ ] **Step 4: Verify** in the preview (`npm run dev`, with posts created through the API from Task 6):
+- [x] **Step 1: Run** `ui-consistency:finding-patterns` and save the checklist.
+- [x] **Step 2: Implement** the cache tags, getters, pages and island.
+- [x] **Step 3: Verify** with `npm run build`. Expected: the build passes; `/blog` and `/blog/[slug]` are not listed as fully dynamic (`ƒ`) because of a cookie or header read.
+- [x] **Step 4: Verify** in the preview (`npm run dev`, with posts created through the API from Task 6):
   - `/blog` shows the cards, `?tag=` filters, and "Load more" appends.
   - `/blog/<slug>` renders the body, a code block and an image.
   - An unknown slug and a pending post's slug both give 404.
   - `view-source` has `application/ld+json` and `og:type` `article`.
-- [ ] **Step 5: Commit** `feat(blog): cached public list and post pages with metadata and JSON-LD`
+- [x] **Step 5: Commit** `feat(blog): cached public list and post pages with metadata and JSON-LD`
 
 ---
 
@@ -457,15 +457,15 @@ Before any UI code: run the skill `ui-consistency:finding-patterns` for the blog
 - The private pages need a session: redirect to `/auth` as `app/studio/[[...tool]]/page.jsx` does. Set `export const instant = false`.
 - `app/robots.js` (Task 11) blocks these paths. Each page also sets `robots: { index: false }` in its metadata.
 
-- [ ] **Step 1: Implement** the data layer and the components.
-- [ ] **Step 2: Verify** in the preview:
+- [x] **Step 1: Implement** the data layer and the components.
+- [x] **Step 2: Verify** in the preview:
   1. User A (unapproved) writes a post, pastes an image (it appears in Preview), and clicks "Submit for review".
   2. `/blog/me` shows "Pending".
   3. Editing a pending post keeps it pending.
   4. Deleting the post asks for confirmation, then removes it from the list.
   5. An unverified user sees the 403 message.
   6. Check at 375 px width and in dark mode.
-- [ ] **Step 3: Commit** `feat(blog): Markdown editor with image paste, my posts with status and appeal`
+- [x] **Step 3: Commit** `feat(blog): Markdown editor with image paste, my posts with status and appeal`
 
 ---
 
@@ -484,14 +484,14 @@ Before any UI code: run the skill `ui-consistency:finding-patterns` for the blog
   - Hidden rows show "Deletes in X days" from `purgeAt`.
   - Each row has a "View" link: published posts open the public page; other posts open a read-only `BlogMarkdown` preview inside a dialog.
 
-- [ ] **Step 1: Implement** the screen.
-- [ ] **Step 2: Verify** in the preview as an admin:
+- [x] **Step 1: Implement** the screen.
+- [x] **Step 2: Verify** in the preview as an admin:
   1. Approve A's pending post. A gets a notification, and the post appears on `/blog`.
   2. A's next post publishes at once.
   3. Hide a post. It leaves `/blog` and `/blog/<slug>` gives 404. A's `/blog/me` shows the deletion date.
   4. A appeals. The post shows under Appeals; reject the appeal and it is back under Hidden with the same date.
   5. The audit page lists the `blog.*` actions.
-- [ ] **Step 3: Commit** `feat(blog): admin moderation queue with appeals and purge dates`
+- [x] **Step 3: Commit** `feat(blog): admin moderation queue with appeals and purge dates`
 
 ---
 
@@ -512,23 +512,23 @@ Before any UI code: run the skill `ui-consistency:finding-patterns` for the blog
   - `rules: { userAgent: "*", allow: "/", disallow: ["/admin", "/studio", "/api", "/learning", "/settings", "/blog/new", "/blog/me"] }`
   - `sitemap: <origin>/sitemap.xml`
 
-- [ ] **Step 1: Write the failing test.** Mock `blogService.listSitemap` and `getPrerenderedCourseIds`.
+- [x] **Step 1: Write the failing test.** Mock `blogService.listSitemap` and `getPrerenderedCourseIds`.
   - Each entry's `url` starts with the `NEXTAUTH_URL` origin.
   - A post entry exists with the right `lastModified`.
   - When `listSitemap` rejects, the static entries are still present.
-- [ ] **Step 2: Run** `npx vitest run __tests__/blog/sitemap.test.js`. Expected: FAIL.
-- [ ] **Step 3: Implement** the three files.
-- [ ] **Step 4: Run** the test, then check in the preview that `/sitemap.xml` and `/robots.txt` are served. Expected: PASS, and both serve.
-- [ ] **Step 5: Commit** `feat(seo): metadataBase, sitemap with blog posts and courses, robots`
+- [x] **Step 2: Run** `npx vitest run __tests__/blog/sitemap.test.js`. Expected: FAIL.
+- [x] **Step 3: Implement** the three files.
+- [x] **Step 4: Run** the test, then check in the preview that `/sitemap.xml` and `/robots.txt` are served. Expected: PASS, and both serve.
+- [x] **Step 5: Commit** `feat(seo): metadataBase, sitemap with blog posts and courses, robots`
 
 ---
 
 ### Task 12: Whole-branch verification
 
-- [ ] **Step 1: Run** `npm run lint`, then `npm test`, then `npm run build`. Expected: all pass, and the bundle budget check `npm run budget` passes.
-- [ ] **Step 2: Run** the skill `ui-consistency:verifying` against the Task 8 checklist and fix what it reports.
-- [ ] **Step 3: Run** the spec's preview flow end to end (spec "Kiểm thử", steps 1–7). For step 6:
+- [x] **Step 1: Run** `npm run lint`, then `npm test`, then `npm run build`. Expected: all pass, and the bundle budget check `npm run budget` passes.
+- [x] **Step 2: Run** the skill `ui-consistency:verifying` against the Task 8 checklist and fix what it reports.
+- [x] **Step 3: Run** the spec's preview flow end to end (spec "Kiểm thử", steps 1–7). For step 6:
   1. Set one hidden post's `hidden_at` to 31 days ago in the local DB.
   2. Trigger `blog-purge` from the Inngest dev server.
   3. The post row is gone, and its image is gone from the local Payload media list.
-- [ ] **Step 4: Commit** any fixes: `fix(blog): …`
+- [x] **Step 4: Commit** any fixes: `fix(blog): …`

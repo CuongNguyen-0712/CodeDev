@@ -91,6 +91,9 @@ Bảng này cho biết khi xoá bài thì xoá ảnh nào.
 | 2 | `POST`/`DELETE /api/blog/posts/[id]/like` | không cho like bài của chính mình |
 | 2 | `GET`/`POST /api/blog/posts/[id]/comments`, `DELETE /api/blog/comments/[id]` | |
 | 2 | `POST /api/blog/posts/[id]/report` | |
+| 2 | `GET /api/blog/posts/[id]/viewer` | trạng thái của người xem: số like, số comment, đã like, đã báo cáo, bài của mình |
+| 2 | `GET /api/blog/likes?ids=` | trạng thái feed cho tối đa 50 bài một lần: `{ ids, counts }` (bài đã like, số like và comment thật). Không cần đăng nhập |
+| 2 | `GET /api/admin/blog/comments` / `PATCH /api/admin/blog/comments/[id]` | ẩn/hiện comment, cần `admin.read` + `blog.moderate` |
 
 Mỗi lần duyệt, từ chối hoặc ẩn bài thì gọi `notificationService.notify` cho tác giả. Thông báo ẩn bài ghi
 lý do và ngày bài sẽ bị xoá vĩnh viễn nếu admin không hiện lại.
@@ -164,15 +167,18 @@ Chỉ thưởng ở các mốc cố định. Mỗi mốc thưởng một lần c
 
 - **EXP:** rule `blog.post_published` (amount 20) trong `profile.exp_rule`.
   - Gọi `award_exp(user, 'blog.post_published', 'blog_post', post_id)` lần đầu bài chuyển sang `published`.
-  - Idempotent theo bài. Tối đa 1 bài được thưởng mỗi ngày cho mỗi người.
+  - Idempotent theo bài. Tối đa 1 bài được thưởng trong 24 giờ gần nhất cho mỗi người (cửa sổ trượt, không theo múi giờ).
   - Ẩn bài sau đó không thu hồi EXP.
 - **Points:**
   - Mốc khai báo bằng hằng số `BLOG_LIKE_MILESTONES = [{ likes: 10, points: 10 }, { likes: 50, points: 30 }, { likes: 100, points: 60 }]`.
-  - Khi like làm `like_count` chạm một mốc, gọi `post_points(..., idempotency_key = 'blog-likes:<post_id>:<likes>')`.
+  - Khi like làm `like_count` chạm một mốc, gọi `post_points(..., source_type = 'blog_likes_<likes>', idempotency_key = 'blog-likes:<post_id>:<likes>')`.
+    `post_points` còn chống trùng theo `(user, source_type, source_id, action)`, nên mỗi mốc cần `source_type` riêng.
   - Chỉ like của người khác đã xác minh email được tính: điều kiện like đã chặn tự like và chặn email chưa xác minh.
   - Unlike rồi like lại không thưởng lần hai, nhờ idempotency key.
   - Bài bị ẩn thì không ai like được, nên không lên thêm mốc.
-- Báo cho tác giả qua `notificationService.notifyRewards`.
+- Báo cho tác giả qua `notificationService.notifyRewards`: lên level, và mỗi mốc like (kind `reward`).
+- Tác giả tự đăng bài và được EXP thì editor hiện toast qua `announceRewards` ("Post published · +20 EXP").
+- Lịch sử EXP ghi "Blog post published" kèm tên bài; lịch sử points ghi "Earned from blog likes" kèm lý do.
 
 ## Ngoài phạm vi (YAGNI)
 
