@@ -15,6 +15,7 @@ import { Spinner } from "@/components/shadcn/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 import { Textarea } from "@/components/shadcn/textarea";
 
+import { announceRewards } from "@/components/ui/level";
 import { useApp } from "@/contexts/appContext";
 import { addTags } from "@/lib/blog/tags.mjs";
 import { retryTransient } from "@/lib/queryTimes";
@@ -130,11 +131,15 @@ function Form({ post, trusted }) {
             ...(appealing ? { appealReason: appealReason.trim() } : {}),
         };
         const onError = (error) => showAlert(error?.status || 500, errorText(error));
+        // The publish toast replaces the plain alert when the server paid EXP.
+        const announce = (saved, alert) => saved?.rewards
+            ? announceRewards(saved.rewards, { title: "Post published", id: `blog-published:${saved.id}` })
+            : showAlert(200, alert);
 
         if (post) {
             update.mutate({ id: post.id, ...input }, {
-                onSuccess: () => {
-                    showAlert(200, appealing ? "Appeal sent" : live ? "Changes saved" : submit ? "Post submitted" : "Draft saved");
+                onSuccess: (saved) => {
+                    announce(saved, appealing ? "Appeal sent" : live ? "Changes saved" : submit ? "Post submitted" : "Draft saved");
                     if (submit) router.push("/blog/me");
                 },
                 onError,
@@ -143,7 +148,7 @@ function Form({ post, trusted }) {
             create.mutate(input, {
                 onSuccess: (saved) => {
                     setCreated(true);
-                    showAlert(200, submit ? "Post submitted" : "Draft saved");
+                    announce(saved, submit ? "Post submitted" : "Draft saved");
                     router.replace(submit ? "/blog/me" : `/blog/edit/${saved.id}`);
                 },
                 onError,
