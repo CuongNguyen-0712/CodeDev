@@ -98,7 +98,7 @@ Dùng cho mọi list mới, và list cũ khi được sửa tới:
 | `PATCH /api/user/logout` | `POST /api/auth/logout` |
 | `GET /api/health` (đầy đủ, công khai) | `GET /api/health`: liveness công khai; báo cáo đầy đủ cần `Authorization: Bearer $HEALTH_TOKEN` (hoặc `CRON_SECRET`) |
 
-### 15 handler ghi phía người học: route sang action
+### 15 handler + Like ghi phía người học: route sang action
 
 | Trước | Sau |
 |---|---|

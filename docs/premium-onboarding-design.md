@@ -168,7 +168,8 @@ sequenceDiagram
     participant L as Login/Signup
     participant H as /home (server component)
     participant O as /onboarding
-    participant API as /api/onboarding/*
+    participant API as /api/onboarding/* (GET)
+    participant ACT as Server actions (onboarding.actions.js)
     participant DB as PostgreSQL
     U->>L: đăng nhập / đăng ký
     L->>H: enterSignedIn → /home
@@ -180,18 +181,18 @@ sequenceDiagram
         O-->>U: mở đúng current_step (tiếp tục sau reload)
         loop Role → Industry → Level+Goals
             U->>O: chọn + Next
-            O->>API: POST preferences {step,...}
-            API->>DB: tx: upsert preference + status=in_progress, current_step=bước kế
+            O->>ACT: saveOnboardingStepAction {step,...}
+            ACT->>DB: tx: upsert preference + status=in_progress, current_step=bước kế
         end
         U->>O: Review → Confirm
-        O->>API: POST complete
-        API->>DB: validate đủ dữ liệu → completed
+        O->>ACT: completeOnboardingAction
+        ACT->>DB: validate đủ dữ liệu → completed
         O->>API: GET recommendations
         API-->>O: items + reasons (hoặc fallback)
     else skipped / completed
         H-->>U: dashboard (không hỏi lại)
     end
-    U->>O: Skip (bất kỳ bước) → POST skip → skipped
+    U->>O: Skip (bất kỳ bước) → skipOnboardingAction → skipped
 ```
 
 ## 7. Sequence: mua bằng tiền
