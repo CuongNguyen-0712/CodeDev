@@ -85,8 +85,9 @@ export const blogDb = {
 
     /** Locks a live published post so concurrent counter changes serialize. */
     lockLive: async (client, publicId) => (await client.query(
-        `SELECT id::text AS id, author_id::text AS author_id FROM community.post
-         WHERE public_id = $1 AND status = 'published' AND deleted_at IS NULL FOR UPDATE`, [publicId]
+        `SELECT p.id::text AS id, p.author_id::text AS author_id, p.slug, p.title, u.public_id AS author_public_id
+         FROM community.post p JOIN identity.users u ON u.id = p.author_id
+         WHERE p.public_id = $1 AND p.status = 'published' AND p.deleted_at IS NULL FOR UPDATE OF p`, [publicId]
     )).rows[0] || null,
 
     insertLike: async (client, { postId, userId }) => (await client.query(
@@ -250,6 +251,12 @@ export const blogDb = {
         const r = rows[0];
         return r?.created ? { awarded: r.awarded, level: r.new_level, previousLevel: r.previous_level } : null;
     },
+
+    // Once per (post, milestone): post_points dedupes on (user, source_type, source_id, action), the type carries the like count (D1).
+    awardLikeMilestone: async (client, { authorDbId, postDbId, postPublicId, title, likes, points }) => (await client.query(
+        `SELECT created FROM public.post_points($1::bigint, 'credit', 'earned', $2::bigint, $3::text, $4::bigint, $5::text, NULL, NULL, $6::text)`,
+        [authorDbId, points, `blog_likes_${likes}`, postDbId, `blog-likes:${postPublicId}:${likes}`, `${likes} likes on "${title}"`]
+    )).rows[0]?.created === true,
 
     approve: async (client, { id, actorDbId, appeal }) => (await client.query(
         `UPDATE community.post SET status = 'published', updated_at = now(),

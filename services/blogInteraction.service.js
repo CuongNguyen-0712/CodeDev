@@ -4,7 +4,9 @@ import { blogDb } from "@/db/blog.db";
 import { userDb } from "@/db/user.db";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
+import { milestoneAt } from "@/lib/blog/rewards.mjs";
 import { decodeCursor, encodeCursor, pageOf } from "@/lib/keysetCursor";
+import { notificationService } from "@/services/notification.service";
 
 const COMMENT_PAGE = 20;
 const COMMENT_ID = /^pcm_[0-9a-z]{26}$/;
@@ -14,7 +16,8 @@ const notFound = () => new ApiError("Post not found", 404);
 
 // One transaction: lock the live post, change the like row, then the counter only when a row changed.
 async function setLiked({ userId, postId, liked }) {
-    return withTransaction(async (client) => {
+    let milestone = null, authorPublicId = null;
+    const result = await withTransaction(async (client) => {
         const user = await blogDb.userByPublicId(client, userId);
         const post = user && await blogDb.lockLive(client, postId);
         if (!post) throw notFound();
@@ -22,8 +25,15 @@ async function setLiked({ userId, postId, liked }) {
         const args = { postId: post.id, userId: user.id };
         const changed = await (liked ? blogDb.insertLike : blogDb.deleteLike)(client, args);
         const likeCount = await blogDb.bumpLikes(client, { postId: post.id, delta: changed ? (liked ? 1 : -1) : 0 });
+        const m = liked && changed ? milestoneAt(likeCount) : null;
+        if (m && await blogDb.awardLikeMilestone(client, { authorDbId: post.author_id, postDbId: post.id, postPublicId: postId, title: post.title, ...m })) {
+            milestone = { ...m, slug: post.slug, postId };
+            authorPublicId = post.author_public_id;
+        }
         return { liked, likeCount };
     });
+    if (milestone) await notificationService.notifyRewards(authorPublicId, { milestones: [milestone] });
+    return result;
 }
 
 const commentItem = (row, userId) => ({

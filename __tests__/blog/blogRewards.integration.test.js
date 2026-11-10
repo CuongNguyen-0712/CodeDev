@@ -91,4 +91,77 @@ describe.skipIf(!hasDb)("blog publish EXP (PostgreSQL)", () => {
         expect(await expRows(post.id)).toHaveLength(1);
         expect(await exp(u)).toBe(after);
     });
+
+    describe("like milestones", () => {
+        let blogInteractionService;
+        const publishedPost = async (author, likes = 0) => {
+            const publicId = `pst_${TAG}${n++}`;
+            await sql(
+                `INSERT INTO community.post (public_id, author_id, slug, title, excerpt, body_md, tags, status, approved_at, published_at, like_count)
+                 VALUES ($1, $2, $1, 'Liked post', 'x', 'x', ARRAY['js'], 'published', now(), now(), $3)`, [publicId, author.id, likes]
+            );
+            return publicId;
+        };
+        const points = async (user) => Number((await sql(`SELECT points FROM profile.info WHERE user_id = $1`, [user.id])).rows[0].points);
+        const credits = async (postPublicId) => (await sql(
+            `SELECT t.source_type FROM profile.point_transaction t JOIN community.post p ON p.id = t.source_id
+             WHERE t.source_type LIKE 'blog_likes_%' AND p.public_id = $1 ORDER BY t.source_type`, [postPublicId]
+        )).rows.map((r) => r.source_type);
+        const like = (fan, postId) => blogInteractionService.like({ userId: fan.publicId, postId });
+        const fans = async (count) => { const out = []; for (let i = 0; i < count; i++) out.push(await newUser(`fan${n++}`)); return out; };
+
+        beforeAll(async () => { ({ blogInteractionService } = await import("@/services/blogInteraction.service")); });
+
+        it("10th like pays 10 points once", async () => {
+            const author = await newUser("a10");
+            const postId = await publishedPost(author);
+            const before = await points(author);
+            for (const f of await fans(10)) await like(f, postId);
+            expect(await points(author)).toBe(before + 10);
+            expect(await credits(postId)).toEqual(["blog_likes_10"]);
+        });
+
+        it("unlike and like again at 10 pays nothing more", async () => {
+            const author = await newUser("aagain");
+            const postId = await publishedPost(author);
+            const all = await fans(10);
+            for (const f of all) await like(f, postId);
+            const before = await points(author);
+            await blogInteractionService.unlike({ userId: all[9].publicId, postId });
+            await like(all[9], postId);
+            expect(await points(author)).toBe(before);
+            expect(await credits(postId)).toEqual(["blog_likes_10"]);
+        });
+
+        it("50 and 100 pay their own amounts", async () => {
+            const author = await newUser("a50");
+            const postId = await publishedPost(author, 49);
+            const before = await points(author);
+            const [f1, f2] = await fans(2);
+            await like(f1, postId);
+            expect(await points(author)).toBe(before + 30);
+            await sql(`UPDATE community.post SET like_count = 99 WHERE public_id = $1`, [postId]);
+            await like(f2, postId);
+            expect(await points(author)).toBe(before + 90);
+            expect(await credits(postId)).toEqual(["blog_likes_100", "blog_likes_50"]);
+        });
+
+        it("9 likes pay nothing", async () => {
+            const author = await newUser("a9");
+            const postId = await publishedPost(author);
+            const before = await points(author);
+            for (const f of await fans(9)) await like(f, postId);
+            expect(await points(author)).toBe(before);
+            expect(await credits(postId)).toEqual([]);
+        });
+
+        it("milestone notifies the author", async () => {
+            const author = await newUser("anotify");
+            const postId = await publishedPost(author, 9);
+            const [f] = await fans(1);
+            await like(f, postId);
+            const rows = (await sql(`SELECT kind FROM profile.notification WHERE user_id = $1 AND dedupe_key = $2`, [author.id, `blog-likes:${postId}:10`])).rows;
+            expect(rows.map((r) => r.kind)).toEqual(["reward"]);
+        });
+    });
 });

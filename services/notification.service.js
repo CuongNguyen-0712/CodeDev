@@ -105,6 +105,15 @@ export const notificationService = {
                 dedupeKey: a.code,
             });
         }
+        for (const m of rewards.milestones || []) {
+            await notificationService.notify(userId, {
+                kind: "reward",
+                title: `Your post reached ${m.likes} likes`,
+                message: `+${m.points} points`,
+                link: `/blog/${m.slug}`,
+                dedupeKey: `blog-likes:${m.postId}:${m.likes}`,
+            });
+        }
     },
 
     list: async ({ userId, unreadOnly = false, cursor = null }) => {
