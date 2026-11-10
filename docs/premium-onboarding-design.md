@@ -158,6 +158,8 @@ same-origin + rate limit. Lỗi nghiệp vụ có `code`.
 | POST | `/api/admin/orders/[id]/refund` | Hoàn đơn point (`order.refund`); đơn tiền hoàn qua provider → webhook |
 | POST/DELETE | `/api/admin/entitlements` | Grant / revoke (`entitlement.grant`) |
 
+_Bốn dòng ghi `/api/onboarding/{preferences,complete,skip}` ở trên đã thay bằng `saveOnboardingStepAction`, `updatePreferencesAction`, `completeOnboardingAction`, `skipOnboardingAction` (`actions/onboarding.actions.js`), xem `docs/superpowers/specs/2026-11-10-api-vs-action-boundary-design.md`._
+
 ## 6. Sequence: onboarding
 
 ```mermaid

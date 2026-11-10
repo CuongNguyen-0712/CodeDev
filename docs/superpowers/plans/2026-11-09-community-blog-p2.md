@@ -101,6 +101,7 @@ Same migration style as `20261109_021_community_blog.sql`. Do not edit `db/schem
 
 **Files:**
 - Create: `services/blogInteraction.service.js`, `app/api/blog/posts/[id]/like/route.js`, `app/api/blog/posts/[id]/viewer/route.js`
+- _Đã thay bằng `setPostLikeAction` (`actions/blog.actions.js`), xem `docs/superpowers/specs/2026-11-10-api-vs-action-boundary-design.md`._
 - Modify: `db/blog.db.js`; `services/blog.service.js` (`publicPost` adds `likeCount`, `commentCount`; `listPublished` and `getPublishedBySlug` select `like_count` and `comment_count`)
 - Test: `__tests__/blog/blogLikes.integration.test.js`
 
@@ -118,6 +119,7 @@ Same migration style as `20261109_021_community_blog.sql`. Do not edit `db/schem
 - Locking: lock the post row (`SELECT … FOR UPDATE` on `status='published' AND deleted_at IS NULL`) before changing the counter, so concurrent likes serialize.
 - Routes:
   - `POST`/`DELETE /api/blog/posts/[id]/like`: `csrf: true`, `limiter: rateLimiters.vote`.
+  - _Đã thay bằng `setPostLikeAction` (`actions/blog.actions.js`), xem `docs/superpowers/specs/2026-11-10-api-vs-action-boundary-design.md`._
   - `GET /api/blog/posts/[id]/viewer`: `auth: "optional"`, default `private, no-store`.
 - Cache: like changes do NOT revalidate the blog cache. The list and post-page counts may lag by up to the page cache life; the island shows live counts.
 

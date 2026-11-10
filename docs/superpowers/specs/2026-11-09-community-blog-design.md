@@ -78,19 +78,19 @@ Bảng này cho biết khi xoá bài thì xoá ảnh nào.
   P2 dùng lại `comment` và `vote`.
 - Tối đa 20 ảnh mỗi bài. Chỉ nhận URL ảnh từ `mediaOrigins()`, kiểm khi lưu và khi render.
 
-## API (`apiRoute` với `csrf` + `limiter`, zod trong `lib/validation/blog.js`, service `services/blog.service.js`)
+## API và server action (route: `apiRoute`; action: `runAction`; zod trong `lib/validation/blog.js`)
 
 | P | Route | Việc |
 |---|---|---|
 | 1 | `GET /api/blog/posts?tag=&cursor=` | list published, keyset |
-| 1 | `POST /api/blog/posts` | tạo `{title, tags, body, submit}`; `submit` quyết định draft hay gửi đi |
-| 1 | `PATCH`/`DELETE /api/blog/posts/[id]` | chỉ tác giả; DELETE là soft delete; PATCH bài `hidden` kèm `appealReason` là kháng nghị |
+| 1 | server action `createPostAction` (`actions/blog.actions.js`) | tạo `{title, tags, body, submit}`; `submit` quyết định draft hay gửi đi |
+| 1 | server action `updatePostAction` / `deletePostAction` (`actions/blog.actions.js`) | chỉ tác giả; DELETE là soft delete; PATCH bài `hidden` kèm `appealReason` là kháng nghị |
 | 1 | `GET /api/blog/posts/mine` | bài của tôi, kèm status và lý do |
-| 1 | `POST /api/blog/images` | multipart: `mediaService` với purpose `blog`, ≤ 5 MB, jpeg/png/gif/webp, maxSide 1600 |
+| 1 | server action `uploadBlogImageAction` (`actions/upload.actions.js`) | `FormData`: `mediaService` với purpose `blog`, ≤ 5 MB, jpeg/png/gif/webp, maxSide 1600 |
 | 1 | `GET /api/admin/blog?status=` / `PATCH /api/admin/blog/[id]` | `approve | reject | hide | show` kèm `reason`, audit qua `adminAudit` |
 | 2 | server action `setPostLikeAction({ postId, liked })` (`actions/blog.actions.js`) | like/bỏ like; không cho like bài của chính mình |
-| 2 | `GET`/`POST /api/blog/posts/[id]/comments`, `DELETE /api/blog/comments/[id]` | |
-| 2 | `POST /api/blog/posts/[id]/report` | |
+| 2 | `GET /api/blog/posts/[id]/comments`; server action `addCommentAction`, `deleteCommentAction` (`actions/blog.actions.js`) | |
+| 2 | server action `reportPostAction` (`actions/blog.actions.js`) | |
 | 2 | `GET /api/blog/posts/[id]/viewer` | trạng thái của người xem: số like, số comment, đã like, đã báo cáo, bài của mình |
 | 2 | `GET /api/blog/likes?ids=` | trạng thái feed cho tối đa 50 bài một lần: `{ ids, counts }` (bài đã like, số like và comment thật). Không cần đăng nhập |
 | 2 | `GET /api/admin/blog/comments` / `PATCH /api/admin/blog/comments/[id]` | ẩn/hiện comment, cần `admin.read` + `blog.moderate` |

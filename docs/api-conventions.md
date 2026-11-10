@@ -4,12 +4,18 @@ Quy ước cho mọi endpoint mới và mọi lần sửa endpoint cũ. Lý do c
 
 ## 1. Quy tắc chọn
 
-| Việc | Dùng | Vì sao |
-|---|---|---|
-| **Đọc dữ liệu** (mọi thứ React Query `useQuery` / `useInfiniteQuery` gọi, server component không tính) | **Route handler `GET`** trong `app/api/**`, bọc bằng `apiRoute` | `GET` cache được (HTTP, CDN cho dữ liệu public), chạy song song, huỷ được (`AbortSignal`), retry an toàn. Server action luôn là `POST`, mỗi client chạy tuần tự từng cái một, không cache được |
-| **Ghi dữ liệu chỉ có UI của app gọi** (form, nút bấm: ghi danh, nộp quiz, chạy code, comment, đổi profile) | **Server action** trong `actions/*.actions.js`, bọc bằng `runAction` | Next.js tự chặn cross-origin (kiểm tra `Origin`). Không phải thiết kế URL công khai. Lỗi trả về dạng giá trị, không bị redact ở production |
-| **Ghi dữ liệu là một phần của HTTP API** (admin, commerce/checkout, onboarding, quản lý tài khoản/session, signup) | **Route handler `POST`/`PATCH`/`DELETE`** + `apiRoute({ csrf: true })` | Có hợp đồng HTTP rõ ràng: test bằng `fetch`, có audit log, có thể có client ngoài |
-| **Bên ngoài gọi vào** (webhook thanh toán, Sanity, Inngest, cron, Pusher auth, next-auth) | **Route handler riêng**, không qua `apiRoute` | Xác thực bằng chữ ký / secret / giao thức riêng, không dùng session cookie |
+Một thao tác **giữ route handler** nếu đúng ít nhất một điều:
+
+1. Là thao tác đọc mà React Query gọi (`useQuery` / `useInfiniteQuery`). `GET` cache được (HTTP, CDN cho dữ liệu public), chạy song song, huỷ được (`AbortSignal`), retry an toàn; server action luôn là `POST`, mỗi client chạy tuần tự, không cache được.
+2. Người gọi không phải UI của app: webhook, Inngest, cron, health, Pusher, NextAuth. Xác thực bằng chữ ký / secret / giao thức riêng, không qua `apiRoute`.
+3. Đặt hoặc xoay cookie phiên, hoặc chạy trước khi có phiên: `auth/*`, `user/signup`, `user/sessions`, `user/accounts/[provider]`, `user/delete-unverified`.
+4. Cần admin step-up (`requirePermission` / `requireRecentAuth`): toàn bộ `admin/*`. Step-up phía client hiện chỉ replay được qua axios interceptor (`lib/axios.js`, `lib/adminStepUp.js`).
+5. Liên quan tiền và có idempotency key: `commerce/checkout`, `commerce/redeem`.
+6. Cần ngữ nghĩa HTTP: redirect, `Cache-Control` công khai, tải file.
+
+Còn lại là ghi chỉ UI gọi: **server action** trong `actions/*.actions.js`, bọc bằng `runAction`. Next.js tự chặn cross-origin (kiểm tra `Origin`), không phải thiết kế URL công khai, và lỗi trả về dạng giá trị, không bị redact ở production.
+
+**Client ngoài.** Route ghi dùng cookie + `assertSameOrigin` (`lib/requestGuard.js`): cần `Origin` trong allowlist hoặc `Sec-Fetch-Site: same-origin`, nên app native không gọi được. Khi có mobile, thêm route mới với auth bằng token, gọi cùng `services/*`. Không giữ route cookie "phòng hờ".
 
 Không làm:
 
@@ -51,8 +57,18 @@ export async function submitQuizAction({ challengeId, answers }) {
 }
 ```
 
-- Trả về `{ success, data }` hoặc `{ success: false, status, message }`. Phía client dùng `unwrapActionResult` + `callWithAuthRetry` (`lib/actionResult.js`).
+- Trả về `{ success, data }` hoặc `{ success: false, status, message }`.
+- Phía client gọi qua `callAction(run)` (`lib/actionResult.js`) = `unwrapActionResult(await callWithAuthRetry(run))`, ví dụ `mutationFn: (v) => callAction(() => createPostAction(v))`. Lỗi vẫn mang `.status` / `.code` nên `onError` chạy như với route.
 - Chỉ ghi. Kết quả nào trả về (ví dụ quiz state sau khi nộp) thì đưa vào cache bằng `setQueryData`, không bắt client gọi lại.
+
+Bốn bất biến khi viết action (mỗi `export` trong file `'use server'` là một endpoint công khai):
+
+1. **`userId` chỉ lấy từ `ctx` của `runAction`.** Tham số action không bao giờ chứa định danh người dùng.
+2. **Mọi `export` đi qua `runAction`.** Không export helper, regex hay hàm chưa bọc.
+3. **Không dùng `auth: false` hay `allowLocked` trong action mới.** Hiện chỉ `sendFeedbackAction` dùng `auth: false` và `updateUserProfileAction` dùng `allowLocked`.
+4. **Giữ nguyên validate đầu vào của route cũ** (regex id, zod, giới hạn 1-100 uuid) trước khi gọi service, và đọc tham số bên trong handler của `runAction` để `null` / `undefined` trả 400.
+
+`__tests__/lists/actionsGuard.test.js` kiểm hai bất biến (2 và 3): số `export async function` bằng số `runAction(` trong từng file, `auth: false` chỉ có ở `feedback.actions.js`, `allowLocked` chỉ có ở `user.actions.js`. `__tests__/lists/serverAction.test.js` kiểm `runAction` thật (401, 403, 429, `userId` của phiên).
 
 ## 4. Phân trang
 
@@ -81,3 +97,26 @@ Dùng cho mọi list mới, và list cũ khi được sửa tới:
 | `GET /api/get/getMyFriends`, `GET /api/get/getSocial`, `POST /api/post/postCreateTeam` | xoá (không có caller) |
 | `PATCH /api/user/logout` | `POST /api/auth/logout` |
 | `GET /api/health` (đầy đủ, công khai) | `GET /api/health`: liveness công khai; báo cáo đầy đủ cần `Authorization: Bearer $HEALTH_TOKEN` (hoặc `CRON_SECRET`) |
+
+### 15 handler ghi phía người học: route sang action
+
+| Trước | Sau |
+|---|---|
+| `POST /api/blog/posts` | `createPostAction` (`actions/blog.actions.js`) |
+| `PATCH /api/blog/posts/[id]` | `updatePostAction` |
+| `DELETE /api/blog/posts/[id]` | `deletePostAction` |
+| `POST /api/blog/posts/[id]/comments` | `addCommentAction` |
+| `DELETE /api/blog/comments/[id]` | `deleteCommentAction` |
+| `POST /api/blog/posts/[id]/report` | `reportPostAction` |
+| `POST /api/blog/images` | `uploadBlogImageAction` (`actions/upload.actions.js`) |
+| `PATCH /api/user/privacy` | `updatePrivacyAction` (`actions/user.actions.js`) |
+| `PATCH /api/user/notifications` | `markNotificationsAction` |
+| `PATCH /api/user/avatars` | `restoreAvatarAction` |
+| `DELETE /api/user/avatars` | `deleteAvatarAction` |
+| `POST /api/onboarding/preferences` | `saveOnboardingStepAction` (`actions/onboarding.actions.js`) |
+| `PATCH /api/onboarding/preferences` | `updatePreferencesAction` |
+| `POST /api/onboarding/complete` | `completeOnboardingAction` |
+| `POST /api/onboarding/skip` | `skipOnboardingAction` |
+| `POST` / `DELETE /api/blog/posts/[id]/like` | `setPostLikeAction` (`actions/blog.actions.js`) |
+
+Các route `GET` của blog, user và onboarding giữ nguyên. Thiết kế đầy đủ: [2026-11-10-api-vs-action-boundary-design.md](superpowers/specs/2026-11-10-api-vs-action-boundary-design.md).
