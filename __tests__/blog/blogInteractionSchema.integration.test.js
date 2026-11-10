@@ -60,4 +60,16 @@ describe.skipIf(!hasDb)("blog interaction schema (PostgreSQL)", () => {
             expect((await sql(`SELECT 1 FROM community.${t} WHERE post_id = $1`, [pid])).rows).toHaveLength(0);
         }
     });
+
+    it("blog publish EXP rule exists and blog_post is an allowed EXP source", async () => {
+        const rule = (await sql(`SELECT amount, is_active FROM profile.exp_rule WHERE rule_key = 'blog.post_published'`)).rows[0];
+        expect(rule).toMatchObject({ amount: 20, is_active: true });
+        const id = crypto.randomUUID();
+        await sql(
+            `INSERT INTO profile.exp_transaction (id, user_id, amount, source_type, source_id, rule_key, exp_after)
+             VALUES ($1, $2, 20, 'blog_post', $3, 'blog.post_published', 20)`,
+            [id, userId, postId]
+        );
+        await sql(`DELETE FROM profile.exp_transaction WHERE id = $1`, [id]);
+    });
 });
