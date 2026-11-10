@@ -55,10 +55,10 @@
     }
 
     .lesson-prose .lesson_link {
-        color: var(--primary);
+        color: var(--primary-ink);
         font-weight: 500;
         text-decoration: underline;
-        text-decoration-color: color-mix(in oklab, var(--primary) 35%, transparent);
+        text-decoration-color: color-mix(in oklab, var(--primary-ink) 35%, transparent);
         text-underline-offset: 0.2em;
     }
 
@@ -236,7 +236,7 @@
     .lesson-prose .callout_warning { --callout-color: var(--warning); --callout-surface: var(--warning-soft); }
     .lesson-prose .callout_success { --callout-color: var(--success); --callout-surface: var(--success-soft); }
     .lesson-prose .callout_error { --callout-color: var(--destructive); --callout-surface: var(--destructive-soft); }
-    .lesson-prose .callout_tip { --callout-color: var(--primary); --callout-surface: var(--primary-soft); }
+    .lesson-prose .callout_tip { --callout-color: var(--primary-ink); --callout-surface: var(--primary-soft); }
 
     .lesson-prose .callout_header {
         display: flex;
