@@ -22,11 +22,14 @@ vi.mock("@/actions/blog.actions", () => ({
     addCommentAction: (...args) => addCommentAction(...args),
 }));
 
+const uploadBlogImageAction = vi.fn();
+vi.mock("@/actions/upload.actions", () => ({ uploadBlogImageAction: (...a) => uploadBlogImageAction(...a) }));
+
 const { CommentButton, LikeButton, default: PostActions } = await import("@/components/blog/postActions");
-const { useAddComment } = await import("@/mutations/blog.mutation");
+const { useAddComment, useUploadBlogImage } = await import("@/mutations/blog.mutation");
 const { blogKeys } = await import("@/keys/blog.keys");
 
-afterEach(() => { cleanup(); Object.values(api).forEach((fn) => fn.mockReset()); setPostLikeAction.mockReset(); addCommentAction.mockReset(); });
+afterEach(() => { cleanup(); Object.values(api).forEach((fn) => fn.mockReset()); setPostLikeAction.mockReset(); addCommentAction.mockReset(); uploadBlogImageAction.mockReset(); });
 
 const newClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const wrap = (ui, client = newClient()) => render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
@@ -126,5 +129,23 @@ describe("useAddComment", () => {
         await run(client);
         expect(client.getQueryData(blogKeys.comments("pst_a"))).toBeUndefined();
         expect(invalidate).toHaveBeenCalledWith({ queryKey: blogKeys.comments("pst_a") });
+    });
+});
+
+describe("useUploadBlogImage", () => {
+    const hook = () => renderHook(() => useUploadBlogImage(), { wrapper: ({ children }) => <QueryClientProvider client={newClient()}>{children}</QueryClientProvider> });
+
+    it("refuses an image over 5 MB before anything is sent", async () => {
+        const { result } = hook();
+        const big = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "big.png", { type: "image/png" });
+        await expect(result.current.mutateAsync(big)).rejects.toMatchObject({ message: "Images can be at most 5 MB", status: 413 });
+        expect(uploadBlogImageAction).not.toHaveBeenCalled();
+    });
+
+    it("sends the file as form data and returns the stored image", async () => {
+        uploadBlogImageAction.mockResolvedValue({ success: true, data: { url: "https://img/x.png", width: 1, height: 1 } });
+        const { result } = hook();
+        expect(await result.current.mutateAsync(new File(["x"], "x.png", { type: "image/png" }))).toEqual({ url: "https://img/x.png", width: 1, height: 1 });
+        expect(uploadBlogImageAction.mock.calls[0][0].get("file")).toBeInstanceOf(File);
     });
 });

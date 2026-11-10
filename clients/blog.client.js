@@ -17,10 +17,4 @@ export const blogClient = {
     getFeedState: async (ids) => (await apiClient.get('/blog/likes', { params: { ids: ids.join(',') } })).data,
     // { items: [{ id, body, createdAt, author, own }], nextCursor }, newest first; works signed out.
     getComments: async ({ id, cursor }) => (await apiClient.get(`/blog/posts/${id}/comments`, { params: cursor ? { cursor } : {} })).data,
-    // Returns { url, width, height }.
-    uploadImage: async (file) => {
-        const form = new FormData();
-        form.append('file', file);
-        return (await apiClient.upload('/blog/images', form)).data;
-    },
 };

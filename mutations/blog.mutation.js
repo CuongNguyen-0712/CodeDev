@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { addCommentAction, createPostAction, deleteCommentAction, deletePostAction, reportPostAction, setPostLikeAction, updatePostAction } from "@/actions/blog.actions";
-import { blogClient } from "@/clients/blog.client";
+import { uploadBlogImageAction } from "@/actions/upload.actions";
 import { blogKeys } from "@/keys/blog.keys";
 import { callAction } from "@/lib/actionResult";
 
@@ -62,4 +62,14 @@ export function useDeleteComment(postId) {
     });
 }
 export const useReportPost = () => useMutation({ mutationFn: ({ id, reason }) => callAction(() => reportPostAction({ postId: id, reason })) });
-export const useUploadBlogImage = () => useMutation({ mutationFn: (file) => blogClient.uploadImage(file) });
+// Same as MAX_AVATAR_BYTES in services/media.service.js; a body over 6 MB never reaches the action.
+const BLOG_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+export const useUploadBlogImage = () => useMutation({
+    mutationFn: (file) => {
+        if (file?.size > BLOG_IMAGE_MAX_BYTES) throw Object.assign(new Error("Images can be at most 5 MB"), { status: 413 });
+        const form = new FormData();
+        form.append("file", file);
+        return callAction(() => uploadBlogImageAction(form));
+    },
+});

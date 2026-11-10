@@ -5,6 +5,8 @@ const svc = { like: vi.fn(), unlike: vi.fn(), addComment: vi.fn(), deleteComment
 const post = { create: vi.fn(), update: vi.fn(), remove: vi.fn() };
 vi.mock("@/services/blog.service", () => ({ blogService: post }));
 vi.mock("@/services/blogInteraction.service", () => ({ blogInteractionService: svc }));
+const media = { uploadBlogImage: vi.fn(async () => ({ url: "https://img/x.png", width: 10, height: 10 })) };
+vi.mock("@/services/media.service", () => ({ mediaService: media }));
 vi.mock("@/lib/serverAction", () => ({
     runAction: async (handler, options) => {
         try {
@@ -16,6 +18,7 @@ vi.mock("@/lib/serverAction", () => ({
 }));
 
 const { setPostLikeAction, createPostAction, updatePostAction, deletePostAction, addCommentAction, deleteCommentAction, reportPostAction } = await import("@/actions/blog.actions");
+const { uploadBlogImageAction } = await import("@/actions/upload.actions");
 const { rateLimiters } = await import("@/lib/rateLimit");
 const POST = `pst_${"a".repeat(26)}`;
 const draft = { title: "A long post", tags: ["js"], body: "Hello", submit: false };
@@ -144,5 +147,17 @@ describe("comment and report actions", () => {
         const mod = await import("@/app/api/blog/posts/[id]/comments/route");
         expect(mod.POST).toBeUndefined();
         expect(mod.GET).toBeTypeOf("function");
+    });
+});
+
+describe("uploadBlogImageAction", () => {
+    it("hands the file and the session user to mediaService, with the upload limiter", async () => {
+        const file = new File(["x"], "x.png", { type: "image/png" });
+        const form = new FormData();
+        form.append("file", file);
+        const result = await uploadBlogImageAction(form);
+        expect(result).toMatchObject({ success: true, data: { url: "https://img/x.png" } });
+        expect(media.uploadBlogImage).toHaveBeenCalledWith({ userId: "u1", file: expect.any(File) });
+        expect(result.options.limiter).toBe(rateLimiters.upload);
     });
 });
