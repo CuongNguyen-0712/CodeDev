@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { createPostAction, deletePostAction, setPostLikeAction, updatePostAction } from "@/actions/blog.actions";
+import { addCommentAction, createPostAction, deleteCommentAction, deletePostAction, reportPostAction, setPostLikeAction, updatePostAction } from "@/actions/blog.actions";
 import { blogClient } from "@/clients/blog.client";
 import { blogKeys } from "@/keys/blog.keys";
 import { callAction } from "@/lib/actionResult";
@@ -36,7 +36,7 @@ export function useSetLike() {
 export function useAddComment(postId) {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: (body) => blogClient.addComment({ id: postId, body }),
+        mutationFn: (body) => callAction(() => addCommentAction({ postId, body })),
         onSuccess: (comment) => {
             const key = blogKeys.comments(postId);
             if (queryClient.getQueryData(key)) {
@@ -53,7 +53,7 @@ export function useAddComment(postId) {
 export function useDeleteComment(postId) {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: (commentId) => blogClient.deleteComment(commentId),
+        mutationFn: (commentId) => callAction(() => deleteCommentAction(commentId)),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: blogKeys.comments(postId) });
             queryClient.invalidateQueries({ queryKey: blogKeys.viewer(postId) });
@@ -61,5 +61,5 @@ export function useDeleteComment(postId) {
         },
     });
 }
-export const useReportPost = () => useMutation({ mutationFn: (input) => blogClient.reportPost(input) });
+export const useReportPost = () => useMutation({ mutationFn: ({ id, reason }) => callAction(() => reportPostAction({ postId: id, reason })) });
 export const useUploadBlogImage = () => useMutation({ mutationFn: (file) => blogClient.uploadImage(file) });

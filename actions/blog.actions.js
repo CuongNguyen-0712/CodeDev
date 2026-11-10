@@ -3,7 +3,7 @@
 import { ApiError } from "@/lib/error/apiError";
 import { rateLimiters } from "@/lib/rateLimit";
 import { runAction } from "@/lib/serverAction";
-import { postInputSchema, postPatchSchema } from "@/lib/validation/blog";
+import { commentInputSchema, postInputSchema, postPatchSchema, reportSchema } from "@/lib/validation/blog";
 import { parseOrThrow } from "@/lib/validation/premium";
 import { blogService } from "@/services/blog.service";
 import { blogInteractionService } from "@/services/blogInteraction.service";
@@ -13,6 +13,7 @@ const postIdOf = (value) => {
     if (!POST_ID.test(String(value ?? ""))) throw new ApiError("Invalid post id", 400);
     return value;
 };
+const COMMENT_ID = /^pcm_[0-9a-z]{26}$/;
 
 // Create a draft, or submit it for review. Returns { id, slug, status, rewards? }.
 export async function createPostAction(input) {
@@ -51,4 +52,30 @@ export async function setPostLikeAction(arg) {
             ? blogInteractionService.like({ userId, postId })
             : blogInteractionService.unlike({ userId, postId });
     }, { limiter: rateLimiters.vote, context: "setPostLikeAction" });
+}
+
+// Comment on a published post: { postId, body }. Returns the new comment { id, body, createdAt, author, own }.
+export async function addCommentAction(arg) {
+    return runAction(async ({ userId }) => {
+        const { postId, body } = arg ?? {};
+        postIdOf(postId);
+        return blogInteractionService.addComment({ userId, postId, input: parseOrThrow(commentInputSchema, { body }) });
+    }, { limiter: rateLimiters.comment, context: "addCommentAction" });
+}
+
+// The author removes their own comment.
+export async function deleteCommentAction(commentId) {
+    return runAction(async ({ userId }) => {
+        if (!COMMENT_ID.test(String(commentId ?? ""))) throw new ApiError("Invalid comment id", 400);
+        return blogInteractionService.deleteComment({ userId, commentId });
+    }, { limiter: rateLimiters.comment, context: "deleteCommentAction" });
+}
+
+// Report a published post for moderators: { postId, reason }.
+export async function reportPostAction(arg) {
+    return runAction(async ({ userId }) => {
+        const { postId, reason } = arg ?? {};
+        postIdOf(postId);
+        return blogInteractionService.report({ userId, postId, input: parseOrThrow(reportSchema, { reason }) });
+    }, { limiter: rateLimiters.feedback, context: "reportPostAction" });
 }

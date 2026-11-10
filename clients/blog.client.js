@@ -15,11 +15,8 @@ export const blogClient = {
     getViewer: async (id) => (await apiClient.get(`/blog/posts/${id}/viewer`)).data,
     // { ids, counts: { [id]: { likeCount, commentCount } } } for these posts (at most 50); ids is [] signed out.
     getFeedState: async (ids) => (await apiClient.get('/blog/likes', { params: { ids: ids.join(',') } })).data,
-    reportPost: async ({ id, reason }) => (await apiClient.post(`/blog/posts/${id}/report`, { reason })).data,
     // { items: [{ id, body, createdAt, author, own }], nextCursor }, newest first; works signed out.
     getComments: async ({ id, cursor }) => (await apiClient.get(`/blog/posts/${id}/comments`, { params: cursor ? { cursor } : {} })).data,
-    addComment: async ({ id, body }) => (await apiClient.post(`/blog/posts/${id}/comments`, { body })).data,
-    deleteComment: async (commentId) => (await apiClient.delete(`/blog/comments/${commentId}`)).data,
     // Returns { url, width, height }.
     uploadImage: async (file) => {
         const form = new FormData();

@@ -12,17 +12,21 @@ vi.mock("next-auth/react", () => ({ useSession: () => session }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/contexts/appContext", () => ({ useApp: () => ({ showAlert: vi.fn() }) }));
 
-const api = { getFeedState: vi.fn(), getViewer: vi.fn(), addComment: vi.fn() };
+const api = { getFeedState: vi.fn(), getViewer: vi.fn() };
 vi.mock("@/clients/blog.client", () => ({ blogClient: new Proxy({}, { get: (_, name) => (...args) => api[name]?.(...args) }) }));
 
 const setPostLikeAction = vi.fn();
-vi.mock("@/actions/blog.actions", () => ({ setPostLikeAction: (...args) => setPostLikeAction(...args) }));
+const addCommentAction = vi.fn();
+vi.mock("@/actions/blog.actions", () => ({
+    setPostLikeAction: (...args) => setPostLikeAction(...args),
+    addCommentAction: (...args) => addCommentAction(...args),
+}));
 
 const { CommentButton, LikeButton, default: PostActions } = await import("@/components/blog/postActions");
 const { useAddComment } = await import("@/mutations/blog.mutation");
 const { blogKeys } = await import("@/keys/blog.keys");
 
-afterEach(() => { cleanup(); Object.values(api).forEach((fn) => fn.mockReset()); setPostLikeAction.mockReset(); });
+afterEach(() => { cleanup(); Object.values(api).forEach((fn) => fn.mockReset()); setPostLikeAction.mockReset(); addCommentAction.mockReset(); });
 
 const newClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const wrap = (ui, client = newClient()) => render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
@@ -104,7 +108,7 @@ describe("feed actions", () => {
 describe("useAddComment", () => {
     const comment = { id: "pcm_new", body: "Hi" };
     const run = async (client) => {
-        api.addComment.mockResolvedValue(comment);
+        addCommentAction.mockResolvedValue({ success: true, data: comment });
         const { result } = renderHook(() => useAddComment("pst_a"), { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
         await act(() => result.current.mutateAsync("Hi"));
     };

@@ -1,7 +1,7 @@
 // Server actions for blog posts (like, create, edit, delete): validation, routing and limiters (runAction itself: __tests__/lists/serverAction.test.js).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const svc = { like: vi.fn(), unlike: vi.fn() };
+const svc = { like: vi.fn(), unlike: vi.fn(), addComment: vi.fn(), deleteComment: vi.fn(), report: vi.fn() };
 const post = { create: vi.fn(), update: vi.fn(), remove: vi.fn() };
 vi.mock("@/services/blog.service", () => ({ blogService: post }));
 vi.mock("@/services/blogInteraction.service", () => ({ blogInteractionService: svc }));
@@ -15,7 +15,7 @@ vi.mock("@/lib/serverAction", () => ({
     },
 }));
 
-const { setPostLikeAction, createPostAction, updatePostAction, deletePostAction } = await import("@/actions/blog.actions");
+const { setPostLikeAction, createPostAction, updatePostAction, deletePostAction, addCommentAction, deleteCommentAction, reportPostAction } = await import("@/actions/blog.actions");
 const { rateLimiters } = await import("@/lib/rateLimit");
 const POST = `pst_${"a".repeat(26)}`;
 const draft = { title: "A long post", tags: ["js"], body: "Hello", submit: false };
@@ -102,5 +102,47 @@ describe("post write actions", () => {
         const byId = await import("@/app/api/blog/posts/[id]/route");
         expect([byId.PATCH, byId.DELETE]).toEqual([undefined, undefined]);
         expect(byId.GET).toBeTypeOf("function");
+    });
+});
+
+describe("comment and report actions", () => {
+    beforeEach(() => {
+        svc.addComment.mockReset().mockResolvedValue({ id: "c1" });
+        svc.deleteComment.mockReset().mockResolvedValue({ deleted: true });
+        svc.report.mockReset().mockResolvedValue({ reported: true });
+    });
+
+    it("addCommentAction checks the post id and body, with the comment limiter", async () => {
+        expect(await addCommentAction({ postId: "bad", body: "Hi" })).toMatchObject({ success: false, status: 400, message: "Invalid post id" });
+        expect(await addCommentAction({ postId: POST, body: "   " })).toMatchObject({ success: false, status: 400 });
+        for (const bad of [undefined, null]) expect(await addCommentAction(bad)).toMatchObject({ success: false, status: 400 });
+        expect(svc.addComment).not.toHaveBeenCalled();
+        const result = await addCommentAction({ postId: POST, body: "Hi", userId: "usr_attacker" });
+        expect(svc.addComment).toHaveBeenCalledWith({ userId: "u1", postId: POST, input: { body: "Hi" } });
+        expect(result.options.limiter).toBe(rateLimiters.comment);
+    });
+
+    it("deleteCommentAction needs a comment id, with the comment limiter", async () => {
+        for (const bad of [undefined, null, "pst_x", POST]) expect(await deleteCommentAction(bad)).toMatchObject({ success: false, status: 400, message: "Invalid comment id" });
+        expect(svc.deleteComment).not.toHaveBeenCalled();
+        const COMMENT = `pcm_${"b".repeat(26)}`;
+        const result = await deleteCommentAction(COMMENT);
+        expect(svc.deleteComment).toHaveBeenCalledWith({ userId: "u1", commentId: COMMENT });
+        expect(result.options.limiter).toBe(rateLimiters.comment);
+    });
+
+    it("reportPostAction needs a reason of at least 5 characters, with the feedback limiter", async () => {
+        expect(await reportPostAction({ postId: POST, reason: "spam" })).toMatchObject({ success: false, status: 400 });
+        for (const bad of [undefined, null]) expect(await reportPostAction(bad)).toMatchObject({ success: false, status: 400 });
+        expect(svc.report).not.toHaveBeenCalled();
+        const result = await reportPostAction({ postId: POST, reason: "Spam links everywhere" });
+        expect(svc.report).toHaveBeenCalledWith({ userId: "u1", postId: POST, input: { reason: "Spam links everywhere" } });
+        expect(result.options.limiter).toBe(rateLimiters.feedback);
+    });
+
+    it("the comments route keeps only its read", async () => {
+        const mod = await import("@/app/api/blog/posts/[id]/comments/route");
+        expect(mod.POST).toBeUndefined();
+        expect(mod.GET).toBeTypeOf("function");
     });
 });
