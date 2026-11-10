@@ -23,9 +23,10 @@ export async function createPostAction(input) {
 }
 
 // Edit or resubmit an own post: { id, title, tags, body, submit, appealReason? }.
-export async function updatePostAction({ id, ...input } = {}) {
+export async function updatePostAction(arg) {
     return runAction(
         async ({ userId }) => {
+            const { id, ...input } = arg ?? {};
             const postId = postIdOf(id);
             return blogService.update({ userId, postId, input: parseOrThrow(postPatchSchema, input) });
         },
@@ -42,8 +43,9 @@ export async function deletePostAction(id) {
 }
 
 // Like or unlike a published post; both are idempotent and return { liked, likeCount }.
-export async function setPostLikeAction({ postId, liked } = {}) {
+export async function setPostLikeAction(arg) {
     return runAction(async ({ userId }) => {
+        const { postId, liked } = arg ?? {};
         postIdOf(postId);
         return liked === true
             ? blogInteractionService.like({ userId, postId })

@@ -1,4 +1,4 @@
-// setPostLikeAction and the post create/edit/delete actions: validate the post id and routes to like or unlike (runAction itself: __tests__/lists/serverAction.test.js).
+// Server actions for blog posts (like, create, edit, delete): validation, routing and limiters (runAction itself: __tests__/lists/serverAction.test.js).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const svc = { like: vi.fn(), unlike: vi.fn() };
@@ -40,6 +40,10 @@ describe("setPostLikeAction", () => {
         expect(svc.like).not.toHaveBeenCalled();
     });
 
+    it("returns 400 instead of rejecting when called with null", async () => {
+        expect(await setPostLikeAction(null)).toMatchObject({ success: false, status: 400 });
+    });
+
     it("rejects a malformed post id before any write", async () => {
         expect(await setPostLikeAction({ postId: "pst_../x", liked: true })).toMatchObject({ success: false, status: 400 });
         expect(svc.like).not.toHaveBeenCalled();
@@ -78,7 +82,7 @@ describe("post write actions", () => {
 
     it("updatePostAction checks the id first, then the patch, with the blogWrite limiter", async () => {
         expect(await updatePostAction({ id: "pst_../x", ...draft })).toMatchObject({ success: false, status: 400, message: "Invalid post id" });
-        expect(await updatePostAction(undefined)).toMatchObject({ success: false, status: 400, message: "Invalid post id" });
+        for (const bad of [undefined, null]) expect(await updatePostAction(bad)).toMatchObject({ success: false, status: 400, message: "Invalid post id" });
         expect(post.update).not.toHaveBeenCalled();
         const result = await updatePostAction({ id: POST, ...draft, appealReason: "Please look again at this" });
         expect(post.update).toHaveBeenCalledWith({ userId: "u1", postId: POST, input: { ...draft, appealReason: "Please look again at this" } });
