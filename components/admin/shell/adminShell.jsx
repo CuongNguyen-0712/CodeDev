@@ -38,7 +38,13 @@ const ICONS = {
 const roleName = (rank) => (rank >= 100 ? "Super admin" : rank >= 80 ? "Admin" : rank >= 50 ? "Course manager" : rank >= 30 ? "Instructor" : "Staff");
 
 // Quiet rows with muted icons; the open screen is the one violet-tinted row (its icon in the brand ink).
-const NAV_BUTTON = "h-8 gap-2.5 px-2.5 text-muted-foreground hover:text-foreground [&>svg]:text-muted-foreground hover:[&>svg]:text-foreground data-[active=true]:bg-primary-soft data-[active=true]:text-primary-soft-foreground data-[active=true]:[&>svg]:text-primary-ink";
+// Same treatment as the learner sidebar (components/ui/dashboard.jsx): dark item text with grey icons,
+// the current page a violet pill with a 3px bar on its left edge.
+const NAV_BUTTON = [
+    "relative h-8 gap-2.5 px-2.5 text-foreground/85 hover:text-foreground [&>svg]:text-muted-foreground hover:[&>svg]:text-foreground",
+    "data-[active=true]:bg-primary-soft data-[active=true]:font-semibold data-[active=true]:text-primary-soft-foreground data-[active=true]:[&>svg]:text-primary-ink",
+    "data-[active=true]:before:absolute data-[active=true]:before:inset-y-1.5 data-[active=true]:before:left-0 data-[active=true]:before:w-[3px] data-[active=true]:before:rounded-r-full data-[active=true]:before:bg-primary",
+].join(" ");
 
 const ENVIRONMENTS = {
     production: { label: "Production", chip: "border-warning/30 bg-warning-soft text-warning", dot: "bg-warning" },
@@ -109,7 +115,7 @@ function NavGroups({ items, activeKey }) {
     }
     return groups.map((group) => (
         <SidebarGroup key={group.label || "main"} className="py-1">
-            {group.label && <SidebarGroupLabel className="h-7 px-2.5 text-[11px] font-medium tracking-wide text-muted-foreground/80 uppercase">{group.label}</SidebarGroupLabel>}
+            {group.label && <SidebarGroupLabel className="h-7 px-2.5 text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">{group.label}</SidebarGroupLabel>}
             <SidebarGroupContent>
                 <NavItems items={group.items} activeKey={activeKey} />
             </SidebarGroupContent>
@@ -199,7 +205,14 @@ export default function AdminShell({ permissions, environment, user, children })
                 >
                     Skip to content
                 </a>
-                <Sidebar collapsible="offcanvas" role="navigation" aria-label="Admin navigation" className="border-r border-sidebar-border">
+                {/* The card colour, as in the learner sidebar: the lavender tint made the active pill and the grey
+                    items wash out. The border separates it from the content. */}
+                <Sidebar
+                    collapsible="offcanvas"
+                    role="navigation"
+                    aria-label="Admin navigation"
+                    className="border-r border-sidebar-border [--sidebar:var(--card)] [--sidebar-accent:var(--muted)] [--sidebar-accent-foreground:var(--foreground)] [--sidebar-border:var(--border)]"
+                >
                     {/* 48px, level with the top bar, so the two borders meet in one line. */}
                     <SidebarHeader className="h-12 justify-center border-b border-sidebar-border px-3 py-0">
                         <Link href="/admin" className="flex items-center gap-2 rounded-md px-1.5 py-1 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
