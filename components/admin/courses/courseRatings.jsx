@@ -8,7 +8,7 @@ import { adminClient } from "@/clients/premium.client";
 import { adminKeys } from "@/keys/admin.keys";
 import { useApp } from "@/contexts/appContext";
 import { QUERY_TIMES, retryTransient } from "@/lib/queryTimes";
-import { LOW_RATING, MIN_RATINGS, RATE_PROMPT_LESSON } from "@/lib/ratingRules";
+import { LOW_RATING, MIN_RATINGS } from "@/lib/ratingRules";
 import { useAdmin } from "@/components/admin/adminContext";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import { useAdminSetRatingHidden } from "@/mutations/premium.mutation";
@@ -90,7 +90,7 @@ export default function CourseRatings({ courseId }) {
 
             <div tabIndex={data.items.length ? 0 : undefined} className="overflow-x-auto rounded-lg border border-border bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                 {data.items.length === 0 ? (
-                    <p className="p-4 text-sm text-muted-foreground">{`No ratings yet. Learners are asked after lesson ${RATE_PROMPT_LESSON} and when they finish the course.`}</p>
+                    <p className="p-4 text-sm text-muted-foreground">No ratings yet. Learners are asked at 20% and 50% of the course and when they finish it.</p>
                 ) : (
                     <table className="w-full text-sm">
                         <thead>
