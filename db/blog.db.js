@@ -56,7 +56,7 @@ export const blogDb = {
     softDelete: async (client, { id }) => client.query(`UPDATE community.post SET deleted_at = now(), updated_at = now() WHERE id = $1`, [id]),
 
     listMine: async (authorDbId) => (await sql(
-        `SELECT public_id AS id, slug, title, status, reject_reason, hidden_reason, hidden_at, appealed_at, updated_at
+        `SELECT public_id AS id, slug, title, status, reject_reason, hidden_reason, hidden_at, appealed_at, updated_at, like_count, comment_count
          FROM community.post WHERE author_id = $1 AND deleted_at IS NULL ORDER BY updated_at DESC, id DESC`, [authorDbId]
     )).rows,
 

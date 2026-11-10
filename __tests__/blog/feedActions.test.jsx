@@ -32,9 +32,9 @@ describe("feed actions", () => {
             <LikeButton postId="pst_a" pageIds={["pst_a"]} likeCount={1} authorId="usr_other" />
             <CommentButton postId="pst_a" pageIds={["pst_a"]} slug="a-post" commentCount={0} />
         </>);
-        await waitFor(() => expect(like().textContent).toBe("Like 7"));
+        await waitFor(() => expect(like().textContent).toBe("7"));
         expect(like().getAttribute("aria-pressed")).toBe("true");
-        expect(screen.getByRole("link").textContent).toBe("Comment 3");
+        expect(screen.getByRole("link").textContent).toBe("3");
         expect(api.getFeedState).toHaveBeenCalledTimes(1);
     });
 
@@ -50,7 +50,7 @@ describe("feed actions", () => {
         wrap(<LikeButton postId="pst_a" pageIds={["pst_a"]} likeCount={2} authorId="usr_other" />);
         await waitFor(() => expect(like().disabled).toBe(false));
         expect(like().getAttribute("aria-pressed")).toBe("false");
-        expect(like().textContent).toBe("Like 2");
+        expect(like().textContent).toBe("2");
     });
 
     it("a failed viewer read on the post page enables Like and shows Report", async () => {

@@ -5,6 +5,9 @@ import { cn } from "@/lib/utils";
 import { CommentButton, LikeButton } from "@/components/blog/postActions";
 import SharePostButton from "@/components/blog/sharePostButton";
 
+// Feed action buttons, quiet like the course comment votes (commentItem.jsx voteButton).
+const BAR_BUTTON = "text-muted-foreground hover:bg-muted hover:text-foreground";
+
 // UTC so the server and the browser print the same day.
 export const formatPostDate = (value) =>
     new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
@@ -84,22 +87,25 @@ export default function PostCard({ post, pageIds }) {
             </div>
 
             {post.cover && (
-                <div className="border-y bg-muted">
+                <div className="border-t bg-muted">
                     <img src={post.cover} alt="" loading="lazy" decoding="async" className="mx-auto max-h-[28rem] w-full object-cover" />
                 </div>
             )}
 
-            <div className="relative z-10 mx-4 mt-3 mb-2 grid grid-cols-3 border-t pt-1">
-                <LikeButton
-                    postId={post.id}
-                    pageIds={ids}
-                    likeCount={post.likeCount ?? 0}
-                    authorId={post.author.id}
-                    variant="ghost"
-                    className="text-muted-foreground"
-                />
-                <CommentButton postId={post.id} pageIds={ids} slug={post.slug} commentCount={post.commentCount ?? 0} className="text-muted-foreground" />
-                <SharePostButton slug={post.slug} className="text-muted-foreground" />
+            {/* Full-bleed bar: it also draws the line under the cover, so the card never shows two rules. */}
+            <div className="relative z-10 flex items-center justify-between gap-1 border-t p-1">
+                <div className="flex items-center gap-1">
+                    <LikeButton
+                        postId={post.id}
+                        pageIds={ids}
+                        likeCount={post.likeCount ?? 0}
+                        authorId={post.author.id}
+                        variant="ghost"
+                        className={BAR_BUTTON}
+                    />
+                    <CommentButton postId={post.id} pageIds={ids} slug={post.slug} commentCount={post.commentCount ?? 0} className={BAR_BUTTON} />
+                </div>
+                <SharePostButton slug={post.slug} className={BAR_BUTTON} />
             </div>
         </article>
     );

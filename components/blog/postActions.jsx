@@ -80,14 +80,14 @@ export function LikeButton({ postId, pageIds, likeCount, authorId, onPost = fals
     return (
         <Button
             variant={variant}
-            className={cn(className, state.liked && "text-primary")}
+            className={cn(className, state.liked && "text-destructive hover:bg-destructive-soft hover:text-destructive")}
             aria-label={state.count > 0 ? `Like, ${state.count} ${state.count === 1 ? "like" : "likes"}` : "Like"}
             aria-pressed={state.liked}
             disabled={disabled}
             onClick={toggle}
         >
-            <LuHeart className={cn(state.liked && "fill-current text-primary")} aria-hidden="true" />
-            Like{state.count > 0 && ` ${state.count}`}
+            <LuHeart className={cn(state.liked && "fill-current")} aria-hidden="true" />
+            {state.count > 0 && <span className="tabular-nums">{state.count}</span>}
         </Button>
     );
 }
@@ -102,7 +102,7 @@ export function CommentButton({ postId, pageIds, slug, commentCount, className }
         <Button asChild variant="ghost" className={className}>
             <Link href={`/blog/${slug}#comments`} aria-label={commentLabel(count)}>
                 <LuMessageCircle aria-hidden="true" />
-                Comment{count > 0 && ` ${count}`}
+                {count > 0 && <span className="tabular-nums">{count}</span>}
             </Link>
         </Button>
     );
@@ -170,11 +170,11 @@ export default function PostActions({ postId, likeCount, commentCount }) {
 
     return (
         <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-            <LikeButton postId={postId} pageIds={[postId]} likeCount={likeCount} onPost />
-            <Button asChild variant="ghost" className="text-muted-foreground">
+            <LikeButton postId={postId} pageIds={[postId]} likeCount={likeCount} onPost variant="ghost" className="text-muted-foreground hover:bg-muted hover:text-foreground" />
+            <Button asChild variant="ghost" className="text-muted-foreground hover:bg-muted hover:text-foreground">
                 <Link href="#comments" aria-label={commentLabel(comments)}>
                     <LuMessageCircle aria-hidden="true" />
-                    Comment{comments > 0 && ` ${comments}`}
+                    {comments > 0 && <span className="tabular-nums">{comments}</span>}
                 </Link>
             </Button>
             {/* If the viewer read fails, Report still shows; the server rejects your own post with 400. */}

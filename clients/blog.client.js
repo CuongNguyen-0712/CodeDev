@@ -14,9 +14,6 @@ export const blogClient = {
     createPost: async (input) => (await apiClient.post('/blog/posts', input)).data,
     updatePost: async ({ id, ...input }) => (await apiClient.patch(`/blog/posts/${id}`, input)).data,
     deletePost: async (id) => (await apiClient.delete(`/blog/posts/${id}`)).data,
-    // { liked, likeCount }
-    likePost: async (id) => (await apiClient.post(`/blog/posts/${id}/like`)).data,
-    unlikePost: async (id) => (await apiClient.delete(`/blog/posts/${id}/like`)).data,
     // { likeCount, commentCount, liked, reported, own }; works signed out.
     getViewer: async (id) => (await apiClient.get(`/blog/posts/${id}/viewer`)).data,
     // { ids, counts: { [id]: { likeCount, commentCount } } } for these posts (at most 50); ids is [] signed out.

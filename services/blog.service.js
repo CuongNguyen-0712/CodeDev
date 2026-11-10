@@ -107,7 +107,7 @@ export const blogService = {
                 id: row.id, slug: row.slug, title: row.title, status: row.status, rejectReason: row.reject_reason,
                 hiddenReason: row.hidden_reason, hiddenAt: row.hidden_at, appealedAt: row.appealed_at,
                 purgeAt: purgeAtOf(row.status, row.hidden_at),
-                updatedAt: row.updated_at,
+                updatedAt: row.updated_at, likeCount: row.like_count, commentCount: row.comment_count,
             })),
         };
     },

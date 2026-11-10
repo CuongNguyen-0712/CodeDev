@@ -88,7 +88,7 @@ Bảng này cho biết khi xoá bài thì xoá ảnh nào.
 | 1 | `GET /api/blog/posts/mine` | bài của tôi, kèm status và lý do |
 | 1 | `POST /api/blog/images` | multipart: `mediaService` với purpose `blog`, ≤ 5 MB, jpeg/png/gif/webp, maxSide 1600 |
 | 1 | `GET /api/admin/blog?status=` / `PATCH /api/admin/blog/[id]` | `approve | reject | hide | show` kèm `reason`, audit qua `adminAudit` |
-| 2 | `POST`/`DELETE /api/blog/posts/[id]/like` | không cho like bài của chính mình |
+| 2 | server action `setPostLikeAction({ postId, liked })` (`actions/blog.actions.js`) | like/bỏ like; không cho like bài của chính mình |
 | 2 | `GET`/`POST /api/blog/posts/[id]/comments`, `DELETE /api/blog/comments/[id]` | |
 | 2 | `POST /api/blog/posts/[id]/report` | |
 | 2 | `GET /api/blog/posts/[id]/viewer` | trạng thái của người xem: số like, số comment, đã like, đã báo cáo, bài của mình |

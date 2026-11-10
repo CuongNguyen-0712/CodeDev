@@ -1,7 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { setPostLikeAction } from "@/actions/blog.actions";
 import { blogClient } from "@/clients/blog.client";
 import { blogKeys } from "@/keys/blog.keys";
+import { callWithAuthRetry, unwrapActionResult } from "@/lib/actionResult";
 
 // Own-post writes change the author's list and that post's editor copy; the public list is cached server-side.
 function useBlogWrite(mutationFn) {
@@ -22,7 +24,7 @@ export const useDeletePost = () => useBlogWrite((id) => blogClient.deletePost(id
 export function useSetLike() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, liked }) => (liked ? blogClient.likePost(id) : blogClient.unlikePost(id)),
+        mutationFn: async ({ id, liked }) => unwrapActionResult(await callWithAuthRetry(() => setPostLikeAction({ postId: id, liked }))),
         // Every feed page may show this post, so the whole feed-state prefix goes stale.
         onSettled: (_, __, { id }) => {
             queryClient.invalidateQueries({ queryKey: blogKeys.feedState() });
