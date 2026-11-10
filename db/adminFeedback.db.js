@@ -33,7 +33,7 @@ export const adminFeedbackDb = {
             `SELECT m.public_id AS id, m.content, m.upvotes::int AS upvotes, m.downvotes::int AS downvotes, m.is_hidden AS hidden,
                     m.created_at, m.created_at::text AS cursor_at, m.id::text AS cursor_id,
                     u.public_id AS user_id, u.username, c.public_id AS course_id, c.title AS course_title,
-                    (SELECT r.stars FROM community.course_rating r WHERE r.user_id = m.user_id AND r.course_id = m.reference_id AND NOT r.is_hidden) AS rating
+                    (SELECT r.stars FROM community.course_rating r WHERE r.user_id = m.user_id AND r.course_id = m.reference_id AND NOT r.is_hidden ORDER BY r.milestone DESC LIMIT 1) AS rating
              FROM community.comment m
              JOIN identity.users u ON u.id = m.user_id
              JOIN catalog.course c ON c.id = m.reference_id AND c.is_deleted IS NOT TRUE

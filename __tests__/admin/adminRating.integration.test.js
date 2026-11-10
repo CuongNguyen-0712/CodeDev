@@ -31,7 +31,7 @@ describe.skipIf(!hasDb)("admin course ratings (PostgreSQL)", () => {
         for (const [index, stars] of [5, 4, 1].entries()) {
             const id = await newUser(`${TAG}_l${index}`);
             users.push({ id, publicId: `${TAG}_l${index}` });
-            await sql(`INSERT INTO community.course_rating (user_id, course_id, stars) VALUES ($1, $2, $3)`, [id, courseDbId, stars]);
+            await sql(`INSERT INTO community.course_rating (user_id, course_id, milestone, stars) VALUES ($1, $2, 20, $3)`, [id, courseDbId, stars]);
         }
     });
 
@@ -62,6 +62,16 @@ describe.skipIf(!hasDb)("admin course ratings (PostgreSQL)", () => {
             { action: "rating.hide", target_id: coursePublicId, hidden: "true" },
             { action: "rating.show", target_id: coursePublicId, hidden: "false" },
         ]);
+    });
+
+    it("counts each learner once, with their latest milestone", async () => {
+        const id = String(980000000000000 + Math.floor(Math.random() * 1e9));
+        await sql(`INSERT INTO identity.users (id, public_id, username, email) VALUES ($1, $2, $2, $3)`, [id, `${TAG}_m`, `${TAG}_m@test.invalid`]);
+        // 20% -> 2 stars, then 50% -> 5 stars: only the 5 counts, next to the 5, 4 and 1 of the fixture.
+        await sql(`INSERT INTO community.course_rating (user_id, course_id, milestone, stars) VALUES ($1, $2, 20, 2), ($1, $2, 50, 5)`, [id, courseDbId]);
+        const course = (await sql(`SELECT rating_avg::float AS avg, rating_count AS n FROM catalog.course WHERE id = $1`, [courseDbId])).rows[0];
+        expect(course).toEqual({ avg: 3.75, n: 4 });
+        await sql(`DELETE FROM identity.users WHERE id = $1`, [id]);
     });
 
     it("answers 404 for an unknown course or a learner without a rating", async () => {

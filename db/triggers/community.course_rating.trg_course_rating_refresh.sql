@@ -3,4 +3,4 @@
 -- change the database through a migration in db/migrations, then re-run the exporter.
 
 DROP TRIGGER IF EXISTS trg_course_rating_refresh ON community.course_rating;
-CREATE TRIGGER trg_course_rating_refresh AFTER INSERT OR DELETE OR UPDATE OF stars, is_hidden, course_id ON community.course_rating FOR EACH ROW EXECUTE FUNCTION community.course_rating_refresh();
+CREATE TRIGGER trg_course_rating_refresh AFTER INSERT OR DELETE OR UPDATE OF stars, is_hidden, course_id, milestone ON community.course_rating FOR EACH ROW EXECUTE FUNCTION community.course_rating_refresh();

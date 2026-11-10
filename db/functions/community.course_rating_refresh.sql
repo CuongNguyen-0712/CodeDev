@@ -23,7 +23,10 @@ BEGIN
             rating = CASE WHEN s.n >= 3 THEN s.avg END,
             reviews = s.n
         FROM (SELECT ROUND(AVG(stars), 2) AS avg, COUNT(*)::int AS n
-              FROM community.course_rating WHERE course_id = v_course AND NOT is_hidden) s
+              FROM (SELECT DISTINCT ON (user_id) stars
+                    FROM community.course_rating
+                    WHERE course_id = v_course AND NOT is_hidden
+                    ORDER BY user_id, milestone DESC) latest) s
         WHERE c.id = v_course;
     END LOOP;
     RETURN NULL;
