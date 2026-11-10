@@ -314,8 +314,10 @@ export const useCourseRate = () => {
         onSuccess: (state, variables) => {
             const courseId = extractId(variables);
             if (!courseId || !isLast(courseId)) return;
+            // The server's answer also corrects a milestone that moved while the page was open.
+            // No course details refetch: a rating changes no viewer state, and the header average
+            // is the prerendered page's (revalidated on the server).
             queryClient.setQueriesData({ queryKey: courseKeys.rating(courseId) }, state);
-            queryClient.invalidateQueries({ queryKey: courseKeys.details(courseId) });
         },
     });
 };
