@@ -13,6 +13,7 @@ import { dispatchAuthOutbox } from "@/services/authOutbox.service";
 import { notificationService } from "@/services/notification.service";
 
 const PAGE = 12;
+const TOP_TAGS = 20;
 const DAY = 86400000;
 
 const purgeDays = Number(process.env.BLOG_HIDDEN_PURGE_DAYS);
@@ -127,6 +128,9 @@ export const blogService = {
         const { items, nextCursor } = pageOf(rows, PAGE, (last) => encodeCursor(last.cursor_at, last.cursor_id));
         return { items: items.map(publicPost), nextCursor };
     },
+
+    /** Names of the most used tags of published posts, for the feed's Topics filter. */
+    topTags: async ({ limit = TOP_TAGS } = {}) => (await blogDb.topTags({ limit })).map((row) => row.tag),
 
     getPublishedBySlug: async (slug) => {
         const row = await blogDb.getPublishedBySlug(slug);

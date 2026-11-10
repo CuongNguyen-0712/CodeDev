@@ -77,6 +77,15 @@ export const blogDb = {
         [tag, cursor?.createdAt ?? null, cursor?.id ?? null, limit]
     )).rows,
 
+    /** Tags of live published posts, most used first; the name breaks a tie so the order is stable. */
+    topTags: async ({ limit }) => (await sql(
+        `SELECT t.tag, count(*)::int AS posts
+         FROM community.post p CROSS JOIN LATERAL unnest(p.tags) AS t(tag)
+         WHERE p.status = 'published' AND p.deleted_at IS NULL
+         GROUP BY t.tag
+         ORDER BY posts DESC, t.tag ASC LIMIT $1`, [limit]
+    )).rows,
+
     getPublishedBySlug: async (slug) => (await sql(
         `SELECT ${PUBLIC_COLS}, p.body_md AS body, p.updated_at
          FROM community.post p ${AUTHOR}

@@ -64,10 +64,10 @@ function TagNav({ tags, tag, scroll = false }) {
     );
 }
 
-export default function Blog({ initial, tag }) {
+export default function Blog({ initial, tag, topics = [] }) {
     const items = initial?.items || [];
-    const tags = [...new Set(items.flatMap((post) => post.tags || []))];
-    if (tag && !tags.includes(tag)) tags.unshift(tag);
+    // `topics` are the most used tags of all published posts; the active tag leads when it is not one of them.
+    const tags = tag && !topics.includes(tag) ? [tag, ...topics] : topics;
     const pageIds = items.map((post) => post.id);
 
     return (
