@@ -4,8 +4,9 @@
 -- Community blog rewards (P3). Publishing a post earns EXP through the ledger like every other
 -- source: rule `blog.post_published` (20), source_type 'blog_post', source_id = post id.
 -- Like milestones (10 / 50 / 100 likes) earn points, not EXP.
---   D1: point rows use action `blog_likes_<n>` because uq_point_transaction_source is
---       UNIQUE (user_id, source_type, source_id, action): one row per post and milestone.
+--   D1: point rows use source_type `blog_likes_<n>` (action stays 'credit'), because
+--       uq_point_transaction_source is UNIQUE (user_id, source_type, source_id, action):
+--       one row per post and milestone.
 -- =============================================================================
 
 BEGIN;
