@@ -11,6 +11,7 @@ export const NOTIFICATION_KINDS = {
     access_granted: { icon: LuLockOpen, className: "text-success" },
     access_revoked: { icon: LuCircleAlert, className: "text-warning" },
     level_up: { icon: LuTrophy, className: "text-xp" },
+    reward: { icon: LuCoins, className: "text-xp" },
     achievement: { icon: LuAward, className: "text-primary-ink" },
     course_completed: { icon: LuCircleCheck, className: "text-info" },
     announcement: { icon: LuMegaphone, className: "text-primary-ink", team: true },

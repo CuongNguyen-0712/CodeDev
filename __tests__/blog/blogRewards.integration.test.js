@@ -87,6 +87,8 @@ describe.skipIf(!hasDb)("blog publish EXP (PostgreSQL)", () => {
         const after = await exp(u);
         await act("hide");
         expect(await exp(u)).toBe(after);
+        // Backdate so the 24-hour cap no longer short-circuits; only award_exp's per-post dedupe blocks a second payout.
+        await sql(`UPDATE profile.exp_transaction SET created_at = now() - interval '25 hours' WHERE user_id = $1 AND source_type = 'blog_post'`, [u.id]);
         await act("show");
         expect(await expRows(post.id)).toHaveLength(1);
         expect(await exp(u)).toBe(after);
@@ -131,6 +133,16 @@ describe.skipIf(!hasDb)("blog publish EXP (PostgreSQL)", () => {
             for (const f of await fans(10)) await like(f, postId);
             expect(await points(author)).toBe(before + 10);
             expect(await credits(postId)).toEqual(["blog_likes_10"]);
+        });
+
+        it("points survive hide", async () => {
+            const author = await newUser("ahide");
+            const postId = await publishedPost(author);
+            for (const f of await fans(10)) await like(f, postId);
+            const after = await points(author);
+            await adminBlogService.act({ actor, postId, action: "hide", reason: "r", ip: "127.0.0.1" });
+            expect(await credits(postId)).toEqual(["blog_likes_10"]);
+            expect(await points(author)).toBe(after);
         });
 
         it("unlike and like again at 10 pays nothing more", async () => {
