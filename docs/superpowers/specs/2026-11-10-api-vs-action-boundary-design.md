@@ -2,7 +2,7 @@
 
 ## Context
 
-`docs/api-conventions.md` đã có quy tắc: đọc qua route `GET`, ghi chỉ UI gọi qua server action (`runAction`), ghi thuộc HTTP API và lời gọi từ ngoài giữ route. Thực tế còn lệch: 15 handler ghi của blog, user và onboarding chỉ có UI của app gọi, nhưng vẫn đi qua route + hàm client + mutation. Nhánh `feature/community-blog` đã chuyển Like sang `setPostLikeAction` (`actions/blog.actions.js`) làm mẫu.
+`docs/api-conventions.md` đã có quy tắc: đọc qua route `GET`, ghi chỉ UI gọi qua server action (`runAction`), ghi thuộc HTTP API và lời gọi từ ngoài giữ route. Thực tế còn lệch: 15 handler ghi của blog, user và onboarding chỉ có UI của app gọi, nhưng vẫn đi qua route + hàm client + mutation. Like đã được chuyển sang `setPostLikeAction` (`actions/blog.actions.js`) làm mẫu.
 
 Đã chốt với user:
 - **Mục tiêu:** bớt boilerplate, thu hẹp bề mặt HTTP, theo cách App Router khuyến nghị.
@@ -146,10 +146,7 @@ Không action nào cần kiểm tra vai trò (`requirePermission`). Phần cần
 
 ## Thứ tự và nhánh
 
-1. Blog, rồi docs quy tắc: trên `feature/community-blog`, hoàn tất phần Like đang dở.
-2. User, rồi onboarding: nhánh mới tách từ `feature/community-blog`, để PR blog không lẫn domain khác.
-
-Mỗi domain một commit.
+Like đã chuyển xong (`ee47cdb6`) và nhánh blog đã gộp vào `develop`. Làm trên một nhánh mới tách từ `develop`, theo thứ tự: blog, user, onboarding, cuối cùng là docs quy tắc. Mỗi domain một commit.
 
 ## Kiểm chứng
 
