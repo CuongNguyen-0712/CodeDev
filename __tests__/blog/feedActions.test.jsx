@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 /**
@@ -15,11 +15,14 @@ vi.mock("@/contexts/appContext", () => ({ useApp: () => ({ showAlert: vi.fn() })
 const api = { getFeedState: vi.fn(), getViewer: vi.fn(), addComment: vi.fn() };
 vi.mock("@/clients/blog.client", () => ({ blogClient: new Proxy({}, { get: (_, name) => (...args) => api[name]?.(...args) }) }));
 
+const setPostLikeAction = vi.fn();
+vi.mock("@/actions/blog.actions", () => ({ setPostLikeAction: (...args) => setPostLikeAction(...args) }));
+
 const { CommentButton, LikeButton, default: PostActions } = await import("@/components/blog/postActions");
 const { useAddComment } = await import("@/mutations/blog.mutation");
 const { blogKeys } = await import("@/keys/blog.keys");
 
-afterEach(() => { cleanup(); Object.values(api).forEach((fn) => fn.mockReset()); });
+afterEach(() => { cleanup(); Object.values(api).forEach((fn) => fn.mockReset()); setPostLikeAction.mockReset(); });
 
 const newClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const wrap = (ui, client = newClient()) => render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
@@ -38,11 +41,39 @@ describe("feed actions", () => {
         expect(api.getFeedState).toHaveBeenCalledTimes(1);
     });
 
-    it("Like is disabled on your own post", async () => {
-        api.getFeedState.mockResolvedValue({ ids: [], counts: {} });
+    it("your own post shows its likes as text, not as a button", async () => {
+        api.getFeedState.mockResolvedValue({ ids: [], counts: { pst_a: { likeCount: 4, commentCount: 0 } } });
         wrap(<LikeButton postId="pst_a" pageIds={["pst_a"]} likeCount={0} authorId="usr_me" />);
-        await waitFor(() => expect(api.getFeedState).toHaveBeenCalled());
-        expect(like().disabled).toBe(true);
+        await waitFor(() => expect(screen.getByText("4 likes on your post")).toBeTruthy());
+        expect(screen.queryByRole("button")).toBeNull();
+    });
+
+    it("Like stays enabled while its request is pending, and a second click sends nothing", async () => {
+        api.getFeedState.mockResolvedValue({ ids: [], counts: { pst_a: { likeCount: 2, commentCount: 0 } } });
+        let finish;
+        setPostLikeAction.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+        wrap(<LikeButton postId="pst_a" pageIds={["pst_a"]} likeCount={0} authorId="usr_other" />);
+        await waitFor(() => expect(like().textContent).toBe("2"));
+
+        fireEvent.click(like());
+        await waitFor(() => expect(setPostLikeAction).toHaveBeenCalledTimes(1));
+        // Optimistic and never dimmed: no `disabled`, which would drop the heart to half opacity.
+        expect(like().disabled).toBe(false);
+        expect(like().getAttribute("aria-pressed")).toBe("true");
+        expect(like().textContent).toBe("3");
+
+        fireEvent.click(like());
+        expect(setPostLikeAction).toHaveBeenCalledTimes(1);
+        await act(async () => finish({ success: true, data: { liked: true, likeCount: 3 } }));
+    });
+
+    it("a click before the feed state arrives does nothing", async () => {
+        api.getFeedState.mockReturnValue(new Promise(() => { }));
+        wrap(<LikeButton postId="pst_a" pageIds={["pst_a"]} likeCount={2} authorId="usr_other" />);
+        expect(like().disabled).toBe(false);
+        fireEvent.click(like());
+        expect(setPostLikeAction).not.toHaveBeenCalled();
+        expect(like().getAttribute("aria-pressed")).toBe("false");
     });
 
     it("a failed feed read leaves Like not liked and enabled", async () => {
@@ -55,9 +86,18 @@ describe("feed actions", () => {
 
     it("a failed viewer read on the post page enables Like and shows Report", async () => {
         api.getViewer.mockRejectedValue(new Error("down"));
-        wrap(<PostActions postId="pst_a" likeCount={2} commentCount={0} />);
+        wrap(<PostActions postId="pst_a" slug="a-post" title="A post" likeCount={2} commentCount={0} />);
         await waitFor(() => expect(screen.getByRole("button", { name: /Report/ })).toBeTruthy());
         expect(like().disabled).toBe(false);
+        // The post page bar mirrors the feed bar: it has Share too.
+        expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
+    });
+
+    it("a post you already reported shows Reported as text", async () => {
+        api.getViewer.mockResolvedValue({ likeCount: 2, commentCount: 0, liked: false, reported: true, own: false });
+        wrap(<PostActions postId="pst_a" slug="a-post" title="A post" likeCount={2} commentCount={0} />);
+        await waitFor(() => expect(screen.getByText("Reported")).toBeTruthy());
+        expect(screen.queryByRole("button", { name: /Report/ })).toBeNull();
     });
 });
 

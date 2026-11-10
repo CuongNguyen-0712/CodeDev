@@ -30,15 +30,18 @@ export default function LoadMore({ tag, initialCursor }) {
                 </div>
             )}
             {query.isError && (
-                <p role="alert" className="text-sm text-destructive">Could not load more posts. Try again.</p>
+                <p role="alert" className="text-center text-sm text-destructive">Could not load more posts.</p>
             )}
             {hasMore && (
-                <div className="flex justify-center">
+                <div className="flex justify-center pt-2">
                     <Button variant="outline" disabled={query.isFetching} onClick={() => query.fetchNextPage()}>
                         {query.isFetching && <Spinner />}
-                        Load more
+                        {query.isError ? "Try again" : "Load more"}
                     </Button>
                 </div>
+            )}
+            {!hasMore && items.length > 0 && (
+                <p className="pt-2 text-center text-sm text-muted-foreground">You&apos;re all caught up</p>
             )}
         </>
     );

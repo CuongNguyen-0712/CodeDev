@@ -31,6 +31,35 @@ const fill = () => {
     fireEvent.change(screen.getByLabelText("Tags"), { target: { value: "a," } });
 };
 
+describe("missing fields", () => {
+    it("are reported on the field, with focus on the first one, and nothing is sent", () => {
+        render(<PostEditor />);
+        publish();
+        const title = screen.getByLabelText("Title");
+        expect(screen.getByText("Add a title")).toBeTruthy();
+        expect(screen.getByText("Add at least one tag")).toBeTruthy();
+        expect(title.getAttribute("aria-invalid")).toBe("true");
+        expect(document.activeElement).toBe(title);
+        expect(mutation.mutate).not.toHaveBeenCalled();
+        expect(showAlert).not.toHaveBeenCalled();
+
+        // Typing the title clears its error; the tag error stays until a tag is added.
+        fireEvent.change(title, { target: { value: "Hello" } });
+        expect(screen.queryByText("Add a title")).toBeNull();
+        expect(screen.getByText("Add at least one tag")).toBeTruthy();
+        fireEvent.change(screen.getByLabelText("Tags"), { target: { value: "a," } });
+        expect(screen.queryByText("Add at least one tag")).toBeNull();
+    });
+
+    it("Add image is offered on the Write tab only", () => {
+        render(<PostEditor />);
+        expect(screen.getByRole("button", { name: "Add image" })).toBeTruthy();
+        // Radix tabs switch on mouse down.
+        fireEvent.mouseDown(screen.getByRole("tab", { name: "Preview" }), { button: 0 });
+        expect(screen.queryByRole("button", { name: "Add image" })).toBeNull();
+    });
+});
+
 describe.each([
     ["create", undefined, () => fill()],
     ["update", "pst_1", () => {}],

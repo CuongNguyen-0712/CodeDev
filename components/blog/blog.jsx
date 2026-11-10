@@ -20,13 +20,13 @@ function WriteActions({ stacked = false }) {
         <div className={stacked ? "flex flex-col gap-2" : "flex flex-wrap gap-2"}>
             <Button asChild>
                 <Link href="/blog/new">
-                    <LuPenLine />
+                    <LuPenLine aria-hidden="true" />
                     Write a post
                 </Link>
             </Button>
             <Button asChild variant="outline">
                 <Link href="/blog/me">
-                    <LuFileText />
+                    <LuFileText aria-hidden="true" />
                     My posts
                 </Link>
             </Button>
@@ -34,19 +34,26 @@ function WriteActions({ stacked = false }) {
     );
 }
 
-function TagNav({ tags, tag }) {
+// Filter pills: 32px tall, a control and not a label.
+const PILL = "h-8 px-3 text-sm";
+
+// `scroll` (below lg): one row that scrolls sideways, so the topics never push the first post down.
+function TagNav({ tags, tag, scroll = false }) {
     return (
         <nav aria-label="Filter by topic">
-            <ul className="flex list-none flex-wrap gap-2 p-0">
+            <ul className={scroll
+                ? "-mx-4 flex list-none flex-nowrap gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] *:shrink-0 sm:-mx-6 sm:px-6"
+                : "flex list-none flex-wrap gap-2 p-0"}
+            >
                 <li>
-                    <Badge asChild variant={tag ? "outline" : "primary"}>
-                        <Link href="/blog" aria-current={tag ? undefined : "true"}>All posts</Link>
+                    <Badge asChild variant={tag ? "outline" : "primary"} className={PILL}>
+                        <Link href="/blog" aria-current={tag ? undefined : "page"}>All posts</Link>
                     </Badge>
                 </li>
                 {tags.map((name) => (
                     <li key={name}>
-                        <Badge asChild variant={name === tag ? "primary" : "outline"}>
-                            <Link href={`/blog?tag=${encodeURIComponent(name)}`} aria-current={name === tag ? "true" : undefined}>
+                        <Badge asChild variant={name === tag ? "primary" : "outline"} className={PILL}>
+                            <Link href={`/blog?tag=${encodeURIComponent(name)}`} aria-current={name === tag ? "page" : undefined}>
                                 {name}
                             </Link>
                         </Badge>
@@ -64,7 +71,8 @@ export default function Blog({ initial, tag }) {
     const pageIds = items.map((post) => post.id);
 
     return (
-        <div className="mx-auto flex w-full max-w-[61rem] flex-col gap-8 px-4 pt-6 pb-12 sm:px-6 lg:pt-10">
+        // The shell frame Course and Roadmap use; the feed column stays 48rem so covers do not grow huge.
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
             <header className="flex flex-col gap-2">
                 <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
                     {tag ? `Posts about ${tag}` : "Blog"}
@@ -77,10 +85,10 @@ export default function Blog({ initial, tag }) {
             {/* Below lg the sidebar's actions and topics sit above the list. */}
             <div className="flex flex-col gap-4 lg:hidden">
                 <WriteActions />
-                {tags.length > 0 && <TagNav tags={tags} tag={tag} />}
+                {tags.length > 0 && <TagNav tags={tags} tag={tag} scroll />}
             </div>
 
-            <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_15rem]">
+            <div className="grid gap-10 lg:grid-cols-[minmax(0,48rem)_15rem] lg:justify-between">
                 <div className="min-w-0">
                     {items.length === 0 ? (
                         <Empty className="border">
@@ -89,23 +97,38 @@ export default function Blog({ initial, tag }) {
                                     <LuNewspaper aria-hidden="true" />
                                 </EmptyMedia>
                                 <EmptyTitle>
-                                    <h2 className="text-lg font-medium tracking-tight">No articles yet</h2>
+                                    <h2 className="text-lg font-medium tracking-tight">{tag ? `No posts about ${tag}` : "No posts yet"}</h2>
                                 </EmptyTitle>
                                 <EmptyDescription>
-                                    The first posts are being written. In the meantime, the courses are the best place to start learning.
+                                    {tag ? "Nobody has written about this topic yet." : "Be the first to share what you learned."}
                                 </EmptyDescription>
                             </EmptyHeader>
-                            <EmptyContent>
-                                <Button asChild>
-                                    <Link href="/course">
-                                        <LuLibrary />
-                                        Browse courses
-                                    </Link>
-                                </Button>
+                            <EmptyContent className="flex-row flex-wrap justify-center">
+                                {tag ? (
+                                    <Button asChild variant="outline">
+                                        <Link href="/blog">All posts</Link>
+                                    </Button>
+                                ) : (
+                                    <>
+                                        <Button asChild>
+                                            <Link href="/blog/new">
+                                                <LuPenLine aria-hidden="true" />
+                                                Write a post
+                                            </Link>
+                                        </Button>
+                                        <Button asChild variant="outline">
+                                            <Link href="/course">
+                                                <LuLibrary aria-hidden="true" />
+                                                Browse courses
+                                            </Link>
+                                        </Button>
+                                    </>
+                                )}
                             </EmptyContent>
                         </Empty>
                     ) : (
-                        <div className="flex flex-col gap-6">
+                        // One gap for every card, across the server page and the loaded ones.
+                        <div className="flex flex-col gap-4">
                             <div className="flex flex-col gap-4">
                                 {items.map((post) => <PostCard key={post.id} post={post} pageIds={pageIds} />)}
                             </div>

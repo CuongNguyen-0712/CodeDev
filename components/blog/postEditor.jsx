@@ -15,6 +15,8 @@ import { Spinner } from "@/components/shadcn/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 import { Textarea } from "@/components/shadcn/textarea";
 
+import { READING_PROSE } from "@/components/blog/shared";
+import { ErrorReload } from "@/components/ui/error";
 import { announceRewards } from "@/components/ui/level";
 import { useApp } from "@/contexts/appContext";
 import { addTags } from "@/lib/blog/tags.mjs";
@@ -53,6 +55,9 @@ function Form({ post, trusted }) {
     const [appealReason, setAppealReason] = useState("");
     const [uploading, setUploading] = useState(0);
     const [created, setCreated] = useState(false);
+    const [errors, setErrors] = useState({});
+    const [tab, setTab] = useState("write");
+    const clearError = (key) => setErrors((current) => (current[key] ? { ...current, [key]: undefined } : current));
 
     const appealing = post?.status === "hidden" && !post.appealedAt;
     // A pending post with appealedAt is the appeal under review; the server answers 409 to any save on it.
@@ -67,6 +72,7 @@ function Form({ post, trusted }) {
     const takeTags = (parts, rest = "") => {
         const result = addTags(tags, parts, MAX_TAGS);
         setTags(result.tags);
+        if (result.tags.length) clearError("tags");
         setTagError(result.invalid.length ? `"${result.invalid.join('", "')}" is not a valid tag. Use letters, numbers and hyphens, up to 30 characters.` : "");
         setTagInput(rest);
     };
@@ -119,9 +125,15 @@ function Form({ post, trusted }) {
     };
 
     const save = (submit) => {
-        if (!title.trim()) return showAlert(400, "Add a title first");
-        if (!tags.length) return showAlert(400, "Add at least one tag");
-        if (appealing && !appealReason.trim()) return showAlert(400, "Explain why this post should be restored");
+        // Missing fields are reported on the field, and the first one takes focus; toasts are for server errors.
+        const missing = {
+            ...(!title.trim() && { title: "Add a title" }),
+            ...(!tags.length && { tags: "Add at least one tag" }),
+            ...(appealing && !appealReason.trim() && { appeal: "Explain why this post should be restored" }),
+        };
+        setErrors(missing);
+        const first = missing.title ? "post-title" : missing.tags ? "post-tags" : missing.appeal ? "post-appeal" : null;
+        if (first) return document.getElementById(first)?.focus();
 
         const input = {
             title: title.trim(),
@@ -181,7 +193,17 @@ function Form({ post, trusted }) {
 
             <Field>
                 <FieldLabel htmlFor="post-title">Title</FieldLabel>
-                <Input id="post-title" value={title} maxLength={150} onChange={(event) => setTitle(event.target.value)} disabled={locked} />
+                <Input
+                    id="post-title"
+                    className="h-10 text-base font-medium"
+                    value={title}
+                    maxLength={150}
+                    disabled={locked}
+                    aria-invalid={errors.title ? true : undefined}
+                    aria-describedby={errors.title ? "post-title-error" : undefined}
+                    onChange={(event) => { setTitle(event.target.value); clearError("title"); }}
+                />
+                {errors.title && <FieldError id="post-title-error">{errors.title}</FieldError>}
             </Field>
 
             <Field>
@@ -190,7 +212,15 @@ function Form({ post, trusted }) {
                     {tags.map((tag) => (
                         <Badge key={tag} variant="primary" className="gap-1">
                             {tag}
-                            <button type="button" aria-label={`Remove tag ${tag}`} className="cursor-pointer" disabled={locked} onClick={() => setTags(tags.filter((item) => item !== tag))}>
+                            <button
+                                type="button"
+                                aria-label={`Remove tag ${tag}`}
+                                // A 20px target with its own focus ring: the Badge's ring does not reach an inner button.
+                                // The ring is inset, because the Badge clips anything drawn outside it.
+                                className="-mr-1 inline-flex size-5 cursor-pointer items-center justify-center rounded-sm hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
+                                disabled={locked}
+                                onClick={() => setTags(tags.filter((item) => item !== tag))}
+                            >
                                 <LuX className="size-3" aria-hidden="true" />
                             </button>
                         </Badge>
@@ -201,27 +231,31 @@ function Form({ post, trusted }) {
                         value={tagInput}
                         placeholder="Add a tag"
                         disabled={locked || tags.length >= MAX_TAGS}
-                        aria-invalid={tagError ? true : undefined}
-                        aria-describedby={tagError ? "post-tags-error" : undefined}
+                        aria-invalid={tagError || errors.tags ? true : undefined}
+                        aria-describedby={tagError || errors.tags ? "post-tags-help post-tags-error" : "post-tags-help"}
                         onChange={onTagChange}
                         onKeyDown={onTagKeyDown}
                         onBlur={() => tagInput.trim() && takeTags([tagInput])}
                     />
                 </div>
-                {tagError && <FieldError id="post-tags-error">{tagError}</FieldError>}
-                <FieldDescription>Press Enter or comma to add. Up to {MAX_TAGS} tags.</FieldDescription>
+                {/* Help first, so it does not move when an error appears under it. */}
+                <FieldDescription id="post-tags-help">Press Enter or comma to add. Up to {MAX_TAGS} tags.</FieldDescription>
+                {(tagError || errors.tags) && <FieldError id="post-tags-error">{tagError || errors.tags}</FieldError>}
             </Field>
 
-            <Tabs defaultValue="write">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+            <Tabs value={tab} onValueChange={setTab}>
+                <div className="flex min-h-8 flex-wrap items-center justify-between gap-2">
                     <TabsList>
                         <TabsTrigger value="write">Write</TabsTrigger>
                         <TabsTrigger value="preview">Preview</TabsTrigger>
                     </TabsList>
-                    <Button type="button" variant="outline" size="sm" disabled={locked} onClick={() => fileRef.current?.click()}>
-                        {uploading > 0 ? <Spinner /> : <LuImagePlus aria-hidden="true" />}
-                        Add image
-                    </Button>
+                    {/* Only on Write: on Preview it would insert into a textarea nobody sees. */}
+                    {tab === "write" && (
+                        <Button type="button" variant="outline" size="sm" disabled={locked} onClick={() => fileRef.current?.click()}>
+                            {uploading > 0 ? <Spinner /> : <LuImagePlus aria-hidden="true" />}
+                            Add image
+                        </Button>
+                    )}
                     <input ref={fileRef} type="file" accept="image/*" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={onFile} />
                 </div>
                 <TabsContent value="write">
@@ -237,8 +271,11 @@ function Form({ post, trusted }) {
                     />
                 </TabsContent>
                 <TabsContent value="preview">
-                    <div className="min-h-80 rounded-md border bg-card p-4">
-                        {body.trim() ? <BlogMarkdown body={body} origins={MEDIA_ORIGINS} /> : <p className="text-sm text-muted-foreground">Nothing to preview yet.</p>}
+                    <div className="min-h-80 rounded-md border bg-card px-5 py-4">
+                        {/* Same size and column as the post page, so the preview is what readers get. */}
+                        <div className="max-w-[40rem]">
+                            {body.trim() ? <BlogMarkdown body={body} origins={MEDIA_ORIGINS} className={READING_PROSE} /> : <p className="text-sm text-muted-foreground">Nothing to preview yet.</p>}
+                        </div>
                     </div>
                 </TabsContent>
             </Tabs>
@@ -246,13 +283,27 @@ function Form({ post, trusted }) {
             {appealing && (
                 <Field>
                     <FieldLabel htmlFor="post-appeal">Appeal reason</FieldLabel>
-                    <Textarea id="post-appeal" value={appealReason} onChange={(event) => setAppealReason(event.target.value)} />
-                    <FieldDescription>You can appeal a hidden post once.</FieldDescription>
+                    <Textarea
+                        id="post-appeal"
+                        value={appealReason}
+                        aria-invalid={errors.appeal ? true : undefined}
+                        aria-describedby={errors.appeal ? "post-appeal-help post-appeal-error" : "post-appeal-help"}
+                        onChange={(event) => { setAppealReason(event.target.value); clearError("appeal"); }}
+                    />
+                    <FieldDescription id="post-appeal-help">You can appeal a hidden post once.</FieldDescription>
+                    {errors.appeal && <FieldError id="post-appeal-error">{errors.appeal}</FieldError>}
                 </Field>
             )}
 
-            {!locked && (
-                <div className="flex flex-wrap gap-2">
+            {locked ? (
+                <div>
+                    <Button asChild variant="outline">
+                        <Link href="/blog/me">Back to my posts</Link>
+                    </Button>
+                </div>
+            ) : (
+                // Sticks to the bottom, so the primary action stays in reach on a long post.
+                <div className="sticky bottom-0 z-10 flex flex-wrap gap-2 border-t bg-background py-3">
                     {/* A live post stays published on save (lib/blog/status.mjs), so it has one "Save changes" button. */}
                     <Button type="button" disabled={busy} onClick={() => save(!live)}>
                         {pending && <Spinner />}
@@ -281,11 +332,15 @@ export default function PostEditor({ id }) {
         return <Skeleton className="h-96 w-full" />;
     }
     if (id && post.isError) {
-        const error = post.error;
+        // A missing post has nothing to retry; anything else gets the house retry block.
+        if (post.error?.status !== 404) return <ErrorReload data={post.error} refetch={() => post.refetch()} />;
         return (
-            <p role="alert" className="text-sm">
-                {error?.status === 404 ? "This post does not exist." : error?.message || "Could not load the editor."}
-            </p>
+            <div className="flex flex-col items-start gap-3">
+                <p role="alert" className="text-sm">This post does not exist.</p>
+                <Button asChild variant="outline">
+                    <Link href="/blog/me">Back to my posts</Link>
+                </Button>
+            </div>
         );
     }
     return <Form post={id ? post.data : null} trusted={mine.data?.trusted ?? false} />;

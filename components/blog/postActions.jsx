@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
+import SharePostButton from "@/components/blog/sharePostButton";
+import { BAR_BUTTON, BAR_COUNT_BUTTON } from "@/components/blog/shared";
 import { Button } from "@/components/shadcn/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
 import { Field, FieldDescription, FieldLabel } from "@/components/shadcn/field";
@@ -17,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { useReportPost, useSetLike } from "@/mutations/blog.mutation";
 import { blogQueries } from "@/queries/blog.query";
 
-import { LuFlag, LuHeart, LuMessageCircle } from "react-icons/lu";
+import { LuCheck, LuFlag, LuHeart, LuMessageCircle } from "react-icons/lu";
 
 const MIN_REASON = 5;
 const MAX_REASON = 500;
@@ -39,7 +41,7 @@ function useSignedIn() {
  * buttons (`pageIds`); the post page (`onPost`) seeds both from the viewer state. A click flips both
  * at once, then takes the server's answer, or goes back on error. Re-seeding waits while a click is pending.
  */
-export function LikeButton({ postId, pageIds, likeCount, authorId, onPost = false, variant = "outline", className }) {
+export function LikeButton({ postId, pageIds, likeCount, authorId, onPost = false, className }) {
     const { showAlert } = useApp();
     const { signedIn, loading, userId, toSignIn } = useSignedIn();
     const feed = useQuery(blogQueries.feedState(pageIds, !onPost));
@@ -63,6 +65,8 @@ export function LikeButton({ postId, pageIds, likeCount, authorId, onPost = fals
     }
 
     const toggle = () => {
+        // Guarded here, not with `disabled`: a disabled button dims to half opacity on every load and click.
+        if (loading || setLike.isPending || (signedIn && !settled)) return;
         if (!signedIn) return toSignIn();
         const before = state;
         const liked = !before.liked;
@@ -76,14 +80,27 @@ export function LikeButton({ postId, pageIds, likeCount, authorId, onPost = fals
         });
     };
 
-    const disabled = loading || setLike.isPending || (signedIn && !settled) || own;
+    // Your own post: a count to read, not a button that looks broken.
+    if (own) {
+        return (
+            <span className={cn("inline-flex items-center text-sm font-medium", className, "hover:bg-transparent hover:text-muted-foreground")} title="Your post">
+                <LuHeart aria-hidden="true" />
+                {state.count > 0 && <span className="tabular-nums" aria-hidden="true">{state.count}</span>}
+                <span className="sr-only">{state.count} {state.count === 1 ? "like" : "likes"} on your post</span>
+            </span>
+        );
+    }
+
     return (
         <Button
-            variant={variant}
-            className={cn(className, state.liked && "text-destructive hover:bg-destructive-soft hover:text-destructive")}
+            variant="ghost"
+            className={cn(
+                className,
+                "[&_svg]:transition-transform [&_svg]:duration-150 motion-safe:active:[&_svg]:scale-90",
+                state.liked && "text-destructive hover:bg-destructive-soft hover:text-destructive",
+            )}
             aria-label={state.count > 0 ? `Like, ${state.count} ${state.count === 1 ? "like" : "likes"}` : "Like"}
             aria-pressed={state.liked}
-            disabled={disabled}
             onClick={toggle}
         >
             <LuHeart className={cn(state.liked && "fill-current")} aria-hidden="true" />
@@ -152,8 +169,8 @@ function ReportDialog({ open, onOpenChange, postId, onReported }) {
     );
 }
 
-/** Like, comments and report for the post page; `likeCount` and `commentCount` are the cached values. */
-export default function PostActions({ postId, likeCount, commentCount }) {
+/** Like, comments, share and report for the post page, laid out like the feed bar; the counts are the cached values. */
+export default function PostActions({ postId, slug, title, likeCount, commentCount }) {
     const { loading, signedIn, toSignIn } = useSignedIn();
     const viewerQuery = useQuery(blogQueries.viewer(postId));
     const viewer = viewerQuery.data;
@@ -169,21 +186,31 @@ export default function PostActions({ postId, likeCount, commentCount }) {
     };
 
     return (
-        <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-            <LikeButton postId={postId} pageIds={[postId]} likeCount={likeCount} onPost variant="ghost" className="text-muted-foreground hover:bg-muted hover:text-foreground" />
-            <Button asChild variant="ghost" className="text-muted-foreground hover:bg-muted hover:text-foreground">
-                <Link href="#comments" aria-label={commentLabel(comments)}>
-                    <LuMessageCircle aria-hidden="true" />
-                    {comments > 0 && <span className="tabular-nums">{comments}</span>}
-                </Link>
-            </Button>
-            {/* If the viewer read fails, Report still shows; the server rejects your own post with 400. */}
-            {(viewer ? !viewer.own : viewerQuery.isError) && (
-                <Button variant="ghost" className="ml-auto text-muted-foreground" disabled={reported} onClick={startReport}>
-                    <LuFlag aria-hidden="true" />
-                    {reported ? "Reported" : "Report"}
+        <div className="flex flex-wrap items-center justify-between gap-1 border-t pt-1.5">
+            <div className="flex items-center gap-1">
+                <LikeButton postId={postId} pageIds={[postId]} likeCount={likeCount} onPost className={BAR_COUNT_BUTTON} />
+                <Button asChild variant="ghost" className={BAR_COUNT_BUTTON}>
+                    <Link href="#comments" aria-label={commentLabel(comments)}>
+                        <LuMessageCircle aria-hidden="true" />
+                        {comments > 0 && <span className="tabular-nums">{comments}</span>}
+                    </Link>
                 </Button>
-            )}
+            </div>
+            <div className="flex items-center gap-1">
+                <SharePostButton slug={slug} title={title} className={BAR_BUTTON} />
+                {/* If the viewer read fails, Report still shows; the server rejects your own post with 400. */}
+                {(viewer ? !viewer.own : viewerQuery.isError) && (reported ? (
+                    <span className="inline-flex h-10 items-center gap-2 px-3 text-sm font-medium text-muted-foreground [&_svg]:size-5">
+                        <LuCheck aria-hidden="true" />
+                        Reported
+                    </span>
+                ) : (
+                    <Button variant="ghost" className={BAR_BUTTON} onClick={startReport}>
+                        <LuFlag aria-hidden="true" />
+                        Report
+                    </Button>
+                ))}
+            </div>
             <ReportDialog open={open} onOpenChange={setOpen} postId={postId} onReported={() => { setReportedNow(true); setOpen(false); }} />
         </div>
     );

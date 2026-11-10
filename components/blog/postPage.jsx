@@ -3,7 +3,8 @@ import Link from "next/link";
 import BlogMarkdown from "@/components/blog/markdown";
 import PostActions from "@/components/blog/postActions";
 import PostComments from "@/components/blog/postComments";
-import PostCard, { AuthorAvatar, PostMeta } from "@/components/blog/postCard";
+import PostCard, { PostMeta } from "@/components/blog/postCard";
+import { READING_PROSE, TAG_BADGE } from "@/components/blog/shared";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 
@@ -11,7 +12,6 @@ import { blogPostingJsonLd } from "@/lib/blog/jsonLd.mjs";
 import { siteOrigin } from "@/lib/siteUrl";
 import { mediaOrigins } from "@/lib/media/mediaOrigins.mjs";
 
-import { LuArrowLeft } from "react-icons/lu";
 
 function TableOfContents({ headings }) {
     return (
@@ -38,16 +38,10 @@ export default function PostPage({ post, headings = [], related = [] }) {
     const topic = post.tags?.[0];
 
     return (
-        // Reading column 40rem (about 70 characters at 17px); the contents list sits beside it from xl.
-        <div className="mx-auto grid w-full max-w-[42rem] gap-x-16 gap-y-8 px-4 pt-6 pb-16 lg:pt-8 xl:max-w-[60rem] xl:grid-cols-[minmax(0,40rem)_14rem]">
+        // The shell frame Course and Roadmap use, so the title starts at the same edge; the reading
+        // column stays 40rem (about 70 characters at 17px) and the contents list sits beside it from xl.
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,40rem)] gap-x-16 gap-y-8 px-4 pt-6 pb-16 sm:px-6 lg:pt-10 xl:grid-cols-[minmax(0,40rem)_14rem]">
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
-            <Button asChild variant="ghost" size="sm" className="-ml-2.5 self-start justify-self-start text-muted-foreground xl:col-span-2">
-                <Link href="/blog">
-                    <LuArrowLeft />
-                    Blog
-                </Link>
-            </Button>
-
             <article className="flex min-w-0 flex-col gap-10">
                 <header className="flex flex-col gap-4">
                     <h1 className="text-3xl font-semibold tracking-tight text-balance text-foreground sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
@@ -58,7 +52,7 @@ export default function PostPage({ post, headings = [], related = [] }) {
                         <ul className="flex list-none flex-wrap gap-1.5 p-0">
                             {post.tags.map((tag) => (
                                 <li key={tag}>
-                                    <Badge asChild variant="outline">
+                                    <Badge asChild variant="outline" className={TAG_BADGE}>
                                         <Link href={`/blog?tag=${encodeURIComponent(tag)}`}>{tag}</Link>
                                     </Badge>
                                 </li>
@@ -67,19 +61,9 @@ export default function PostPage({ post, headings = [], related = [] }) {
                     )}
                 </header>
 
-                <BlogMarkdown body={post.body} origins={mediaOrigins()} className="text-[1.0625rem] leading-[1.75]" />
+                <BlogMarkdown body={post.body} origins={mediaOrigins()} className={READING_PROSE} />
 
-                <PostActions postId={post.id} likeCount={post.likeCount ?? 0} commentCount={post.commentCount ?? 0} />
-
-                <footer className="flex items-center gap-4 border-t pt-8">
-                    <AuthorAvatar author={post.author} size="lg" />
-                    <div className="flex flex-col">
-                        <span className="text-sm text-muted-foreground">Written by</span>
-                        <Link href={`/profile/${post.author.id}`} className="font-medium text-foreground underline-offset-4 hover:underline">
-                            {post.author.username}
-                        </Link>
-                    </div>
-                </footer>
+                <PostActions postId={post.id} slug={post.slug} title={post.title} likeCount={post.likeCount ?? 0} commentCount={post.commentCount ?? 0} />
             </article>
 
             {showToc && (
@@ -91,12 +75,12 @@ export default function PostPage({ post, headings = [], related = [] }) {
             <PostComments postId={post.id} slug={post.slug} initialCount={post.commentCount ?? 0} />
 
             {related.length > 0 && (
-                <section aria-labelledby="related-heading" className="flex min-w-0 flex-col gap-2 border-t pt-8 xl:col-start-1">
-                    <h2 id="related-heading" className="text-lg font-semibold tracking-tight text-foreground">
+                <section aria-labelledby="related-heading" className="flex min-w-0 flex-col gap-2 pt-4 xl:col-start-1">
+                    <h2 id="related-heading" className="text-xl font-semibold tracking-tight text-foreground">
                         {topic ? `More about ${topic}` : "More posts"}
                     </h2>
                     <div className="flex flex-col gap-4 pt-2">
-                        {related.map((item) => <PostCard key={item.id} post={item} pageIds={related.map((p) => p.id)} />)}
+                        {related.map((item) => <PostCard key={item.id} post={item} compact />)}
                     </div>
                 </section>
             )}

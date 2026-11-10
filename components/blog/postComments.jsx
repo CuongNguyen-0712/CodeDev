@@ -46,18 +46,26 @@ function CommentSkeleton() {
 export function CommentItem({ comment, onDelete, deleting = false }) {
     const [confirming, setConfirming] = useState(false);
     return (
-        <li className="flex gap-3">
-            <AuthorAvatar author={comment.author} />
+        // 32px avatar and a 10px gap: the same 42px indent as the course comments (commentItem.jsx).
+        <li className="flex gap-2.5">
+            <AuthorAvatar author={comment.author} size="default" />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+                <div className="flex min-h-8 flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
                     <Link href={`/profile/${comment.author.id}`} className="font-medium text-foreground underline-offset-4 hover:underline">
                         {comment.author.username}
                     </Link>
-                    <time dateTime={new Date(comment.createdAt).toISOString()}>{formatRelative(comment.createdAt)}</time>
+                    <span aria-hidden="true">·</span>
+                    <time className="text-xs" dateTime={new Date(comment.createdAt).toISOString()}>{formatRelative(comment.createdAt)}</time>
                     {comment.own && (
-                        <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground" disabled={deleting} onClick={() => setConfirming(true)}>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="ml-auto text-muted-foreground hover:bg-destructive-soft hover:text-destructive"
+                            aria-label="Delete comment"
+                            disabled={deleting}
+                            onClick={() => setConfirming(true)}
+                        >
                             <LuTrash2 aria-hidden="true" />
-                            Delete
                         </Button>
                     )}
                 </div>
@@ -83,7 +91,8 @@ function CommentForm({ postId, slug }) {
     const add = useAddComment(postId);
     const [body, setBody] = useState("");
 
-    if (status === "loading") return null;
+    // Holds the form's place, so the list does not move when the session arrives.
+    if (status === "loading") return <Skeleton className="h-[8.25rem] w-full rounded-lg" />;
     if (status !== "authenticated") {
         return (
             <div className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
@@ -100,6 +109,8 @@ function CommentForm({ postId, slug }) {
 
     const submit = (event) => {
         event.preventDefault();
+        // The keyboard shortcut submits past the disabled button, so the same rule is checked here.
+        if (!body.trim() || add.isPending) return;
         add.mutate(body.trim(), {
             onSuccess: () => setBody(""),
             onError: (error) => showAlert(error?.status || 500, errorText(error)),
@@ -107,17 +118,24 @@ function CommentForm({ postId, slug }) {
     };
 
     return (
-        <form onSubmit={submit} className="flex flex-col gap-2">
+        // One bordered box, like the sign-in prompt that takes this place for guests.
+        <form onSubmit={submit} className="flex flex-col gap-2 rounded-lg border bg-card p-3 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
             <Textarea
                 value={body}
                 onChange={(event) => setBody(event.target.value)}
+                // Ctrl or Cmd + Enter sends, as in most comment boxes.
+                onKeyDown={(event) => {
+                    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") event.currentTarget.form.requestSubmit();
+                }}
                 maxLength={MAX_BODY}
                 rows={3}
                 placeholder="Share what you think"
                 aria-label="Comment"
+                className="resize-none border-0 bg-transparent px-1 shadow-none focus-visible:ring-0 dark:bg-transparent"
             />
             <div className="flex items-center justify-between gap-3">
-                <span className="text-xs text-muted-foreground tabular-nums">{body.length}/{MAX_BODY}</span>
+                {/* The counter only matters near the limit. */}
+                <span className="text-xs text-muted-foreground tabular-nums">{body.length > MAX_BODY * 0.8 && `${body.length}/${MAX_BODY}`}</span>
                 <Button type="submit" disabled={!body.trim() || add.isPending}>
                     {add.isPending && <Spinner />}
                     Post comment
@@ -140,7 +158,7 @@ export default function PostComments({ postId, slug, initialCount }) {
 
     return (
         <section id="comments" aria-labelledby="comments-heading" className="flex min-w-0 scroll-mt-20 flex-col gap-6 border-t pt-8 xl:col-start-1">
-            <h2 id="comments-heading" className="text-lg font-semibold tracking-tight text-foreground">Comments ({count})</h2>
+            <h2 id="comments-heading" className="text-xl font-semibold tracking-tight text-foreground">Comments ({count})</h2>
             <CommentForm postId={postId} slug={slug} />
             {query.isLoading && (
                 <ul aria-busy="true" className="flex list-none flex-col gap-6 p-0">
@@ -161,7 +179,7 @@ export default function PostComments({ postId, slug, initialCount }) {
             )}
             {items.length > 0 && (
                 <ul className="flex list-none flex-col gap-6 p-0">
-                    {items.map((comment) => <CommentItem key={comment.id} comment={comment} onDelete={onDelete} deleting={remove.isPending} />)}
+                    {items.map((comment) => <CommentItem key={comment.id} comment={comment} onDelete={onDelete} deleting={remove.isPending && remove.variables === comment.id} />)}
                 </ul>
             )}
             {query.hasNextPage && (
