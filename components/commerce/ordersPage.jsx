@@ -101,8 +101,8 @@ function OrdersTab({ status }) {
                         <TableRow className="hover:bg-transparent">
                             <TableHead className="pl-4">Course</TableHead>
                             <TableHead className="max-sm:hidden">Method</TableHead>
-                            <TableHead>Amount</TableHead>
-                            <TableHead>Status</TableHead>
+                            <TableHead className="max-sm:hidden">Amount</TableHead>
+                            <TableHead className="max-sm:hidden">Status</TableHead>
                             <TableHead className="max-md:hidden">Date</TableHead>
                             <TableHead className="pr-4 text-right"><span className="sr-only">Actions</span></TableHead>
                         </TableRow>
@@ -112,26 +112,30 @@ function OrdersTab({ status }) {
                             <SkeletonRows columns={6} />
                         ) : orders.map((order) => (
                             <TableRow key={order.id}>
-                                <TableCell className="max-w-0 pl-4 sm:w-full">
-                                    <span className="block truncate font-medium" title={order.course?.title}>
+                                {/* Phones: one column, the title on up to two lines and date, amount and status
+                                    under it, instead of four squeezed columns. */}
+                                <TableCell className="w-full max-w-0 pl-4 whitespace-normal sm:whitespace-nowrap">
+                                    <span className="line-clamp-2 font-medium break-words sm:line-clamp-none sm:block sm:truncate" title={order.course?.title}>
                                         {order.course?.title || 'Course'}
                                     </span>
-                                    <span className="block tabular text-xs text-muted-foreground md:hidden">
-                                        {formatDate(order.createdAt)}
+                                    <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground md:hidden">
+                                        <span className="tabular">{formatDate(order.createdAt)}</span>
+                                        <span className="tabular text-foreground sm:hidden">{orderAmount(order)}</span>
+                                        <span className="sm:hidden"><OrderStatusBadge status={order.status} /></span>
                                     </span>
                                 </TableCell>
                                 <TableCell className="text-muted-foreground max-sm:hidden">
                                     {ORDER_METHOD[order.method] || humanize(order.method)}
                                 </TableCell>
-                                <TableCell className="tabular">{orderAmount(order)}</TableCell>
-                                <TableCell><OrderStatusBadge status={order.status} /></TableCell>
+                                <TableCell className="tabular max-sm:hidden">{orderAmount(order)}</TableCell>
+                                <TableCell className="max-sm:hidden"><OrderStatusBadge status={order.status} /></TableCell>
                                 <TableCell className="text-xs text-muted-foreground tabular max-md:hidden">
                                     {formatDate(order.createdAt, { time: true })}
                                 </TableCell>
-                                <TableCell className="pr-4 text-right">
-                                    <Button asChild variant="ghost" size="sm">
+                                <TableCell className="pr-4 text-right align-middle">
+                                    <Button asChild variant="ghost" size="sm" className="max-sm:size-9 max-sm:px-0">
                                         <Link href={`/orders/${order.id}`} aria-label={`View order for ${order.course?.title || 'course'}`}>
-                                            View
+                                            <span className="max-sm:hidden">View</span>
                                             <LuArrowRight aria-hidden="true" />
                                         </Link>
                                     </Button>

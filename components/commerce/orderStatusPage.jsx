@@ -79,9 +79,10 @@ const TONE = {
 function Detail({ label, value, mono = false }) {
     if (!value) return null;
     return (
-        <div className="flex items-center justify-between gap-4 px-4 py-2.5">
-            <dt className="text-sm text-muted-foreground">{label}</dt>
-            <dd className={cn("text-right text-sm font-medium text-foreground", mono && "tabular")}>{value}</dd>
+        // The label never wraps; a long value (the order id) breaks inside the card instead of running past it.
+        <div className="flex items-start justify-between gap-4 px-4 py-2.5">
+            <dt className="shrink-0 text-sm text-muted-foreground">{label}</dt>
+            <dd className={cn("min-w-0 text-right text-sm font-medium text-foreground [overflow-wrap:anywhere]", mono && "tabular")}>{value}</dd>
         </div>
     );
 }
@@ -196,7 +197,7 @@ export default function OrderStatusPage({ orderId }) {
                         {order.status === 'pending' && (
                             <Detail label="Expires" value={formatDate(order.expiresAt, { time: true })} mono />
                         )}
-                        <Detail label="Order ID" value={order.id} mono />
+                        <Detail label="Order ID" value={<span className="font-mono text-xs">{order.id}</span>} mono />
                     </dl>
 
                     <div className="flex flex-wrap items-center gap-2">
