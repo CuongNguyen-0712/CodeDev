@@ -39,7 +39,7 @@ export const adminRatingService = {
             await adminRatingDb.setHidden(client, { courseDbId: summary.course_id, userDbId: rating.user_id, hidden });
             await adminDb.audit(client, {
                 actorId: actor.id, action: hidden ? "rating.hide" : "rating.show", targetType: "course", targetId: courseId,
-                reason, before: { user: userId, stars: rating.stars, hidden: rating.is_hidden }, after: { user: userId, stars: rating.stars, hidden }, ip,
+                reason, before: { user: userId, milestones: rating.milestones, hidden: rating.is_hidden }, after: { user: userId, milestones: rating.milestones, hidden }, ip,
             });
             return { changed: true };
         });

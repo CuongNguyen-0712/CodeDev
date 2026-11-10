@@ -8,7 +8,7 @@ import { adminClient } from "@/clients/premium.client";
 import { adminKeys } from "@/keys/admin.keys";
 import { useApp } from "@/contexts/appContext";
 import { QUERY_TIMES, retryTransient } from "@/lib/queryTimes";
-import { LOW_RATING, MIN_RATINGS } from "@/lib/ratingRules";
+import { LOW_RATING, MILESTONE_LABEL, MIN_RATINGS } from "@/lib/ratingRules";
 import { useAdmin } from "@/components/admin/adminContext";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import { useAdminSetRatingHidden } from "@/mutations/premium.mutation";
@@ -111,11 +111,17 @@ export default function CourseRatings({ courseId }) {
                                         {item.hidden && <span className="text-xs text-muted-foreground">Hidden: not in the average</span>}
                                     </td>
                                     <td className="px-4 py-2.5">
-                                        <span className="flex items-center gap-1 tabular-nums" title={`${starsLabel(item.stars)} out of 5`}>
-                                            <LuStar className="size-3.5 text-xp fill-xp/20" aria-hidden="true" />
-                                            {item.stars}
-                                            <span className="sr-only">out of 5</span>
-                                            {item.hidden && <Badge variant="muted" className="ml-1">Hidden</Badge>}
+                                        {/* Each milestone the learner rated, the latest (the one in the average) last. */}
+                                        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
+                                            {(item.milestones || [{ milestone: null, stars: item.stars }]).map((m) => (
+                                                <span key={m.milestone ?? "stars"} className="flex items-center gap-1" title={`${m.milestone ? `${MILESTONE_LABEL[m.milestone]}: ` : ""}${starsLabel(m.stars)} out of 5`}>
+                                                    {m.milestone && <span className="text-xs text-muted-foreground">{MILESTONE_LABEL[m.milestone]}</span>}
+                                                    <LuStar className="size-3.5 text-xp fill-xp/20" aria-hidden="true" />
+                                                    {m.stars}
+                                                    <span className="sr-only">out of 5</span>
+                                                </span>
+                                            ))}
+                                            {item.hidden && <Badge variant="muted">Hidden</Badge>}
                                         </span>
                                     </td>
                                     <td className="px-4 py-2.5 text-muted-foreground @max-2xl:hidden">{formatRelative(item.updated_at)}</td>
@@ -140,8 +146,8 @@ export default function CourseRatings({ courseId }) {
                 onOpenChange={(value) => !value && setTarget(null)}
                 title={target ? `${target.hidden ? "Show" : "Hide"} the rating of ${target.username}` : ""}
                 description={target?.hidden
-                    ? "The rating counts in the course average again."
-                    : "The rating leaves the course average. The learner still sees their own stars and can change them."}
+                    ? "Their ratings count in the course average again."
+                    : "All of this learner's milestone ratings leave the course average. They still see their own stars and can change them."}
                 confirmLabel={target?.hidden ? "Show rating" : "Hide rating"}
                 destructive={!target?.hidden}
                 reasonLabel="Reason"
