@@ -118,7 +118,7 @@ Không action nào cần kiểm tra vai trò (`requirePermission`). Phần cần
 
 ### Bốn bất biến khi viết action
 
-1. **`userId` chỉ lấy từ `ctx` của `runAction`.** Tham số action không bao giờ chứa định danh người dùng. Schema zod bỏ khoá lạ, nên `userId` giả trong input bị loại.
+1. **`userId` chỉ lấy từ `ctx` của `runAction`.** Tham số action không bao giờ chứa định danh người dùng. `userId` giả trong input bị loại: schema blog (`z.object` mặc định) bỏ khoá lạ; schema onboarding (`.strict()`) trả 400; `profileService.updatePrivacy` chỉ đọc 3 khoá của nó.
 2. **Mọi `export` trong file `'use server'` đi qua `runAction`.** Mỗi export là một endpoint công khai; không export helper, regex hay hàm chưa bọc.
 3. **Không dùng `auth: false` hay `allowLocked` trong action mới.** Hiện chỉ `sendFeedbackAction` dùng `auth: false` và `updateUserProfileAction` dùng `allowLocked`.
 4. **Giữ nguyên validate đầu vào của route cũ** (regex id, zod, giới hạn 1-100 uuid) trước khi gọi service.
