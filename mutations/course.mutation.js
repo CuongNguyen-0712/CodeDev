@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import {
     registerCourseAction,
     withdrawCourseAction,
@@ -11,6 +12,7 @@ import {
 } from "@/actions/course.actions";
 
 import { unwrapActionResult, callWithAuthRetry } from "@/lib/actionResult";
+import { applyRating } from "@/lib/ratingRules";
 
 import { userKeys } from "@/keys/user.keys";
 import { courseKeys } from "@/keys/course.keys";
@@ -247,20 +249,73 @@ export const useCourseComment = () => {
     });
 };
 
-// One 1-5 star rating per learner and course (plan 12): the rating query takes the returned state,
-// the course details and comments (which show the author's stars) are reloaded.
+const RATE_KEY = ['course', 'rate'];
+
+// The viewer's own comments show their stars: patch them instead of reloading every comment page.
+const withOwnCommentStars = (viewerId, stars) => (old) => !old?.pages ? old : {
+    ...old,
+    pages: old.pages.map((page) => ({
+        ...page,
+        items: (page.items || []).map((item) => item.user_id === viewerId ? { ...item, rating: stars } : item),
+    })),
+};
+
+// One 1-5 star rating per learner and course (plan 12), saved optimistically. One scope runs the
+// saves one after another, so quick re-clicks reach the server in order and the last click is stored;
+// only the last pending save writes the server's answer, so an earlier one never flashes back.
 export const useCourseRate = () => {
     const queryClient = useQueryClient();
+    const { data: session } = useSession();
+    const viewerId = session?.user?.id;
+    // A save stays pending during its own callbacks, so 1 means no later save of this course waits.
+    const isLast = (courseId) => queryClient.isMutating({
+        mutationKey: RATE_KEY,
+        predicate: (m) => extractId(m.state.variables) === courseId,
+    }) === 1;
 
     return useMutation({
+        mutationKey: RATE_KEY,
+        scope: { id: 'course-rate' },
         mutationFn: async (data) => unwrapActionResult(await callWithAuthRetry(() => rateCourseAction(data))),
+
+        onMutate: async (variables) => {
+            const courseId = extractId(variables);
+            if (!courseId) return {};
+            const ratingKey = courseKeys.rating(courseId);
+            const commentsKey = courseKeys.comments(courseId);
+            await Promise.all([
+                queryClient.cancelQueries({ queryKey: ratingKey }),
+                queryClient.cancelQueries({ queryKey: commentsKey }),
+            ]);
+
+            const previousRating = queryClient.getQueriesData({ queryKey: ratingKey });
+            const previousComments = queryClient.getQueryData(commentsKey);
+
+            queryClient.setQueriesData({ queryKey: ratingKey }, (old) => applyRating(old, variables.stars));
+            if (viewerId) queryClient.setQueryData(commentsKey, withOwnCommentStars(viewerId, variables.stars));
+
+            return { courseId, previousRating, previousComments };
+        },
+
+        onError: async (_error, _variables, context) => {
+            const courseId = context?.courseId;
+            if (!courseId || !isLast(courseId)) return;
+            const ratingKey = courseKeys.rating(courseId);
+            const commentsKey = courseKeys.comments(courseId);
+            context.previousRating.forEach(([key, data]) => queryClient.setQueryData(key, data));
+            queryClient.setQueryData(commentsKey, context.previousComments);
+            // After a burst of clicks the snapshot may hold an earlier unsaved choice: take the
+            // server's stars and put them on the viewer's comments too.
+            await queryClient.invalidateQueries({ queryKey: ratingKey });
+            const saved = queryClient.getQueriesData({ queryKey: ratingKey }).find(([, data]) => data)?.[1];
+            if (viewerId && saved) queryClient.setQueryData(commentsKey, withOwnCommentStars(viewerId, saved.stars ?? null));
+        },
 
         onSuccess: (state, variables) => {
             const courseId = extractId(variables);
-            if (!courseId) return;
+            if (!courseId || !isLast(courseId)) return;
             queryClient.setQueriesData({ queryKey: courseKeys.rating(courseId) }, state);
             queryClient.invalidateQueries({ queryKey: courseKeys.details(courseId) });
-            queryClient.invalidateQueries({ queryKey: courseKeys.comments(courseId) });
         },
     });
 };

@@ -14,6 +14,7 @@ import { useCourseComment } from "@/mutations/course.mutation";
 import { useApp } from "@/contexts/appContext";
 import { TextAreaGroup } from "@/components/ui/input";
 import { usePusherChannel } from "@/hooks/usePusherChannel";
+import { useHydrated } from "@/hooks/useHydrated";
 import { channels, events } from "@/lib/realtime";
 
 import { Button } from "@/components/shadcn/button";
@@ -21,7 +22,6 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Skeleton } from "@/components/shadcn/skeleton";
 
 import CommentItem from "./commentItem";
-import { YourRating } from "../ratingStars";
 import uniqBy from "lodash/uniqBy";
 
 import { LuLoaderCircle, LuLogIn, LuMessagesSquare, LuSendHorizontal } from "react-icons/lu";
@@ -54,7 +54,8 @@ export default function CommentPage({ courseId }) {
     });
     const [fieldError, setFieldError] = useState(null);
 
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
+    const hydrated = useHydrated();
     const { showAlert: alert } = useApp();
     const useComment = useCourseComment();
 
@@ -185,8 +186,12 @@ export default function CommentPage({ courseId }) {
                 )}
             </div>
 
-            {/* Comment form or guest notice */}
-            {!session ? (
+            {/* Comment form or guest notice. The page is prerendered for guests: until hydrated and the
+                session is known, hold the form's height instead of guessing (a guess that turns out wrong
+                is a hydration mismatch, and React rebuilds the whole section). */}
+            {!hydrated || status === 'loading' ? (
+                <Skeleton className="h-[245px] rounded-lg" role="status" aria-label="Loading comment form" />
+            ) : !session ? (
                 <div className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-sm text-muted-foreground">Sign in to ask a question or share feedback on this course.</p>
                     <Button asChild variant="outline" size="sm" className="self-start sm:self-auto">
@@ -208,7 +213,6 @@ export default function CommentPage({ courseId }) {
                     />
 
                     <div className="flex flex-wrap items-center justify-end gap-2">
-                        <div className="mr-auto"><YourRating courseId={courseId} /></div>
                         <Button type="submit" size="sm" disabled={useComment.isPending}>
                             {useComment.isPending ? (
                                 <LuLoaderCircle className="animate-spin" aria-hidden="true" />

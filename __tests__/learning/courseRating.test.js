@@ -24,9 +24,19 @@ describe("courseRatingService", () => {
 
     it("shows the average only from 3 ratings and the learner's own stars", async () => {
         state.mockResolvedValueOnce(row({ rating_count: 2, rating_avg: 5 }));
-        expect(await courseRatingService.get({ userId: "u", courseId: "c" })).toEqual({ average: null, count: 2, stars: null, eligible: true });
+        expect(await courseRatingService.get({ userId: "u", courseId: "c" })).toEqual({ average: null, count: 2, stars: null, eligible: true, reason: null });
         state.mockResolvedValueOnce(row({ stars: 4 }));
-        expect(await courseRatingService.get({ userId: "u", courseId: "c" })).toEqual({ average: 4.33, count: 3, stars: 4, eligible: true });
+        expect(await courseRatingService.get({ userId: "u", courseId: "c" })).toEqual({ average: 4.33, count: 3, stars: 4, eligible: true, reason: null });
+    });
+
+    it("says why a viewer cannot rate yet", async () => {
+        const reason = async (over) => {
+            state.mockResolvedValueOnce(row({ eligible: false, ...over }));
+            return (await courseRatingService.get({ userId: "u", courseId: "c" })).reason;
+        };
+        expect(await reason({ user_id: null })).toBe("signin");
+        expect(await reason({ enrolled: false, has_completed: false })).toBe("enroll");
+        expect(await reason({ enrolled: true, has_completed: false })).toBe("lesson");
     });
 
     it("refuses stars outside 1-5, unknown courses and learners without a completed lesson", async () => {
@@ -42,7 +52,7 @@ describe("courseRatingService", () => {
 
     it("saves one rating per learner and returns the new state", async () => {
         state.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ stars: 5, rating_count: 4, rating_avg: 4.5 }));
-        expect(await courseRatingService.rate({ userId: "u", courseId: "c", stars: 5 })).toEqual({ average: 4.5, count: 4, stars: 5, eligible: true });
+        expect(await courseRatingService.rate({ userId: "u", courseId: "c", stars: 5 })).toEqual({ average: 4.5, count: 4, stars: 5, eligible: true, reason: null });
         expect(upsert).toHaveBeenCalledWith({ userDbId: "42", courseDbId: "7", stars: 5 });
     });
 });

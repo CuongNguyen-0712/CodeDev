@@ -16,6 +16,8 @@ const view = (state) => ({
     count: state.rating_count,
     stars: state.stars ?? null,
     eligible: Boolean(state.eligible),
+    // Why the viewer cannot rate yet, so the page can say what to do next.
+    reason: state.eligible ? null : !state.user_id ? "signin" : !state.enrolled ? "enroll" : "lesson",
 });
 
 /**

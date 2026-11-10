@@ -1,12 +1,6 @@
 'use client';
 
 import { useId, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useSession } from "next-auth/react";
-
-import { courseQueries } from "@/queries/course.query";
-import { useCourseRate } from "@/mutations/course.mutation";
-import { useApp } from "@/contexts/appContext";
 import { cn } from "@/lib/utils";
 
 import { LuStar } from "react-icons/lu";
@@ -61,31 +55,5 @@ export function AuthorStars({ stars }) {
             {stars}
             <span className="sr-only">out of 5</span>
         </span>
-    );
-}
-
-/** The learner's rating of this course, saved on click; shown only to enrolled learners with a completed lesson. */
-export function YourRating({ courseId }) {
-    const { status } = useSession();
-    const { showAlert: alert } = useApp();
-    const { data } = useQuery(courseQueries.rating(courseId, status));
-    const rate = useCourseRate();
-
-    if (!data?.eligible) return null;
-
-    const save = async (stars) => {
-        try {
-            await rate.mutateAsync({ courseId, stars });
-            alert(200, data.stars ? "Your rating was updated." : "Thanks for rating this course.");
-        } catch (error) {
-            alert(error?.status || 500, error?.message || "Could not save your rating. Please try again.");
-        }
-    };
-
-    return (
-        <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Your rating</span>
-            <RatingStars value={data.stars} onChange={save} disabled={rate.isPending} />
-        </div>
     );
 }

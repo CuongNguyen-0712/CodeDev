@@ -7,6 +7,7 @@ import Link from "next/link";
 import ExpandableText from "../../ui/expandableText";
 
 import CommentPage from "./commentPage";
+import RatingSection from "./ratingSection";
 import { BackToCourses, CopyCourseLink, CourseActions, CourseCover, EnrollmentBadge, LanguageLogo, MobilePurchaseActions } from "./courseIslands";
 import { LEVEL_ICON, formatDuration } from "../courseMeta";
 
@@ -342,6 +343,10 @@ export function CourseContent({ course, courseId }) {
                     </section>
 
                     <Syllabus modules={modules} />
+
+                    <Suspense fallback={null}>
+                        <RatingSection courseId={courseId} />
+                    </Suspense>
 
                     <Suspense fallback={null}>
                         <CommentPage courseId={courseId} />
