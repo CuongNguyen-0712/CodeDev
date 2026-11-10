@@ -93,7 +93,7 @@ export default function RatingSection({ courseId }) {
                         </div>
 
                         {data.eligible ? (
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:shrink-0">
                                 {/* Earlier milestones are locked snapshots: shown, not editable. */}
                                 {data.history?.map((entry) => (
                                     <span key={entry.milestone} className="flex items-center gap-1 text-xs text-muted-foreground tabular" title={`At ${entry.milestone}%: ${entry.stars} out of 5`}>

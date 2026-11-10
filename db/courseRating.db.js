@@ -35,6 +35,8 @@ export const courseRatingDb = {
     /**
      * One rating per learner, course and milestone: a second call changes the stars (the trigger
      * recounts). A new row of a hidden learner starts hidden, so rating again never escapes moderation.
+     * shortcut: a hide committed while this insert runs is not seen (READ COMMITTED), so that one new
+     * row stays visible; lock the learner's rows first if moderation ever races with ratings.
      */
     upsert: async ({ userDbId, courseDbId, milestone, stars }) => (await sql(
         `INSERT INTO community.course_rating (user_id, course_id, milestone, stars, is_hidden)

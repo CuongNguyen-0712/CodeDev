@@ -96,6 +96,21 @@ describe.skipIf(!hasDb)("admin course ratings (PostgreSQL)", () => {
         await sql(`DELETE FROM identity.users WHERE id = $1`, [id]);
     });
 
+    it("keeps a hidden learner hidden when they rate at a new milestone", async () => {
+        const { courseRatingDb } = await import("@/db/courseRating.db");
+        const id = String(980000000000000 + Math.floor(Math.random() * 1e9));
+        await sql(`INSERT INTO identity.users (id, public_id, username, email) VALUES ($1, $2, $2, $3)`, [id, `${TAG}_x`, `${TAG}_x@test.invalid`]);
+        await sql(`INSERT INTO community.course_rating (user_id, course_id, milestone, stars, is_hidden) VALUES ($1, $2, 20, 1, true)`, [id, courseDbId]);
+        const before = (await sql(`SELECT rating_count FROM catalog.course WHERE id = $1`, [courseDbId])).rows[0].rating_count;
+
+        await courseRatingDb.upsert({ userDbId: id, courseDbId, milestone: 50, stars: 1 });
+
+        const rows = (await sql(`SELECT milestone, is_hidden FROM community.course_rating WHERE user_id = $1 ORDER BY milestone`, [id])).rows;
+        expect(rows).toEqual([{ milestone: 20, is_hidden: true }, { milestone: 50, is_hidden: true }]);
+        expect((await sql(`SELECT rating_count FROM catalog.course WHERE id = $1`, [courseDbId])).rows[0].rating_count).toBe(before);
+        await sql(`DELETE FROM identity.users WHERE id = $1`, [id]);
+    });
+
     it("answers 404 for an unknown course or a learner without a rating", async () => {
         await expect(adminRatingService.get({ courseId: `${TAG}-none` })).rejects.toMatchObject({ status: 404 });
         await expect(adminRatingService.setHidden({ actor, courseId: coursePublicId, userId: actor.publicId, hidden: true, reason: "no rating here at all" })).rejects.toMatchObject({ status: 404 });
