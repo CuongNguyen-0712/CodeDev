@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { setPostLikeAction } from "@/actions/blog.actions";
+import { createPostAction, deletePostAction, setPostLikeAction, updatePostAction } from "@/actions/blog.actions";
 import { blogClient } from "@/clients/blog.client";
 import { blogKeys } from "@/keys/blog.keys";
-import { callWithAuthRetry, unwrapActionResult } from "@/lib/actionResult";
+import { callAction } from "@/lib/actionResult";
 
 // Own-post writes change the author's list and that post's editor copy; the public list is cached server-side.
 function useBlogWrite(mutationFn) {
@@ -17,14 +17,14 @@ function useBlogWrite(mutationFn) {
     });
 }
 
-export const useCreatePost = () => useBlogWrite((input) => blogClient.createPost(input));
-export const useUpdatePost = () => useBlogWrite((input) => blogClient.updatePost(input));
-export const useDeletePost = () => useBlogWrite((id) => blogClient.deletePost(id));
+export const useCreatePost = () => useBlogWrite((input) => callAction(() => createPostAction(input)));
+export const useUpdatePost = () => useBlogWrite((input) => callAction(() => updatePostAction(input)));
+export const useDeletePost = () => useBlogWrite((id) => callAction(() => deletePostAction(id)));
 // The button owns its optimistic state; this only syncs the server truth afterwards.
 export function useSetLike() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async ({ id, liked }) => unwrapActionResult(await callWithAuthRetry(() => setPostLikeAction({ postId: id, liked }))),
+        mutationFn: ({ id, liked }) => callAction(() => setPostLikeAction({ postId: id, liked })),
         // Every feed page may show this post, so the whole feed-state prefix goes stale.
         onSettled: (_, __, { id }) => {
             queryClient.invalidateQueries({ queryKey: blogKeys.feedState() });
