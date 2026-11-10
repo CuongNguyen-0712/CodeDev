@@ -7,7 +7,7 @@ import { create } from "zustand";
  */
 export const useRewardsStore = create((set) => ({
     levelUp: null,      // { level, previousLevel } while the level-up dialog is open
-    ratePrompt: null,   // { courseId, stars } while the course rating prompt is wanted
+    ratePrompt: null,   // { courseId, milestone } while the course rating prompt is wanted
     rewardsSeq: 0,      // bumped on every points / EXP award; RankUpWatcher refetches the ranks
 
     // A second moment of the same kind replaces the first (one completion per click on the server).
