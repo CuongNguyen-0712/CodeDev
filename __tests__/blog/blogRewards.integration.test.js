@@ -92,6 +92,18 @@ describe.skipIf(!hasDb)("blog publish EXP (PostgreSQL)", () => {
         expect(await exp(u)).toBe(after);
     });
 
+    it("EXP ledger labels the publish row with the post title, and keeps it after the post is deleted", async () => {
+        const { experienceService } = await import("@/services/experience.service");
+        const u = await newUser("ledger");
+        await trust(u);
+        const data = input();
+        await blogService.create({ userId: u.publicId, input: data });
+        const row = async () => (await experienceService.getExperience({ userId: u.publicId })).transactions.find((t) => t.source === "blog_post");
+        expect((await row()).sourceTitle).toBe(data.title);
+        await sql(`DELETE FROM community.post WHERE author_id = $1`, [u.id]);
+        expect((await row()).sourceTitle).toBeNull();
+    });
+
     describe("like milestones", () => {
         let blogInteractionService;
         const publishedPost = async (author, likes = 0) => {

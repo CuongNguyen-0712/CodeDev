@@ -170,7 +170,7 @@ function describeTransaction(tx) {
             break;
         case 'earned':
         default:
-            text = tx.source ? `Earned from ${humanize(tx.source).toLowerCase()}` : 'Points earned';
+            text = tx.source ? `Earned from ${humanize(tx.source.replace(/_\d+$/, '')).toLowerCase()}` : 'Points earned';
             if (title) text += ` in ${title}`;
     }
     return { text, reason: tx.reason || null };

@@ -1,6 +1,6 @@
 'use client';
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { LuBookOpen, LuFlag, LuLoaderCircle, LuPuzzle, LuSlidersHorizontal, LuTrophy } from "react-icons/lu";
+import { LuBookOpen, LuFlag, LuLoaderCircle, LuPenLine, LuPuzzle, LuSlidersHorizontal, LuTrophy } from "react-icons/lu";
 
 import { userQueries } from "@/queries/user.query";
 import { formatDate } from "@/components/commerce/format";
@@ -15,6 +15,7 @@ const SOURCES = {
     challenge: { icon: LuPuzzle, label: "Challenge passed" },
     course: { icon: LuFlag, label: "Course completed" },
     achievement: { icon: LuTrophy, label: "Achievement unlocked" },
+    blog_post: { icon: LuPenLine, label: "Blog post published" },
     adjustment: { icon: LuSlidersHorizontal, label: "Adjustment" },
 };
 

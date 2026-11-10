@@ -65,13 +65,14 @@ export const experienceDb = {
         }
         return sql(
             `SELECT t.id, t.amount, t.exp_after, t.source_type, t.rule_key, t.reason, t.created_at,
-                    COALESCE(l.title, ch.title, c.title, a.title) AS source_title
+                    COALESCE(l.title, ch.title, c.title, a.title, bp.title) AS source_title
              FROM profile.exp_transaction t
              JOIN identity.users u ON u.id = t.user_id
              LEFT JOIN course.lesson l ON t.source_type = 'lesson' AND l.id = t.source_id
              LEFT JOIN challenge.challenges ch ON t.source_type = 'challenge' AND ch.id = t.source_id
              LEFT JOIN catalog.course c ON t.source_type = 'course' AND c.id = t.source_id
              LEFT JOIN profile.achievement a ON t.source_type = 'achievement' AND a.id = t.source_id
+             LEFT JOIN community.post bp ON t.source_type = 'blog_post' AND bp.id = t.source_id
              WHERE u.public_id = $1 ${cursor}
              ORDER BY t.created_at DESC, t.id DESC
              LIMIT $2`,
