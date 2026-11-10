@@ -84,6 +84,8 @@ export default function MyPosts() {
                         <li key={post.id} className="flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-start">
                             <div className="min-w-0 flex-1 space-y-1.5">
                                 <Link href={titleHref} className="block font-semibold break-words text-foreground underline-offset-4 hover:underline">{post.title}</Link>
+                                {/* Tells drafts with similar titles apart. */}
+                                {post.excerpt && <p className="line-clamp-1 text-sm text-muted-foreground">{post.excerpt}</p>}
                                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                                     <Badge variant={status.variant}>{status.label}</Badge>
                                     <span>Updated {formatPostDate(post.updatedAt)}</span>

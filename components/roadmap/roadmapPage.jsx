@@ -224,7 +224,7 @@ export default function RoadmapPage() {
     return (
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
             <header className="space-y-2">
-                <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
                     Roadmaps
                 </h1>
                 <p className="max-w-[60ch] text-sm text-muted-foreground">

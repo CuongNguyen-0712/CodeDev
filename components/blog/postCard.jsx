@@ -97,8 +97,8 @@ export default function PostCard({ post, pageIds, compact = false }) {
             </div>
 
             {!compact && post.cover && (
-                // A fixed 16:9 box, so the feed does not jump when a lazy image arrives.
-                <div className="aspect-video border-t bg-muted">
+                // A fixed 2:1 box, so the feed does not jump when a lazy image arrives.
+                <div className="aspect-[2/1] border-t bg-muted">
                     <img src={post.cover} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
                 </div>
             )}

@@ -4,7 +4,7 @@ import Blog from "@/components/blog/blog"
 import { PageSkeleton } from "@/components/ui/loading"
 
 import { TAG_PATTERN } from "@/lib/blog/tags.mjs";
-import { getBlogPage } from "@/lib/cachedData";
+import { getBlogPage, getBlogTopics } from "@/lib/cachedData";
 
 export const metadata = {
     title: "Blog | CodeDev",
@@ -19,12 +19,19 @@ async function BlogList({ searchParams }) {
     const tagValue = typeof tag === "string" && TAG_PATTERN.test(tag) ? tag : null;
 
     // Errors are never cached: an outage shows the empty state instead of a 500.
-    const initial = await getBlogPage(tagValue).catch((error) => {
-        console.error("Failed to load blog posts:", error);
-        return { items: [], nextCursor: null };
-    });
+    const [initial, topics] = await Promise.all([
+        getBlogPage(tagValue).catch((error) => {
+            console.error("Failed to load blog posts:", error);
+            return { items: [], nextCursor: null };
+        }),
+        // Without topics the feed falls back to the tags of the posts it shows.
+        getBlogTopics().catch((error) => {
+            console.error("Failed to load blog topics:", error);
+            return [];
+        }),
+    ]);
 
-    return <Blog initial={initial} tag={tagValue} />;
+    return <Blog initial={initial} tag={tagValue} topics={topics} />;
 }
 
 export default function Page({ searchParams }) {

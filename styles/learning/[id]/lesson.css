@@ -86,6 +86,25 @@
     .lesson-prose .lesson_ul { list-style: disc; }
     .lesson-prose .lesson_ol { list-style: decimal; }
 
+    /* Nested levels change marker so the depth reads at a glance. */
+    .lesson-prose .lesson_ul .lesson_ul { list-style: circle; }
+    .lesson-prose .lesson_ul .lesson_ul .lesson_ul { list-style: square; }
+
+    /* GFM task items: the checkbox is the marker, so no bullet beside it. */
+    .lesson-prose li.task-list-item {
+        list-style: none;
+        margin-left: -1.4rem;
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+    }
+
+    .lesson-prose li.task-list-item > input[type="checkbox"] {
+        flex: none;
+        translate: 0 0.125rem;
+        accent-color: var(--primary);
+    }
+
     .lesson-prose .lesson_ul li::marker,
     .lesson-prose .lesson_ol li::marker {
         color: var(--muted-foreground);

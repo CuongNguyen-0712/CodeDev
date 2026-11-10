@@ -85,7 +85,7 @@ export function LikeButton({ postId, pageIds, likeCount, authorId, onPost = fals
         return (
             <span className={cn("inline-flex items-center text-sm font-medium", className, "hover:bg-transparent hover:text-muted-foreground")} title="Your post">
                 <LuHeart aria-hidden="true" />
-                {state.count > 0 && <span className="tabular-nums" aria-hidden="true">{state.count}</span>}
+                <span className="tabular-nums" aria-hidden="true">{state.count}</span>
                 <span className="sr-only">{state.count} {state.count === 1 ? "like" : "likes"} on your post</span>
             </span>
         );
@@ -97,14 +97,13 @@ export function LikeButton({ postId, pageIds, likeCount, authorId, onPost = fals
             className={cn(
                 className,
                 "[&_svg]:transition-transform [&_svg]:duration-150 motion-safe:active:[&_svg]:scale-90",
-                state.liked && "text-destructive hover:bg-destructive-soft hover:text-destructive",
             )}
             aria-label={state.count > 0 ? `Like, ${state.count} ${state.count === 1 ? "like" : "likes"}` : "Like"}
             aria-pressed={state.liked}
             onClick={toggle}
         >
-            <LuHeart className={cn(state.liked && "fill-current")} aria-hidden="true" />
-            {state.count > 0 && <span className="tabular-nums">{state.count}</span>}
+            <LuHeart className={cn(state.liked && "fill-current text-destructive")} aria-hidden="true" />
+            <span className="tabular-nums">{state.count}</span>
         </Button>
     );
 }
@@ -119,7 +118,7 @@ export function CommentButton({ postId, pageIds, slug, commentCount, className }
         <Button asChild variant="ghost" className={className}>
             <Link href={`/blog/${slug}#comments`} aria-label={commentLabel(count)}>
                 <LuMessageCircle aria-hidden="true" />
-                {count > 0 && <span className="tabular-nums">{count}</span>}
+                <span className="tabular-nums">{count}</span>
             </Link>
         </Button>
     );
@@ -192,7 +191,7 @@ export default function PostActions({ postId, slug, title, likeCount, commentCou
                 <Button asChild variant="ghost" className={BAR_COUNT_BUTTON}>
                     <Link href="#comments" aria-label={commentLabel(comments)}>
                         <LuMessageCircle aria-hidden="true" />
-                        {comments > 0 && <span className="tabular-nums">{comments}</span>}
+                        <span className="tabular-nums">{comments}</span>
                     </Link>
                 </Button>
             </div>

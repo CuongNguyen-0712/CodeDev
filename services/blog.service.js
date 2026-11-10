@@ -104,7 +104,7 @@ export const blogService = {
         return {
             trusted,
             items: rows.map((row) => ({
-                id: row.id, slug: row.slug, title: row.title, status: row.status, rejectReason: row.reject_reason,
+                id: row.id, slug: row.slug, title: row.title, excerpt: row.excerpt, status: row.status, rejectReason: row.reject_reason,
                 hiddenReason: row.hidden_reason, hiddenAt: row.hidden_at, appealedAt: row.appealed_at,
                 purgeAt: purgeAtOf(row.status, row.hidden_at),
                 updatedAt: row.updated_at, likeCount: row.like_count, commentCount: row.comment_count,
@@ -127,6 +127,9 @@ export const blogService = {
         const { items, nextCursor } = pageOf(rows, PAGE, (last) => encodeCursor(last.cursor_at, last.cursor_id));
         return { items: items.map(publicPost), nextCursor };
     },
+
+    /** Topics for the feed's filter, most used first: { name, posts }. */
+    listTopTags: async ({ limit = 12 } = {}) => (await blogDb.topTags(limit)).map((row) => ({ name: row.tag, posts: row.posts })),
 
     getPublishedBySlug: async (slug) => {
         const row = await blogDb.getPublishedBySlug(slug);

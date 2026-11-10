@@ -56,7 +56,7 @@ export const blogDb = {
     softDelete: async (client, { id }) => client.query(`UPDATE community.post SET deleted_at = now(), updated_at = now() WHERE id = $1`, [id]),
 
     listMine: async (authorDbId) => (await sql(
-        `SELECT public_id AS id, slug, title, status, reject_reason, hidden_reason, hidden_at, appealed_at, updated_at, like_count, comment_count
+        `SELECT public_id AS id, slug, title, excerpt, status, reject_reason, hidden_reason, hidden_at, appealed_at, updated_at, like_count, comment_count
          FROM community.post WHERE author_id = $1 AND deleted_at IS NULL ORDER BY updated_at DESC, id DESC`, [authorDbId]
     )).rows,
 
@@ -75,6 +75,15 @@ export const blogDb = {
            AND ($2::timestamptz IS NULL OR (p.published_at <= $2::timestamptz AND (p.published_at, p.public_id) < ($2::timestamptz, $3::text)))
          ORDER BY p.published_at DESC, p.public_id DESC LIMIT $4`,
         [tag, cursor?.createdAt ?? null, cursor?.id ?? null, limit]
+    )).rows,
+
+    /** The most used tags across published posts, most posts first (ties by name). */
+    topTags: async (limit) => (await sql(
+        `SELECT t.tag, COUNT(*)::int AS posts
+         FROM community.post p CROSS JOIN LATERAL unnest(p.tags) AS t(tag)
+         WHERE p.status = 'published' AND p.deleted_at IS NULL
+         GROUP BY t.tag ORDER BY posts DESC, t.tag LIMIT $1`,
+        [limit]
     )).rows,
 
     getPublishedBySlug: async (slug) => (await sql(

@@ -61,9 +61,13 @@ export default function BlogMarkdown({ body, origins, className }) {
             ),
         img: ({ src, alt }) =>
             isAllowedMediaUrl(src, origins) ? (
-                // Learner uploads come in any size: never upscale past the file's own width.
-                <figure className="lesson_image_wrapper items-center">
-                    <img src={src} alt={alt || ""} loading="lazy" decoding="async" className="lesson_image h-auto w-auto max-w-full" />
+                // Learner uploads come in any size: never upscale past the file's own width. The frame keeps a
+                // small image from floating mid-column; the caption repeats the alt text for sighted readers.
+                <figure className="lesson_image_wrapper">
+                    <span className="flex min-h-24 items-center justify-center overflow-hidden rounded-lg border bg-muted/40 p-2">
+                        <img src={src} alt={alt || ""} loading="lazy" decoding="async" className="h-auto w-auto max-w-full rounded-md" />
+                    </span>
+                    {alt && <figcaption className="lesson_image_caption" aria-hidden="true">{alt}</figcaption>}
                 </figure>
             ) : null,
     };

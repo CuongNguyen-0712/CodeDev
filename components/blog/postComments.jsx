@@ -28,7 +28,7 @@ const errorText = (error) => (error?.message || "Something went wrong").replace(
 
 function CommentSkeleton() {
     return (
-        <li className="flex flex-col gap-2" aria-hidden="true">
+        <li className="flex flex-col gap-2 px-4 py-3.5" aria-hidden="true">
             <div className="flex items-center gap-2.5">
                 <Skeleton className="size-8 rounded-full" />
                 <Skeleton className="h-4 w-28" />
@@ -46,8 +46,8 @@ function CommentSkeleton() {
 export function CommentItem({ comment, onDelete, deleting = false }) {
     const [confirming, setConfirming] = useState(false);
     return (
-        // 32px avatar and a 10px gap: the same 42px indent as the course comments (commentItem.jsx).
-        <li className="flex gap-2.5">
+        // 32px avatar and a 10px gap: the same 42px indent and row padding as the course comments (commentItem.jsx).
+        <li className="flex gap-2.5 px-4 py-3.5">
             <AuthorAvatar author={comment.author} size="default" />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex min-h-8 flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
@@ -131,7 +131,7 @@ function CommentForm({ postId, slug }) {
                 rows={3}
                 placeholder="Share what you think"
                 aria-label="Comment"
-                className="resize-none border-0 bg-transparent px-1 shadow-none focus-visible:ring-0 dark:bg-transparent"
+                className="h-20 resize-none border-0 bg-transparent px-1 shadow-none field-sizing-fixed focus-visible:ring-0 dark:bg-transparent"
             />
             <div className="flex items-center justify-between gap-3">
                 {/* The counter only matters near the limit. */}
@@ -161,7 +161,7 @@ export default function PostComments({ postId, slug, initialCount }) {
             <h2 id="comments-heading" className="text-xl font-semibold tracking-tight text-foreground">Comments ({count})</h2>
             <CommentForm postId={postId} slug={slug} />
             {query.isLoading && (
-                <ul aria-busy="true" className="flex list-none flex-col gap-6 p-0">
+                <ul aria-busy="true" className="list-none divide-y rounded-lg border bg-card p-0">
                     {[0, 1, 2].map((index) => <CommentSkeleton key={index} />)}
                 </ul>
             )}
@@ -178,7 +178,7 @@ export default function PostComments({ postId, slug, initialCount }) {
                 </Empty>
             )}
             {items.length > 0 && (
-                <ul className="flex list-none flex-col gap-6 p-0">
+                <ul className="list-none divide-y rounded-lg border bg-card p-0">
                     {items.map((comment) => <CommentItem key={comment.id} comment={comment} onDelete={onDelete} deleting={remove.isPending && remove.variables === comment.id} />)}
                 </ul>
             )}

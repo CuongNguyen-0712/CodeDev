@@ -37,6 +37,9 @@ const placeholder = (n) => `![Uploading… ${n}]()`;
 // The server prefixes zod issues with their field path ("tags.0: Invalid tag"); the author only needs the message.
 const errorText = (error) => (error?.message || "The post was not saved").replace(/^(title|tags|body|submit|appealReason)(\.\d+)?: /, "");
 
+// The help line under the body: one chip per piece of syntax.
+const MARKDOWN_HINTS = ["## Heading", "**bold**", "`code`", "```js", "- list", "[text](url)"];
+
 function Form({ post, trusted }) {
     const router = useRouter();
     const { showAlert } = useApp();
@@ -67,6 +70,10 @@ function Form({ post, trusted }) {
     const pending = create.isPending || update.isPending;
     const busy = pending || created || uploading > 0;
     const submitLabel = appealing ? "Send appeal" : live ? "Save changes" : trusted ? "Publish" : "Submit for review";
+    const submitHint = appealing ? "A moderator reviews your appeal."
+        : live ? "Changes show on the post as soon as you save."
+            : trusted ? "Your post goes live when you publish."
+                : "A moderator reviews it before it goes live.";
 
     // Every part is a tag; `rest` (the text after the last comma) stays in the input.
     const takeTags = (parts, rest = "") => {
@@ -168,6 +175,8 @@ function Form({ post, trusted }) {
         }
     };
 
+    const wordCount = body.split(/\s+/).filter(Boolean).length;
+
     return (
         <form
             className="flex flex-col gap-5"
@@ -195,14 +204,17 @@ function Form({ post, trusted }) {
                 <FieldLabel htmlFor="post-title">Title</FieldLabel>
                 <Input
                     id="post-title"
-                    className="h-10 text-base font-medium"
+                    className="h-10 bg-card text-base font-medium dark:bg-card"
                     value={title}
                     maxLength={150}
+                    placeholder="What did you learn? e.g. Reading a PostgreSQL query plan"
                     disabled={locked}
                     aria-invalid={errors.title ? true : undefined}
-                    aria-describedby={errors.title ? "post-title-error" : undefined}
+                    aria-describedby={errors.title ? "post-title-help post-title-error" : "post-title-help"}
                     onChange={(event) => { setTitle(event.target.value); clearError("title"); }}
                 />
+                {/* Help first, so it does not move when an error appears under it. */}
+                <FieldDescription id="post-title-help" className="tabular-nums">{title.length}/150</FieldDescription>
                 {errors.title && <FieldError id="post-title-error">{errors.title}</FieldError>}
             </Field>
 
@@ -227,7 +239,7 @@ function Form({ post, trusted }) {
                     ))}
                     <Input
                         id="post-tags"
-                        className="w-40 flex-1"
+                        className="w-40 flex-1 bg-card dark:bg-card"
                         value={tagInput}
                         placeholder="Add a tag"
                         disabled={locked || tags.length >= MAX_TAGS}
@@ -243,15 +255,17 @@ function Form({ post, trusted }) {
                 {(tagError || errors.tags) && <FieldError id="post-tags-error">{tagError || errors.tags}</FieldError>}
             </Field>
 
-            <Tabs value={tab} onValueChange={setTab}>
-                <div className="flex min-h-8 flex-wrap items-center justify-between gap-2">
+            {/* One framed composer: toolbar, text and help share a card-coloured box, so the text area is
+                not a grey block on the page and the focus ring wraps the whole thing. */}
+            <Tabs value={tab} onValueChange={setTab} className="gap-0 overflow-hidden rounded-lg border bg-card focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/30 focus-within:ring-inset">
+                <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-2 py-1.5">
                     <TabsList>
                         <TabsTrigger value="write">Write</TabsTrigger>
                         <TabsTrigger value="preview">Preview</TabsTrigger>
                     </TabsList>
                     {/* Only on Write: on Preview it would insert into a textarea nobody sees. */}
                     {tab === "write" && (
-                        <Button type="button" variant="outline" size="sm" disabled={locked} onClick={() => fileRef.current?.click()}>
+                        <Button type="button" variant="ghost" size="sm" disabled={locked} onClick={() => fileRef.current?.click()}>
                             {uploading > 0 ? <Spinner /> : <LuImagePlus aria-hidden="true" />}
                             Add image
                         </Button>
@@ -262,7 +276,10 @@ function Form({ post, trusted }) {
                     <Textarea
                         ref={textareaRef}
                         aria-label="Post body in Markdown"
-                        className="min-h-80 font-mono"
+                        aria-describedby="post-body-help"
+                        // Fixed height (the base grows with the text): the page and its action bar stay put while writing.
+                        // Borderless on the card colour: the composer box draws the frame and the focus ring.
+                        className="h-[min(28rem,55dvh)] min-h-64 resize-none overflow-y-auto rounded-none border-0 bg-transparent px-4 py-3 font-mono leading-relaxed shadow-none field-sizing-fixed focus-visible:ring-0 dark:bg-transparent"
                         value={body}
                         placeholder="Write in Markdown. Paste an image to upload it."
                         disabled={locked}
@@ -271,13 +288,22 @@ function Form({ post, trusted }) {
                     />
                 </TabsContent>
                 <TabsContent value="preview">
-                    <div className="min-h-80 rounded-md border bg-card px-5 py-4">
+                    <div className="h-[min(28rem,55dvh)] min-h-64 overflow-y-auto px-5 py-4">
                         {/* Same size and column as the post page, so the preview is what readers get. */}
                         <div className="max-w-[40rem]">
                             {body.trim() ? <BlogMarkdown body={body} origins={MEDIA_ORIGINS} className={READING_PROSE} /> : <p className="text-sm text-muted-foreground">Nothing to preview yet.</p>}
                         </div>
                     </div>
                 </TabsContent>
+                <div id="post-body-help" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                        <span className="mr-0.5">Markdown</span>
+                        {MARKDOWN_HINTS.map((hint) => (
+                            <code key={hint} className="rounded border bg-background px-1.5 py-0.5 font-mono text-[0.6875rem] leading-none text-foreground">{hint}</code>
+                        ))}
+                    </span>
+                    <span className="tabular-nums">{wordCount} {wordCount === 1 ? "word" : "words"} · {Math.max(1, Math.ceil(wordCount / 200))} min read</span>
+                </div>
             </Tabs>
 
             {appealing && (
@@ -289,6 +315,7 @@ function Form({ post, trusted }) {
                         aria-invalid={errors.appeal ? true : undefined}
                         aria-describedby={errors.appeal ? "post-appeal-help post-appeal-error" : "post-appeal-help"}
                         onChange={(event) => { setAppealReason(event.target.value); clearError("appeal"); }}
+                        className="h-24 resize-none field-sizing-fixed"
                     />
                     <FieldDescription id="post-appeal-help">You can appeal a hidden post once.</FieldDescription>
                     {errors.appeal && <FieldError id="post-appeal-error">{errors.appeal}</FieldError>}
@@ -303,18 +330,20 @@ function Form({ post, trusted }) {
                 </div>
             ) : (
                 // Sticks to the bottom, so the primary action stays in reach on a long post.
-                <div className="sticky bottom-0 z-10 flex flex-wrap gap-2 border-t bg-background py-3">
+                <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-x-2 gap-y-2 border-t bg-background/95 py-3 backdrop-blur-sm">
                     {/* A live post stays published on save (lib/blog/status.mjs), so it has one "Save changes" button. */}
-                    <Button type="button" disabled={busy} onClick={() => save(!live)}>
+                    {/* Phones: 12px padding keeps the three actions on one 343px row. */}
+                    <Button type="button" disabled={busy} onClick={() => save(!live)} className="max-sm:px-3">
                         {pending && <Spinner />}
                         {submitLabel}
                     </Button>
                     {!appealing && !live && (
-                        <Button type="button" variant="outline" disabled={busy} onClick={() => save(false)}>
+                        <Button type="button" variant="outline" disabled={busy} onClick={() => save(false)} className="max-sm:px-3">
                             Save draft
                         </Button>
                     )}
-                    <Button asChild variant="ghost">
+                    <p className="order-last basis-full text-xs text-muted-foreground sm:order-none sm:basis-auto sm:pl-2">{submitHint}</p>
+                    <Button asChild variant="ghost" className="ml-auto max-sm:px-3">
                         <Link href="/blog/me">Cancel</Link>
                     </Button>
                 </div>

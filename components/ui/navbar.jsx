@@ -106,6 +106,12 @@ function initials(name = '') {
   return (parts[0]?.[0] || 'U').concat(parts[1]?.[0] || '').toUpperCase();
 }
 
+// Second crumb for sections whose subpages have names of their own ("Details" otherwise).
+const SUBPAGE_LABELS = {
+  blog: (segment) => ({ me: 'My posts', new: 'Write a post', edit: 'Edit post' })[segment] || 'Post',
+  orders: () => 'Order',
+};
+
 function PageBreadcrumb() {
   const pathname = usePathname() || '/';
   const segments = pathname.split('/').filter(Boolean);
@@ -113,7 +119,7 @@ function PageBreadcrumb() {
   const label = SECTION_LABELS[section] || section.charAt(0).toUpperCase() + section.slice(1);
 
   const crumbs = segments.length > 1
-    ? [{ label, href: `/${section}` }, { label: 'Details' }]
+    ? [{ label, href: `/${section}` }, { label: SUBPAGE_LABELS[section]?.(segments[1]) || 'Details' }]
     : [{ label }];
 
   return (
@@ -122,10 +128,10 @@ function PageBreadcrumb() {
         {crumbs.map((crumb, index) => (
           <Fragment key={crumb.label + index}>
             {index > 0 && <BreadcrumbSeparator />}
-            <BreadcrumbItem className="min-w-0">
+            <BreadcrumbItem className={index < crumbs.length - 1 ? "shrink-0" : "min-w-0"}>
               {crumb.href ? (
                 <BreadcrumbLink asChild>
-                  <Link href={crumb.href}>{crumb.label}</Link>
+                  <Link href={crumb.href} className="whitespace-nowrap">{crumb.label}</Link>
                 </BreadcrumbLink>
               ) : (
                 <BreadcrumbPage className="truncate font-medium">{crumb.label}</BreadcrumbPage>

@@ -51,6 +51,23 @@ describe.skipIf(!hasDb)("blog service (PostgreSQL)", () => {
         expect(second.status).toBe("published");
         expect((await sql(`SELECT published_at FROM community.post WHERE public_id = $1`, [second.id])).rows[0].published_at).not.toBeNull();
         expect((await blogService.listMine({ userId: c })).trusted).toBe(true);
+        // My posts shows each post's first line.
+        expect((await blogService.listMine({ userId: c })).items[0].excerpt).toBeTruthy();
+    });
+
+    it("lists the most used topics of published posts, most posts first", async () => {
+        const writer = await newUser("topics");
+        const [many, few, draftOnly] = [`${TAG}-many`, `${TAG}-few`, `${TAG}-draft`].map((t) => t.toLowerCase().slice(0, 30));
+        const first = await blogService.create({ userId: writer, input: input({ submit: true, tags: [many, few] }) });
+        await approve(first.id);
+        await sql(`UPDATE community.post SET status = 'published', published_at = now() WHERE public_id = $1`, [first.id]);
+        await blogService.create({ userId: writer, input: input({ submit: true, title: "Another post here", tags: [many] }) });
+        await blogService.create({ userId: writer, input: input({ title: "A draft post here", tags: [draftOnly] }) });
+
+        const topics = (await blogService.listTopTags({ limit: 1000 })).map((topic) => topic.name);
+        expect(topics.indexOf(many)).toBeGreaterThanOrEqual(0);
+        expect(topics.indexOf(many)).toBeLessThan(topics.indexOf(few));
+        expect(topics).not.toContain(draftOnly);
     });
 
     it("draft stays draft", async () => {

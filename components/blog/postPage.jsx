@@ -6,6 +6,7 @@ import PostComments from "@/components/blog/postComments";
 import PostCard, { PostMeta } from "@/components/blog/postCard";
 import { READING_PROSE, TAG_BADGE } from "@/components/blog/shared";
 import { Badge } from "@/components/shadcn/badge";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/shadcn/button";
 
 import { blogPostingJsonLd } from "@/lib/blog/jsonLd.mjs";
@@ -38,9 +39,11 @@ export default function PostPage({ post, headings = [], related = [] }) {
     const topic = post.tags?.[0];
 
     return (
-        // The shell frame Course and Roadmap use, so the title starts at the same edge; the reading
-        // column stays 40rem (about 70 characters at 17px) and the contents list sits beside it from xl.
-        <div className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,40rem)] gap-x-16 gap-y-8 px-4 pt-6 pb-16 sm:px-6 lg:pt-10 xl:grid-cols-[minmax(0,40rem)_14rem]">
+        // The shell frame, with the 40rem reading column (about 70 characters at 17px) centred in it, or
+        // the column and its contents list centred together from xl: a left-aligned column left a wide
+        // empty band on the right of every post without a contents list.
+        // The second track exists only with a contents list, or an empty 14rem column pulls the page left.
+        <div className={cn("mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,40rem)] justify-center gap-x-16 gap-y-8 px-4 pt-6 pb-16 sm:px-6 lg:pt-10", showToc && "xl:grid-cols-[minmax(0,40rem)_14rem]")}>
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
             <article className="flex min-w-0 flex-col gap-10">
                 <header className="flex flex-col gap-4">
