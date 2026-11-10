@@ -9,6 +9,7 @@ import { courseQueries } from "@/queries/course.query";
 import { useCourseRate } from "@/mutations/course.mutation";
 import { useApp } from "@/contexts/appContext";
 import { ErrorReload } from "@/components/ui/error";
+import { MILESTONE_LABEL } from "@/lib/ratingRules";
 import { RatingStars } from "../ratingStars";
 
 import { Button } from "@/components/shadcn/button";
@@ -18,7 +19,7 @@ import { LuLogIn, LuStar } from "react-icons/lu";
 
 const REASON_TEXT = {
     enroll: "Enrol in this course to rate it.",
-    lesson: "Complete a lesson of this course to rate it.",
+    progress: "Rate this course when you reach 20%.",
 };
 
 function Average({ average, count }) {
@@ -34,19 +35,31 @@ function Average({ average, count }) {
     );
 }
 
+// "At 20%: 4.1 · At 50%: 4.3 · Finished: 4.6", only milestones with enough ratings for an average.
+function Breakdown({ breakdown = [] }) {
+    const shown = breakdown.filter((entry) => entry.average != null);
+    if (shown.length === 0) return null;
+    return (
+        <p className="text-xs text-muted-foreground tabular">
+            {shown.map((entry) => `${MILESTONE_LABEL[entry.milestone]}: ${entry.average.toFixed(1)}`).join(' · ')}
+        </p>
+    );
+}
+
 /** The course average and the learner's own stars, kept apart from the discussion (plan 12). */
 export default function RatingSection({ courseId }) {
     const { status } = useSession();
     const { showAlert: alert } = useApp();
     const { data, isLoading, isError, error, refetch } = useQuery(courseQueries.rating(courseId, status));
     const rate = useCourseRate();
-    const [saved, setSaved] = useState(false);
+    // Only for screen readers: visible text beside the right-aligned stars would push them on every click.
+    const [announcement, setAnnouncement] = useState('');
 
     // Saved optimistically: the stars change at once and roll back if the save fails.
     const save = (stars) => {
-        setSaved(false);
+        setAnnouncement('');
         rate.mutate({ courseId, stars }, {
-            onSuccess: () => setSaved(true),
+            onSuccess: () => setAnnouncement('Rating saved'),
             onError: (error) => alert(error?.status || 500, error?.message || "Could not save your rating. Please try again."),
         });
     };
@@ -74,22 +87,32 @@ export default function RatingSection({ courseId }) {
                     </div>
                 ) : (
                     <>
-                        <Average average={data.average} count={count} />
+                        <div className="flex flex-col gap-0.5">
+                            <Average average={data.average} count={count} />
+                            <Breakdown breakdown={data.breakdown} />
+                        </div>
 
                         {data.eligible ? (
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">Your rating</span>
-                                <RatingStars value={data.stars} onChange={save} />
-                                <span className="text-xs text-muted-foreground" aria-live="polite">
-                                    {saved && !rate.isPending ? 'Saved' : ''}
-                                </span>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                {/* Earlier milestones are locked snapshots: shown, not editable. */}
+                                {data.history?.map((entry) => (
+                                    <span key={entry.milestone} className="flex items-center gap-1 text-xs text-muted-foreground tabular" title={`At ${entry.milestone}%: ${entry.stars} out of 5`}>
+                                        {entry.milestone}%:
+                                        <LuStar className="size-3.5 text-xp fill-xp/20" aria-hidden="true" />
+                                        {entry.stars}
+                                        <span className="sr-only">out of 5</span>
+                                    </span>
+                                ))}
+                                <span className="text-xs text-muted-foreground">Your rating at {data.milestone}%</span>
+                                <RatingStars value={data.stars} onChange={save} label={`Your rating at ${data.milestone}%`} />
+                                <span className="sr-only" aria-live="polite">{announcement}</span>
                             </div>
                         ) : data.reason === 'signin' ? (
                             <Button asChild variant="outline" size="sm" className="self-start sm:self-auto">
                                 <Link href="/auth"><LuLogIn />Sign in to rate</Link>
                             </Button>
                         ) : (
-                            <p className="text-sm text-muted-foreground">{REASON_TEXT[data.reason] || REASON_TEXT.lesson}</p>
+                            <p className="text-sm text-muted-foreground">{REASON_TEXT[data.reason] || REASON_TEXT.progress}</p>
                         )}
                     </>
                 )}

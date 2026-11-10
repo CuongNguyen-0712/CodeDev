@@ -21,7 +21,7 @@ export function RatingStars({ value, onChange, label = "Your rating", disabled =
                     key={stars}
                     onMouseEnter={() => !disabled && setHover(stars)}
                     className={cn(
-                        "rounded-md p-0.5 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+                        "relative rounded-md p-0.5 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
                         disabled ? "cursor-default" : "cursor-pointer"
                     )}
                 >
