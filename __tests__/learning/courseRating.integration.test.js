@@ -15,10 +15,11 @@ describe.skipIf(!hasDb)("course rating trigger (PostgreSQL)", () => {
     const course = async () => (await client.query(
         `SELECT rating_avg::text AS avg, rating_count AS n FROM catalog.course WHERE id = $1`, [courseId]
     )).rows[0];
-    const rate = (user, stars) => client.query(
-        `INSERT INTO community.course_rating (user_id, course_id, stars) VALUES ($1, $2, $3)
-         ON CONFLICT (user_id, course_id) DO UPDATE SET stars = EXCLUDED.stars, updated_at = now()`,
-        [user, courseId, stars]
+    // One milestone (20%) unless a test says otherwise: these cases are about one rating per learner.
+    const rate = (user, stars, milestone = 20) => client.query(
+        `INSERT INTO community.course_rating (user_id, course_id, milestone, stars) VALUES ($1, $2, $4, $3)
+         ON CONFLICT (user_id, course_id, milestone) DO UPDATE SET stars = EXCLUDED.stars, updated_at = now()`,
+        [user, courseId, stars, milestone]
     );
 
     beforeAll(async () => {
