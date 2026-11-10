@@ -106,16 +106,18 @@ export const adminBlogService = {
                 actorId: actor.id, action: `blog.${action}`, targetType: "post", targetId: postId, reason,
                 before: { status: post.status }, after: { status: to }, ip,
             });
-            return { changed: true, status: to, post, appeal, updatedAt };
+            const reward = to === "published" ? await blogDb.awardPublishExp(client, { authorDbId: post.author_id, postDbId: post.id }) : null;
+            return { changed: true, status: to, post, appeal, updatedAt, reward };
         });
         if (!result.changed) return { changed: false, status: result.status };
         if (result.dismissed) return { changed: true, status: result.status };
 
-        const { post, appeal, updatedAt } = result;
+        const { post, appeal, updatedAt, reward } = result;
         // An appeal that is rejected keeps its original clock; a fresh hide starts one now.
         const purgeDate = iso(new Date((post.hidden_at ? new Date(post.hidden_at) : updatedAt).getTime() + BLOG_HIDDEN_PURGE_DAYS * DAY));
         const copy = notice({ action, appeal, post, reason, purgeDate });
         if (copy) await notificationService.notify(post.author_public_id, { ...copy, dedupeKey: `blog:${postId}:${action}:${updatedAt.toISOString()}` });
+        if (reward) await notificationService.notifyRewards(post.author_public_id, { level: reward.level, previousLevel: reward.previousLevel });
         // Every moderation change adds or removes a public post, so it must not be served stale.
         revalidateBlog(postId, { immediate: true });
         return { changed: true, status: result.status };

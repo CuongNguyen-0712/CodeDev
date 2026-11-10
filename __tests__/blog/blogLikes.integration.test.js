@@ -14,6 +14,7 @@ describe.skipIf(!hasDb)("blog likes (PostgreSQL)", () => {
         const publicId = `${TAG}_${name}`;
         const id = String(971000000000000 + Math.floor(Math.random() * 1e9));
         await sql(`INSERT INTO identity.users (id, public_id, username, email, email_verified) VALUES ($1, $2, $2, $3, $4)`, [id, publicId, `${publicId}@test.invalid`, verified]);
+        await sql(`INSERT INTO profile.info (user_id, surname, name) VALUES ($1, 'T', 'T')`, [id]);
         return publicId;
     };
     // A published post by `author`; the first post of an author waits for review, so approve it directly.

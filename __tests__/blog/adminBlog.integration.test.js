@@ -15,6 +15,7 @@ describe.skipIf(!hasDb)("admin blog moderation (PostgreSQL)", () => {
         const publicId = `${TAG}_${name}`;
         const id = String(960000000000000 + Math.floor(Math.random() * 1e9));
         await sql(`INSERT INTO identity.users (id, public_id, username, email, email_verified) VALUES ($1, $2, $2, $3, true)`, [id, publicId, `${publicId}@test.invalid`]);
+        await sql(`INSERT INTO profile.info (user_id, surname, name) VALUES ($1, 'T', 'T')`, [id]);
         return { id, publicId };
     };
     const post = async (status, extra = "") => {

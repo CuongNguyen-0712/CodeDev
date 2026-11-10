@@ -10,6 +10,7 @@ import { ApiError } from "@/lib/error/apiError";
 import { decodeCursor, encodeCursor, pageOf } from "@/lib/keysetCursor";
 import { revalidateBlog } from "@/lib/pageCache";
 import { dispatchAuthOutbox } from "@/services/authOutbox.service";
+import { notificationService } from "@/services/notification.service";
 
 const PAGE = 12;
 const DAY = 86400000;
@@ -63,10 +64,15 @@ async function write({ userId, postId = null, input }) {
             ({ id: dbId } = await blogDb.insert(client, { publicId, authorDbId: user.id, slug, ...fields }));
         }
         await linkImages(client, { postDbId: dbId, authorDbId: user.id, urls });
-        return { id: publicId, slug, status, wasPublished: current?.status === "published" };
+        const reward = status === "published" && current?.status !== "published"
+            ? await blogDb.awardPublishExp(client, { authorDbId: user.id, postDbId: dbId }) : null;
+        return { id: publicId, slug, status, wasPublished: current?.status === "published", reward };
     });
     revalidateAfter(result);
-    return { id: result.id, slug: result.slug, status: result.status };
+    const { reward } = result;
+    if (!reward) return { id: result.id, slug: result.slug, status: result.status };
+    await notificationService.notifyRewards(userId, { level: reward.level, previousLevel: reward.previousLevel });
+    return { id: result.id, slug: result.slug, status: result.status, rewards: { awardedExp: reward.awarded, level: reward.level, previousLevel: reward.previousLevel } };
 }
 
 // Only an edit of a live post may be served stale once; a post that appears or disappears expires at once.

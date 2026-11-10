@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { BLOG_PUBLISH_EXP_RULE } from "@/lib/blog/rewards.mjs";
 
 const AUTHOR = `JOIN identity.users u ON u.id = p.author_id LEFT JOIN profile.info i ON i.user_id = u.id`;
 const PUBLIC_COLS = `p.public_id AS id, p.slug, p.title, p.excerpt, p.tags, p.published_at, p.like_count, p.comment_count, u.public_id AS author_id, u.username AS author_username, i.image AS author_image`;
@@ -231,10 +232,24 @@ export const blogDb = {
     )).rows[0] || null,
 
     lockForModeration: async (client, publicId) => (await client.query(
-        `SELECT p.id::text AS id, p.slug, p.status, p.appealed_at, p.hidden_at, u.public_id AS author_public_id
+        `SELECT p.id::text AS id, p.author_id::text AS author_id, p.slug, p.status, p.appealed_at, p.hidden_at, u.public_id AS author_public_id
          FROM community.post p JOIN identity.users u ON u.id = p.author_id
          WHERE p.public_id = $1 AND p.deleted_at IS NULL FOR UPDATE OF p`, [publicId]
     )).rows[0] || null,
+
+    // One post-publish reward per rolling 24 hours (D2). The profile lock serialises concurrent publishes; award_exp is idempotent per post.
+    awardPublishExp: async (client, { authorDbId, postDbId }) => {
+        await client.query(`SELECT 1 FROM profile.info WHERE user_id = $1::bigint FOR UPDATE`, [authorDbId]);
+        const recent = await client.query(
+            `SELECT 1 FROM profile.exp_transaction WHERE user_id = $1::bigint AND source_type = 'blog_post' AND created_at > now() - interval '24 hours' LIMIT 1`, [authorDbId]
+        );
+        if (recent.rowCount) return null;
+        const { rows } = await client.query(
+            `SELECT created, awarded, previous_level, new_level FROM public.award_exp($1::bigint, $2, 'blog_post', $3::bigint)`, [authorDbId, BLOG_PUBLISH_EXP_RULE, postDbId]
+        );
+        const r = rows[0];
+        return r?.created ? { awarded: r.awarded, level: r.new_level, previousLevel: r.previous_level } : null;
+    },
 
     approve: async (client, { id, actorDbId, appeal }) => (await client.query(
         `UPDATE community.post SET status = 'published', updated_at = now(),
