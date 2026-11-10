@@ -1,4 +1,4 @@
-// setPostLikeAction: validates the post id and routes to like or unlike (runAction itself is covered elsewhere).
+// setPostLikeAction: validates the post id and routes to like or unlike (runAction itself: __tests__/lists/serverAction.test.js).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const svc = { like: vi.fn(), unlike: vi.fn() };
