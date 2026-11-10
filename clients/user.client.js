@@ -27,12 +27,6 @@ export const userClient = {
         return res.data;
     },
 
-    // { all: true } or { ids: [...] } -> { updated }
-    markNotificationsRead: async (body) => {
-        const res = await apiClient.patch('/user/notifications', body);
-        return res.data;
-    },
-
     getLearningProgress: async (params) => {
         const res = await apiClient.get('/user/learning-progress', { params });
         return res.data;
@@ -63,11 +57,6 @@ export const userClient = {
         return res.data;
     },
 
-    updatePrivacy: async (data) => {
-        const res = await apiClient.patch('/user/privacy', data);
-        return res.data;
-    },
-
     getSessions: async () => {
         const res = await apiClient.get('/user/sessions');
         return res.data || [];
@@ -86,16 +75,6 @@ export const userClient = {
     getAvatars: async () => {
         const res = await apiClient.get('/user/avatars');
         return res.data || [];
-    },
-
-    restoreAvatar: async (assetId) => {
-        const res = await apiClient.patch('/user/avatars', { assetId });
-        return res.data;
-    },
-
-    deleteAvatar: async (assetId) => {
-        const res = await apiClient.delete('/user/avatars', { data: { assetId } });
-        return res.data;
     },
 
     getSignInMethods: async () => {

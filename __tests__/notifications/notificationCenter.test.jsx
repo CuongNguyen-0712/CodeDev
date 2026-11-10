@@ -14,8 +14,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 const getNotifications = vi.fn();
+vi.mock("@/actions/user.actions", () => ({ markNotificationsAction: vi.fn(async () => ({ success: true, data: { updated: 0 } })) }));
 vi.mock("@/clients/user.client", () => ({
-    userClient: { getNotifications: (params) => getNotifications(params), markNotificationsRead: vi.fn(async () => ({ updated: 0 })) },
+    userClient: { getNotifications: (params) => getNotifications(params) },
 }));
 
 const { default: NotificationCenter, NotificationItem } = await import("@/components/ui/notificationCenter");

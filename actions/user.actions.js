@@ -1,5 +1,8 @@
 'use server';
 
+import { mediaService } from "@/services/media.service";
+import { notificationService } from "@/services/notification.service";
+import { profileService } from "@/services/profile.service";
 import { userService } from "@/services/user.service";
 import { userDb } from "@/db/user.db";
 import { emailVerificationService } from "@/services/emailVerification.service";
@@ -56,4 +59,53 @@ export async function updateUserProfileAction(data) {
 
         return updated;
     }, { allowLocked: emailOnly, limiter: rateLimiters.profile, context: "updateUserProfileAction" });
+}
+
+// Any of { showProfile, showLearning, showOnLeaderboard } (booleans); the service checks the keys.
+export async function updatePrivacyAction(data) {
+    return runAction(
+        async ({ userId }) => profileService.updatePrivacy(userId, data ?? {}),
+        { limiter: rateLimiters.profile, context: "updatePrivacyAction" }
+    );
+}
+
+const UUID = /^[0-9a-f-]{36}$/i;
+const MAX_IDS = 100;
+
+// { all: true } or { ids: string[] } (1-100 uuids) marks read; { ids, dismiss: true } removes them instead.
+export async function markNotificationsAction(body) {
+    return runAction(async ({ userId }) => {
+        if (body?.all === true) return notificationService.markAllRead({ userId });
+
+        const ids = Array.isArray(body?.ids) ? body.ids : null;
+        if (!ids?.length || ids.length > MAX_IDS || !ids.every((id) => typeof id === "string" && UUID.test(id))) {
+            throw new ApiError("Body must be { all: true } or { ids: [uuid, ...] }", 400);
+        }
+        if (body.dismiss === true) return notificationService.dismiss({ userId, ids });
+        return notificationService.markRead({ userId, ids });
+    }, { limiter: rateLimiters.profile, context: "markNotificationsAction" });
+}
+
+// storage.assets public ids: "ast_" + a lower-case ULID (services/media.service.js).
+const ASSET_ID = /^ast_[0-9a-z]{26}$/;
+const assetIdOf = (value) => {
+    const assetId = String(value ?? "");
+    if (!ASSET_ID.test(assetId)) throw new ApiError("A valid assetId is required", 400);
+    return assetId;
+};
+
+// Makes a kept photo the profile photo again.
+export async function restoreAvatarAction(assetId) {
+    return runAction(
+        async ({ userId }) => mediaService.restoreAvatar({ userId, assetId: assetIdOf(assetId) }),
+        { limiter: rateLimiters.upload, context: "restoreAvatarAction" }
+    );
+}
+
+// Deletes a kept photo that is not the current one.
+export async function deleteAvatarAction(assetId) {
+    return runAction(
+        async ({ userId }) => mediaService.deleteAvatar({ userId, assetId: assetIdOf(assetId) }),
+        { limiter: rateLimiters.upload, context: "deleteAvatarAction" }
+    );
 }

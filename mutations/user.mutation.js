@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { deleteAvatarAction, markNotificationsAction, restoreAvatarAction, updatePrivacyAction } from "@/actions/user.actions";
 import { userClient } from "@/clients/user.client";
 import { userKeys } from "@/keys/user.keys";
+import { callAction } from "@/lib/actionResult";
 
 export function useSignUp() {
     return useMutation({
@@ -30,7 +32,7 @@ export function useRestoreAvatar() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (assetId) => userClient.restoreAvatar(assetId),
+        mutationFn: (assetId) => callAction(() => restoreAvatarAction(assetId)),
         onSettled: () => Promise.all([
             queryClient.invalidateQueries({ queryKey: userKeys.me() }),
             queryClient.invalidateQueries({ queryKey: userKeys.avatars() }),
@@ -42,7 +44,7 @@ export function useDeleteAvatar() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (assetId) => userClient.deleteAvatar(assetId),
+        mutationFn: (assetId) => callAction(() => deleteAvatarAction(assetId)),
         onSuccess: (_, assetId) => {
             queryClient.setQueryData(userKeys.avatars(), (old) =>
                 Array.isArray(old) ? old.filter((item) => item.id !== assetId) : old
@@ -71,7 +73,7 @@ export function useUpdatePrivacy() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (data) => userClient.updatePrivacy(data),
+        mutationFn: (data) => callAction(() => updatePrivacyAction(data)),
         onSuccess: (saved) => {
             queryClient.setQueryData(userKeys.privacy(), saved);
             queryClient.invalidateQueries({ queryKey: [...userKeys.all, 'ranking'] });
@@ -85,7 +87,7 @@ export function useMarkNotificationsRead() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (body) => userClient.markNotificationsRead(body),
+        mutationFn: (body) => callAction(() => markNotificationsAction(body)),
         onSettled: () => queryClient.invalidateQueries({ queryKey: userKeys.notifications() }),
     });
 }
@@ -95,7 +97,7 @@ export function useDismissNotifications() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (ids) => userClient.markNotificationsRead({ ids, dismiss: true }),
+        mutationFn: (ids) => callAction(() => markNotificationsAction({ ids, dismiss: true })),
         onMutate: (ids) => {
             const gone = new Set(ids);
             queryClient.setQueriesData({ queryKey: userKeys.notifications() }, (old) => old?.pages ? {
