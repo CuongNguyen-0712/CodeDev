@@ -42,6 +42,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { ExpProgress, levelProgress } from "@/components/ui/level";
 import NotificationCenter from "@/components/ui/notificationCenter";
+import MessagesNavButton from "@/components/chat/messagesNavButton";
 
 import {
   LuChevronsUpDown,
@@ -462,6 +463,7 @@ export default function Navbar() {
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
         <ThemeToggle />
         {status === 'authenticated' && <NotificationCenter />}
+        {status === 'authenticated' && <MessagesNavButton />}
         {status === 'loading' && <Skeleton className="h-8 w-32" />}
         {status === 'authenticated' && <AccountMenu />}
         {status === 'unauthenticated' && (
