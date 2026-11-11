@@ -29,8 +29,11 @@ describe.skipIf(!hasDb)("chat schema (PostgreSQL)", () => {
 
     afterAll(async () => {
         if (!sql) return;
-        await sql(`DELETE FROM community.conversation WHERE public_id LIKE $1`, [`cnv_${TAG}%`]);
-        await sql(`DELETE FROM identity.users WHERE public_id LIKE $1`, [`${TAG}%`]);
+        try {
+            await sql(`DELETE FROM community.conversation WHERE public_id LIKE $1`, [`cnv_${TAG}%`]);
+        } finally {
+            await sql(`DELETE FROM identity.users WHERE public_id LIKE $1`, [`${TAG}%`]);
+        }
     });
 
     it("rejects a direct conversation without direct_key", async () => {
@@ -60,5 +63,35 @@ describe.skipIf(!hasDb)("chat schema (PostgreSQL)", () => {
         const { rows } = await sql(`SELECT 1 FROM identity.role_permissions rp JOIN identity.roles r ON r.id = rp.role_id
             JOIN identity.permissions p ON p.id = rp.permission_id WHERE r.code = 'admin' AND p.resource = 'chat' AND p.action = 'moderate'`);
         expect(rows).toHaveLength(1);
+    });
+
+    describe("attachment kind, provider and file name (revision 2)", () => {
+        const add = (cols) => {
+            const row = { kind: "image", provider: "s3", content_type: "image/png", size_bytes: 100, file_name: null, ...cols };
+            return sql(`INSERT INTO community.chat_attachment (public_id, conversation_id, uploader_id, storage_key, kind, provider, content_type, size_bytes, file_name)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+                [`att_${TAG}${crypto.randomBytes(3).toString("hex")}`, convId, u1, `k_${TAG}_${crypto.randomBytes(4).toString("hex")}`,
+                    row.kind, row.provider, row.content_type, row.size_bytes, row.file_name]);
+        };
+        const pdf = { kind: "file", provider: "upstash", content_type: "application/pdf", file_name: "a.pdf" };
+
+        it("accepts a 15 MB pdf file row and refuses 15000001 bytes", async () => {
+            await add({ ...pdf, size_bytes: 15000000 });
+            await expect(add({ ...pdf, size_bytes: 15000001 })).rejects.toThrow();
+        });
+        it("refuses a file row without file_name and an image over 5 MB", async () => {
+            await expect(add({ ...pdf, file_name: null })).rejects.toThrow();
+            await expect(add({ size_bytes: 5000001 })).rejects.toThrow();
+        });
+        it("refuses provider 'cloudinary' for a file and 'upstash' for an image", async () => {
+            await add({ provider: "cloudinary" });
+            await expect(add({ ...pdf, provider: "cloudinary" })).rejects.toThrow();
+            await expect(add({ provider: "upstash" })).rejects.toThrow();
+        });
+        it("keeps existing image rows valid (kind defaults to image, provider to s3)", async () => {
+            await addAttachment("image/webp", 10);
+            const { rows } = await sql(`SELECT kind, provider, file_name FROM community.chat_attachment WHERE storage_key LIKE $1 AND content_type = 'image/webp'`, [`k_${TAG}%`]);
+            expect(rows[0]).toEqual({ kind: "image", provider: "s3", file_name: null });
+        });
     });
 });

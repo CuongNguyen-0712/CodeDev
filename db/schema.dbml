@@ -810,6 +810,9 @@ Table community.chat_attachment {
   width int
   height int
   created_at timestamptz [not null, default: `now()`]
+  kind varchar(10) [not null, default: 'image']
+  provider varchar(20) [not null, default: 's3']
+  file_name varchar(255)
 
   indexes {
     message_id [name: 'idx_chat_attachment_message']
@@ -817,8 +820,10 @@ Table community.chat_attachment {
   }
 
   Note: '''
-  chat_attachment_content_type_check: CHECK (((content_type)::text = ANY ((ARRAY['image/jpeg'::character varying, 'image/png'::character varying, 'image/webp'::character varying])::text[])))
-  chat_attachment_size_bytes_check: CHECK (((size_bytes >= 1) AND (size_bytes <= 5000000)))
+  chat_attachment_kind_check: CHECK (((kind)::text = ANY ((ARRAY['image'::character varying, 'file'::character varying])::text[])))
+  chat_attachment_kind_type: CHECK (((((kind)::text = 'image'::text) AND ((content_type)::text = ANY ((ARRAY['image/jpeg'::character varying, 'image/png'::character varying, 'image/webp'::character varying])::text[])) AND ((size_bytes >= 1) AND (size_bytes <= 5000000))) OR (((kind)::text = 'file'::text) AND ((content_type)::text = ANY ((ARRAY['application/pdf'::character varying, 'text/plain'::character varying, 'text/markdown'::character varying, 'text/csv'::character varying, 'application/json'::character varying, 'application/zip'::character varying])::text[])) AND ((size_bytes >= 1) AND (size_bytes <= 15000000)) AND (file_name IS NOT NULL))))
+  chat_attachment_provider_check: CHECK (((provider)::text = ANY ((ARRAY['s3'::character varying, 'cloudinary'::character varying, 'upstash'::character varying])::text[])))
+  chat_attachment_provider_kind: CHECK ((((provider)::text = 's3'::text) OR (((provider)::text = 'cloudinary'::text) AND ((kind)::text = 'image'::text)) OR (((provider)::text = 'upstash'::text) AND ((kind)::text = 'file'::text))))
   '''
 }
 
