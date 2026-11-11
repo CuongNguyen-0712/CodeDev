@@ -1,6 +1,6 @@
 # Chat: lõi tin nhắn 1-1 và nhóm — thiết kế
 
-Date: 2026-11-11. Status: implemented, gồm revision 2 (2026-11-11): ảnh chat lên Cloudinary, file chat lên Upstash Blob, thêm đính kèm file (mục 4, 7, plan phần R2). Revision 3 (tối ưu realtime, mục 6.1) vẫn chỉ là thiết kế, chưa làm. Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
+Date: 2026-11-11. Status: implemented, gồm revision 2 (2026-11-11): ảnh chat lên Cloudinary, file chat lên Upstash Blob, thêm đính kèm file (mục 4, 7, plan phần R2). Revision 3 (tối ưu realtime, mục 6.1) đã làm xong và đã đo. Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
 
 ## 1. Context
 
@@ -292,7 +292,7 @@ Một lệnh `trigger` cho nhiều kênh (≤ 5 thành viên, Pusher cho tới 1
 - `chat-typing`: ghi vào store Zustand `useChatTypingStore` (`byConversation[id] = { userId: expiresAt }`), hết hạn sau 5 giây. Đây là state UI tạm thời, không phải dữ liệu server, nên hợp với `docs/state-management.md`.
 - `onReconnect` (đã có) cũng invalidate `chatKeys.all`.
 
-### 6.1 Revision 3: tối ưu realtime (2026-11-11, designed, not implemented)
+### 6.1 Revision 3: tối ưu realtime (2026-11-11, implemented)
 
 **Đo trên code hiện tại.** Tình huống: A gửi 1 tin, B đang mở hội thoại, mỗi người 1 tab.
 - `chat-message` làm B refetch inbox All (mọi trang đã tải), inbox Requests và `unread`: 2–3 GET.
@@ -350,6 +350,8 @@ Một lệnh `trigger` cho nhiều kênh (≤ 5 thành viên, Pusher cho tới 1
 - Test handler: không gọi `invalidateQueries` khi C đã có trong cache.
 - Test `runAfter` cho cả hai nhánh.
 - E2E trên trình duyệt: mở tab Network của B lúc A gửi 5 tin liên tiếp. B không có GET `/api/chat/*` nào, chỉ có POST markRead.
+
+**Đo được** (Playwright, hai context): A gửi 5 tin liên tiếp thì B có 0 GET `/api/chat/*` và 1 POST markRead (đã debounce). A sửa 1 tin thì B có 0 request, bản sửa hiện đúng. Trước đó: 2–3 GET cho mỗi tin ở mỗi người nhận (khoảng 10–15 cho 5 tin).
 
 ## 7. Các luồng
 
@@ -472,6 +474,13 @@ Vitest, theo mẫu `__tests__/blog/*.integration.test.js`:
   - R44: bỏ ký tự điều khiển bidi và C1 khỏi tên file, chống giả tên hiển thị.
   - R45: thông báo quá số lượng đổi thành "You can attach up to 4 files." (gồm cả ảnh và file).
   - R46: đính kèm của tin chưa gửi (`seq == null`) chỉ là bản xem trước, không có liên kết.
+- Revision 3 (mục 6.1):
+  - R49/R56: thu hồi luôn thắng; guard `editedAt` chỉ áp dụng giữa các bản từ server; rollback chỉ đụng bản optimistic của chính nó.
+  - R50: `chat-read` cũng gửi tới kênh riêng của người đọc.
+  - R51: thu hồi thì refetch các danh sách.
+  - R53: `markRowRead` nhận `seq`.
+  - R54: poll `unread` 5 phút một lần khi đang kết nối.
+  - R55: người gửi chỉ invalidate `inbox("all")`.
 
 ## Chưa kiểm tra được ở local
 
