@@ -1,6 +1,6 @@
 # Chat: lõi tin nhắn 1-1 và nhóm — thiết kế
 
-Date: 2026-11-11. Status: implemented, except revision 3 (tối ưu realtime, mục 6.1 — designed, not implemented) and revision 2 (2026-11-11): ảnh chat lên Cloudinary, file chat lên Upstash Blob, thêm đính kèm file — designed, not implemented (mục 4, 7, plan phần R2). Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
+Date: 2026-11-11. Status: implemented, gồm revision 2 (2026-11-11): ảnh chat lên Cloudinary, file chat lên Upstash Blob, thêm đính kèm file (mục 4, 7, plan phần R2). Revision 3 (tối ưu realtime, mục 6.1) vẫn chỉ là thiết kế, chưa làm. Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
 
 ## 1. Context
 
@@ -464,4 +464,18 @@ Vitest, theo mẫu `__tests__/blog/*.integration.test.js`:
   - File (tài liệu + code, ≤ 15 MB) production lên Upstash Blob, bucket private riêng. Lý do: credential Neon S3 gắn với branch, nên bucket riêng trên Neon không tách được quyền khỏi bài nộp code.
   - Local: cả ảnh lẫn file vào MinIO `codedev-chat-media`.
   - Thêm migration 026 (`kind`, `provider`, `file_name`).
-  - Đã cập nhật các mục 2, 3, 4, 5, 7, 8, 9, 10, 11, 12. Chưa code (plan, phần Revision 2).
+  - Đã cập nhật các mục 2, 3, 4, 5, 7, 8, 9, 10, 11, 12. Đã code xong (plan, phần Revision 2).
+  - R39: `lib/chatMedia.js` chỉ có một API: `storageFor`, `storageKeyFor`, `uploadTicket`, `inspect`, `readUrl`, `remove` (các hàm theo key cũ đã bỏ).
+  - R40: staging dùng S3 (như `mediaStore`, `storageFor` dùng `isProductionEnv`); chỉ production mới dùng Cloudinary và Upstash.
+  - R41: Upstash upload dùng `allowOverwrite: false` (thêm header `if-none-match: *`), không ghi đè byte sau khi `inspect`.
+  - R43: chữ ký Cloudinary thêm `asset_folder` để tài khoản dynamic-folder đặt ảnh chat vào thư mục chat.
+  - R44: bỏ ký tự điều khiển bidi và C1 khỏi tên file, chống giả tên hiển thị.
+  - R45: thông báo quá số lượng đổi thành "You can attach up to 4 files." (gồm cả ảnh và file).
+  - R46: đính kèm của tin chưa gửi (`seq == null`) chỉ là bản xem trước, không có liên kết.
+
+## Chưa kiểm tra được ở local
+
+Cần thông tin đăng nhập production; ở local chỉ test bằng mock:
+- Cloudinary: signed POST và `private_download_url` chạy thật.
+- Upstash: `signedUploadUrl` chạy thật từ trình duyệt, gồm header `if-none-match` (R9).
+
