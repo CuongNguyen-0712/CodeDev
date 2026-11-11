@@ -36,11 +36,12 @@ export function useSendMessage(conversationId) {
             clientId, body, ...(attachmentIds?.length ? { attachmentIds } : {}),
             ...(conversationId ? { conversationId } : { toUserId }),
         }))),
-        onMutate: ({ clientId, body, sender }) => {
+        onMutate: ({ clientId, body, sender, attachmentIds }) => {
             if (!conversationId) return;
             const outbox = useChatOutboxStore.getState();
             if (outbox.byConversation[conversationId]?.some((m) => m.clientId === clientId)) outbox.setUnsentStatus(conversationId, clientId, "sending");
-            else outbox.addUnsent(conversationId, optimisticMessage({ clientId, body, sender, conversationId }));
+            // attachmentIds kept so Retry resends the same images.
+            else outbox.addUnsent(conversationId, { ...optimisticMessage({ clientId, body, sender, conversationId }), attachmentIds: attachmentIds ?? [] });
         },
         onSuccess: ({ message }, { clientId }) => {
             queryClient.setQueryData(chatKeys.messages(message.conversationId), (data) => insertMessage(data, message));

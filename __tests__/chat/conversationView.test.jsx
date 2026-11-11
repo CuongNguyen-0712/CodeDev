@@ -1,0 +1,125 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+/** Conversation pane wiring: request banner, composer rules, typing line, /messages/new (spec sections 7 and 9). */
+let detail;
+let page;
+const replace = vi.fn();
+const sendMessageAction = vi.fn();
+
+vi.mock("@/clients/chat.client", () => ({
+    chatClient: { getConversation: async () => detail, getMessages: async () => page },
+}));
+vi.mock("@/actions/chat.actions", () => ({
+    ...Object.fromEntries(["blockUserAction", "createChatUploadAction", "editMessageAction", "recallMessageAction",
+        "reportMessageAction", "respondRequestAction", "unblockUserAction"].map((name) => [name, vi.fn()])),
+    sendMessageAction: (...a) => sendMessageAction(...a),
+    markReadAction: vi.fn(async () => ({ success: true, data: {} })),
+    typingAction: vi.fn(async () => ({ success: true, data: { ok: true } })),
+}));
+vi.mock("@/lib/pusherClient", () => ({ getPusherClient: () => null }));
+vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { id: "P1" } }, status: "authenticated" }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push: vi.fn() }) }));
+vi.mock("@/contexts/appContext", () => ({ useApp: () => ({ showAlert: vi.fn() }) }));
+vi.mock("@/components/ui/codeBlock", () => ({ default: () => null }));
+
+const { default: ConversationView, NewConversationView } = await import("@/components/chat/conversationView");
+const { useChatTypingStore } = await import("@/stores/chatTypingStore");
+
+const member = (id, over = {}) => ({ id, username: id.toLowerCase(), nickname: null, image: null, state: "accepted", lastReadSeq: "0", ...over });
+const message = (seq, senderId) => ({
+    id: `msg_${seq}`, seq: String(seq), conversationId: "cnv_a", clientId: `c${seq}`, sender: member(senderId),
+    body: `hello ${seq}`, attachments: [], createdAt: "2026-11-11T10:00:00Z", editedAt: null, deleted: false,
+});
+
+const renderWith = (ui) => render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>
+);
+
+beforeEach(() => {
+    vi.clearAllMocks();
+    detail = { id: "cnv_a", kind: "direct", title: "Ada", image: null, state: "active", canSend: true, members: [member("P1"), member("P2")] };
+    page = { items: [message(2, "P2"), message(1, "P1")], nextCursor: null };
+    useChatTypingStore.setState({ byConversation: {} });
+});
+afterEach(cleanup);
+
+describe("ConversationView", () => {
+    it("renders the thread oldest first with the composer and image button", async () => {
+        renderWith(<ConversationView conversationId="cnv_a" />);
+        await screen.findByText("hello 2");
+        const texts = [...document.querySelectorAll("li p")].map((p) => p.textContent).filter((t) => t.startsWith("hello"));
+        expect(texts).toEqual(["hello 1", "hello 2"]);
+        expect(screen.getByRole("heading", { name: "Ada" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Attach images" })).toBeTruthy();
+        expect(screen.queryByRole("region", { name: "Message request" })).toBeNull();
+    });
+
+    it("marks the newest server seq read when visible at the bottom", async () => {
+        const { markReadAction } = await import("@/actions/chat.actions");
+        renderWith(<ConversationView conversationId="cnv_a" />);
+        await screen.findByText("hello 2");
+        await waitFor(() => expect(markReadAction).toHaveBeenCalledWith({ conversationId: "cnv_a", seq: "2" }), { timeout: 3000 });
+    });
+
+    it("shows the request banner to a pending member and hides images", async () => {
+        detail.members = [member("P1", { state: "pending" }), member("P2")];
+        renderWith(<ConversationView conversationId="cnv_a" />);
+        const banner = await screen.findByRole("region", { name: "Message request" });
+        expect(banner.textContent).toContain("Ada wants to message you");
+        for (const name of ["Accept", "Decline", "Block"]) expect(screen.getByRole("button", { name })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Attach images" })).toBeNull();
+    });
+
+    it("replaces the composer when the member cannot send", async () => {
+        detail.canSend = false;
+        renderWith(<ConversationView conversationId="cnv_a" />);
+        expect(await screen.findByText("You can't send messages in this conversation")).toBeTruthy();
+        expect(screen.queryByRole("textbox", { name: "Message" })).toBeNull();
+    });
+
+    it("shows who is typing, then clears when the ping expires", async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        try {
+            renderWith(<ConversationView conversationId="cnv_a" />);
+            await screen.findByText("hello 2");
+            act(() => useChatTypingStore.getState().setTyping("cnv_a", "P2"));
+            expect(screen.getByText("p2 is typing...")).toBeTruthy();
+            await act(async () => { vi.advanceTimersByTime(6000); });
+            expect(screen.queryByText("p2 is typing...")).toBeNull();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
+
+describe("NewConversationView", () => {
+    const recipient = { id: "P2", username: "ada", nickname: "Ada", image: null };
+
+    it("sends by toUserId and opens the conversation the server returns", async () => {
+        sendMessageAction.mockResolvedValue({ success: true, data: { message: message(1, "P1"), conversation: { id: "cnv_z", kind: "direct" } } });
+        renderWith(<NewConversationView recipient={recipient} />);
+        fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "hi" } });
+        fireEvent.keyDown(screen.getByRole("textbox", { name: "Message" }), { key: "Enter" });
+        await waitFor(() => expect(replace).toHaveBeenCalledWith("/messages/cnv_z"));
+        expect(sendMessageAction.mock.calls[0][0]).toMatchObject({ toUserId: "P2", body: "hi" });
+        expect(sendMessageAction.mock.calls[0][0].conversationId).toBeUndefined();
+    });
+
+    it("keeps the text when the first send fails", async () => {
+        sendMessageAction.mockResolvedValue({ success: false, status: 403, message: "You can't send messages in this conversation" });
+        renderWith(<NewConversationView recipient={recipient} />);
+        fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "hi" } });
+        fireEvent.keyDown(screen.getByRole("textbox", { name: "Message" }), { key: "Enter" });
+        expect(await screen.findByText("You can't send messages in this conversation")).toBeTruthy();
+        expect(screen.getByRole("textbox", { name: "Message" }).value).toBe("hi");
+        expect(replace).not.toHaveBeenCalled();
+    });
+
+    it("asks to choose someone without a recipient", () => {
+        renderWith(<NewConversationView recipient={null} />);
+        expect(screen.getByText("Choose someone to message")).toBeTruthy();
+    });
+});
