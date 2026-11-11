@@ -46,7 +46,7 @@ describe("storage per environment", () => {
         expect(resolveStorageConfig({ NODE_ENV: "development", ...minioEnv, MINIO_ACCESS_KEY: "app", MINIO_SECRET_KEY: "app-secret" }).credentials)
             .toEqual({ accessKeyId: "app", secretAccessKey: "app-secret" });
         expect(resolveStorageConfig({ NODE_ENV: "development", MINIO_ENDPOINT: MINIO }).errors.join()).toMatch(/MINIO_ROOT_USER/);
-        expect(config.buckets).toEqual({ public: "public", private: "private" });
+        expect(config.buckets).toEqual({ public: "public", private: "private", chat: "codedev-chat-media" });
         expect(s3ClientOptions(config)).toMatchObject({ forcePathStyle: true, endpoint: MINIO });
     });
 
@@ -87,5 +87,16 @@ describe("storage per environment", () => {
         // Production wired to the development MinIO does.
         const crossed = checkEnvironment({ ...base, STORAGE_PROVIDER: "minio", ...minioEnv });
         expect(crossed.fatal.join()).toMatch(/development MinIO/);
+    });
+});
+
+describe("chat bucket", () => {
+    it("defaults to codedev-chat-media and honours S3_CHAT_BUCKET", () => {
+        expect(resolveStorageConfig({ NODE_ENV: "development", ...minioEnv }).buckets.chat).toBe("codedev-chat-media");
+        expect(resolveStorageConfig({ NODE_ENV: "development", S3_CHAT_BUCKET: "c", ...minioEnv }).buckets.chat).toBe("c");
+    });
+    it("production on MinIO without UPSTASH_BLOB_TOKEN is an isolation error naming it", () => {
+        const config = resolveStorageConfig({ NODE_ENV: "production", STORAGE_PROVIDER: "minio", ...minioEnv });
+        expect(config.isolation.join()).toMatch(/UPSTASH_BLOB_TOKEN/);
     });
 });
