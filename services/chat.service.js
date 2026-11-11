@@ -217,7 +217,9 @@ export const chatService = {
                 const claimed = await chatDb.claimAttachments(client, { ids: attachments, uploaderDbId: me.id, conversationDbId: conversation.id, messageDbId: inserted.id });
                 if (claimed !== attachments.length) throw badAttachment(); // rolls the message back too
             }
-            return inserted ? finish(publicId, true) : duplicate(await chatDb.messageByClientId(client, { senderDbId: me.id, clientId }));
+            // insertMessage accepts a pending sender; afterSend tells the others (the action never returns this flag).
+            if (inserted) return { ...(await finish(publicId, true)), acceptedByReply: mine.state === "pending" };
+            return duplicate(await chatDb.messageByClientId(client, { senderDbId: me.id, clientId }));
         });
 
         if (result.created) {
@@ -237,7 +239,8 @@ export const chatService = {
         if (w === undefined || h === undefined) throw new ApiError("Invalid image dimensions", 422);
         return withTransaction(async (client) => {
             const { me, conversation, members } = await lockedMember(client, userId, conversationId);
-            if (members.some((m) => !m.left_at && m.state === "pending")) throw new ApiError("Images can't be sent in a message request", 422);
+            // Declined answers like pending (rule 2: the sender never learns of a decline).
+            if (members.some((m) => !m.left_at && m.state !== "accepted")) throw new ApiError("Images can't be sent in a message request", 422);
             const attachmentId = `att_${ulid().toLowerCase()}`;
             // Ids here are server-made public ids, never client input.
             const key = chatMediaKey({ conversationId: conversation.public_id, attachmentId, contentType });

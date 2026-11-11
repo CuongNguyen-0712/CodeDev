@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 /** Conversation pane wiring: request banner, composer rules, typing line, /messages/new (spec sections 7 and 9). */
@@ -100,6 +100,35 @@ describe("ConversationView", () => {
         expect(banner.textContent).toContain("Ada wants to message you");
         for (const name of ["Accept", "Decline", "Block"]) expect(screen.getByRole("button", { name })).toBeTruthy();
         expect(screen.queryByRole("button", { name: "Attach images" })).toBeNull();
+    });
+
+    it("blocking from the request banner blocks, then declines, then leaves", async () => {
+        const { blockUserAction, respondRequestAction } = await import("@/actions/chat.actions");
+        const order = [];
+        blockUserAction.mockImplementation(async () => { order.push("block"); return { success: true, data: { blocked: true } }; });
+        respondRequestAction.mockImplementation(async () => { order.push("decline"); return { success: true, data: { state: "declined" } }; });
+        detail.members = [member("P1", { state: "pending" }), member("P2")];
+        renderWith(<ConversationView conversationId="cnv_a" />);
+        await screen.findByRole("region", { name: "Message request" });
+        fireEvent.click(screen.getByRole("button", { name: "Block" }));
+        fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Block" }));
+        await waitFor(() => expect(replace).toHaveBeenCalledWith("/messages"));
+        expect(blockUserAction).toHaveBeenCalledWith("P2");
+        expect(respondRequestAction).toHaveBeenCalledWith({ conversationId: "cnv_a", accept: false });
+        expect(order).toEqual(["block", "decline"]);
+    });
+
+    it("renders the thread without Array.prototype.toReversed (Safari < 16)", async () => {
+        const original = Array.prototype.toReversed;
+        delete Array.prototype.toReversed;
+        try {
+            renderWith(<ConversationView conversationId="cnv_a" />);
+            await screen.findByText("hello 2");
+            const texts = [...document.querySelectorAll("li p")].map((p) => p.textContent).filter((t) => t.startsWith("hello"));
+            expect(texts).toEqual(["hello 1", "hello 2"]);
+        } finally {
+            Array.prototype.toReversed = original;
+        }
     });
 
     it("replaces the composer when the member cannot send", async () => {

@@ -46,6 +46,8 @@ export function useSendMessage(conversationId) {
         onSuccess: ({ message }, { clientId }) => {
             queryClient.setQueryData(chatKeys.messages(message.conversationId), (data) => insertMessage(data, message));
             useChatOutboxStore.getState().removeUnsent(message.conversationId, clientId);
+            // A reply to a request accepts it: the banner and canSend come from the detail.
+            queryClient.invalidateQueries({ queryKey: chatKeys.conversation(message.conversationId) });
         },
         onError: (_, { clientId }) => {
             if (conversationId) useChatOutboxStore.getState().setUnsentStatus(conversationId, clientId, "failed");

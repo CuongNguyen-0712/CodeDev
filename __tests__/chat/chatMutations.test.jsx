@@ -69,6 +69,16 @@ describe("useSendMessage", () => {
     });
 });
 
+describe("useSendMessage refreshes the conversation", () => {
+    it("invalidates the detail after a send, so a reply that accepted a request drops the banner", async () => {
+        sendMessageAction.mockResolvedValueOnce({ message: server(2) });
+        const invalidate = vi.spyOn(qc, "invalidateQueries");
+        const { result } = renderHook(() => useSendMessage(CID), { wrapper });
+        await act(async () => { await result.current.mutateAsync({ clientId: "k2", body: "hey", sender: { id: "u1" } }); });
+        expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.conversation(CID) });
+    });
+});
+
 describe("optimistic edit and unsend", () => {
     beforeEach(() => qc.setQueryData(chatKeys.messages(CID), pagesOf(server(2), server(1))));
 

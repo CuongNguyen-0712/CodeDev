@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { resolveStorageConfig, s3ClientOptions, describeStorage } from "@/lib/storageConfig.mjs";
 import { appEnv, isDeployedEnv, isLocalUrl } from "@/lib/appEnv.mjs";
@@ -113,5 +115,18 @@ describe("chat bucket in production on s3", () => {
             const ok = resolveStorageConfig({ ...base, ...extra });
             expect([ok.warnings, ok.isolation, ok.chatConfigured]).toEqual([[], [], true]);
         }
+    });
+});
+
+describe("presigned PUT", () => {
+    it("carries no SDK default checksum (S3 would check it against the uploaded body)", async () => {
+        const config = resolveStorageConfig({ NODE_ENV: "development", ...minioEnv });
+        const client = new S3Client(s3ClientOptions(config));
+        // Built like lib/s3.js presignPut; signing is local, nothing is sent.
+        const command = new PutObjectCommand({ Bucket: "codedev-chat-media", Key: "chat/x.png", ContentType: "image/png", ContentLength: 68 });
+        const url = new URL(await getSignedUrl(client, command, { expiresIn: 60, signableHeaders: new Set(["content-type", "content-length"]) }));
+        const params = [...url.searchParams.keys()].map((k) => k.toLowerCase());
+        expect(params).toContain("x-amz-signature");
+        expect(params.filter((k) => k.startsWith("x-amz-checksum") || k === "x-amz-sdk-checksum-algorithm")).toEqual([]);
     });
 });

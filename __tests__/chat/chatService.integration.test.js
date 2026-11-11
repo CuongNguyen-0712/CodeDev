@@ -128,14 +128,17 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
     it("the pending recipient replying accepts the conversation", async () => {
         const [a, b] = await pair();
         const r = await send(a, b);
+        expect(r.acceptedByReply).toBe(false);
         const reply = await send(b, r.conversation.id, "hey");
+        expect(reply.acceptedByReply).toBe(true);
         expect(reply.recipients).toEqual([{ publicId: a, state: "accepted" }]);
         expect((await chatService.listConversations({ userId: b, tab: "all" })).items[0]).toMatchObject({ id: r.conversation.id, state: "accepted" });
         expect((await chatService.listConversations({ userId: b, tab: "requests" })).items).toHaveLength(0);
-        expect((await send(a, r.conversation.id, "again")).created).toBe(true);
+        expect(await send(a, r.conversation.id, "again")).toMatchObject({ created: true, acceptedByReply: false });
         const detail = await chatService.getConversation({ userId: b, conversationId: r.conversation.id });
         expect(detail).toMatchObject({ kind: "direct", title: a, state: "accepted", canSend: true });
         expect(detail.members.find((m) => m.id === b).lastReadSeq).toBe(reply.message.seq);
+        expect((await send(b, r.conversation.id, "and again")).acceptedByReply).toBe(false);
     });
 
     it("a declined request looks pending to the sender", async () => {

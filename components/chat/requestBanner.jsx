@@ -15,18 +15,29 @@ import { Spinner } from "@/components/shadcn/spinner";
 
 export const failAlert = (showAlert) => (error) => showAlert(error?.status || 500, error?.message || "Something went wrong. Please try again.");
 
-/** Confirms blocking `name`, then blocks `userId` and leaves for /messages. Used by the banner and the header menu. */
-export function BlockDialog({ open, onOpenChange, name, userId }) {
+/**
+ * Confirms blocking `name`, then blocks `userId` and leaves for /messages. Used by the banner and the header menu.
+ * From the banner, `declineId` (the request's conversation) is declined after the block, so it leaves Requests.
+ */
+export function BlockDialog({ open, onOpenChange, name, userId, declineId }) {
     const router = useRouter();
     const { showAlert } = useApp();
     const block = useBlockUser();
-    const confirm = () => block.mutate(userId, {
-        onSuccess: () => { showAlert(200, `${name} is blocked`); router.replace("/messages"); },
-        onError: failAlert(showAlert),
-    });
+    const respond = useRespondRequest();
+    const busy = block.isPending || respond.isPending;
+    const confirm = async () => {
+        try {
+            await block.mutateAsync(userId);
+            if (declineId) await respond.mutateAsync({ conversationId: declineId, accept: false });
+            showAlert(200, `${name} is blocked`);
+            router.replace("/messages");
+        } catch (error) {
+            failAlert(showAlert)(error);
+        }
+    };
 
     return (
-        <AlertDialog open={open} onOpenChange={(next) => !block.isPending && onOpenChange(next)}>
+        <AlertDialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Block {name}?</AlertDialogTitle>
@@ -35,9 +46,9 @@ export function BlockDialog({ open, onOpenChange, name, userId }) {
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel disabled={block.isPending}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction variant="destructive" disabled={block.isPending} onClick={confirm}>
-                        {block.isPending && <Spinner />}
+                    <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction variant="destructive" disabled={busy} onClick={confirm}>
+                        {busy && <Spinner />}
                         Block
                     </AlertDialogAction>
                 </AlertDialogFooter>
@@ -77,7 +88,7 @@ export default function RequestBanner({ conversationId, name, otherId }) {
                     </Button>
                 )}
             </div>
-            {otherId && <BlockDialog open={blocking} onOpenChange={setBlocking} name={name} userId={otherId} />}
+            {otherId && <BlockDialog open={blocking} onOpenChange={setBlocking} name={name} userId={otherId} declineId={conversationId} />}
         </div>
     );
 }

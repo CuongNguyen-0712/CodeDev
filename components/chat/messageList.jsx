@@ -71,7 +71,7 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
 
     const serverItems = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
     // Newest first in the cache; the thread reads top to bottom.
-    const items = useMemo(() => mergeOutbox(serverItems, unsent).toReversed(), [serverItems, unsent]);
+    const items = useMemo(() => [...mergeOutbox(serverItems, unsent)].reverse(), [serverItems, unsent]);
     const others = useMemo(() => conversation.members.filter((m) => m.id !== meId), [conversation.members, meId]);
     const myLastRead = conversation.members.find((m) => m.id === meId)?.lastReadSeq;
     // Server items only: an unsent message has no seq.

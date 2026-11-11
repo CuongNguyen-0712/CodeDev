@@ -70,6 +70,10 @@ describe.skipIf(!hasDb)("chat attachments (PostgreSQL)", () => {
         const { conversation } = await chatService.send({ userId: a, toUserId: b, clientId: uuid(), body: "hi" });
         await expect(upload(a, conversation.id)).rejects.toMatchObject({ status: 422 });
         await expect(upload(b, conversation.id)).rejects.toMatchObject({ status: 422 });
+        // Rule 2: after a decline the sender gets the same answer as while pending.
+        await chatService.respondRequest({ userId: b, conversationId: conversation.id, accept: false });
+        await expect(upload(a, conversation.id)).rejects.toMatchObject({ status: 422, message: "Images can't be sent in a message request" });
+        expect(media.signUpload).not.toHaveBeenCalled();
     });
 
     it("a body-less message with one image is accepted, and listings carry the attachment", async () => {

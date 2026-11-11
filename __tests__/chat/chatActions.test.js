@@ -57,6 +57,11 @@ describe("sendMessageAction", () => {
         expect(chatService.send).toHaveBeenCalledWith(expect.objectContaining({ body: "  a\n    b" }));
     });
 
+    it("returns only message and conversation (acceptedByReply and recipients stay on the server)", async () => {
+        chatService.send.mockResolvedValue({ message: { id: "m" }, conversation: { id: CNV }, created: true, recipients: [], acceptedByReply: true });
+        expect((await a.sendMessageAction({ conversationId: CNV, clientId: uuid(), body: "hi" })).data).toEqual({ message: { id: "m" }, conversation: { id: CNV } });
+    });
+
     it("rejects the NUL character", async () => {
         expect(await a.sendMessageAction({ conversationId: CNV, clientId: uuid(), body: "a\u0000b" })).toMatchObject({ success: false, status: 422 });
         expect(chatService.send).not.toHaveBeenCalled();

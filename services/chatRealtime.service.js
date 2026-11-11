@@ -55,12 +55,14 @@ export const chatRealtime = {
     conversationUpdated: ({ conversationId, members }) =>
         send(members, events.CHAT_CONVERSATION_UPDATED, { conversationId }),
 
-    /** Fire and forget: returns false (never throws) when the caller may not type here. */
+    /** Fire and forget: returns false (never throws) when the caller may not type here, else true. */
     typing: async ({ userId, conversationId, socketId }) => {
         try {
             const audience = await typingAudience(userId, conversationId);
             if (!audience) return false;
-            return await send(audience, events.CHAT_TYPING, { conversationId, userId }, socketId);
+            // Rule 2: true even when nobody was published to, so an empty (declined) audience looks like a pending one.
+            await send(audience, events.CHAT_TYPING, { conversationId, userId }, socketId);
+            return true;
         } catch (error) {
             console.error("[chatRealtime typing]", error);
             return false;
@@ -70,8 +72,12 @@ export const chatRealtime = {
 
 /** Called once by chat.service (which this module must not import, to avoid a cycle). */
 export function installChatRealtime(chatService) {
-    chatService.afterSend = ({ message, recipients }, { socketId } = {}) =>
-        chatRealtime.messageCreated({ message, recipients, senderId: message.sender.id, socketId });
+    // A reply that accepted a request also refreshes the other members' detail (composer, canSend), as an accept does.
+    chatService.afterSend = async ({ message, recipients, acceptedByReply }, { socketId } = {}) => {
+        const sent = await chatRealtime.messageCreated({ message, recipients, senderId: message.sender.id, socketId });
+        if (acceptedByReply) await chatRealtime.conversationUpdated({ conversationId: message.conversationId, members: recipients.map((r) => r.publicId) });
+        return sent;
+    };
 
     chatService.afterUpdate = ({ message, recipients }, { socketId } = {}) =>
         chatRealtime.messageUpdated({ conversationId: message.conversationId, messageId: message.id, recipients, senderId: message.sender.id, socketId });

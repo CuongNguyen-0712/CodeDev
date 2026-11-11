@@ -62,6 +62,27 @@ describe("chatRealtime", () => {
         expect(membership).toHaveBeenCalledTimes(1);
     });
 
+    it("typing answers true to an accepted member whether or not anyone was published to (rule 2)", async () => {
+        membership.mockResolvedValue({ id: "1", state: "accepted" });
+        members.mockResolvedValue([{ public_id: "u_a", state: "accepted" }, { public_id: "u_b", state: "declined" }]);
+        expect(await chatRealtime.typing({ userId: "u_a", conversationId: "cnv_1" })).toBe(true);
+        expect(publish).not.toHaveBeenCalled();
+        store.clear();
+        members.mockResolvedValue([{ public_id: "u_a", state: "accepted" }, { public_id: "u_b", state: "pending" }]);
+        publish.mockRejectedValue(new Error("pusher down"));
+        expect(await chatRealtime.typing({ userId: "u_a", conversationId: "cnv_1" })).toBe(true);
+    });
+
+    it("afterSend tells the other members when a reply accepted a request, and only then", async () => {
+        const svc = {};
+        installChatRealtime(svc);
+        await svc.afterSend({ message: msg("hi"), recipients, acceptedByReply: false }, { socketId: "1.2" });
+        expect(publish.mock.calls.map((c) => c[1])).toEqual(["chat-message"]);
+        await svc.afterSend({ message: msg("hi"), recipients, acceptedByReply: true }, { socketId: "1.2" });
+        expect(publish.mock.calls.map((c) => c[1])).toEqual(["chat-message", "chat-message", "chat-conversation-updated"]);
+        expect(publish).toHaveBeenLastCalledWith(["private-user-u_b"], "chat-conversation-updated", { conversationId: "cnv_1" }, { socketId: undefined });
+    });
+
     it("read skips empty others; decline is silent, accept pings others", async () => {
         const svc = {};
         installChatRealtime(svc);
