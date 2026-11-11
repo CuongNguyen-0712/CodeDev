@@ -1,6 +1,6 @@
 # Chat: lõi tin nhắn 1-1 và nhóm — thiết kế
 
-Date: 2026-11-11. Status: implemented, except revision 2 (2026-11-11): đính kèm lưu bằng Cloudinary (ảnh) + S3 (file) thay Upstash Blob, thêm đính kèm file — designed, not implemented (mục 4, 7, plan phần R2). Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
+Date: 2026-11-11. Status: implemented, except revision 2 (2026-11-11): ảnh chat lên Cloudinary, file chat lên Upstash Blob, thêm đính kèm file — designed, not implemented (mục 4, 7, plan phần R2). Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
 
 ## 1. Context
 
@@ -25,7 +25,7 @@ Date: 2026-11-11. Status: implemented, except revision 2 (2026-11-11): đính k�
 | D1 | Có cả chat 1-1 và chat team (team 2–5 người, `chk_team_size`). |
 | D2 | 1-1: ai cũng nhắn được cho người bật `show_profile`. Tin từ người chưa quen vào **hộp chờ** (message request). |
 | D3 | Nội dung: text, khối code (```` ``` ````) được tô màu, ảnh, file đính kèm (tài liệu + code, revision 2). |
-| D4 | Đính kèm lưu private (revision 2, thay Upstash Blob). Local: ảnh và file vào MinIO, bucket `codedev-chat-media`. Production: ảnh lên **Cloudinary** `type: "authenticated"` (tài khoản Cloudinary production đã có), file lên **S3** private (`S3_CHAT_BUCKET` trên endpoint `AWS_*` đã có). Xem qua link ký có hạn. |
+| D4 | Đính kèm lưu private (revision 2). Local: ảnh và file vào MinIO, bucket `codedev-chat-media`. Production: ảnh lên **Cloudinary** `type: "authenticated"` (tài khoản Cloudinary production đã có), file lên **Upstash Blob** (bucket private riêng cho chat, `UPSTASH_BLOB_TOKEN`). Neon S3 chỉ giữ bài nộp code. Xem qua link ký có hạn. |
 | D5 | Giao diện: trang `/messages` (hai cột desktop, một cột mobile) + icon tin nhắn trên navbar cạnh chuông, có badge. |
 | D6 | Có: đã xem (✓✓), đang gõ, sửa/thu hồi, web push khi chưa đọc. |
 | D7 | Realtime: fan-out qua kênh user có sẵn (phương án A); tin lớn chỉ gửi ping, client fetch (phương án C). |
@@ -34,7 +34,7 @@ Mặc định do thiết kế này đặt (user đã duyệt cùng các phần t
 
 - Một tin: tối đa 4.000 ký tự, tối đa 4 đính kèm (ảnh và file tính chung).
 - Ảnh: tối đa 5 MB, chỉ `image/jpeg`, `image/png`, `image/webp`.
-- File (revision 2): tối đa 20 MB, theo đuôi file `pdf txt md csv json zip js ts jsx tsx py java c cpp h go rs sql`; mọi đuôi khác bị chặn (gồm html, svg, file thực thi).
+- File (revision 2): tối đa 15 MB (dưới mức 16 MB của một lần PUT lên Upstash Blob, không cần multipart), theo đuôi file `pdf txt md csv json zip js ts jsx tsx py java c cpp h go rs sql`; mọi đuôi khác bị chặn (gồm html, svg, file thực thi).
 - Sửa trong 15 phút sau khi gửi; thu hồi không giới hạn thời gian.
 - Khi người nhận còn `pending`, người gửi chỉ gửi được 1 tin, không kèm đính kèm nào.
 - Push gom theo hội thoại trong 60 giây, chỉ gửi khi tin vẫn chưa đọc; tin trong hộp chờ không push.
@@ -130,16 +130,18 @@ CREATE INDEX idx_chat_report_open ON community.chat_report (created_at) WHERE re
 ```sql
 ALTER TABLE community.chat_attachment
     ADD COLUMN kind varchar(10) NOT NULL DEFAULT 'image' CHECK (kind IN ('image', 'file')),
-    ADD COLUMN provider varchar(20) NOT NULL DEFAULT 's3' CHECK (provider IN ('s3', 'cloudinary')),
+    ADD COLUMN provider varchar(20) NOT NULL DEFAULT 's3' CHECK (provider IN ('s3', 'cloudinary', 'upstash')),
     ADD COLUMN file_name varchar(255),                -- tên hiển thị đã làm sạch; NULL cho ảnh
     DROP CONSTRAINT chat_attachment_content_type_check,
     DROP CONSTRAINT chat_attachment_size_bytes_check,
     ADD CONSTRAINT chat_attachment_kind_type CHECK (
         (kind = 'image' AND content_type IN ('image/jpeg', 'image/png', 'image/webp') AND size_bytes BETWEEN 1 AND 5000000)
         OR (kind = 'file' AND content_type IN ('application/pdf', 'text/plain', 'text/markdown', 'text/csv', 'application/json', 'application/zip')
-            AND size_bytes BETWEEN 1 AND 20000000 AND file_name IS NOT NULL)
+            AND size_bytes BETWEEN 1 AND 15000000 AND file_name IS NOT NULL)
     ),
-    ADD CONSTRAINT chat_attachment_cloudinary_image CHECK (provider = 's3' OR kind = 'image');
+    ADD CONSTRAINT chat_attachment_provider_kind CHECK (
+        provider = 's3' OR (provider = 'cloudinary' AND kind = 'image') OR (provider = 'upstash' AND kind = 'file')
+    );
 ```
 
 Tên constraint cũ là tên Postgres sinh ra ở migration 025 (đã kiểm tra ở DB local: `chat_attachment_content_type_check`, `chat_attachment_size_bytes_check`). `content_type` của file do server quyết theo đuôi (bảng ở mục 4), không lấy từ trình duyệt.
@@ -160,26 +162,32 @@ Tên constraint cũ là tên Postgres sinh ra ở migration 025 (đã kiểm tra
 
 ## 4. Lưu đính kèm (revision 2)
 
-Thay thiết kế Upstash Blob ban đầu. Upstash bị bỏ hẳn: gỡ `@upstash/blob`, biến `UPSTASH_BLOB_TOKEN`, và mọi nhánh code của nó.
+Thay thiết kế ban đầu (ảnh lên Upstash Blob). Ảnh chuyển sang Cloudinary; Upstash Blob chỉ còn giữ file chat.
+
+**Vì sao file chat không lên Neon S3 cùng bài nộp code:**
+- Credential của Neon Object Storage gắn với **branch**, không gắn với bucket. Scope chỉ có `storage:read` và `storage:write` ([Neon docs](https://neon.com/docs/storage/authentication)).
+- Vì vậy key ghi file chat cũng ghi, xoá và đọc được bucket bài nộp code. Tách bucket không tách được quyền.
+- Token Upstash Blob chỉ có hiệu lực trên đúng một bucket. Token chat bị lộ hay code chat có bug thì bài nộp code vẫn không bị đụng tới.
+- Quota, chi phí, log và sự cố cũng tách riêng.
 
 | | Local / dev / test | Production |
 |---|---|---|
 | Ảnh | MinIO `codedev-chat-media` | Cloudinary, `type: "authenticated"`, public id `codedev/chat/{cnv}/{att}` (theo quy ước folder `codedev/...` của `lib/cloudinary.js`) |
-| File | MinIO `codedev-chat-media` | S3 private, bucket `S3_CHAT_BUCKET` trên endpoint `AWS_*` (`lib/storageConfig.mjs`) |
+| File | MinIO `codedev-chat-media` | Upstash Blob, bucket private riêng cho chat (`UPSTASH_BLOB_TOKEN`), key `chat/{cnv}/{att}.{ext}` |
 
 Theo spec media 2026-11-09, tài khoản Cloudinary chỉ dùng cho production: dev và test không bao giờ ghi lên Cloudinary. Cột `provider` của mỗi dòng ghi nơi lưu thật, nên đọc và xoá luôn đi đúng chỗ, kể cả khi env thay đổi sau này.
 
 `lib/chatMedia.js` (server-only) đổi interface, mọi hàm nhận một attachment `{ kind, provider, storageKey, contentType, size, fileName }`:
 
 ```js
-storageFor(kind)                        // -> "cloudinary" | "s3": nơi lưu cho upload mới theo env
+storageFor(kind)                        // -> "cloudinary" | "upstash" | "s3": nơi lưu cho upload mới theo env
 uploadTicket(att)                       // -> { method: "PUT", url, headers } | { method: "POST", url, fields }
 inspect(att)                            // -> { contentType, size } | null (không tồn tại)
 readUrl(att)                            // -> URL có hạn (ảnh: xem; file: tải về)
 remove(att)                             // không tồn tại vẫn thành công
 ```
 
-**S3 / MinIO** (ảnh local, file mọi môi trường): giữ code hiện có trong `lib/s3.js`.
+**S3 / MinIO** (chỉ local / dev / test, cả ảnh lẫn file): giữ code hiện có trong `lib/s3.js`.
 - Upload: presign PUT, ký `Content-Type` và `Content-Length`, checksum `WHEN_REQUIRED`.
 - `inspect`: `HeadObject`.
 - `remove`: `DeleteObject`.
@@ -194,6 +202,14 @@ remove(att)                             // không tồn tại vẫn thành công
 - `readUrl`: `cloudinary.utils.private_download_url(public_id, format, { type: "authenticated", expires_at: now + 300 })`. Link hết hạn thật sau 5 phút. Link đi qua API Cloudinary chứ không qua CDN: không có resize/thumbnail, và mỗi lần xem tính vào quota API.
 - `remove`: `destroyAsset(public_id, { resourceType: "image" })` cộng `type: "authenticated"`. Mở rộng `lib/cloudinary.js` để nhận `type`; caller hiện có giữ mặc định.
 
+**Upstash Blob** (file production). Dùng `@upstash/blob`, đã có trong `package.json`. Adapter Upstash trong `lib/chatMedia.js` đã có sẵn, kèm test; chỉ đổi phạm vi từ "mọi ảnh và file" thành "chỉ file".
+- Upload: `bucket.signedUploadUrl(key, { contentType, size })` trả về `{ method: "PUT", url, headers }`. Mỗi lần upload là một PUT duy nhất, nên file phải ≤ 15 MB.
+- `inspect`: `bucket.info(key)`. Lỗi `not_found` thì trả `null`.
+- `readUrl`: `bucket.signedReadUrl(key, { downloadAs: file_name })`. Link sống tối đa 10 phút. `downloadAs` buộc trình duyệt tải file về chứ không mở ra.
+- `remove`: `bucket.del(key)`.
+- Token chỉ nằm ở server, không bao giờ đặt trong biến `NEXT_PUBLIC_`.
+- Rủi ro R9: trình duyệt PUT thẳng lên URL của `signedUploadUrl`, trong khi Upstash ghi hàm này là dành cho CLI/server. Phải test thật ngay khi có token. Nếu PUT từ trình duyệt bị chặn, dự phòng là upload qua server action. Server action giới hạn 6 MB, nên dự phòng này kéo theo giới hạn file nhỏ hơn.
+
 **Loại file cho phép** (`lib/chat/limits.js`, đuôi viết thường → content-type lưu):
 
 | Đuôi | Content-type |
@@ -206,18 +222,18 @@ remove(att)                             // không tồn tại vẫn thành công
 | `zip` | `application/zip` |
 
 **Cấu hình**:
-- `buckets.chat = S3_CHAT_BUCKET || "codedev-chat-media"`.
+- `buckets.chat = S3_CHAT_BUCKET || "codedev-chat-media"`: chỉ dùng cho MinIO local; production không lưu chat trên S3.
 - Production thiếu `CLOUDINARY_*`: upload ảnh trả 503 "Chat images are not configured".
-- Production thiếu `S3_CHAT_BUCKET`: upload file trả 503 "Chat files are not configured".
-- Cả hai trường hợp chỉ ghi `warnings`, không chặn khởi động và không ảnh hưởng S3 khác (giữ cách làm của R8b).
+- Production thiếu `UPSTASH_BLOB_TOKEN`: upload file trả 503 "Chat files are not configured".
+- Cả hai trường hợp chỉ ghi `warnings`, không chặn khởi động và không ảnh hưởng S3 của bài nộp code (giữ cách làm của R8b). Luật hiện tại trong `lib/storageConfig.mjs` ("production + s3 + không có token + không có `S3_CHAT_BUCKET`") bỏ điều kiện `S3_CHAT_BUCKET`.
 - Production vẫn không thể rơi về MinIO nhờ luật isolation có sẵn.
 
 **Khác**:
 - `scripts/storage-sync.mjs --init` tạo bucket `codedev-chat-media` trong MinIO. MinIO không hỗ trợ `PutBucketCors` nên dùng CORS mặc định. `storage-sync` không đồng bộ bucket chat.
-- Không có lifecycle rule theo prefix trên cả hai nơi lưu: dọn dẹp do job (mục 8).
+- Cloudinary và Upstash đều không có lifecycle rule theo prefix: dọn dẹp do job (mục 8).
 - `.env.example`:
-  - bỏ `UPSTASH_BLOB_TOKEN`;
-  - giữ `S3_CHAT_BUCKET`, ghi chú bắt buộc ở production cho file chat;
+  - giữ `UPSTASH_BLOB_TOKEN`, ghi chú bắt buộc ở production cho file chat, để trống ở local;
+  - giữ `S3_CHAT_BUCKET`, ghi chú chỉ dùng cho MinIO local;
   - ghi chú `CLOUDINARY_*` cũng phục vụ ảnh chat ở production.
 
 ## 5. Bề mặt API
@@ -291,7 +307,7 @@ Một lệnh `trigger` cho nhiều kênh (≤ 5 thành viên, Pusher cho tới 1
 **Đính kèm (revision 2).**
 1. `createChatUploadAction`:
    - kiểm tra người gọi là thành viên, và không ai trong hội thoại ở trạng thái khác `accepted`;
-   - kiểm tra `kind`: ảnh theo loại và tối đa 5 MB; file theo đuôi và tối đa 20 MB;
+   - kiểm tra `kind`: ảnh theo loại và tối đa 5 MB; file theo đuôi và tối đa 15 MB;
    - làm sạch `name` thành `file_name`: bỏ đường dẫn và ký tự điều khiển, tối đa 255 ký tự;
    - chọn `provider` bằng `storageFor(kind)`;
    - insert `chat_attachment` với `message_id NULL`;
@@ -344,7 +360,7 @@ Trước khi bắt đầu task UI đầu tiên của plan: chạy `ui-consistenc
 | Không phải thành viên, đã rời, hội thoại hoặc người nhận không tồn tại / ẩn profile | 404 | đóng hội thoại, refetch inbox |
 | Bị chặn; gửi thêm khi người nhận `pending`; người nhận `declined` | 403 "Không thể gửi tin nhắn" (không nói lý do) | tin `failed`, không có thử lại |
 | Body rỗng không đính kèm, > 4.000 ký tự, > 4 đính kèm, đính kèm trong hộp chờ, ảnh hoặc file sai loại/kích thước | 422 | giữ nội dung trong ô soạn; lỗi chọn file báo bằng toast |
-| Nơi lưu chưa cấu hình ở production (`CLOUDINARY_*` cho ảnh, `S3_CHAT_BUCKET` cho file) | 503 | toast; phần còn lại của chat vẫn chạy |
+| Nơi lưu chưa cấu hình ở production (`CLOUDINARY_*` cho ảnh, `UPSTASH_BLOB_TOKEN` cho file) | 503 | toast; phần còn lại của chat vẫn chạy |
 | Sửa quá 15 phút / tin của người khác | 403 / 404 | hoàn tác |
 | Vượt limiter | 429 | tin `failed`, có thử lại |
 | Mất mạng / timeout | — | tin `failed`, thử lại với cùng `clientId` |
@@ -357,7 +373,7 @@ Vitest, theo mẫu `__tests__/blog/*.integration.test.js`:
 - `__tests__/chat/chatService.integration.test.js` (DB thật): luật hộp chờ (tin đầu, giới hạn 1 tin, không ảnh, accept, decline, tự `accepted` khi là bạn hoặc cùng team); chặn hai chiều; gửi lại cùng `clientId` ra một dòng và không fan-out lại; rời team mất quyền đọc/gửi; sửa trong/ngoài 15 phút; thu hồi xoá body và attachment; badge đếm theo hội thoại; phân trang `before` và keyset inbox; `markRead` không lùi.
 - `__tests__/chat/chatActions.test.js`: quyền, limiter, validate; mock `lib/pusher.js` để kiểm tra fan-out đúng kênh, loại `socketId`, payload ≤ 8 KB inline và > 8 KB thành ping.
 - `__tests__/chat/chatRoutes.test.js`: các route GET; route ảnh 302 cho thành viên, 404 cho người ngoài và người đã rời.
-- `__tests__/chat/chatMedia.test.js`: `storageFor` theo env (production: ảnh → cloudinary, file → s3; dev: cả hai → s3); vé POST Cloudinary có `type: authenticated`, `public_id`, `signature` và không lộ `api_secret`; `readUrl` file có `Content-Disposition: attachment`; `inspect`/`remove` đi đúng `provider` của dòng; mock SDK `cloudinary` và S3 presigner.
+- `__tests__/chat/chatMedia.test.js`: `storageFor` theo env (production: ảnh → cloudinary, file → upstash; dev: cả hai → s3); vé POST Cloudinary có `type: authenticated`, `public_id`, `signature` và không lộ `api_secret`; `readUrl` file: S3 có `Content-Disposition: attachment`, Upstash có `downloadAs: file_name`; `inspect`/`remove` đi đúng `provider` của dòng; mock SDK `cloudinary`, `@upstash/blob` và S3 presigner; file 15.000.001 byte bị 422.
 - `__tests__/chat/chatAttachments.integration.test.js` thêm: file theo đuôi (pdf được, `.exe`/`.html`/`.svg` bị 422), content-type do server quyết, `file_name` được làm sạch, giới hạn 4 đính kèm tính chung, file trong hộp chờ 422.
 - `__tests__/chat/chatPush.test.js`: đã đọc → không push; `pending` → không push; nội dung preview/`[code]`/`[image]`/`[file]`.
 - `__tests__/admin/chatReports.integration.test.js`: chỉ trả tin bị báo cáo; `hide` thu hồi tin; cần quyền.
@@ -365,14 +381,16 @@ Vitest, theo mẫu `__tests__/blog/*.integration.test.js`:
 
 ## 12. Việc cần làm ngoài code
 
-- User tạo bucket S3 private cho chat ở production và đặt `S3_CHAT_BUCKET`; xác nhận `CLOUDINARY_*` production có quyền upload `type: authenticated` (revision 2).
+- User tạo bucket Upstash Blob **private** cho chat và đặt `UPSTASH_BLOB_TOKEN` ở production. Test thật ngay một lượt upload file từ trình duyệt (R9).
+- Xác nhận `CLOUDINARY_*` của production upload được `type: authenticated`.
+- Free tier của Upstash Blob mỗi tháng có 2.000 lượt ghi và 10.000 lượt đọc. Khi có người dùng thật thì chuyển sang gói trả theo dùng.
 - Kiểm tra `community.messages` rỗng ở production trước khi migrate (mục 3).
 - Theo dõi quota message của Pusher: "đang gõ" và ✓✓ tăng số event.
 - Mỗi lần xem ảnh chat production gọi API Cloudinary (`private_download_url`), không qua CDN: theo dõi quota Admin/Upload API của tài khoản; nếu cần thumbnail hoặc cache CDN có hạn thật thì phải bật token-based auth (gói trả phí của Cloudinary).
 
 ## Thay đổi trong lúc làm
 
-- R8b: thiếu cấu hình lưu trữ chat ở production chỉ là cảnh báo; chỉ đính kèm chat trả 503, phần còn lại của site chạy bình thường (thay cho lỗi isolation ban đầu). Revision 2 giữ nguyên nguyên tắc này: thiếu `CLOUDINARY_*` → ảnh 503, thiếu `S3_CHAT_BUCKET` → file 503.
+- R8b: thiếu cấu hình lưu trữ chat ở production chỉ là cảnh báo; chỉ đính kèm chat trả 503, phần còn lại của site chạy bình thường (thay cho lỗi isolation ban đầu). Revision 2 giữ nguyên nguyên tắc này: thiếu `CLOUDINARY_*` → ảnh 503, thiếu `UPSTASH_BLOB_TOKEN` → file 503.
 - R13/R16: đơn vị đọc là `seq`, không phải `messageId`: payload `chat-read` là `{ conversationId, userId, seq }`, `markReadAction` nhận `{ conversationId, seq }`.
 - R15: lỗi validate của chat trả 422 (parser riêng `parseChat`), không phải 400 như phần còn lại của codebase.
 - R17: action trả về dữ liệu rút gọn: `{ message }` (sửa, thu hồi), `{ lastReadSeq }` (đã đọc), `{ state }` (trả lời yêu cầu).
@@ -382,4 +400,9 @@ Vitest, theo mẫu `__tests__/blog/*.integration.test.js`:
 - R27: tin chưa gửi được (đang gửi / lỗi) nằm trong outbox Zustand phía client theo `conversationId`, không nằm trong query cache; gửi lại dùng cùng `clientId`.
 - R31: `/messages/new` tra hội thoại 1-1 sẵn có phía server (`findDirectConversationId`) và chuyển tới `/messages/<id>`; chỉ khi chưa có mới hiện khung soạn trống.
 - R32: `MessageBody` không dùng `skipHtml`; HTML trong tin được hiển thị như văn bản (react-markdown không có rehype-raw nên vẫn an toàn).
-- Revision 2 (2026-11-11, user yêu cầu sau khi lõi chat xong): bỏ Upstash Blob. Ảnh production lên Cloudinary `type: authenticated`, xem qua `private_download_url` có hạn 5 phút. File (tài liệu + code, ≤ 20 MB) lên S3 private ở production. Local: cả hai vào MinIO `codedev-chat-media`. Thêm migration 026 (`kind`, `provider`, `file_name`). Mục 2, 3, 4, 5, 7, 9, 10, 11, 12 đã cập nhật; chưa code (plan, phần Revision 2).
+- Revision 2 (2026-11-11, user yêu cầu sau khi lõi chat xong):
+  - Ảnh production lên Cloudinary `type: authenticated`, xem qua `private_download_url` có hạn 5 phút.
+  - File (tài liệu + code, ≤ 15 MB) production lên Upstash Blob, bucket private riêng. Lý do: credential Neon S3 gắn với branch, nên bucket riêng trên Neon không tách được quyền khỏi bài nộp code.
+  - Local: cả ảnh lẫn file vào MinIO `codedev-chat-media`.
+  - Thêm migration 026 (`kind`, `provider`, `file_name`).
+  - Đã cập nhật các mục 2, 3, 4, 5, 7, 8, 9, 10, 11, 12. Chưa code (plan, phần Revision 2).
