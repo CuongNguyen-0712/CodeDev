@@ -1,6 +1,6 @@
 # Chat: lõi tin nhắn 1-1 và nhóm — thiết kế
 
-Date: 2026-11-11. Status: design (brainstorming, path: architectural). Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
+Date: 2026-11-11. Status: implemented. Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
 
 ## 1. Context
 
@@ -283,3 +283,16 @@ Vitest, theo mẫu `__tests__/blog/*.integration.test.js`:
 - Kiểm tra `community.messages` rỗng ở production trước khi migrate (mục 3).
 - Theo dõi quota message của Pusher: "đang gõ" và ✓✓ tăng số event.
 - Free tier Upstash Blob (10.000 lượt đọc/tháng) sẽ hết nhanh với ảnh chat; cần gói trả theo dùng.
+
+## Thay đổi trong lúc làm
+
+- R8b: thiếu cấu hình lưu trữ chat ở production (S3, không có `UPSTASH_BLOB_TOKEN` và `S3_CHAT_BUCKET`) chỉ là cảnh báo; chỉ ảnh chat trả 503 "Chat images are not configured", phần còn lại của site chạy bình thường (thay cho lỗi isolation ở mục 4).
+- R13/R16: đơn vị đọc là `seq`, không phải `messageId`: payload `chat-read` là `{ conversationId, userId, seq }`, `markReadAction` nhận `{ conversationId, seq }`.
+- R15: lỗi validate của chat trả 422 (parser riêng `parseChat`), không phải 400 như phần còn lại của codebase.
+- R17: action trả về dữ liệu rút gọn: `{ message }` (sửa, thu hồi), `{ lastReadSeq }` (đã đọc), `{ state }` (trả lời yêu cầu).
+- R23: "Blocked people" là một `SettingsSection` riêng (`settings-blocked`) cạnh Privacy, không nằm trong `privacySection.jsx`.
+- R25: trang `/admin/chat-reports` hiển thị dạng hàng như các danh sách admin khác, không phải bảng.
+- R26: admin ẩn tin phải nhập lý do 10–500 ký tự, như các route admin khác.
+- R27: tin chưa gửi được (đang gửi / lỗi) nằm trong outbox Zustand phía client theo `conversationId`, không nằm trong query cache; gửi lại dùng cùng `clientId`.
+- R31: `/messages/new` tra hội thoại 1-1 sẵn có phía server (`findDirectConversationId`) và chuyển tới `/messages/<id>`; chỉ khi chưa có mới hiện khung soạn trống.
+- R32: `MessageBody` không dùng `skipHtml`; HTML trong tin được hiển thị như văn bản (react-markdown không có rehype-raw nên vẫn an toàn).
