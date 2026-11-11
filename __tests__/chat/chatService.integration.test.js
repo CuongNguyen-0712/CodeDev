@@ -325,6 +325,7 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
             try {
                 const edited = await chatService.editMessage({ userId: a, messageId: m.message.id, body: "new", socketId: "s9" });
                 expect(edited.message).toMatchObject({ body: "new", editedAt: expect.any(Date) });
+                expect(edited.preview).toBe("new");
                 expect(edited.recipients).toEqual([{ publicId: b, state: "accepted" }]);
                 expect(calls).toEqual([["new", { socketId: "s9" }]]);
             } finally {
@@ -355,6 +356,7 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
             remove.mockClear();
             remove.mockRejectedValueOnce(new Error("storage down"));
             const r = await chatService.recallMessage({ userId: a, messageId: m.message.id });
+            expect(r.preview).toBe("This message was unsent");
             expect(r.message).toMatchObject({ body: "", deleted: true, attachments: [] });
             expect(r.removed).toEqual([{ kind: "image", provider: "s3", storageKey: key, contentType: "image/png", fileName: null }]);
             expect(r.recipients).toEqual([{ publicId: b, state: "accepted" }]);
