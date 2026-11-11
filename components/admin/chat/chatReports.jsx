@@ -69,7 +69,24 @@ export default function ChatReports() {
                                     </p>
                                     {message.body && <p className="text-sm break-words whitespace-pre-line">{message.body}</p>}
                                     {message.attachments.length > 0 && (
-                                        <p className="text-sm text-muted-foreground">{message.attachments.length} {message.attachments.length === 1 ? "image" : "images"}</p>
+                                        <ul className="flex flex-wrap gap-2">
+                                            {message.attachments.map((attachmentId, index) => {
+                                                const src = `/api/admin/chat-reports/${message.messageId}/attachments/${attachmentId}`;
+                                                return (
+                                                    <li key={attachmentId}>
+                                                        <a href={src} target="_blank" rel="noopener noreferrer" className="block rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                                                            {/* eslint-disable-next-line @next/next/no-img-element -- the route 302s to a short-lived signed URL */}
+                                                            <img
+                                                                src={src}
+                                                                alt={`Image ${index + 1} of ${message.attachments.length} from ${message.sender.username}`}
+                                                                loading="lazy"
+                                                                className="size-20 rounded-md border border-border bg-muted object-cover"
+                                                            />
+                                                        </a>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
                                     )}
                                     <ul className="list-disc space-y-0.5 pl-4 text-sm break-words text-muted-foreground">
                                         {message.reasons.map((reason, index) => <li key={index}>{reason}</li>)}

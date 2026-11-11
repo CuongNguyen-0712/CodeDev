@@ -164,6 +164,14 @@ export const chatDb = {
         `UPDATE community.chat_report SET resolved_at = now(), resolved_by = $2 WHERE message_id = $1 AND resolved_at IS NULL`,
         [messageDbId, adminDbId])).rowCount,
 
+    /** Storage key of an attachment of `messageId`, only while that message has an open report; else null. */
+    reportedAttachmentKey: async (client, { messageId, attachmentId }) => (await one(client,
+        `SELECT a.storage_key FROM community.chat_attachment a
+         JOIN community.chat_message m ON m.id = a.message_id
+         WHERE m.public_id = $1 AND a.public_id = $2
+           AND EXISTS (SELECT 1 FROM community.chat_report r WHERE r.message_id = m.id AND r.resolved_at IS NULL)`,
+        [messageId, attachmentId]))?.storage_key ?? null,
+
     hasOpenReports: async (client, messageDbId) => (await one(client,
         `SELECT EXISTS (SELECT 1 FROM community.chat_report WHERE message_id = $1 AND resolved_at IS NULL) AS open`, [messageDbId])).open,
 
