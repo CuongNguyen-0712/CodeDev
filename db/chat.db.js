@@ -138,6 +138,31 @@ export const chatDb = {
         `INSERT INTO community.chat_report (message_id, reporter_id, reason) VALUES ($1, $2, $3) ON CONFLICT (message_id, reporter_id) DO NOTHING`,
         [messageDbId, reporterDbId, reason])).rowCount === 1,
 
+    /** Messages with open reports, oldest first report first, keyset on (first open report, message id). Only the reported message, never its conversation. */
+    listReported: async ({ cursor, limit }) => (await sql(
+        `WITH r AS (SELECT message_id, count(*)::int AS reports, (array_agg(reason ORDER BY created_at DESC))[1:5] AS reasons, min(created_at) AS first_at
+                    FROM community.chat_report WHERE resolved_at IS NULL GROUP BY message_id)
+         SELECT m.public_id AS "messageId", m.body, c.kind AS "conversationKind", r.reports, r.reasons, r.first_at AS "firstReportedAt",
+                u.public_id AS sender_id, u.username AS sender_username, ${NICKNAME("i")} AS sender_nickname,
+                COALESCE((SELECT array_agg(a.public_id ORDER BY a.id) FROM community.chat_attachment a WHERE a.message_id = m.id), '{}') AS attachments,
+                r.first_at::text AS cursor_at, m.public_id AS cursor_id
+         FROM r
+         JOIN community.chat_message m ON m.id = r.message_id
+         JOIN community.conversation c ON c.id = m.conversation_id
+         JOIN identity.users u ON u.id = m.sender_id
+         LEFT JOIN profile.info i ON i.user_id = u.id
+         WHERE ($1::timestamptz IS NULL OR (r.first_at, m.public_id) > ($1::timestamptz, $2::text))
+         ORDER BY r.first_at, m.public_id LIMIT $3`,
+        [cursor?.createdAt ?? null, cursor?.id ?? null, limit])).rows,
+
+    /** Closes the message's open reports; returns how many were open. */
+    resolveReports: async (client, { messageDbId, adminDbId }) => (await client.query(
+        `UPDATE community.chat_report SET resolved_at = now(), resolved_by = $2 WHERE message_id = $1 AND resolved_at IS NULL`,
+        [messageDbId, adminDbId])).rowCount,
+
+    hasOpenReports: async (client, messageDbId) => (await one(client,
+        `SELECT EXISTS (SELECT 1 FROM community.chat_report WHERE message_id = $1 AND resolved_at IS NULL) AS open`, [messageDbId])).open,
+
     /** Creates the direct conversation and its two members; false when another transaction created it first. */
     insertDirect: async (client, { publicId, directKey, members }) => {
         const row = await one(client,
