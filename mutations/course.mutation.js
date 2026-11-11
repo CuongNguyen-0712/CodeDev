@@ -260,9 +260,9 @@ const withOwnCommentStars = (viewerId, stars) => (old) => !old?.pages ? old : {
     })),
 };
 
-// One 1-5 star rating per learner and course (plan 12), saved optimistically. One scope runs the
-// saves one after another, so quick re-clicks reach the server in order and the last click is stored;
-// only the last pending save writes the server's answer, so an earlier one never flashes back.
+// One 1-5 star vote per learner at each progress milestone, cast optimistically: the milestone
+// closes at once and reopens if the vote fails. One scope runs votes one after another (the prompt
+// dialog and the section can both send one); only the last pending one writes the server's answer.
 export const useCourseRate = () => {
     const queryClient = useQueryClient();
     const { data: session } = useSession();
@@ -304,11 +304,11 @@ export const useCourseRate = () => {
             const commentsKey = courseKeys.comments(courseId);
             context.previousRating.forEach(([key, data]) => queryClient.setQueryData(key, data));
             queryClient.setQueryData(commentsKey, context.previousComments);
-            // After a burst of clicks the snapshot may hold an earlier unsaved choice: take the
-            // server's stars and put them on the viewer's comments too.
+            // Ask the server: a 409 means the vote exists already (another tab), so the section must
+            // show it, and the viewer's comments carry their latest vote.
             await queryClient.invalidateQueries({ queryKey: ratingKey });
             const saved = queryClient.getQueriesData({ queryKey: ratingKey }).find(([, data]) => data)?.[1];
-            if (viewerId && saved) queryClient.setQueryData(commentsKey, withOwnCommentStars(viewerId, saved.stars ?? null));
+            if (viewerId && saved) queryClient.setQueryData(commentsKey, withOwnCommentStars(viewerId, saved.history?.at(-1)?.stars ?? null));
         },
 
         onSuccess: (state, variables) => {
