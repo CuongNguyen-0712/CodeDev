@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 
+import { formatFileSize } from "@/lib/chat/fileInfo";
 import { EDIT_WINDOW_MS, MAX_BODY } from "@/lib/chat/limits";
 import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+import FileIcon from "@/components/chat/fileIcon";
 import MessageBody from "@/components/chat/messageBody";
 import ReportDialog from "@/components/chat/reportDialog";
 import UserAvatar from "@/components/chat/userAvatar";
@@ -20,7 +22,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Textarea } from "@/components/shadcn/textarea";
 
-import { LuCheck, LuCheckCheck, LuEllipsis, LuFlag, LuPencil, LuUndo2 } from "react-icons/lu";
+import { LuCheck, LuCheckCheck, LuDownload, LuEllipsis, LuFlag, LuPencil, LuUndo2 } from "react-icons/lu";
 
 /** True when every other member has read up to `seq` (seqs are bigint strings, so never compared as text). */
 export function seenByAll(seq, others) {
@@ -99,6 +101,9 @@ export default function MessageBubble({ message, mine = false, others, showSende
     const sent = message.seq != null && !message.deleted;
     const canEdit = mine && sent && openedAt - Date.parse(message.createdAt) < EDIT_WINDOW_MS;
     const hasMenu = sent;
+    // A message without `kind` on an attachment is an image.
+    const images = (message.attachments || []).filter((a) => a.kind !== "file");
+    const files = (message.attachments || []).filter((a) => a.kind === "file");
 
     return (
         <li className={cn("flex items-end gap-2", mine && "flex-row-reverse")}>
@@ -116,13 +121,13 @@ export default function MessageBubble({ message, mine = false, others, showSende
                             mine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
                             message.status === "sending" && "opacity-70",
                         )}>
-                            {message.attachments?.length > 0 && (
+                            {images.length > 0 && (
                                 <div className="flex flex-wrap gap-1">
-                                    {message.attachments.map((a) => (
+                                    {images.map((a) => (
                                         <a key={a.id} href={`/api/chat/attachments/${a.id}`} target="_blank" rel="noopener noreferrer">
-                                            {/* eslint-disable-next-line @next/next/no-img-element -- the route 302s to a short-lived signed URL */}
+                                            {/* eslint-disable-next-line @next/next/no-img-element -- the route 302s to a short-lived signed URL; previewUrl is a local blob while sending */}
                                             <img
-                                                src={`/api/chat/attachments/${a.id}`}
+                                                src={a.previewUrl || `/api/chat/attachments/${a.id}`}
                                                 alt="Attached image"
                                                 width={a.width || undefined}
                                                 height={a.height || undefined}
@@ -133,6 +138,20 @@ export default function MessageBubble({ message, mine = false, others, showSende
                                     ))}
                                 </div>
                             )}
+                            {files.map((a) => (
+                                <a
+                                    key={a.id}
+                                    href={`/api/chat/attachments/${a.id}`}
+                                    download
+                                    aria-label={`Download ${a.name}, ${formatFileSize(a.size)}`}
+                                    className={cn("flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm", mine ? "bg-primary-foreground/10" : "bg-background")}
+                                >
+                                    <FileIcon name={a.name} className="size-5 shrink-0" />
+                                    <span className="min-w-0 flex-1 truncate" title={a.name}>{a.name}</span>
+                                    <span className="shrink-0 text-xs tabular-nums">{formatFileSize(a.size)}</span>
+                                    <LuDownload aria-hidden="true" className="size-4 shrink-0" />
+                                </a>
+                            ))}
                             {message.body && <MessageBody body={message.body} />}
                         </div>
                     )}

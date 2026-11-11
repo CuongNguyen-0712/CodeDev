@@ -127,9 +127,9 @@ export default function ConversationView({ conversationId }) {
     };
 
     // Resolves once the send settles; rejects only on 422 so the composer gets its text back (spec section 10).
-    const onSubmit = ({ body, attachmentIds }) => {
+    const onSubmit = ({ body, attachmentIds, attachments }) => {
         const clientId = crypto.randomUUID();
-        return deliver({ clientId, body, attachmentIds }).catch((error) => {
+        return deliver({ clientId, body, attachmentIds, attachments }).catch((error) => {
             if (error?.status !== 422) return;
             discard({ clientId });
             throw error;

@@ -25,7 +25,7 @@ const refreshLists = (queryClient) => {
 };
 
 /**
- * variables: { clientId, body, sender, attachmentIds?, toUserId? }. The unsent message lives in the outbox store
+ * variables: { clientId, body, sender, attachmentIds?, attachments?, toUserId? }. The unsent message lives in the outbox store
  * (a refetch of the messages query must not drop it). Calling mutate again with the same clientId retries it;
  * the server returns the first copy if it arrived.
  */
@@ -36,12 +36,12 @@ export function useSendMessage(conversationId) {
             clientId, body, ...(attachmentIds?.length ? { attachmentIds } : {}),
             ...(conversationId ? { conversationId } : { toUserId }),
         }))),
-        onMutate: ({ clientId, body, sender, attachmentIds }) => {
+        onMutate: ({ clientId, body, sender, attachmentIds, attachments }) => {
             if (!conversationId) return;
             const outbox = useChatOutboxStore.getState();
             if (outbox.byConversation[conversationId]?.some((m) => m.clientId === clientId)) outbox.setUnsentStatus(conversationId, clientId, "sending");
             // attachmentIds kept so Retry resends the same images.
-            else outbox.addUnsent(conversationId, { ...optimisticMessage({ clientId, body, sender, conversationId }), attachmentIds: attachmentIds ?? [] });
+            else outbox.addUnsent(conversationId, { ...optimisticMessage({ clientId, body, sender, conversationId, attachments }), attachmentIds: attachmentIds ?? [] });
         },
         onSuccess: ({ message }, { clientId }) => {
             queryClient.setQueryData(chatKeys.messages(message.conversationId), (data) => insertMessage(data, message));

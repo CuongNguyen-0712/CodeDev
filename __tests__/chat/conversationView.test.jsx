@@ -54,13 +54,13 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("ConversationView", () => {
-    it("renders the thread oldest first with the composer and image button", async () => {
+    it("renders the thread oldest first with the composer and attach button", async () => {
         renderWith(<ConversationView conversationId="cnv_a" />);
         await screen.findByText("hello 2");
         const texts = [...document.querySelectorAll("li p")].map((p) => p.textContent).filter((t) => t.startsWith("hello"));
         expect(texts).toEqual(["hello 1", "hello 2"]);
         expect(screen.getByRole("heading", { name: "Ada" })).toBeTruthy();
-        expect(screen.getByRole("button", { name: "Attach images" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Attach files" })).toBeTruthy();
         expect(screen.queryByRole("region", { name: "Message request" })).toBeNull();
     });
 
@@ -99,7 +99,7 @@ describe("ConversationView", () => {
         const banner = await screen.findByRole("region", { name: "Message request" });
         expect(banner.textContent).toContain("Ada wants to message you");
         for (const name of ["Accept", "Decline", "Block"]) expect(screen.getByRole("button", { name })).toBeTruthy();
-        expect(screen.queryByRole("button", { name: "Attach images" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Attach files" })).toBeNull();
     });
 
     it("blocking from the request banner blocks, then declines, then leaves", async () => {

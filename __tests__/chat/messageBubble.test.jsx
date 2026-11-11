@@ -62,4 +62,21 @@ describe("MessageBubble", () => {
         render(<MessageBubble message={message({ editedAt: "2026-11-11T10:05:00Z" })} others={[]} {...handlers} />);
         expect(screen.getByText("edited")).toBeTruthy();
     });
+
+    it("renders a file card that downloads through the attachment route", () => {
+        const attachments = [{ id: "att_f", kind: "file", name: "report.pdf", size: 2_400_000 }];
+        const { rerender } = render(<MessageBubble message={message({ attachments })} mine others={[]} {...handlers} />);
+        const card = screen.getByRole("link", { name: "Download report.pdf, 2.4 MB" });
+        expect(card.getAttribute("href")).toBe("/api/chat/attachments/att_f");
+        expect(card.hasAttribute("download")).toBe(true);
+        expect(card.className).toContain("bg-primary-foreground/10");
+        rerender(<MessageBubble message={message({ attachments })} others={[]} {...handlers} />);
+        expect(screen.getByRole("link", { name: "Download report.pdf, 2.4 MB" }).className).toContain("bg-background");
+    });
+
+    it("still renders an image attachment as an image", () => {
+        const attachments = [{ id: "att_i", kind: "image", width: 10, height: 20 }];
+        render(<MessageBubble message={message({ attachments })} mine others={[]} {...handlers} />);
+        expect(screen.getByRole("img", { name: "Attached image" }).getAttribute("src")).toBe("/api/chat/attachments/att_i");
+    });
 });
