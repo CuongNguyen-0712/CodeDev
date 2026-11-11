@@ -14,7 +14,7 @@ vi.mock("@/lib/pusherClient", () => ({ getPusherClient: () => null }));
 
 import { editMessageAction, recallMessageAction, sendMessageAction } from "@/actions/chat.actions";
 import { chatKeys } from "@/keys/chat.keys";
-import { mergeOutbox } from "@/lib/chat/messageCache";
+import { insertMessage, mergeOutbox } from "@/lib/chat/messageCache";
 import { useEditMessage, useRecallMessage, useSendMessage } from "@/mutations/chat.mutation";
 import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 
@@ -97,5 +97,20 @@ describe("optimistic edit and unsend", () => {
         await waitFor(() => expect(cached()[0]).toMatchObject({ deleted: true, body: "", attachments: [] }));
         deferred.reject();
         await waitFor(() => expect(cached()[0]).toMatchObject({ deleted: false, body: "m2", attachments: ["x"] }));
+    });
+
+    it.each([
+        ["edit", useEditMessage, { conversationId: CID, messageId: "msg_2", body: "new" }, editMessageAction, { body: "new" }],
+        ["recall", useRecallMessage, { conversationId: CID, messageId: "msg_2" }, recallMessageAction, { deleted: true }],
+    ])("a failed %s restores only that message and keeps an insert that landed meanwhile", async (_, hook, input, action, applied) => {
+        action.mockReturnValue(deferred.promise);
+        const { result } = renderHook(() => hook(), { wrapper });
+        act(() => { result.current.mutate(input); });
+        await waitFor(() => expect(cached().find((m) => m.id === "msg_2")).toMatchObject(applied));
+
+        qc.setQueryData(chatKeys.messages(CID), (data) => insertMessage(data, server(3)));
+        deferred.reject();
+        await waitFor(() => expect(cached().find((m) => m.id === "msg_2")).toMatchObject({ body: "m2", deleted: false, editedAt: null }));
+        expect(cached().map((m) => m.seq)).toEqual(["3", "2", "1"]);
     });
 });

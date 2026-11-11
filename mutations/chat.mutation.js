@@ -53,7 +53,7 @@ export function useSendMessage(conversationId) {
     });
 }
 
-// Optimistic: `change(message, variables)` is applied at once and rolled back when the action fails.
+// Optimistic: `change(message, variables)` is applied at once and rolled back (that message only) when the action fails.
 function useMessageWrite(action, change) {
     const queryClient = useQueryClient();
     return useMutation({
@@ -61,15 +61,16 @@ function useMessageWrite(action, change) {
         onMutate: async (variables) => {
             const key = chatKeys.messages(variables.conversationId);
             await queryClient.cancelQueries({ queryKey: key });
-            const snapshot = queryClient.getQueryData(key);
+            // Only this message is rolled back: other inserts or edits may land while the request runs.
+            const previous = queryClient.getQueryData(key)?.pages.flatMap((p) => p.items).find((m) => m.id === variables.messageId);
             queryClient.setQueryData(key, (data) => (data && {
                 ...data,
                 pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (m.id === variables.messageId ? change(m, variables) : m)) })),
             }));
-            return { key, snapshot };
+            return { key, previous };
         },
         onError: (_, __, context) => {
-            if (context) queryClient.setQueryData(context.key, context.snapshot);
+            if (context?.previous) queryClient.setQueryData(context.key, (data) => patchMessage(data, context.previous));
         },
         onSuccess: ({ message }) => {
             queryClient.setQueryData(chatKeys.messages(message.conversationId), (data) => patchMessage(data, message));
