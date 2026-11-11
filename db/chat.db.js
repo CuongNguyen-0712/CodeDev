@@ -237,4 +237,20 @@ export const chatDb = {
          FROM identity.users me
          JOIN community.conversation_member cm ON cm.user_id = me.id AND cm.left_at IS NULL
          WHERE me.public_id = $1`, [userId])).rows[0],
+
+    /** Unread (same definition as the inbox) in a conversation the user is an accepted, live member of; the latest unread message supplies the preview. */
+    pushSummary: ({ userId, conversationId }) => one(null,
+        `SELECT c.kind, t.name AS team_name, u.n AS unread, lm.body AS last_body,
+                EXISTS (SELECT 1 FROM community.chat_attachment a WHERE a.message_id = lm.id) AS last_has_image,
+                lu.username AS sender_username, ${NICKNAME("li")} AS sender_nickname
+         FROM identity.users me
+         JOIN community.conversation_member cm ON cm.user_id = me.id AND cm.left_at IS NULL AND cm.state = 'accepted'
+         JOIN community.conversation c ON c.id = cm.conversation_id AND c.public_id = $2
+         LEFT JOIN community.team t ON t.id = c.team_id
+         CROSS JOIN LATERAL (SELECT count(*)::int AS n, max(x.id) AS last_id FROM community.chat_message x
+                             WHERE x.conversation_id = c.id AND x.id > cm.last_read_message_id AND x.sender_id <> me.id AND x.deleted_at IS NULL) u
+         JOIN community.chat_message lm ON lm.id = u.last_id
+         JOIN identity.users lu ON lu.id = lm.sender_id
+         LEFT JOIN profile.info li ON li.user_id = lu.id
+         WHERE me.public_id = $1`, [userId, conversationId]),
 };

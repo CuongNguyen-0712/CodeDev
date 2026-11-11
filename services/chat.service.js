@@ -10,6 +10,7 @@ import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
 import { decodeCursor, encodeCursor, pageOf } from "@/lib/keysetCursor";
 import { reportSchema } from "@/lib/validation/blog";
+import { installChatJobs, queueAttachmentDelete } from "@/services/chatJobs.service";
 import { installChatRealtime } from "@/services/chatRealtime.service";
 
 const CONVERSATION_ID = /^cnv_[0-9a-z]{26}$/;
@@ -316,6 +317,16 @@ export const chatService = {
 
     unreadCounts: async ({ userId }) => chatDb.unreadCounts(userId),
 
+    /** What the debounced push says: null when the user is not an accepted member or has nothing unread. */
+    pushSummary: async ({ userId, conversationId }) => {
+        const row = await chatDb.pushSummary({ userId, conversationId });
+        if (!row) return null;
+        const body = row.unread === 1
+            ? preview({ last_deleted: false, last_body: row.last_body, last_has_image: row.last_has_image })
+            : `${row.unread} new messages`;
+        return { title: row.kind === "team" ? row.team_name : row.sender_nickname || row.sender_username, body, link: `/messages/${conversationId}` };
+    },
+
     markRead: async ({ userId, conversationId, seq }) => {
         if (!SEQ.test(String(seq))) throw badRequest("Invalid seq");
         const result = await withTransaction(async (client) => {
@@ -349,14 +360,17 @@ export const chatService = {
             const removedKeys = ref.deleted ? [] : await chatDb.recall(client, ref.id);
             return { message: messageDto(await chatDb.messageById(client, messageId)), recipients, removedKeys };
         });
-        // Files go after commit; a failed delete is logged (a retry event comes with the realtime tasks).
+        // Files go after commit; a failed delete is logged and handed to Inngest to retry (a no-op when it is off).
+        const failed = [];
         for (const key of result.removedKeys) {
             try {
                 await removeMedia(key);
             } catch (error) {
                 console.error("[chat.recall remove]", key, error);
+                failed.push(key);
             }
         }
+        await queueAttachmentDelete(failed);
         await after("afterUpdate", result, { socketId });
         return result;
     },
@@ -423,3 +437,4 @@ export const chatService = {
 };
 
 installChatRealtime(chatService);
+installChatJobs(chatService);

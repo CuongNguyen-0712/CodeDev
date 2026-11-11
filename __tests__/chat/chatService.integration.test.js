@@ -387,5 +387,32 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
             expect(events.map((e) => e.event)).toEqual(["joined", "left", "joined"]);
             await expect(chatService.syncTeamMember(`${TAG}nope`, a, "joined")).rejects.toMatchObject({ status: 404 });
         });
+
+        it("pushSummary: null when read, pending or not a member; counts or previews what is unread", async () => {
+            const [a, b, cid] = await friends();
+            const CODE = "```js x ```";
+            const summary = (userId) => chatService.pushSummary({ userId, conversationId: cid });
+            expect(await summary(b)).toMatchObject({ title: a, body: "first", link: `/messages/${cid}` });
+            expect(await summary(a)).toBeNull(); // own message is never unread
+            expect(await summary(await newUser())).toBeNull();
+            await send(a, cid, CODE);
+            expect((await summary(b)).body).toBe("2 new messages");
+            const last = await send(a, cid, "third");
+            expect((await summary(b)).body).toBe("3 new messages");
+            await chatService.markRead({ userId: b, conversationId: cid, seq: last.message.seq });
+            expect(await summary(b)).toBeNull();
+            expect((await send(a, cid, CODE)).created).toBe(true);
+            expect((await summary(b)).body).toBe("[code]");
+            const gone = await send(a, cid, "gone");
+            expect((await summary(b)).body).toBe("2 new messages");
+            await chatService.recallMessage({ userId: a, messageId: gone.message.id });
+            expect((await summary(b)).body).toBe("[code]"); // an unsent message is not unread
+        });
+
+        it("pushSummary: a pending request gets none", async () => {
+            const [a, b] = await pair();
+            const r = await send(a, b, "hello stranger");
+            expect(await chatService.pushSummary({ userId: b, conversationId: r.conversation.id })).toBeNull();
+        });
     });
 });
