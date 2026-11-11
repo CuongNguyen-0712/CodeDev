@@ -97,7 +97,8 @@ try {
     await run("auth outbox", `DELETE FROM identity.auth_outbox`);
     await run("dead letters", `DELETE FROM ops.dead_letters`);
 
-    await run("messages", `UPDATE community.messages SET message = '[removed on staging]'`);
+    await run("chat messages", `UPDATE community.chat_message SET body = '[removed on staging]' WHERE body <> ''`);
+    await run("chat reports", `UPDATE community.chat_report SET reason = '[removed on staging]'`);
     await run("feedback", `UPDATE community.feedback SET feedback = '[removed on staging]'`);
 
     // audit_log is append-only (trigger); the table owner lifts it for this one update.

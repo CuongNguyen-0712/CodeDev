@@ -88,6 +88,8 @@ CREATE TABLE community.chat_report (
 );
 CREATE INDEX idx_chat_report_open ON community.chat_report (created_at) WHERE resolved_at IS NULL;
 
+DO $$ BEGIN IF EXISTS (SELECT 1 FROM community.messages) THEN RAISE EXCEPTION 'community.messages is not empty: migrate or remove its rows before 20261111_025'; END IF; END $$;
+
 DROP TABLE community.messages;
 
 INSERT INTO identity.permissions (id, resource, action, description)
