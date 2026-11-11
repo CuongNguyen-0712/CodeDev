@@ -79,4 +79,22 @@ describe("MessageBubble", () => {
         render(<MessageBubble message={message({ attachments })} mine others={[]} {...handlers} />);
         expect(screen.getByRole("img", { name: "Attached image" }).getAttribute("src")).toBe("/api/chat/attachments/att_i");
     });
+
+    it("shows an unsent message's attachments as previews, not links", () => {
+        const attachments = [
+            { id: "att_i", kind: "image", width: 10, height: 20, previewUrl: "blob:preview" },
+            { id: "att_f", kind: "file", name: "report.pdf", size: 2_400_000 },
+        ];
+        const { container } = render(<MessageBubble message={message({ id: null, seq: null, status: "sending", attachments })} mine others={[]} {...handlers} />);
+        const img = screen.getByRole("img", { name: "Attached image" });
+        expect(img.getAttribute("src")).toBe("blob:preview");
+        expect(img.closest("a")).toBeNull();
+        expect(screen.queryByRole("link")).toBeNull();
+        const card = screen.getByLabelText("Download report.pdf, 2.4 MB");
+        expect(card.tagName).not.toBe("A");
+        expect(card.getAttribute("aria-disabled")).toBe("true");
+        expect(card.textContent).toContain("report.pdf");
+        expect(card.textContent).toContain("2.4 MB");
+        expect(container.querySelector("[href], [download]")).toBeNull();
+    });
 });

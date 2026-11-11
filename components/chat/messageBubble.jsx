@@ -101,6 +101,7 @@ export default function MessageBubble({ message, mine = false, others, showSende
     const sent = message.seq != null && !message.deleted;
     const canEdit = mine && sent && openedAt - Date.parse(message.createdAt) < EDIT_WINDOW_MS;
     const hasMenu = sent;
+    const unsent = message.seq == null;
     // A message without `kind` on an attachment is an image.
     const images = (message.attachments || []).filter((a) => a.kind !== "file");
     const files = (message.attachments || []).filter((a) => a.kind === "file");
@@ -123,35 +124,41 @@ export default function MessageBubble({ message, mine = false, others, showSende
                         )}>
                             {images.length > 0 && (
                                 <div className="flex flex-wrap gap-1">
-                                    {images.map((a) => (
-                                        <a key={a.id} href={`/api/chat/attachments/${a.id}`} target="_blank" rel="noopener noreferrer">
-                                            {/* eslint-disable-next-line @next/next/no-img-element -- the route 302s to a short-lived signed URL; previewUrl is a local blob while sending */}
+                                    {images.map((a) => {
+                                        const img = (
+                                            // eslint-disable-next-line @next/next/no-img-element -- the route 302s to a short-lived signed URL; previewUrl is a local blob while sending
                                             <img
-                                                src={a.previewUrl || `/api/chat/attachments/${a.id}`}
+                                                src={unsent ? a.previewUrl : `/api/chat/attachments/${a.id}`}
                                                 alt="Attached image"
                                                 width={a.width || undefined}
                                                 height={a.height || undefined}
                                                 loading="lazy"
                                                 className="h-auto max-h-60 w-auto max-w-full rounded-md object-cover"
                                             />
-                                        </a>
-                                    ))}
+                                        );
+                                        // The route answers 404 until the send claims the attachment, so an unsent image is a preview, not a link.
+                                        return unsent
+                                            ? <span key={a.id}>{img}</span>
+                                            : <a key={a.id} href={`/api/chat/attachments/${a.id}`} target="_blank" rel="noopener noreferrer">{img}</a>;
+                                    })}
                                 </div>
                             )}
-                            {files.map((a) => (
-                                <a
-                                    key={a.id}
-                                    href={`/api/chat/attachments/${a.id}`}
-                                    download
-                                    aria-label={`Download ${a.name}, ${formatFileSize(a.size)}`}
-                                    className={cn("flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm", mine ? "bg-primary-foreground/10" : "bg-background")}
-                                >
-                                    <FileIcon name={a.name} className="size-5 shrink-0" />
-                                    <span className="min-w-0 flex-1 truncate" title={a.name}>{a.name}</span>
-                                    <span className="shrink-0 text-xs tabular-nums">{formatFileSize(a.size)}</span>
-                                    <LuDownload aria-hidden="true" className="size-4 shrink-0" />
-                                </a>
-                            ))}
+                            {files.map((a) => {
+                                const size = formatFileSize(a.size);
+                                const card = cn("flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm", mine ? "bg-primary-foreground/10" : "bg-background");
+                                const inner = (
+                                    <>
+                                        <FileIcon name={a.name} className="size-5 shrink-0" />
+                                        <span className="min-w-0 flex-1 truncate" title={a.name}>{a.name}</span>
+                                        <span className="shrink-0 text-xs tabular-nums">{size}</span>
+                                        <LuDownload aria-hidden="true" className="size-4 shrink-0" />
+                                    </>
+                                );
+                                // Same look, no link, until the message is sent (the route answers 404 before that).
+                                return unsent
+                                    ? <div key={a.id} role="group" aria-disabled="true" aria-label={`Download ${a.name}, ${size}`} className={card}>{inner}</div>
+                                    : <a key={a.id} href={`/api/chat/attachments/${a.id}`} download aria-label={`Download ${a.name}, ${size}`} className={card}>{inner}</a>;
+                            })}
                             {message.body && <MessageBody body={message.body} />}
                         </div>
                     )}

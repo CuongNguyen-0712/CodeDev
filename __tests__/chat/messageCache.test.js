@@ -51,6 +51,11 @@ describe("optimistic messages", () => {
         expect(m).toMatchObject({ id: null, seq: null, clientId: "abc", conversationId: "cnv_1", body: "hi", attachments: [], editedAt: null, deleted: false, status: "sending" });
         expect(typeof m.createdAt).toBe("string");
     });
+
+    it("keeps the picked attachments", () => {
+        const attachments = [{ id: "a1", kind: "image", width: 4, height: 3, previewUrl: "blob:x" }, { id: "a2", kind: "file", name: "n.pdf", size: 9 }];
+        expect(optimisticMessage({ clientId: "abc", body: "", sender: {}, conversationId: "c", attachments }).attachments).toEqual(attachments);
+    });
 });
 
 describe("mergeOutbox", () => {

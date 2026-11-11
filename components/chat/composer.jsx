@@ -110,7 +110,7 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
         event.target.value = "";
         const problems = files.map(refusal).filter(Boolean);
         const accepted = files.filter((file) => !refusal(file)).slice(0, MAX_ATTACHMENTS - images.length);
-        if (accepted.length < files.length - problems.length) problems.push([400, `You can attach up to ${MAX_ATTACHMENTS} images.`]);
+        if (accepted.length < files.length - problems.length) problems.push([400, `You can attach up to ${MAX_ATTACHMENTS} files.`]);
         // A refused file is a toast, like an oversized avatar in Settings; the thumbnails show only what was kept.
         for (const [status, message] of problems) showAlert(status, message);
 

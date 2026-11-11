@@ -161,4 +161,12 @@ describe("Composer", () => {
         expect(showAlert).toHaveBeenCalledWith(413, "big.zip is larger than 15 MB.");
         expect(createUpload).not.toHaveBeenCalled();
     });
+
+    it("toasts when more than 4 attachments are picked", async () => {
+        createUpload.mockReturnValue(new Promise(() => { }));
+        const { container } = render(<Composer conversationId="cnv_a" imagesAllowed optimistic onSubmit={vi.fn()} />);
+        const files = Array.from({ length: 5 }, (_, i) => new File(["x"], `n${i}.txt`, { type: "text/plain" }));
+        fireEvent.change(fileInput(container), { target: { files } });
+        await waitFor(() => expect(showAlert).toHaveBeenCalledWith(400, "You can attach up to 4 files."));
+    });
 });

@@ -53,6 +53,16 @@ describe("useSendMessage", () => {
         expect(mergeOutbox(cached(), outbox()).map((m) => m.clientId)).toEqual(["k1", "c2", "c1"]);
     });
 
+    it("puts the picked attachments into the outbox entry", async () => {
+        sendMessageAction.mockReturnValue(new Promise(() => { }));
+        const attachments = [{ id: "a1", kind: "image", width: 4, height: 3, previewUrl: "blob:x" }, { id: "a2", kind: "file", name: "n.pdf", size: 9 }];
+        const { result } = renderHook(() => useSendMessage(CID), { wrapper });
+        act(() => { result.current.mutate({ ...vars, attachmentIds: ["a1", "a2"], attachments }); });
+        await waitFor(() => expect(outbox()).toHaveLength(1));
+        expect(outbox()[0]).toMatchObject({ attachments, attachmentIds: ["a1", "a2"] });
+        expect(sendMessageAction.mock.calls[0][0]).not.toHaveProperty("attachments");
+    });
+
     it("leaves a failed item, then a retry with the same clientId flips it back and clears it on success", async () => {
         qc.setQueryData(chatKeys.messages(CID), pagesOf(server(1)));
         sendMessageAction.mockRejectedValueOnce(new Error("offline"));
