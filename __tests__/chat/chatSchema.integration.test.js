@@ -77,16 +77,16 @@ describe.skipIf(!hasDb)("chat schema (PostgreSQL)", () => {
 
         it("accepts a 15 MB pdf file row and refuses 15000001 bytes", async () => {
             await add({ ...pdf, size_bytes: 15000000 });
-            await expect(add({ ...pdf, size_bytes: 15000001 })).rejects.toThrow();
+            await expect(add({ ...pdf, size_bytes: 15000001 })).rejects.toThrow(/chat_attachment_kind_type/);
         });
         it("refuses a file row without file_name and an image over 5 MB", async () => {
-            await expect(add({ ...pdf, file_name: null })).rejects.toThrow();
-            await expect(add({ size_bytes: 5000001 })).rejects.toThrow();
+            await expect(add({ ...pdf, file_name: null })).rejects.toThrow(/chat_attachment_kind_type/);
+            await expect(add({ size_bytes: 5000001 })).rejects.toThrow(/chat_attachment_kind_type/);
         });
         it("refuses provider 'cloudinary' for a file and 'upstash' for an image", async () => {
             await add({ provider: "cloudinary" });
-            await expect(add({ ...pdf, provider: "cloudinary" })).rejects.toThrow();
-            await expect(add({ provider: "upstash" })).rejects.toThrow();
+            await expect(add({ ...pdf, provider: "cloudinary" })).rejects.toThrow(/chat_attachment_provider_kind/);
+            await expect(add({ provider: "upstash" })).rejects.toThrow(/chat_attachment_provider_kind/);
         });
         it("keeps existing image rows valid (kind defaults to image, provider to s3)", async () => {
             await addAttachment("image/webp", 10);
