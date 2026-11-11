@@ -1,6 +1,6 @@
 # Chat: lõi tin nhắn 1-1 và nhóm — thiết kế
 
-Date: 2026-11-11. Status: implemented, except revision 2 (2026-11-11): ảnh chat lên Cloudinary, file chat lên Upstash Blob, thêm đính kèm file — designed, not implemented (mục 4, 7, plan phần R2). Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
+Date: 2026-11-11. Status: implemented, except revision 3 (tối ưu realtime, mục 6.1 — designed, not implemented) and revision 2 (2026-11-11): ảnh chat lên Cloudinary, file chat lên Upstash Blob, thêm đính kèm file — designed, not implemented (mục 4, 7, plan phần R2). Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
 
 ## 1. Context
 
@@ -278,7 +278,7 @@ Thêm vào `lib/realtime.js` (kênh user, không thêm kênh mới, không sửa
 |---|---|---|
 | `chat-message` | `{ conversationId, message }` nếu JSON ≤ 8 KB; ngược lại `{ conversationId, messageId }` | mọi thành viên `accepted`/`pending` chưa rời, trừ tab gửi (`socketId`) |
 | `chat-message-updated` | `{ conversationId, messageId }` | như trên |
-| `chat-read` | `{ conversationId, userId, messageId }` | thành viên khác (không gửi khi người đọc còn `pending`) |
+| `chat-read` | `{ conversationId, userId, seq }` (R13) | thành viên khác (không gửi khi người đọc còn `pending`) |
 | `chat-typing` | `{ conversationId, userId }` | thành viên khác (không gửi khi `pending`/`declined`) |
 | `chat-conversation-updated` | `{ conversationId }` | thành viên (chấp nhận yêu cầu, team đổi thành viên) |
 
@@ -291,6 +291,65 @@ Một lệnh `trigger` cho nhiều kênh (≤ 5 thành viên, Pusher cho tới 1
 - `chat-read`: cập nhật `last_read_message_id` của thành viên trong cache chi tiết hội thoại.
 - `chat-typing`: ghi vào store Zustand `useChatTypingStore` (`byConversation[id] = { userId: expiresAt }`), hết hạn sau 5 giây. Đây là state UI tạm thời, không phải dữ liệu server, nên hợp với `docs/state-management.md`.
 - `onReconnect` (đã có) cũng invalidate `chatKeys.all`.
+
+### 6.1 Revision 3: tối ưu realtime (2026-11-11, designed, not implemented)
+
+**Đo trên code hiện tại.** Tình huống: A gửi 1 tin, B đang mở hội thoại, mỗi người 1 tab.
+- `chat-message` làm B refetch inbox All (mọi trang đã tải), inbox Requests và `unread`: 2–3 GET.
+- A refetch chi tiết hội thoại ở mọi lần gửi.
+- Sửa hoặc thu hồi tin làm mọi người nhận refetch tất cả các trang tin đã tải.
+- Mỗi tab poll `/api/chat/unread` 60 giây một lần, kể cả khi Pusher đang kết nối.
+- Các route GET của chat dùng chung limiter `api` (120/phút/user). Chat khoảng 1 tin/giây là đã chạm 429.
+
+**Mục tiêu:**
+- Khi hội thoại đã có trong cache, người nhận tốn **0 GET** cho mỗi tin nhắn.
+- Mỗi tin chỉ còn 2 request: POST gửi và POST markRead.
+- Không thêm kênh, không thêm event Pusher, không đổi luật quyền (mục 3) hay luật lộ trạng thái (rule 2).
+
+**Server**
+
+1. **Payload `chat-message` có thêm `preview`:** `{ conversationId, message, preview }`.
+   - `preview` do server tính bằng chính hàm `preview()` của inbox, nên chỉ có một chỗ quyết định `[code]` / `[image]` / `[file]`.
+   - Khi payload phải rút về dạng ping (> 8 KB), ping cũng mang `preview` vì nó ngắn: `{ conversationId, messageId, preview, seq, senderId, createdAt }`.
+2. **Payload `chat-message-updated` mang luôn tin đã sửa:** `{ conversationId, message, preview }`.
+   - Áp dụng cho cả sửa lẫn thu hồi. Với tin thu hồi, `preview` là `"This message was unsent"`.
+   - Khi > 8 KB thì rút về `{ conversationId, messageId }` như cũ.
+3. **Hook sau commit chạy bằng `after()` của `next/server`.**
+   - Áp dụng cho `afterSend`, `afterUpdate`, `afterRead`, `afterRespond`, `afterMembership` và việc gửi event Inngest. Response trả về trước, Pusher và Inngest chạy sau.
+   - Helper `runAfter(fn)`: có request scope thì gọi `after(fn)`. Không có (job, script, test) thì chạy `fn` ngay, có try/catch và log như hiện tại.
+
+**Client**
+
+4. **Cập nhật inbox và `unread` trực tiếp trong cache, không refetch.** Các hàm thuần đặt trong `lib/chat/inboxCache.js`.
+   - **`chat-message` cho hội thoại C đã có trong `inbox("all")` hoặc `inbox("requests")`:**
+     - đưa C lên đầu trang đầu tiên;
+     - đặt `lastMessage = { seq, preview, senderId, createdAt }` và `lastMessageAt`;
+     - nếu tin là của người khác và C không đang mở ở tab hiển thị, đặt `unread = true`. Nếu trước đó dòng C chưa unread và C nằm trong tab All, `unread.unread + 1`.
+   - **C không có trong cache nào** (hội thoại mới hoặc request mới): invalidate `inbox("all")`, `inbox("requests")` và `unread` như cũ. Trường hợp này hiếm.
+   - **Tin của chính mình từ tab khác:** chỉ cập nhật `lastMessage`, không đổi `unread`.
+   - **`markRead` thành công:** đặt `unread = false` cho dòng C. Nếu trước đó dòng là `true` thì `unread.unread - 1`, không xuống dưới 0. Đây là trường hợp duy nhất giảm badge.
+   - **`chat-message-updated` sửa đúng tin đang là `lastMessage` của dòng** (cùng `seq`): cập nhật `preview`.
+   - **`chat-conversation-updated` và `onReconnect`:** giữ invalidate như cũ, vì hiếm.
+5. **Sửa và thu hồi:** khi payload có `message` thì gọi `patchMessage`, không refetch các trang tin. Khi chỉ có ping thì invalidate như cũ.
+6. **Chèn tin theo `seq`:** `insertMessage` đặt tin vào đúng vị trí theo `seq` thay vì luôn đặt lên đầu, để hai event tới lệch thứ tự vẫn hiện đúng.
+7. **Typing:**
+   - Khi tin của X tới, xoá ngay trạng thái đang gõ của X trong hội thoại đó.
+   - Không gửi typing khi `document.visibilityState !== "visible"`.
+   - Gửi tin xong thì reset throttle, để lần gõ tiếp theo báo ngay.
+8. **Người gửi chỉ refetch chi tiết hội thoại** khi cache đang ghi trạng thái của mình khác `accepted`. Đó là trường hợp trả lời một request. Các trường hợp còn lại không refetch.
+9. **`markRead` gộp ở một chỗ** (`useMarkRead`): bỏ qua khi `seq` không lớn hơn `lastReadSeq` của mình trong cache, so bằng BigInt.
+10. **Poll `unread`** chỉ chạy khi Pusher không ở trạng thái `connected`: `refetchInterval: () => connected ? false : 60_000`, đọc `getPusherClient().connection.state`. Khi đã kết nối thì dựa vào event, và vào refetch lúc `onReconnect`.
+
+**Không làm** (cân nhắc sau):
+- typing bằng Pusher client events trên kênh riêng cho từng hội thoại;
+- chọn một tab chính trong nhiều tab bằng BroadcastChannel;
+- presence online.
+
+**Kiểm tra:**
+- Test thuần cho `inboxCache`: đưa lên đầu, đặt unread, tăng và giảm badge, hội thoại lạ thì invalidate.
+- Test handler: không gọi `invalidateQueries` khi C đã có trong cache.
+- Test `runAfter` cho cả hai nhánh.
+- E2E trên trình duyệt: mở tab Network của B lúc A gửi 5 tin liên tiếp. B không có GET `/api/chat/*` nào, chỉ có POST markRead.
 
 ## 7. Các luồng
 
