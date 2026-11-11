@@ -103,18 +103,27 @@ describe("chat bucket", () => {
     });
 });
 
-describe("chat bucket in production on s3", () => {
-    it("warns (not fails) without UPSTASH_BLOB_TOKEN or S3_CHAT_BUCKET", () => {
+describe("chat storage in production", () => {
+    const cloudinaryEnv = { CLOUDINARY_CLOUD_NAME: "c", CLOUDINARY_API_KEY: "k", CLOUDINARY_API_SECRET: "s" };
+
+    it("warns, never errors, for missing chat storage in production", () => {
         const base = { NODE_ENV: "production", ...neonEnv };
         const missing = resolveStorageConfig(base);
-        expect(missing.warnings.join()).toMatch(/UPSTASH_BLOB_TOKEN.*S3_CHAT_BUCKET/);
-        expect(missing.errors).toEqual([]);
-        expect(missing.isolation).toEqual([]);
-        expect(missing.chatConfigured).toBe(false);
-        for (const extra of [{ S3_CHAT_BUCKET: "chat-prod" }, { UPSTASH_BLOB_TOKEN: "t" }]) {
-            const ok = resolveStorageConfig({ ...base, ...extra });
-            expect([ok.warnings, ok.isolation, ok.chatConfigured]).toEqual([[], [], true]);
-        }
+        expect(missing.warnings.join()).toMatch(/Chat images.*Cloudinary/);
+        expect(missing.warnings.join()).toMatch(/Chat files.*UPSTASH_BLOB_TOKEN/);
+        expect([missing.errors, missing.isolation]).toEqual([[], []]);
+        expect([missing.chatImagesConfigured, missing.chatFilesConfigured]).toEqual([false, false]);
+        expect(missing).not.toHaveProperty("chatConfigured");
+
+        const images = resolveStorageConfig({ ...base, ...cloudinaryEnv });
+        expect([images.chatImagesConfigured, images.chatFilesConfigured, images.warnings.length]).toEqual([true, false, 1]);
+        const all = resolveStorageConfig({ ...base, ...cloudinaryEnv, UPSTASH_BLOB_TOKEN: "t" });
+        expect([all.chatImagesConfigured, all.chatFilesConfigured, all.warnings, all.errors, all.isolation]).toEqual([true, true, [], [], []]);
+    });
+
+    it("counts chat storage as configured outside production (MinIO)", () => {
+        const dev = resolveStorageConfig({ NODE_ENV: "development", ...minioEnv });
+        expect([dev.chatImagesConfigured, dev.chatFilesConfigured, dev.warnings]).toEqual([true, true, []]);
     });
 });
 
