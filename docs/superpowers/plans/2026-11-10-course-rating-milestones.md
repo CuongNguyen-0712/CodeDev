@@ -255,3 +255,75 @@ git commit -m "feat(rating): server picks the milestone, view with history and b
 - [ ] **Step 3: Signed-in Chrome** (`/course/nodejs-high-performance`, record the learner's stars and restore them at the end): click a star → star `x` position unchanged (measure the first label's `getBoundingClientRect().x` every 50 ms), one request (`/course/<id>` action only), dev overlay shows no issue; section shows "Your rating at N%", history and breakdown as the data allows.
 - [ ] **Step 4: Prompt:** on a test course, complete the lesson that crosses 20% → dialog with the 20% copy; save → section shows the 20% stars.
 - [ ] **Step 5:** run `ui-consistency:verifying` on `ratingSection.jsx` and `courseRatings.jsx` with a separate agent; fix what it reports.
+
+---
+
+# Phase 2 (spec v3): one vote per milestone
+
+> Tasks 1-8 are done (commits `e909befc`..`7f22ad79`). Phase 2 implements spec rules 4, 8, 9, 10, 10a, 14 (v3): a milestone opens when progress reaches it or goes past it (only the highest reached one), takes **one vote that cannot be changed**, then stays closed until the next milestone. Stars only select; "Submit rating" casts the vote.
+
+**Global Constraints (added):**
+- No migration: the schema already holds one row per milestone; a learner never updates a row.
+- 409 code `RATING_CLOSED`, message "You already rated this course at {m}%."; 403 `RATING_NOT_ALLOWED` stays for "nothing open".
+- Copy (exact): "Rate it at {m}%", "Submit rating", "Submitting…", "Your next rating opens at {next}%.", "You rated every milestone of this course.", "Rate this course when you reach 20%.", "Enrol in this course to rate it.", live region "Rating submitted".
+
+**Review Focus (Phase 2):**
+1. **Double submit / two tabs** → the second insert hits the PK, answers 409, the client rolls back and refetches, the section shows the vote. Tests in Task 9 (`rate` 409, `insertVote` twice) and Task 10 (rollback + refetch).
+2. **Progress drops below a voted milestone and climbs back** → it never reopens. Test in Task 9 (`openMilestone(20, [50])`).
+3. **Jump 10% → 60%** → only 50 opens; after the 50 vote, 20 never opens. Test in Task 9.
+4. **A migrated v1 rating at 100** → `reason: 'done'`, nothing open. Test in Task 9.
+5. **A stray click on the stars** → no request until Submit. Check in Task 12 (browser).
+
+### Task 9: One-vote rules on the server
+
+**Files:**
+- Modify: `lib/ratingRules.js`, `db/courseRating.db.js`, `services/courseRating.service.js`
+- Test: `__tests__/rating/milestones.test.js`, `__tests__/learning/courseRating.test.js`, `__tests__/admin/adminRating.integration.test.js` (it calls `upsert`)
+
+**Interfaces:**
+- Produces in `lib/ratingRules.js`:
+  - `openMilestone(reached: number|null, voted: number[]): number|null` — `reached` when it is not null and above every entry of `voted`, else `null`.
+  - `nextMilestone(reached: number|null, voted: number[]): number|null` — first of `MILESTONES` above `max(reached ?? 0, ...voted)`, else `null`.
+  - removes `currentMilestone`.
+- Produces `courseRatingDb.insertVote({ userDbId, courseDbId, milestone, stars }) → { stars } | undefined` — `ON CONFLICT (user_id, course_id, milestone) DO NOTHING RETURNING stars`, keeps the hidden-learner `EXISTS` and its shortcut comment; removes `upsert`.
+- `RatingView` v3: `{ average, count, breakdown, milestone /* open or null */, next, history /* every vote, ascending */, eligible, reason: 'signin'|'enroll'|'progress'|'voted'|'done'|null }` — no `stars`.
+- `ratePromptFor` keeps its signature; asks when `after !== before` and `openMilestone(after, voted) === after`.
+
+- [ ] **Step 1: Tests (RED).**
+  - `milestones.test.js`: `openMilestone(20, [])→20`, `(50, [20])→50`, `(50, [50])→null`, `(20, [50])→null`, `(null, [])→null`, `(100, [20, 50])→100`; `nextMilestone(20, [20])→50`, `(40, [50])→100`, `(100, [100])→null`, `(null, [])→20`.
+  - `courseRating.test.js`: 6/10 no votes → `milestone 50, next 100, history [], eligible true, reason null`; 6/10 with vote 50 → `milestone null, next 100, reason 'voted'`; vote 100 at 10/10 → `reason 'done', next null`; 4/10 with vote 50 → `reason 'voted'`; 1/10 → `reason 'progress'`; `rate` at 6/10 → `insertVote` with `milestone: 50`; `insertVote` resolves `undefined` → rejects 409 `RATING_CLOSED`; nothing open → 403 `RATING_NOT_ALLOWED`, no insert; `ratePromptFor` at 2/10 → `{ milestone: 20, stars: null }`, at 6/10 with vote 50 → `null`.
+  - admin integration: replace `upsert` with `insertVote`; add "a second vote at the same milestone is refused": second `insertVote` resolves `undefined`, stars unchanged.
+- [ ] **Step 2:** `npx vitest run __tests__/rating __tests__/learning/courseRating.test.js __tests__/admin/adminRating.integration.test.js` — Expected: FAIL.
+- [ ] **Step 3: Implement** per the interfaces; `rate` revalidates the page and drops the Redis copy only when a vote was inserted.
+- [ ] **Step 4:** same command — Expected: PASS.
+- [ ] **Step 5: Commit** `feat(rating): one vote per milestone, closed until the next one`
+
+### Task 10: Optimistic one-time vote
+
+**Files:**
+- Modify: `lib/ratingRules.js` (`applyRating`), `mutations/course.mutation.js` (`useCourseRate`)
+- Test: `__tests__/rating/applyRating.test.js`
+
+**Interfaces:** Consumes `RatingView` v3 and `nextMilestone` (Task 9). Produces `applyRating(view, stars) → view` v3.
+
+- [ ] **Step 1: Tests (RED).** vote at 20 with `average 4, count 3, history [], breakdown [{20, 4, 3}]` + 2 → `history [{20, 2}]`, `milestone null`, `eligible false`, `reason 'voted'`, `next 50`, `count 4`, `average 3.5`, breakdown 20 → `{ average 3.5, count 4 }`; vote at 50 with `history [{20, 2}]`, `average 4, count 4` + 4 → `count 4`, `average 4.5`, 2 history entries, breakdown gains `{ milestone: 50, average: null, count: 1 }`; vote at 100 → `reason 'done'`, `next null`; a view with `milestone null` is returned unchanged; `undefined` unchanged.
+- [ ] **Step 2:** `npx vitest run __tests__/rating` — Expected: FAIL.
+- [ ] **Step 3: Implement** `applyRating`. In `useCourseRate`: `onError` restores the snapshots, then always invalidates the rating query (a 409 means the vote exists from another tab). Keep `scope`, `isLast`, snapshots and the own-comment star patch.
+- [ ] **Step 4:** same command — Expected: PASS; `npx eslint mutations lib` — no output.
+- [ ] **Step 5: Commit** `feat(rating): optimistic one-time vote`
+
+### Task 11: Pick stars, then Submit
+
+**Files:** Modify `components/course/params/ratingSection.jsx` (the prompt dialog already picks then saves; its copy stays true).
+
+**Interfaces:** Consumes `RatingView` v3.
+
+- [ ] **Step 1:** learner row: votes read-only first (as now); open milestone → label "Rate it at {m}%", `RatingStars` bound to local `picked` state (reset when `data.milestone` changes), `Button size="sm"` "Submit rating" (disabled while `!picked || rate.isPending`, "Submitting…" while pending) calling `rate.mutate({ courseId, stars: picked })`; nothing open → the reason copy (`voted` uses `data.next`). Keep `sm:shrink-0` on the row; the sr-only live region says "Rating submitted".
+- [ ] **Step 2:** `npx eslint components/course` — no output; ui-consistency `verifying` on the region by a separate agent (Submit button size and variant as Discussion's "Post comment").
+- [ ] **Step 3: Commit** `feat(rating): pick stars, then submit one vote`
+
+### Task 12: Verification
+
+- [ ] **Step 1:** `npx vitest run` — all pass.
+- [ ] **Step 2: Signed-in Chrome**, `/course/nodejs-high-performance`: the account's 20% vote (1 star) → "Your next rating opens at 50%." and no stars to click. On a course where a milestone is open for the account, if any: clicking stars sends **no** request, Submit sends one, the row then shows the vote and the next-milestone text, dev overlay clean. If none is open, say so and rely on the unit tests.
+- [ ] **Step 3:** final review of Phase 2 by a fresh reviewer (most capable model) with Review Focus (Phase 2).

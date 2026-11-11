@@ -1,6 +1,6 @@
 # Course rating: milestone ratings, own section, optimistic save
 
-Status: design (v2). v1 (one rating per learner, own section, optimistic save) is implemented on `develop`, not committed. v2 changes the business rules below; the v1 UI and mutation are reused.
+Status: design (v3). v1 (own section, optimistic save) and v2 (milestones, editable current milestone) are implemented on `develop`. v3 changes rules 4, 8, 9 and 10: **one vote per milestone, locked once cast**; the plan's Phase 2 implements it.
 
 ## Context
 
@@ -15,20 +15,21 @@ Decided with the user:
 1. **Milestones.** `20`, `50`, `100`, measured as completed visible lessons / visible lessons (the same count `public.submit_lesson` writes to `learning.register.progress`).
 2. **100% = every lesson completed**, even if the course's completion rules (quiz / coding pass rates) are not met yet: it matches the progress bar.
 3. **Up to three ratings per learner and course**, one per milestone, 1-5 stars.
-4. **Only the current milestone is editable.** The current milestone is the highest one the learner has reached. Once the next one opens, the earlier ratings are locked, as snapshots of that stage.
+4. **One vote per milestone, then it closes.** A milestone opens when the learner's progress reaches it or goes past it. The learner votes once (1-5 stars); the vote cannot be changed. The rating then stays closed until the next milestone is reached. (v3; replaces "the current milestone stays editable".)
 5. **The public average counts each learner once, with their latest milestone rating** (highest milestone they rated, not hidden). `rating_count` = learners counted. A learner at 100% does not weigh three times a learner at 20%.
 6. **The course page shows the average plus a breakdown per milestone** ("At 20%: 4.1 · At 50%: 4.3 · Finished: 4.6"), each shown only from `MIN_RATINGS` (3) ratings at that milestone. The main average keeps the same threshold.
 
 Defaults taken in this design (say if any should change):
 
 7. **Eligibility:** enrolled (not withdrawn) and progress >= 20%. Below that the reason is `progress` ("Rate this course when you reach 20%"). Replaces "one completed lesson".
-8. **Skipped milestones stay empty.** A learner who reaches 50% without rating at 20% rates at 50%; the 20% slot is closed (rule 4). A small course can jump a milestone in one lesson.
-9. **Progress can drop** (lessons added to the course). The current milestone is `max(milestone reached from progress, highest milestone already rated)`, so a learner never goes back to editing an older slot and never loses an open one.
-10. **The server picks the milestone.** The client sends only `stars`; the server writes the learner's current milestone. A locked milestone cannot be written.
+8. **Only the highest reached milestone opens** (decided with the user). A learner who goes from 10% to 60% without voting gets the 50% vote; the 20% slot closes for good. A small course can jump a milestone in one lesson.
+9. **The open milestone** is the highest milestone reached by progress, when it is above every milestone the learner voted on; otherwise nothing is open. So progress dropping (lessons added) never reopens a milestone, and a vote never comes back.
+10. **The server picks the milestone and writes a vote once.** The client sends only `stars`. The insert never updates an existing row: a second vote at the same milestone (two tabs, a double submit) answers 409 `RATING_CLOSED`; no open milestone answers 403 `RATING_NOT_ALLOWED`.
+10a. **The vote is submitted on purpose** (decided with the user): clicking stars only selects them; "Submit rating" sends the vote. After Submit the section updates at once (optimistic) and rolls back if the vote fails.
 11. **Prompt:** on the first completion of a lesson (`awardedPoints > 0`) that brings progress into a new milestone, if that milestone is not rated, the lesson result carries `ratePrompt: { milestone, stars: null }`. Replaces `RATE_PROMPT_LESSON = 3` and the completion prompt. "Not now" closes it; the learner can still rate from the course page while that milestone is current.
 12. **Moderation hides a learner, not one row.** The admin "hide rating" sets `is_hidden` on all of that learner's rows for the course (the admin list stays one row per learner, with their milestones), so a hidden learner is out of the average and the breakdown.
 13. **Comments** show the author's latest visible milestone stars (as now, from the new rule 5 row).
-14. **Existing ratings migrate** to the learner's current milestone by progress, or to `20` when below 20% (the old rule allowed one lesson). No rating is lost.
+14. **Existing ratings migrate** to the learner's current milestone by progress, or to `20` when below 20% (the old rule allowed one lesson). No rating is lost; each migrated or v2 rating counts as a cast vote (locked).
 
 ## Data model
 
@@ -65,26 +66,29 @@ The per-milestone breakdown is read on demand (`GROUP BY milestone`, a few rows 
   {
     average, count,                 // public, rule 5 and 6
     breakdown: [{ milestone, average /* null below 3 */, count }],
-    milestone,                      // the learner's current milestone, or null below 20%
-    stars,                          // their stars at `milestone`, or null
-    history: [{ milestone, stars }],// their earlier, locked ratings
-    eligible, reason,               // reason: 'signin' | 'enroll' | 'progress' | null
+    milestone,                      // v3: the open milestone (rule 9), or null when nothing is open
+    next,                           // v3: the next milestone that will open (null after 100 or below 20)
+    history: [{ milestone, stars }],// v3: every vote cast, ascending, all locked
+    eligible, reason,               // reason: 'signin' | 'enroll' | 'progress' | 'voted' | 'done' | null
   }
   ```
 
-  `rate({ stars })` computes the current milestone and refuses with 403 `RATING_NOT_ALLOWED` below 20%. It never takes a milestone from the client.
+  `reason` v3: `progress` below 20%, `voted` when the last reached milestone is voted and a next one exists ("Your next rating opens at 50%."), `done` after the 100% vote ("You rated every milestone of this course."). `stars` is dropped from the view: an open milestone has no vote yet.
+
+  `rate({ stars })` computes the open milestone; none → 403 `RATING_NOT_ALLOWED`; the insert is `ON CONFLICT DO NOTHING`, and no row inserted → 409 `RATING_CLOSED` (rule 10). It never takes a milestone from the client.
 - `ratePromptFor()` per rule 11, without changing `public.submit_lesson`: `awardedPoints > 0` means this lesson was completed for the first time, so the milestone before is `milestoneFor(completed - 1, total)` and after is `milestoneFor(completed, total)`, with `completed` / `total` read by `state()` after the submit.
 - A new milestone row of a hidden learner is written hidden too (rule 12), so rating again never escapes moderation.
 - Admin (`db/adminRating.db.js`, `services/adminRating.service.js`): the list shows each learner's milestones; hide / show updates all of the learner's rows (rule 12); audit `before/after` records the milestones. The weekly chart counts rows as now.
 
 ## Client
 
-- `useCourseRate` (already optimistic, `scope` in click order, last pending save writes the answer or rolls back):
-  - `applyRating(state, stars)`: sets `stars`; `count + 1` only when the learner had no visible rating at all; the average replaces the learner's latest stars (`history` last or current) with the new value; the breakdown for `milestone` is updated the same way when it has an average.
+- `useCourseRate` (optimistic, rolls back on error; v3: one vote, so no burst of saves):
+  - `applyRating(state, stars)` v3: appends `{ milestone, stars }` to `history`, closes the milestone (`milestone: null`, `eligible: false`, `reason: next ? 'voted' : 'done'`); `count + 1` only when `history` was empty; the average replaces the learner's previous latest vote (`history` last) with the new one; the breakdown entry of the voted milestone gains the vote (`count + 1`).
+  - a 409 `RATING_CLOSED` rolls back and refetches the rating (the vote exists from another tab).
   - **remove the `courseKeys.details` invalidation**: a rating changes no viewer state, and it costs two requests per click (`course-details`, `viewer-state`, measured).
 - `RatingSection`:
   - summary: the average and count, then the breakdown line (milestones under 3 ratings left out, the line hidden when none qualifies);
-  - learner row: "Your rating at 50%" + `RatingStars` for the current milestone; earlier milestones read-only beside it ("20%: ★4"); reasons: `signin` → Sign in button, `enroll` → "Enrol in this course to rate it.", `progress` → "Rate this course when you reach 20%.";
+  - learner row (v3): votes cast read-only ("20%: ★4"); when a milestone is open, "Rate it at 50%" + `RatingStars` (selection only, local state) + a "Submit rating" button (`size="sm"`, disabled until stars are picked, "Submitting…" while pending); reasons: `signin` → Sign in button, `enroll` → "Enrol in this course to rate it.", `progress` → "Rate this course when you reach 20%.", `voted` → "Your next rating opens at {next}%.", `done` → "You rated every milestone of this course.";
   - **the stars never move:** no visible "Saved" text after the stars (it pushed the right-aligned stars 36px twice per click, measured). Success goes to an `sr-only` `aria-live="polite"` region; errors show a toast and roll back.
 - `RatingStars`: `relative` on each `<label>` so its `sr-only` radio sits on its star (it sits 700px below now, `offsetParent` is `body`).
 - `RatePromptDialog`: the title names the milestone ("You're 20% in: how is the course so far?", "Halfway there…", "You finished the course…"); it saves through the same `useCourseRate`.
