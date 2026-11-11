@@ -23,6 +23,7 @@ import SessionsSection from "@/components/settings/sessionsSection";
 import SignInMethodsSection from "@/components/settings/signInMethodsSection";
 import PreferencesSection from "@/components/settings/preferencesSection";
 import PrivacySection from "@/components/settings/privacySection";
+import BlockedPeopleSection from "@/components/settings/blockedPeopleSection";
 import WebPushSection from "@/components/settings/webPushSection";
 import AvatarCropDialog from "@/components/settings/avatarCropDialog";
 import AvatarHistory from "@/components/settings/avatarHistory";
@@ -632,6 +633,14 @@ export default function SettingsPage() {
                         description="Who can see your profile, your courses and your place on the leaderboard."
                     >
                         <PrivacySection />
+                    </SettingsSection>
+
+                    <SettingsSection
+                        id="settings-blocked"
+                        title="Blocked people"
+                        description="People you blocked cannot message you. Unblock someone to let them write to you again."
+                    >
+                        <BlockedPeopleSection />
                     </SettingsSection>
 
                     <SettingsSection

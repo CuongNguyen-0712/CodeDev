@@ -16,7 +16,7 @@ import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
 
-import { LuLoaderCircle, LuUsers, LuUserSearch, LuX } from "react-icons/lu";
+import { LuLoaderCircle, LuMessageSquare, LuUsers, LuUserSearch, LuX } from "react-icons/lu";
 
 function initials(name = '') {
     const parts = String(name).trim().split(/[\s._-]+/).filter(Boolean);
@@ -38,7 +38,7 @@ function PersonSkeleton() {
 }
 
 export default function Contact({ state, setState }) {
-    const { status } = useSession();
+    const { data: session, status } = useSession();
     const [search, setSearch] = useState('');
 
     const {
@@ -178,6 +178,14 @@ export default function Contact({ state, setState }) {
                                         <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
                                             {item.rank ? <RankBadge tier={item.rank.tier} title={item.rank.title} /> : null}
                                             <LevelBadge level={item.level} title={item.levelTitle} className="[&>span]:max-sm:hidden" />
+                                            {session?.user?.id && item.id !== session.user.id ? (
+                                                <Button asChild variant="outline" size="sm">
+                                                    <Link href={`/messages/new?to=${encodeURIComponent(item.id)}`} aria-label={`Message ${name}`}>
+                                                        <LuMessageSquare aria-hidden="true" />
+                                                        <span className="max-sm:sr-only">Message</span>
+                                                    </Link>
+                                                </Button>
+                                            ) : null}
                                         </div>
                                     </li>
                                 );
