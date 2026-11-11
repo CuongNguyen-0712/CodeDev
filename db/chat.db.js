@@ -88,6 +88,37 @@ export const chatDb = {
         return (await client.query(`DELETE FROM community.chat_attachment WHERE message_id = $1 RETURNING storage_key`, [messageDbId])).rows.map((r) => r.storage_key);
     },
 
+    insertAttachment: (client, { publicId, conversationDbId, uploaderDbId, storageKey, contentType, size, width, height }) => client.query(
+        `INSERT INTO community.chat_attachment (public_id, conversation_id, uploader_id, storage_key, content_type, size_bytes, width, height)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [publicId, conversationDbId, uploaderDbId, storageKey, contentType, size, width, height]),
+
+    /** The caller's own unsent uploads among `ids` (no lock); used to inspect the files before the send transaction. */
+    unsentUploads: async (client, { uploaderDbId, ids }) => (await run(client,
+        `SELECT id::text AS id, storage_key, content_type, size_bytes FROM community.chat_attachment
+         WHERE public_id = ANY($1::text[]) AND uploader_id = $2 AND message_id IS NULL`, [ids, uploaderDbId])).rows,
+
+    deleteAttachments: (client, dbIds) => run(client, `DELETE FROM community.chat_attachment WHERE id = ANY($1::bigint[])`, [dbIds]),
+
+    /** Attaches the caller's unsent uploads of this conversation to the message; returns how many matched. */
+    claimAttachments: async (client, { ids, uploaderDbId, conversationDbId, messageDbId }) => (await client.query(
+        `UPDATE community.chat_attachment SET message_id = $4
+         WHERE public_id = ANY($1::text[]) AND uploader_id = $2 AND conversation_id = $3 AND message_id IS NULL`,
+        [ids, uploaderDbId, conversationDbId, messageDbId])).rowCount,
+
+    /** Storage key of an attachment on a live message the user may read. */
+    attachmentKey: async (client, { attachmentId, userId }) => (await one(client,
+        `SELECT a.storage_key FROM community.chat_attachment a
+         JOIN community.chat_message m ON m.id = a.message_id AND m.deleted_at IS NULL
+         JOIN community.conversation_member cm ON cm.conversation_id = m.conversation_id AND cm.left_at IS NULL
+         JOIN identity.users me ON me.id = cm.user_id AND me.public_id = $2
+         WHERE a.public_id = $1`, [attachmentId, userId]))?.storage_key ?? null,
+
+    /** Unsent uploads older than `minutes`, row-locked and skipping rows another purge holds. */
+    lockOrphans: async (client, { minutes, limit }) => (await client.query(
+        `SELECT id::text AS id, storage_key FROM community.chat_attachment
+         WHERE message_id IS NULL AND created_at < now() - ($1::int * interval '1 minute')
+         ORDER BY created_at LIMIT $2 FOR UPDATE SKIP LOCKED`, [minutes, limit])).rows,
+
     addBlock: (client, { blockerDbId, blockedDbId }) => run(client,
         `INSERT INTO community.user_block (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [blockerDbId, blockedDbId]),
 

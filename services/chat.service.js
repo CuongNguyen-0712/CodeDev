@@ -1,14 +1,18 @@
 import { ulid } from "ulid";
 
 import { chatDb } from "@/db/chat.db";
-import { remove as removeMedia } from "@/lib/chatMedia";
-import { MAX_BODY, EDIT_WINDOW_MS, INBOX_PAGE, MESSAGE_PAGE, PUSH_PREVIEW_CHARS } from "@/lib/chat/limits";
+import { chatMediaKey, inspect as inspectMedia, remove as removeMedia, signRead, signUpload } from "@/lib/chatMedia";
+import {
+    MAX_BODY, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, IMAGE_TYPES, ORPHAN_BATCH, ORPHAN_MAX_AGE_MINUTES,
+    EDIT_WINDOW_MS, INBOX_PAGE, MESSAGE_PAGE, PUSH_PREVIEW_CHARS,
+} from "@/lib/chat/limits";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
 import { decodeCursor, encodeCursor, pageOf } from "@/lib/keysetCursor";
 import { reportSchema } from "@/lib/validation/blog";
 
 const CONVERSATION_ID = /^cnv_[0-9a-z]{26}$/;
+const ATTACHMENT_ID = /^att_[0-9a-z]{26}$/;
 const MESSAGE_ID = /^msg_[0-9a-z]{26}$/;
 const CLIENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SEQ = /^[1-9]\d{0,18}$/;
@@ -19,6 +23,39 @@ const refused = () => new ApiError("You can't send messages in this conversation
 
 function checkId(id, pattern, what) {
     if (typeof id !== "string" || !pattern.test(id)) throw badRequest(`Invalid ${what} id`);
+}
+
+const badAttachment = () => new ApiError("Invalid attachment", 422);
+const dimension = (v) => v === undefined || v === null ? null : Number.isInteger(v) && v > 0 && v <= 20000 ? v : undefined;
+
+/** Distinct, well-formed attachment ids (at most MAX_ATTACHMENTS), or 422. */
+function attachmentIdList(value) {
+    if (!Array.isArray(value)) throw badAttachment();
+    const list = [...new Set(value)];
+    if (list.length > MAX_ATTACHMENTS) throw new ApiError(`At most ${MAX_ATTACHMENTS} images per message`, 422);
+    if (!list.every((id) => typeof id === "string" && ATTACHMENT_ID.test(id))) throw badAttachment();
+    return list;
+}
+
+/**
+ * Checks the caller's unsent uploads in storage before the send transaction, so no row lock is held during
+ * network I/O. A missing file, another type or a larger size drops the upload and fails the send; ownership,
+ * conversation and "not yet sent" are decided later under the conversation lock.
+ */
+async function verifyUploads(userId, ids) {
+    const me = await chatDb.userByPublicId(null, userId);
+    if (!me) throw conversationNotFound();
+    for (const row of await chatDb.unsentUploads(null, { uploaderDbId: me.id, ids })) {
+        const found = await inspectMedia(row.storage_key);
+        if (found && found.contentType === row.content_type && found.size <= row.size_bytes) continue;
+        try {
+            await removeMedia(row.storage_key);
+        } catch (error) {
+            console.error("[chat.send remove]", row.storage_key, error);
+        }
+        await chatDb.deleteAttachments(null, [row.id]);
+        throw new ApiError("The uploaded image is invalid", 422);
+    }
 }
 
 const directKey = (a, b) => (BigInt(a) < BigInt(b) ? `${a}:${b}` : `${b}:${a}`);
@@ -141,8 +178,9 @@ export const chatService = {
         if (typeof clientId !== "string" || !CLIENT_ID.test(clientId)) throw badRequest("Invalid client id");
         if (typeof body !== "string") throw new ApiError("Message is empty", 422);
         if ([...body].length > MAX_BODY) throw new ApiError(`A message can be at most ${MAX_BODY} characters`, 422);
-        // shortcut: attachments arrive with the attachment task; until then an empty body is always refused.
-        if (!body.trim()) throw new ApiError("Message is empty", 422);
+        const attachments = attachmentIdList(attachmentIds ?? []);
+        if (!body.trim() && !attachments.length) throw new ApiError("Message is empty", 422);
+        if (attachments.length) await verifyUploads(userId, attachments);
 
         const result = await withTransaction(async (client) => {
             const me = await chatDb.userByPublicId(client, userId);
@@ -168,8 +206,15 @@ export const chatService = {
             if (earlier) return duplicate(earlier);
             if (await sendRefused(client, conversation, mine, members)) throw refused();
 
+            // Rule: a request (pending) conversation carries no images.
+            if (attachments.length && members.some((m) => !m.left_at && m.state === "pending")) throw new ApiError("Images can't be sent in a message request", 422);
+
             const publicId = `msg_${ulid().toLowerCase()}`;
             const inserted = await chatDb.insertMessage(client, { publicId, conversationDbId: conversation.id, senderDbId: me.id, clientId, body });
+            if (inserted && attachments.length) {
+                const claimed = await chatDb.claimAttachments(client, { ids: attachments, uploaderDbId: me.id, conversationDbId: conversation.id, messageDbId: inserted.id });
+                if (claimed !== attachments.length) throw badAttachment(); // rolls the message back too
+            }
             return inserted ? finish(publicId, true) : duplicate(await chatDb.messageByClientId(client, { senderDbId: me.id, clientId }));
         });
 
@@ -182,6 +227,45 @@ export const chatService = {
         }
         return result;
     },
+
+    createUpload: async ({ userId, conversationId, contentType, size, width, height }) => {
+        if (!IMAGE_TYPES.includes(contentType)) throw new ApiError("Only JPEG, PNG and WebP images are allowed", 422);
+        if (!Number.isInteger(size) || size < 1 || size > MAX_IMAGE_BYTES) throw new ApiError(`An image can be at most ${MAX_IMAGE_BYTES} bytes`, 422);
+        const [w, h] = [dimension(width), dimension(height)];
+        if (w === undefined || h === undefined) throw new ApiError("Invalid image dimensions", 422);
+        return withTransaction(async (client) => {
+            const { me, conversation, members } = await lockedMember(client, userId, conversationId);
+            if (members.some((m) => !m.left_at && m.state === "pending")) throw new ApiError("Images can't be sent in a message request", 422);
+            const attachmentId = `att_${ulid().toLowerCase()}`;
+            // Ids here are server-made public ids, never client input.
+            const key = chatMediaKey({ conversationId: conversation.public_id, attachmentId, contentType });
+            const upload = await signUpload(key, { contentType, size });
+            await chatDb.insertAttachment(client, { publicId: attachmentId, conversationDbId: conversation.id, uploaderDbId: me.id, storageKey: key, contentType, size, width: w, height: h });
+            return { attachmentId, upload };
+        });
+    },
+
+    attachmentReadUrl: async ({ userId, attachmentId }) => {
+        if (typeof attachmentId !== "string" || !ATTACHMENT_ID.test(attachmentId)) throw new ApiError("Attachment not found", 404);
+        const key = await chatDb.attachmentKey(null, { attachmentId, userId });
+        if (!key) throw new ApiError("Attachment not found", 404);
+        return (await signRead(key)).url;
+    },
+
+    /** Deletes uploads never attached to a message; a row goes only after its file is gone, so a failed delete is retried next run. */
+    purgeOrphanAttachments: async ({ limit = ORPHAN_BATCH } = {}) => withTransaction(async (client) => {
+        const gone = [];
+        for (const row of await chatDb.lockOrphans(client, { minutes: ORPHAN_MAX_AGE_MINUTES, limit })) {
+            try {
+                await removeMedia(row.storage_key);
+                gone.push(row.id);
+            } catch (error) {
+                console.error("[chat.purge remove]", row.storage_key, error);
+            }
+        }
+        if (gone.length) await chatDb.deleteAttachments(client, gone);
+        return { removed: gone.length };
+    }),
 
     listConversations: async ({ userId, tab = "all", cursor = null }) => {
         if (tab !== "all" && tab !== "requests") throw badRequest("Invalid tab");
