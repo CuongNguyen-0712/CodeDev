@@ -51,7 +51,7 @@ describe("storage per environment", () => {
     });
 
     it("production uses S3 (Neon) and ignores MINIO_ENDPOINT", () => {
-        const config = resolveStorageConfig({ NODE_ENV: "production", ...minioEnv, ...neonEnv });
+        const config = resolveStorageConfig({ NODE_ENV: "production", ...minioEnv, ...neonEnv, S3_CHAT_BUCKET: "chat-prod" });
         expect(config).toMatchObject({ provider: "s3", endpoint: NEON, errors: [] });
     });
 
@@ -83,7 +83,7 @@ describe("storage per environment", () => {
     it("only a broken environment split is fatal in production", () => {
         const base = { NODE_ENV: "production", DATABASE_URL: "postgres://db.neon.tech/x", NEXTAUTH_URL: "https://codedev.example" };
         // Missing secrets are reported, but do not stop the server.
-        expect(checkEnvironment({ ...base, ...neonEnv }).fatal).toEqual([]);
+        expect(checkEnvironment({ ...base, ...neonEnv, S3_CHAT_BUCKET: "chat-prod" }).fatal).toEqual([]);
         // Production wired to the development MinIO does.
         const crossed = checkEnvironment({ ...base, STORAGE_PROVIDER: "minio", ...minioEnv });
         expect(crossed.fatal.join()).toMatch(/development MinIO/);
@@ -98,5 +98,14 @@ describe("chat bucket", () => {
     it("production on MinIO without UPSTASH_BLOB_TOKEN is an isolation error naming it", () => {
         const config = resolveStorageConfig({ NODE_ENV: "production", STORAGE_PROVIDER: "minio", ...minioEnv });
         expect(config.isolation.join()).toMatch(/UPSTASH_BLOB_TOKEN/);
+    });
+});
+
+describe("chat bucket in production on s3", () => {
+    it("requires UPSTASH_BLOB_TOKEN or S3_CHAT_BUCKET", () => {
+        const base = { NODE_ENV: "production", ...neonEnv };
+        expect(resolveStorageConfig(base).isolation.join()).toMatch(/S3_CHAT_BUCKET/);
+        expect(resolveStorageConfig({ ...base, S3_CHAT_BUCKET: "chat-prod" }).isolation).toEqual([]);
+        expect(resolveStorageConfig({ ...base, UPSTASH_BLOB_TOKEN: "t" }).isolation).toEqual([]);
     });
 });

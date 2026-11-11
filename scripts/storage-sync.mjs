@@ -29,7 +29,6 @@ import {
     HeadObjectCommand,
     HeadBucketCommand,
     CreateBucketCommand,
-    PutBucketCorsCommand,
 } from "@aws-sdk/client-s3";
 
 import { resolveStorageConfig, s3ClientOptions, describeStorage } from "../lib/storageConfig.mjs";
@@ -63,7 +62,9 @@ const source = initOnly ? null : new S3Client(s3ClientOptions(sourceConfig));
 const target = new S3Client(s3ClientOptions(targetConfig));
 
 // The Payload `media` bucket holds uploads, not a copy of the remote: only --init creates it.
-// The chat bucket is private user content: --init creates it (with CORS for browser PUT), sync never touches it.
+// The chat bucket is private user content: --init creates it; sync never touches it.
+// No PutBucketCors: this MinIO answers 501 NotImplemented, and its default CORS already allows browser PUT/GET/HEAD
+// from any origin (verified with a presigned-URL OPTIONS preflight).
 const buckets = [targetConfig.buckets.public, targetConfig.buckets.private, ...(initOnly ? [process.env.S3_MEDIA_BUCKET || "media", targetConfig.buckets.chat] : [])]
     .filter((bucket) => !onlyBucket || bucket === onlyBucket);
 
@@ -122,16 +123,6 @@ async function copyObject(bucket, object) {
         ContentType: response.ContentType,
         Metadata: response.Metadata,
         CacheControl: response.CacheControl,
-    }));
-}
-
-/** Browsers PUT chat images straight to presigned URLs, so the dev origins need CORS on the bucket. */
-async function setChatCors(bucket) {
-    const origins = new Set(["http://localhost:3000", process.env.NEXTAUTH_URL, process.env.NEXT_PUBLIC_SITE_URL]);
-    const AllowedOrigins = [...origins].filter(Boolean).map((value) => { try { return new URL(value).origin; } catch { return null; } }).filter(Boolean);
-    await target.send(new PutBucketCorsCommand({
-        Bucket: bucket,
-        CORSConfiguration: { CORSRules: [{ AllowedOrigins: [...new Set(AllowedOrigins)], AllowedMethods: ["PUT", "GET", "HEAD"], AllowedHeaders: ["*"], ExposeHeaders: ["ETag"], MaxAgeSeconds: 3000 }] },
     }));
 }
 
