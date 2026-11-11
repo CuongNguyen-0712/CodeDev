@@ -169,6 +169,31 @@ describe("inbox and unread follow events without refetching", () => {
         me["chat-message-updated"]({ conversationId: CID, message: msg(1), preview: "older" });
         expect(qc.getQueryData(chatKeys.inbox("all")).pages[0].items[0].lastMessage.preview).toBe("edited");
     });
+    it("unsending a message from someone else refetches the lists; own unsend does not", () => {
+        seedInbox("all", row(CID));
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        me["chat-message-updated"]({ conversationId: CID, message: msg(1, { deleted: true, sender: { id: "me" } }), preview: "[unsent]" });
+        expect(invalidated(spy)).not.toContainEqual(chatKeys.unread());
+        me["chat-message-updated"]({ conversationId: CID, message: msg(1, { deleted: true, sender: { id: "u2" } }), preview: "[unsent]" });
+        expect(invalidated(spy)).toEqual(expect.arrayContaining([chatKeys.inbox("all"), chatKeys.unread()]));
+    });
+    it("an own chat-read from another tab clears the row and lowers the badge once", () => {
+        seedInbox("all", row(CID, { unread: true, lastMessage: { seq: "5", preview: "p", senderId: "u2", createdAt: "t" } }));
+        seedUnread(1);
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        me["chat-read"]({ conversationId: CID, userId: "me", seq: "5" });
+        me["chat-read"]({ conversationId: CID, userId: "me", seq: "5" });
+        expect(qc.getQueryData(chatKeys.inbox("all")).pages[0].items[0].unread).toBe(false);
+        expect(qc.getQueryData(chatKeys.unread()).unread).toBe(0);
+        expect(spy).not.toHaveBeenCalled();
+    });
+    it("another user chat-read leaves the row and badge alone", () => {
+        seedInbox("all", row(CID, { unread: true }));
+        seedUnread(1);
+        me["chat-read"]({ conversationId: CID, userId: "u2", seq: "5" });
+        expect(qc.getQueryData(chatKeys.inbox("all")).pages[0].items[0].unread).toBe(true);
+        expect(qc.getQueryData(chatKeys.unread()).unread).toBe(1);
+    });
     it("a chat-message-updated ping still invalidates the lists", () => {
         const spy = vi.spyOn(qc, "invalidateQueries");
         me["chat-message-updated"]({ conversationId: CID, messageId: "msg_1" });

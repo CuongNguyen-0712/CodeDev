@@ -53,9 +53,10 @@ export const chatRealtime = {
         return send([...recipients.map((r) => r.publicId), senderId], events.CHAT_MESSAGE_UPDATED, payload, socketId);
     },
 
-    // `others` is empty for a pending reader, so no receipt leaks.
+    // `others` is empty for a pending reader, so no receipt leaks. The reader's own channel is added so
+    // their other tabs and devices clear the row and the badge.
     read: ({ conversationId, userId, seq, others }) =>
-        send(others, events.CHAT_READ, { conversationId, userId, seq }),
+        send([...others, userId], events.CHAT_READ, { conversationId, userId, seq }),
 
     conversationUpdated: ({ conversationId, members }) =>
         send(members, events.CHAT_CONVERSATION_UPDATED, { conversationId }),

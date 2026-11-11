@@ -41,11 +41,27 @@ describe("applyIncoming", () => {
     });
     it("ignores a redelivered or older event", () => {
         const data = inbox(row("b"));
-        expect(applyIncoming(data, msg({ seq: "1" }), ME)).toEqual({ data, found: true, becameUnread: false });
+        const r = applyIncoming(data, msg({ seq: "1" }), ME);
+        expect(r.data).toBe(data);
+        expect(r).toMatchObject({ found: true, becameUnread: false });
+    });
+    it("orders seq numerically: 10 arrives after 9", () => {
+        const data = inbox(row("b", { lastMessage: { seq: "9", preview: "p", senderId: "u2", createdAt: "t" } }));
+        const r = applyIncoming(data, msg({ seq: "10" }), ME);
+        expect(r.data.pages[0].items[0].lastMessage.seq).toBe("10");
+        expect(applyIncoming(r.data, msg({ seq: "9" }), ME).data).toBe(r.data);
+    });
+    it("reports not found for a seq it cannot read, leaving data alone", () => {
+        const data = inbox(row("b"));
+        const r = applyIncoming(data, msg({ seq: "abc" }), ME);
+        expect(r.data).toBe(data);
+        expect(r).toMatchObject({ found: false, becameUnread: false });
+        expect(applyIncoming(data, msg({ seq: undefined }), ME).found).toBe(false);
     });
     it("never invents a row", () => {
         const data = inbox(row("a"));
-        expect(applyIncoming(data, msg(), ME)).toEqual({ data, found: false, becameUnread: false });
+        expect(applyIncoming(data, msg(), ME).data).toBe(data);
+        expect(applyIncoming(data, msg(), ME).found).toBe(false);
         expect(applyIncoming(undefined, msg(), ME)).toEqual({ data: undefined, found: false, becameUnread: false });
     });
 });
@@ -53,12 +69,18 @@ describe("applyIncoming", () => {
 describe("markRowRead", () => {
     it("clears unread once and reports wasUnread; a read row keeps the same data", () => {
         const data = inbox(row("a", { unread: true }), row("b"));
-        const r = markRowRead(data, "a");
+        const r = markRowRead(data, "a", "1");
         expect(r.wasUnread).toBe(true);
         expect(r.data.pages[0].items.map((x) => [x.id, x.unread])).toEqual([["a", false], ["b", false]]);
         expect(data.pages[0].items[0].unread).toBe(true);
-        expect(markRowRead(r.data, "a")).toEqual({ data: r.data, wasUnread: false });
-        expect(markRowRead(data, "zzz").data).toBe(data);
+        expect(markRowRead(r.data, "a", "1")).toMatchObject({ data: r.data, wasUnread: false, found: true });
+        expect(markRowRead(data, "zzz", "1")).toEqual({ data, wasUnread: false, found: false });
+    });
+    it("keeps the row unread when a newer message arrived than the read seq", () => {
+        const data = inbox(row("a", { unread: true, lastMessage: { seq: "6", preview: "p", senderId: "u2", createdAt: "t" } }));
+        expect(markRowRead(data, "a", "5")).toMatchObject({ data, wasUnread: false, found: true });
+        expect(markRowRead(data, "a", "6").wasUnread).toBe(true);
+        expect(markRowRead(data, "a", "10").wasUnread).toBe(true);
     });
 });
 
@@ -67,6 +89,8 @@ describe("patchRowPreview", () => {
         const data = inbox(row("a", { lastMessage: { seq: "5", preview: "old", senderId: "u2", createdAt: "t" } }));
         const patched = patchRowPreview(data, "a", { seq: "5", preview: "edited" });
         expect(patched.pages[0].items[0].lastMessage).toMatchObject({ seq: "5", preview: "edited" });
+        expect(data.pages[0].items[0].lastMessage.preview).toBe("old");
+        expect(patched).not.toBe(data);
         expect(patchRowPreview(data, "a", { seq: "4", preview: "x" })).toBe(data);
         expect(patchRowPreview(data, "nope", { seq: "5", preview: "x" })).toBe(data);
     });

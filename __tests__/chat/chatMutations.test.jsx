@@ -151,4 +151,31 @@ describe("useMarkRead", () => {
         expect(qc.getQueryData(chatKeys.unread()).unread).toBe(0);
         expect(spy).not.toHaveBeenCalled();
     });
+    it("never goes below zero when the badge was already 0", async () => {
+        qc.setQueryData(chatKeys.inbox("all"), { pages: [{ items: [row(CID, true)], nextCursor: null }], pageParams: [undefined] });
+        qc.setQueryData(chatKeys.unread(), { unread: 0, requests: 0 });
+        markReadAction.mockResolvedValue({ success: true, data: { lastReadSeq: "2" } });
+        const { result } = renderHook(() => useMarkRead(), { wrapper });
+        act(() => { result.current(CID, "2"); });
+        await waitFor(() => expect(qc.getQueryData(chatKeys.inbox("all")).pages[0].items[0].unread).toBe(false), { timeout: 3000 });
+        expect(qc.getQueryData(chatKeys.unread()).unread).toBe(0);
+    });
+    it("a message that arrived while markRead was pending keeps the row unread and the badge", async () => {
+        qc.setQueryData(chatKeys.inbox("all"), { pages: [{ items: [{ id: CID, unread: true, lastMessage: { seq: "6" } }], nextCursor: null }], pageParams: [undefined] });
+        qc.setQueryData(chatKeys.unread(), { unread: 1, requests: 0 });
+        markReadAction.mockResolvedValue({ success: true, data: { lastReadSeq: "5" } });
+        const { result } = renderHook(() => useMarkRead(), { wrapper });
+        act(() => { result.current(CID, "5"); });
+        await waitFor(() => expect(markReadAction).toHaveBeenCalled(), { timeout: 3000 });
+        await new Promise((r) => setTimeout(r, 20));
+        expect(qc.getQueryData(chatKeys.inbox("all")).pages[0].items[0].unread).toBe(true);
+        expect(qc.getQueryData(chatKeys.unread()).unread).toBe(1);
+    });
+    it("refetches the badge when the row is not in the cache", async () => {
+        markReadAction.mockResolvedValue({ success: true, data: { lastReadSeq: "2" } });
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        const { result } = renderHook(() => useMarkRead(), { wrapper });
+        act(() => { result.current(CID, "2"); });
+        await waitFor(() => expect(spy).toHaveBeenCalledWith({ queryKey: chatKeys.unread() }), { timeout: 3000 });
+    });
 });

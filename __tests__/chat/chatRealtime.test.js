@@ -105,11 +105,19 @@ describe("chatRealtime", () => {
     it("read skips empty others; decline is silent, accept pings others", async () => {
         const svc = {};
         installChatRealtime(svc);
-        await svc.afterRead({ conversationId: "cnv_1", userId: "u_b", lastReadSeq: "5", others: [] });
         await svc.afterRespond({ conversationId: "cnv_1", userId: "u_b", state: "declined", others: ["u_a"] });
         expect(publish).not.toHaveBeenCalled();
         await svc.afterRespond({ conversationId: "cnv_1", userId: "u_b", state: "accepted", others: ["u_a"] });
         expect(publish).toHaveBeenCalledWith(["private-user-u_a"], "chat-conversation-updated", { conversationId: "cnv_1" }, { socketId: undefined });
+    });
+
+    it("read also reaches the reader own channel; a pending reader reaches only that", async () => {
+        const svc = {};
+        installChatRealtime(svc);
+        await svc.afterRead({ conversationId: "cnv_1", userId: "u_b", lastReadSeq: "5", others: ["u_a"] });
+        expect(publish).toHaveBeenLastCalledWith(["private-user-u_a", "private-user-u_b"], "chat-read", { conversationId: "cnv_1", userId: "u_b", seq: "5" }, { socketId: undefined });
+        await svc.afterRead({ conversationId: "cnv_1", userId: "u_b", lastReadSeq: "5", others: [] });
+        expect(publish).toHaveBeenLastCalledWith(["private-user-u_b"], "chat-read", { conversationId: "cnv_1", userId: "u_b", seq: "5" }, { socketId: undefined });
     });
 
     it("a failed publish does not throw from send", async () => {

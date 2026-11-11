@@ -8,7 +8,7 @@ import {
 import { chatKeys } from "@/keys/chat.keys";
 import { callAction } from "@/lib/actionResult";
 import { READ_DEBOUNCE_MS, TYPING_THROTTLE_MS } from "@/lib/chat/limits";
-import { markRowRead } from "@/lib/chat/inboxCache";
+import { lowerBadge, markRowRead } from "@/lib/chat/inboxCache";
 import { insertMessage, optimisticMessage, patchMessage } from "@/lib/chat/messageCache";
 import { getPusherClient } from "@/lib/pusherClient";
 import { useChatOutboxStore } from "@/stores/chatOutboxStore";
@@ -114,9 +114,11 @@ export function useMarkRead() {
             try {
                 await callAction(() => markReadAction({ conversationId, seq: entry.seq }));
                 // The row and the badge are known locally: no refetch.
-                const { data, wasUnread } = markRowRead(queryClient.getQueryData(chatKeys.inbox("all")), conversationId);
-                if (data) queryClient.setQueryData(chatKeys.inbox("all"), data);
-                if (wasUnread) queryClient.setQueryData(chatKeys.unread(), (n) => n && { ...n, unread: Math.max(0, n.unread - 1) });
+                const current = queryClient.getQueryData(chatKeys.inbox("all"));
+                const { data, wasUnread, found } = markRowRead(current, conversationId, entry.seq);
+                if (data !== current) queryClient.setQueryData(chatKeys.inbox("all"), data);
+                if (wasUnread) lowerBadge(queryClient);
+                else if (!found) queryClient.invalidateQueries({ queryKey: chatKeys.unread() });
             } catch { /* ignored on purpose */ }
         }, READ_DEBOUNCE_MS);
         pendingReads.set(conversationId, entry);
