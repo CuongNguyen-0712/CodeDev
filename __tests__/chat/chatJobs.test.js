@@ -45,15 +45,23 @@ describe("chat push job", () => {
     });
 });
 
+const items = [
+    { kind: "image", provider: "cloudinary", storageKey: "codedev/chat/cnv_1/att_1", contentType: "image/png", fileName: null },
+    { kind: "file", provider: "upstash", storageKey: "chat/cnv_1/att_2.pdf", contentType: "application/pdf", fileName: "a.pdf" },
+];
+
 describe("chat attachment delete job", () => {
-    it("deletes every key", async () => {
-        await run(chatAttachmentDelete, { data: { keys: ["a", "b"] } });
-        expect(remove.mock.calls.map((c) => c[0])).toEqual(["a", "b"]);
+    it("queues failed deletes as items, and the job deletes each item", async () => {
+        await queueAttachmentDelete(items);
+        expect(send).toHaveBeenCalledWith([{ name: "chat/attachment.delete", data: { items } }]);
+        await run(chatAttachmentDelete, send.mock.calls[0][0][0]);
+        expect(remove.mock.calls.map((c) => c[0])).toEqual(items);
+        expect(step.run).toHaveBeenCalledTimes(2);
     });
 
     it("throws when a delete fails, after trying the rest", async () => {
         remove.mockRejectedValueOnce(new Error("boom"));
-        await expect(run(chatAttachmentDelete, { data: { keys: ["a", "b"] } })).rejects.toThrow();
+        await expect(run(chatAttachmentDelete, { data: { items } })).rejects.toThrow();
         expect(remove).toHaveBeenCalledTimes(2);
     });
 });
@@ -109,12 +117,12 @@ describe("installChatJobs", () => {
         const service = { afterSend: vi.fn(async () => { }) };
         installChatJobs(service);
         await service.afterSend({ message, recipients });
-        await queueAttachmentDelete(["k"]);
+        await queueAttachmentDelete(items);
         expect(send).not.toHaveBeenCalled();
     });
 
-    it("queues failed deletes as one event", async () => {
-        await queueAttachmentDelete(["k1", "k2"]);
-        expect(send).toHaveBeenCalledWith([{ name: "chat/attachment.delete", data: { keys: ["k1", "k2"] } }]);
+    it("queues nothing for no failed deletes", async () => {
+        await queueAttachmentDelete([]);
+        expect(send).not.toHaveBeenCalled();
     });
 });

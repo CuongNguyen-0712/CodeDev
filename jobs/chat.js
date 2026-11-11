@@ -24,15 +24,15 @@ export const chatPush = inngest.createFunction(
     }
 );
 
-/** Retries chat image deletes that failed after a recall. Throws when any key still fails, so Inngest runs it again. */
+/** Retries chat attachment deletes that failed after commit, each through its own provider. Throws when any item still fails, so Inngest runs it again. */
 export const chatAttachmentDelete = inngest.createFunction(
     { id: "chat-attachment-delete", triggers: [{ event: "chat/attachment.delete" }], retries: 5 },
     async ({ event, step }) => {
-        const keys = event.data?.keys ?? [];
-        // Every key is tried even if one fails; a failed step is retried by Inngest, and the run throws if any stays failed.
-        const results = await Promise.allSettled(keys.map((key, i) => step.run(`delete-${i}`, () => remove(key))));
+        const items = event.data?.items ?? [];
+        // Every item is tried even if one fails; a failed step is retried by Inngest, and the run throws if any stays failed.
+        const results = await Promise.allSettled(items.map((item, i) => step.run(`delete-${i}`, () => remove(item))));
         if (results.some((r) => r.status === "rejected")) throw new Error("Could not delete every chat file");
-        return { deleted: keys.length };
+        return { deleted: items.length };
     }
 );
 

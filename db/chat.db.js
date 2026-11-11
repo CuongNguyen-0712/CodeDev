@@ -7,11 +7,16 @@ const one = async (client, text, params) => (await run(client, text, params)).ro
 // profile.info.nickname defaults to 'None', which means "not set".
 const NICKNAME = (alias) => `NULLIF(${alias}.nickname, 'None')`;
 
+// What chatMedia needs to reach a stored attachment, aliased to its `att` shape; every read and delete follows the row's provider.
+const ATTACHMENT = `a.kind, a.provider, a.storage_key AS "storageKey", a.content_type AS "contentType", a.file_name AS "fileName"`;
+
 const MESSAGE = `
     SELECT m.public_id AS id, m.id::text AS seq, c.public_id AS conversation_id, m.client_id,
            u.public_id AS sender_id, u.username AS sender_username, ${NICKNAME("i")} AS sender_nickname, i.image AS sender_image,
            m.body, m.created_at, m.edited_at, m.deleted_at IS NOT NULL AS deleted,
-           COALESCE((SELECT json_agg(json_build_object('id', a.public_id, 'width', a.width, 'height', a.height) ORDER BY a.id)
+           COALESCE((SELECT json_agg(CASE WHEN a.kind = 'file'
+                                           THEN json_build_object('id', a.public_id, 'kind', 'file', 'name', a.file_name, 'size', a.size_bytes)
+                                           ELSE json_build_object('id', a.public_id, 'kind', 'image', 'width', a.width, 'height', a.height) END ORDER BY a.id)
                      FROM community.chat_attachment a WHERE a.message_id = m.id), '[]'::json) AS attachments
     FROM community.chat_message m
     JOIN community.conversation c ON c.id = m.conversation_id
@@ -86,20 +91,21 @@ export const chatDb = {
     editBody: (client, { messageDbId, body }) => client.query(
         `UPDATE community.chat_message SET body = $2, edited_at = now() WHERE id = $1`, [messageDbId, body]),
 
-    /** Marks the message unsent, drops its attachment rows and returns their storage keys. */
+    /** Marks the message unsent, drops its attachment rows and returns them as chatMedia attachments. */
     recall: async (client, messageDbId) => {
         await client.query(`UPDATE community.chat_message SET deleted_at = now(), body = '' WHERE id = $1`, [messageDbId]);
-        return (await client.query(`DELETE FROM community.chat_attachment WHERE message_id = $1 RETURNING storage_key`, [messageDbId])).rows.map((r) => r.storage_key);
+        return (await client.query(`DELETE FROM community.chat_attachment a WHERE a.message_id = $1 RETURNING ${ATTACHMENT}`, [messageDbId])).rows;
     },
 
-    insertAttachment: (client, { publicId, conversationDbId, uploaderDbId, storageKey, contentType, size, width, height }) => client.query(
-        `INSERT INTO community.chat_attachment (public_id, conversation_id, uploader_id, storage_key, content_type, size_bytes, width, height)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [publicId, conversationDbId, uploaderDbId, storageKey, contentType, size, width, height]),
+    insertAttachment: (client, { publicId, conversationDbId, uploaderDbId, kind, provider, storageKey, contentType, size, fileName, width, height }) => client.query(
+        `INSERT INTO community.chat_attachment (public_id, conversation_id, uploader_id, kind, provider, storage_key, content_type, size_bytes, file_name, width, height)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [publicId, conversationDbId, uploaderDbId, kind, provider, storageKey, contentType, size, fileName, width, height]),
 
-    /** The caller's own unsent uploads among `ids` (no lock); used to inspect the files before the send transaction. */
+    /** The caller's own unsent uploads among `ids` (no lock), with the declared size; used to inspect the files before the send transaction. */
     unsentUploads: async (client, { uploaderDbId, ids }) => (await run(client,
-        `SELECT id::text AS id, storage_key, content_type, size_bytes FROM community.chat_attachment
-         WHERE public_id = ANY($1::text[]) AND uploader_id = $2 AND message_id IS NULL`, [ids, uploaderDbId])).rows,
+        `SELECT a.id::text AS id, ${ATTACHMENT}, a.size_bytes AS size FROM community.chat_attachment a
+         WHERE a.public_id = ANY($1::text[]) AND a.uploader_id = $2 AND a.message_id IS NULL`, [ids, uploaderDbId])).rows,
 
     deleteAttachments: (client, dbIds) => run(client, `DELETE FROM community.chat_attachment WHERE id = ANY($1::bigint[])`, [dbIds]),
 
@@ -109,19 +115,19 @@ export const chatDb = {
          WHERE public_id = ANY($1::text[]) AND uploader_id = $2 AND conversation_id = $3 AND message_id IS NULL`,
         [ids, uploaderDbId, conversationDbId, messageDbId])).rowCount,
 
-    /** Storage key of an attachment on a live message the user may read. */
-    attachmentKey: async (client, { attachmentId, userId }) => (await one(client,
-        `SELECT a.storage_key FROM community.chat_attachment a
+    /** An attachment on a live message the user may read. */
+    readableAttachment: (client, { attachmentId, userId }) => one(client,
+        `SELECT ${ATTACHMENT} FROM community.chat_attachment a
          JOIN community.chat_message m ON m.id = a.message_id AND m.deleted_at IS NULL
          JOIN community.conversation_member cm ON cm.conversation_id = m.conversation_id AND cm.left_at IS NULL
          JOIN identity.users me ON me.id = cm.user_id AND me.public_id = $2
-         WHERE a.public_id = $1`, [attachmentId, userId]))?.storage_key ?? null,
+         WHERE a.public_id = $1`, [attachmentId, userId]),
 
     /** Unsent uploads older than `minutes`, row-locked and skipping rows another purge holds. */
     lockOrphans: async (client, { minutes, limit }) => (await client.query(
-        `SELECT id::text AS id, storage_key FROM community.chat_attachment
-         WHERE message_id IS NULL AND created_at < now() - ($1::int * interval '1 minute')
-         ORDER BY created_at LIMIT $2 FOR UPDATE SKIP LOCKED`, [minutes, limit])).rows,
+        `SELECT a.id::text AS id, ${ATTACHMENT} FROM community.chat_attachment a
+         WHERE a.message_id IS NULL AND a.created_at < now() - ($1::int * interval '1 minute')
+         ORDER BY a.created_at LIMIT $2 FOR UPDATE SKIP LOCKED`, [minutes, limit])).rows,
 
     addBlock: (client, { blockerDbId, blockedDbId }) => run(client,
         `INSERT INTO community.user_block (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [blockerDbId, blockedDbId]),
@@ -238,7 +244,7 @@ export const chatDb = {
                 CASE WHEN c.kind = 'team' THEN t.image_url ELSE oi.image END AS image,
                 lm.id::text AS last_seq, lm.body AS last_body, lm.deleted_at IS NOT NULL AS last_deleted,
                 lu.public_id AS last_sender_id, lm.created_at AS last_created_at,
-                EXISTS (SELECT 1 FROM community.chat_attachment a WHERE a.message_id = lm.id) AS last_has_image,
+                (SELECT max(a.kind) FROM community.chat_attachment a WHERE a.message_id = lm.id) AS last_attachment_kind, -- 'image' > 'file': any image wins
                 EXISTS (SELECT 1 FROM community.chat_message x
                         WHERE x.conversation_id = c.id AND x.id > cm.last_read_message_id AND x.sender_id <> me.id AND x.deleted_at IS NULL) AS unread,
                 COALESCE(c.last_message_at, c.created_at)::text AS cursor_at, c.public_id AS cursor_id
@@ -270,7 +276,7 @@ export const chatDb = {
     /** Unread (same definition as the inbox) in a conversation the user is an accepted, live member of; the latest unread message supplies the preview. */
     pushSummary: ({ userId, conversationId }) => one(null,
         `SELECT c.kind, t.name AS team_name, u.n AS unread, lm.body AS last_body,
-                EXISTS (SELECT 1 FROM community.chat_attachment a WHERE a.message_id = lm.id) AS last_has_image,
+                (SELECT max(a.kind) FROM community.chat_attachment a WHERE a.message_id = lm.id) AS last_attachment_kind,
                 lu.username AS sender_username, ${NICKNAME("li")} AS sender_nickname
          FROM identity.users me
          JOIN community.conversation_member cm ON cm.user_id = me.id AND cm.left_at IS NULL AND cm.state = 'accepted'

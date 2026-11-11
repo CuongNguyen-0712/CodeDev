@@ -1,9 +1,9 @@
 import { ulid } from "ulid";
 
 import { chatDb } from "@/db/chat.db";
-import { chatMediaKey, inspect as inspectMedia, remove as removeMedia, signRead, signUpload } from "@/lib/chatMedia";
+import { inspect as inspectMedia, readUrl, remove as removeMedia, storageFor, storageKeyFor, uploadTicket } from "@/lib/chatMedia";
 import {
-    MAX_BODY, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, IMAGE_TYPES, ORPHAN_BATCH, ORPHAN_MAX_AGE_MINUTES,
+    MAX_BODY, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, IMAGE_TYPES, MAX_FILE_BYTES, FILE_TYPES, ORPHAN_BATCH, ORPHAN_MAX_AGE_MINUTES,
     EDIT_WINDOW_MS, INBOX_PAGE, MESSAGE_PAGE, PUSH_PREVIEW_CHARS,
 } from "@/lib/chat/limits";
 import { withTransaction } from "@/lib/dbTransaction";
@@ -30,11 +30,35 @@ function checkId(id, pattern, what) {
 const badAttachment = () => new ApiError("Invalid attachment", 422);
 const dimension = (v) => v === undefined || v === null ? null : Number.isInteger(v) && v > 0 && v <= 20000 ? v : undefined;
 
+/** The display name of an uploaded file: no path, no control characters, at most 255 characters; "" when nothing is left. */
+const cleanFileName = (name) => String(name ?? "").split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 255);
+
+/** Validates an upload request; returns what the row stores. A file's content type comes from its extension, never the client. */
+function uploadFields({ kind, name, contentType, size, width, height }) {
+    if (kind === "image") {
+        if (!IMAGE_TYPES.includes(contentType)) throw new ApiError("Only JPEG, PNG and WebP images are allowed", 422);
+        if (!Number.isInteger(size) || size < 1 || size > MAX_IMAGE_BYTES) throw new ApiError(`An image can be at most ${MAX_IMAGE_BYTES} bytes`, 422);
+        const [w, h] = [dimension(width), dimension(height)];
+        if (w === undefined || h === undefined) throw new ApiError("Invalid image dimensions", 422);
+        return { contentType, fileName: null, width: w, height: h };
+    }
+    if (kind !== "file") throw new ApiError("Invalid attachment kind", 422);
+    const fileName = cleanFileName(name);
+    if (!fileName) throw new ApiError("Invalid file name", 422);
+    const extension = /\.([^.]+)$/.exec(fileName)?.[1].toLowerCase();
+    if (!Object.hasOwn(FILE_TYPES, extension ?? "")) throw new ApiError("This file type can't be sent.", 422);
+    if (!Number.isInteger(size) || size < 1 || size > MAX_FILE_BYTES) throw new ApiError(`A file can be at most ${MAX_FILE_BYTES} bytes`, 422);
+    return { contentType: FILE_TYPES[extension], fileName, width: null, height: null };
+}
+
+/** The `att` chatMedia takes, without the row's id or size (the shape of a queued delete). */
+const mediaOf = ({ kind, provider, storageKey, contentType, fileName }) => ({ kind, provider, storageKey, contentType, fileName });
+
 /** Distinct, well-formed attachment ids (at most MAX_ATTACHMENTS), or 422. */
 function attachmentIdList(value) {
     if (!Array.isArray(value)) throw badAttachment();
     const list = [...new Set(value)];
-    if (list.length > MAX_ATTACHMENTS) throw new ApiError(`At most ${MAX_ATTACHMENTS} images per message`, 422);
+    if (list.length > MAX_ATTACHMENTS) throw new ApiError(`At most ${MAX_ATTACHMENTS} attachments per message`, 422);
     if (!list.every((id) => typeof id === "string" && ATTACHMENT_ID.test(id))) throw badAttachment();
     return list;
 }
@@ -48,15 +72,16 @@ async function verifyUploads(userId, ids) {
     const me = await chatDb.userByPublicId(null, userId);
     if (!me) throw conversationNotFound();
     for (const row of await chatDb.unsentUploads(null, { uploaderDbId: me.id, ids })) {
-        const found = await inspectMedia(row.storage_key);
-        if (found && found.contentType === row.content_type && found.size <= row.size_bytes) continue;
+        const found = await inspectMedia(row);
+        if (found && found.contentType === row.contentType && found.size <= row.size) continue;
         try {
-            await removeMedia(row.storage_key);
+            await removeMedia(row);
         } catch (error) {
-            console.error("[chat.send remove]", row.storage_key, error);
+            console.error("[chat.send remove]", row.storageKey, error);
+            await queueAttachmentDelete([mediaOf(row)]); // the row goes below, so the orphan purge would never find this file
         }
         await chatDb.deleteAttachments(null, [row.id]);
-        throw new ApiError("The uploaded image is invalid", 422);
+        throw new ApiError(`The uploaded ${row.kind} is invalid`, 422);
     }
 }
 
@@ -71,7 +96,7 @@ const messageDto = (row) => ({
 function preview(row) {
     if (row.last_deleted) return "This message was unsent";
     if (row.last_body.includes("```")) return "[code]";
-    if (!row.last_body.trim() && row.last_has_image) return "[image]";
+    if (!row.last_body.trim() && row.last_attachment_kind) return `[${row.last_attachment_kind}]`;
     return [...row.last_body].slice(0, PUSH_PREVIEW_CHARS).join("");
 }
 
@@ -208,8 +233,8 @@ export const chatService = {
             if (earlier) return duplicate(earlier);
             if (await sendRefused(client, conversation, mine, members)) throw refused();
 
-            // Rule: a request (pending) conversation carries no images.
-            if (attachments.length && members.some((m) => !m.left_at && m.state === "pending")) throw new ApiError("Images can't be sent in a message request", 422);
+            // Rule: a request (pending) conversation carries no attachments.
+            if (attachments.length && members.some((m) => !m.left_at && m.state === "pending")) throw new ApiError("Attachments can't be sent in a message request", 422);
 
             const publicId = `msg_${ulid().toLowerCase()}`;
             const inserted = await chatDb.insertMessage(client, { publicId, conversationDbId: conversation.id, senderDbId: me.id, clientId, body });
@@ -232,29 +257,30 @@ export const chatService = {
         return result;
     },
 
-    createUpload: async ({ userId, conversationId, contentType, size, width, height }) => {
-        if (!IMAGE_TYPES.includes(contentType)) throw new ApiError("Only JPEG, PNG and WebP images are allowed", 422);
-        if (!Number.isInteger(size) || size < 1 || size > MAX_IMAGE_BYTES) throw new ApiError(`An image can be at most ${MAX_IMAGE_BYTES} bytes`, 422);
-        const [w, h] = [dimension(width), dimension(height)];
-        if (w === undefined || h === undefined) throw new ApiError("Invalid image dimensions", 422);
+    createUpload: async ({ userId, conversationId, kind, name, contentType, size, width, height }) => {
+        const fields = uploadFields({ kind, name, contentType, size, width, height });
         return withTransaction(async (client) => {
             const { me, conversation, members } = await lockedMember(client, userId, conversationId);
             // Declined answers like pending (rule 2: the sender never learns of a decline).
-            if (members.some((m) => !m.left_at && m.state !== "accepted")) throw new ApiError("Images can't be sent in a message request", 422);
+            if (members.some((m) => !m.left_at && m.state !== "accepted")) {
+                throw new ApiError(kind === "image" ? "Images can't be sent in a message request" : "Files can't be sent in a message request", 422);
+            }
             const attachmentId = `att_${ulid().toLowerCase()}`;
+            const provider = storageFor(kind);
             // Ids here are server-made public ids, never client input.
-            const key = chatMediaKey({ conversationId: conversation.public_id, attachmentId, contentType });
-            const upload = await signUpload(key, { contentType, size });
-            await chatDb.insertAttachment(client, { publicId: attachmentId, conversationDbId: conversation.id, uploaderDbId: me.id, storageKey: key, contentType, size, width: w, height: h });
+            const storageKey = storageKeyFor({ kind, provider, conversationId: conversation.public_id, attachmentId, contentType: fields.contentType, fileName: fields.fileName });
+            const att = { kind, provider, storageKey, contentType: fields.contentType, size, fileName: fields.fileName };
+            const upload = await uploadTicket({ ...att, conversationId: conversation.public_id });
+            await chatDb.insertAttachment(client, { ...att, publicId: attachmentId, conversationDbId: conversation.id, uploaderDbId: me.id, width: fields.width, height: fields.height });
             return { attachmentId, upload };
         });
     },
 
     attachmentReadUrl: async ({ userId, attachmentId }) => {
         if (typeof attachmentId !== "string" || !ATTACHMENT_ID.test(attachmentId)) throw new ApiError("Attachment not found", 404);
-        const key = await chatDb.attachmentKey(null, { attachmentId, userId });
-        if (!key) throw new ApiError("Attachment not found", 404);
-        return (await signRead(key)).url;
+        const att = await chatDb.readableAttachment(null, { attachmentId, userId });
+        if (!att) throw new ApiError("Attachment not found", 404);
+        return readUrl(att);
     },
 
     /** Deletes uploads never attached to a message; a row goes only after its file is gone, so a failed delete is retried next run. */
@@ -262,10 +288,10 @@ export const chatService = {
         const gone = [];
         for (const row of await chatDb.lockOrphans(client, { minutes: ORPHAN_MAX_AGE_MINUTES, limit })) {
             try {
-                await removeMedia(row.storage_key);
+                await removeMedia(row);
                 gone.push(row.id);
             } catch (error) {
-                console.error("[chat.purge remove]", row.storage_key, error);
+                console.error("[chat.purge remove]", row.storageKey, error);
             }
         }
         if (gone.length) await chatDb.deleteAttachments(client, gone);
@@ -333,7 +359,7 @@ export const chatService = {
         const row = await chatDb.pushSummary({ userId, conversationId });
         if (!row) return null;
         const body = row.unread === 1
-            ? preview({ last_deleted: false, last_body: row.last_body, last_has_image: row.last_has_image })
+            ? preview({ last_deleted: false, last_body: row.last_body, last_attachment_kind: row.last_attachment_kind })
             : `${row.unread} new messages`;
         return { title: row.kind === "team" ? row.team_name : row.sender_nickname || row.sender_username, body, link: `/messages/${conversationId}` };
     },
@@ -368,17 +394,17 @@ export const chatService = {
     recallMessage: async ({ userId, messageId, byAdmin = false, socketId = null }) => {
         const result = await withTransaction(async (client) => {
             const { ref, recipients } = await lockedMessage(client, { userId, messageId, byAdmin });
-            const removedKeys = ref.deleted ? [] : await chatDb.recall(client, ref.id);
-            return { message: messageDto(await chatDb.messageById(client, messageId)), recipients, removedKeys };
+            const removed = ref.deleted ? [] : await chatDb.recall(client, ref.id);
+            return { message: messageDto(await chatDb.messageById(client, messageId)), recipients, removed };
         });
-        // Files go after commit; a failed delete is logged and handed to Inngest to retry (a no-op when it is off).
+        // Files go after commit, each through its row's provider; a failed delete is logged and handed to Inngest to retry (a no-op when it is off).
         const failed = [];
-        for (const key of result.removedKeys) {
+        for (const att of result.removed) {
             try {
-                await removeMedia(key);
+                await removeMedia(att);
             } catch (error) {
-                console.error("[chat.recall remove]", key, error);
-                failed.push(key);
+                console.error("[chat.recall remove]", att.storageKey, error);
+                failed.push(att);
             }
         }
         await queueAttachmentDelete(failed);

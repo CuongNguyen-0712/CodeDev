@@ -1,12 +1,14 @@
-// Chat image attachments (upload, send, read URL, orphan purge) against real PostgreSQL; storage is mocked.
+// Chat attachments, images and files (upload, send, read URL, recall, orphan purge) against real PostgreSQL; storage is mocked.
 import crypto from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/chatMedia", async () => ({
-    chatMediaKey: (await vi.importActual("@/lib/chatMedia")).chatMediaKey,
-    signUpload: vi.fn(async () => ({ url: "https://up.test/put", method: "PUT", headers: { "Content-Type": "image/png" } })),
-    signRead: vi.fn(async () => ({ url: "https://read.test/get", expiresAt: new Date() })),
-    inspect: vi.fn(async () => ({ contentType: "image/png", size: 1000 })),
+    storageFor: vi.fn(() => "s3"),
+    storageKeyFor: (await vi.importActual("@/lib/chatMedia")).storageKeyFor,
+    uploadTicket: vi.fn(async () => ({ url: "https://up.test/put", method: "PUT", headers: { "Content-Type": "image/png" } })),
+    readUrl: vi.fn(async () => "https://read.test/get"),
+    // By default the stored object is exactly what was declared.
+    inspect: vi.fn(async (att) => ({ contentType: att.contentType, size: att.size })),
     remove: vi.fn(async () => { }),
 }));
 
@@ -32,7 +34,10 @@ describe.skipIf(!hasDb)("chat attachments (PostgreSQL)", () => {
         const { conversation } = await chatService.send({ userId: a, toUserId: b, clientId: uuid(), body: "hello" });
         return { a, b, cid: conversation.id };
     };
-    const upload = (userId, conversationId, extra = {}) => chatService.createUpload({ userId, conversationId, contentType: "image/png", size: 1000, width: 10, height: 20, ...extra });
+    const upload = (userId, conversationId, extra = {}) => chatService.createUpload({ userId, conversationId, kind: "image", name: "cat.png", contentType: "image/png", size: 1000, width: 10, height: 20, ...extra });
+    const uploadFile = (userId, conversationId, extra = {}) => chatService.createUpload({ userId, conversationId, kind: "file", name: "a.pdf", size: 1000, ...extra });
+    const row = async (publicId) => (await sql(`SELECT kind, provider, storage_key, content_type, size_bytes, file_name, width, height FROM community.chat_attachment WHERE public_id = $1`, [publicId])).rows[0];
+    const setProvider = (publicId, provider) => sql(`UPDATE community.chat_attachment SET provider = $2 WHERE public_id = $1`, [publicId, provider]);
     const send = (userId, conversationId, body, attachmentIds) => chatService.send({ userId, conversationId, clientId: uuid(), body, attachmentIds });
     const rowCount = async (publicId) => (await sql(`SELECT count(*)::int AS n FROM community.chat_attachment WHERE public_id = $1`, [publicId])).rows[0].n;
 
@@ -56,7 +61,11 @@ describe.skipIf(!hasDb)("chat attachments (PostgreSQL)", () => {
         const r = await upload(a, cid);
         expect(r.attachmentId).toMatch(/^att_[0-9a-z]{26}$/);
         expect(r.upload).toMatchObject({ method: "PUT" });
-        expect(media.signUpload).toHaveBeenCalledWith(`chat/${cid}/${r.attachmentId}.png`, { contentType: "image/png", size: 1000 });
+        expect(media.storageFor).toHaveBeenCalledWith("image");
+        expect(media.uploadTicket).toHaveBeenCalledWith({
+            kind: "image", provider: "s3", storageKey: `chat/${cid}/${r.attachmentId}.png`, contentType: "image/png", size: 1000, fileName: null, conversationId: cid,
+        });
+        expect(await row(r.attachmentId)).toMatchObject({ kind: "image", provider: "s3", file_name: null, width: 10, height: 20 });
         await expect(upload(a, cid, { contentType: "text/html" })).rejects.toMatchObject({ status: 422 });
         await expect(upload(a, cid, { size: 5_000_001 })).rejects.toMatchObject({ status: 422 });
         await expect(upload(a, cid, { size: 0 })).rejects.toMatchObject({ status: 422 });
@@ -73,7 +82,111 @@ describe.skipIf(!hasDb)("chat attachments (PostgreSQL)", () => {
         // Rule 2: after a decline the sender gets the same answer as while pending.
         await chatService.respondRequest({ userId: b, conversationId: conversation.id, accept: false });
         await expect(upload(a, conversation.id)).rejects.toMatchObject({ status: 422, message: "Images can't be sent in a message request" });
-        expect(media.signUpload).not.toHaveBeenCalled();
+        expect(media.uploadTicket).not.toHaveBeenCalled();
+    });
+
+    it("refuses any attachment in a request conversation", async () => {
+        const [a, b] = [await newUser(), await newUser()];
+        const { conversation } = await chatService.send({ userId: a, toUserId: b, clientId: uuid(), body: "hi" });
+        await expect(uploadFile(a, conversation.id)).rejects.toMatchObject({ status: 422 });
+        await expect(uploadFile(b, conversation.id)).rejects.toMatchObject({ status: 422 });
+        expect(media.uploadTicket).not.toHaveBeenCalled();
+    });
+
+    it("accepts a pdf and stores the server-chosen content type and clean name", async () => {
+        const { a, cid } = await friends();
+        const r = await uploadFile(a, cid, { name: "../../a\u0007.pdf", contentType: "text/html", width: 5, height: 5 });
+        expect(media.storageFor).toHaveBeenCalledWith("file");
+        expect(media.uploadTicket).toHaveBeenCalledWith({
+            kind: "file", provider: "s3", storageKey: `chat/${cid}/${r.attachmentId}.pdf`, contentType: "application/pdf", size: 1000, fileName: "a.pdf", conversationId: cid,
+        });
+        expect(await row(r.attachmentId)).toEqual({
+            kind: "file", provider: "s3", storage_key: `chat/${cid}/${r.attachmentId}.pdf`, content_type: "application/pdf", size_bytes: 1000, file_name: "a.pdf", width: null, height: null,
+        });
+        const windows = await uploadFile(a, cid, { name: "C:\\Users\\me\\Notes.MD" });
+        expect(await row(windows.attachmentId)).toMatchObject({ file_name: "Notes.MD", content_type: "text/markdown", storage_key: `chat/${cid}/${windows.attachmentId}.md` });
+        const longest = `${"x".repeat(251)}.txt`;
+        const long = await uploadFile(a, cid, { name: `some/dir/${longest}` });
+        expect((await row(long.attachmentId)).file_name).toBe(longest);
+        for (const name of ["dir/", " \u0001 ", "\u007f"]) await expect(uploadFile(a, cid, { name })).rejects.toMatchObject({ status: 422 });
+    });
+
+    it("refuses .exe, .html and .svg files", async () => {
+        const { a, cid } = await friends();
+        for (const name of ["setup.exe", "page.html", "logo.svg", "README", "archive.tar.gz", "__proto__.__proto__"]) {
+            await expect(uploadFile(a, cid, { name, contentType: "application/pdf" })).rejects.toMatchObject({ status: 422, message: "This file type can't be sent." });
+        }
+        expect(media.uploadTicket).not.toHaveBeenCalled();
+    });
+
+    it("refuses a 15000001-byte file", async () => {
+        const { a, cid } = await friends();
+        await expect(uploadFile(a, cid, { size: 15_000_001 })).rejects.toMatchObject({ status: 422 });
+        await expect(uploadFile(a, cid, { size: 0 })).rejects.toMatchObject({ status: 422 });
+        await expect(uploadFile(a, cid, { size: 15_000_000 })).resolves.toMatchObject({ attachmentId: expect.any(String) });
+    });
+
+    it("counts images and files together toward 4 attachments", async () => {
+        const { a, cid } = await friends();
+        const images = [(await upload(a, cid)).attachmentId, (await upload(a, cid)).attachmentId];
+        const files = [(await uploadFile(a, cid)).attachmentId, (await uploadFile(a, cid)).attachmentId, (await uploadFile(a, cid)).attachmentId];
+        await expect(send(a, cid, "", [...images, ...files])).rejects.toMatchObject({ status: 422 });
+        await expect(send(a, cid, "", [...images, ...files.slice(0, 2)])).resolves.toMatchObject({ created: true });
+    });
+
+    it("returns file attachments with name and size, images with width and height", async () => {
+        const { a, b, cid } = await friends();
+        const image = (await upload(a, cid)).attachmentId;
+        const file = (await uploadFile(a, cid, { name: "report.pdf", size: 1234 })).attachmentId;
+        const r = await send(a, cid, "", [file, image]);
+        const expected = [{ id: image, kind: "image", width: 10, height: 20 }, { id: file, kind: "file", name: "report.pdf", size: 1234 }];
+        expect(r.message.attachments).toEqual(expected);
+        expect((await chatService.getMessage({ userId: b, messageId: r.message.id })).attachments).toEqual(expected);
+    });
+
+    it("previews a file-only message as [file]", async () => {
+        const { a, b, cid } = await friends();
+        await send(a, cid, "", [(await uploadFile(a, cid)).attachmentId]);
+        expect((await chatService.listConversations({ userId: b, tab: "all" })).items[0].lastMessage.preview).toBe("[file]");
+        await chatService.markRead({ userId: b, conversationId: cid, seq: "9223372036854775807" });
+        await send(a, cid, "", [(await uploadFile(a, cid)).attachmentId]);
+        expect((await chatService.pushSummary({ userId: b, conversationId: cid })).body).toBe("[file]");
+        await chatService.markRead({ userId: b, conversationId: cid, seq: "9223372036854775807" });
+        await send(a, cid, "", [(await uploadFile(a, cid)).attachmentId, (await upload(a, cid)).attachmentId]);
+        expect((await chatService.listConversations({ userId: b, tab: "all" })).items[0].lastMessage.preview).toBe("[image]");
+        expect((await chatService.pushSummary({ userId: b, conversationId: cid })).body).toBe("[image]");
+        await send(a, cid, "see attached", [(await uploadFile(a, cid)).attachmentId]);
+        expect((await chatService.listConversations({ userId: b, tab: "all" })).items[0].lastMessage.preview).toBe("see attached");
+    });
+
+    it("recall and purge delete through each row's provider", async () => {
+        const { a, b, cid } = await friends();
+        const image = (await upload(a, cid)).attachmentId;
+        const file = (await uploadFile(a, cid)).attachmentId;
+        await setProvider(image, "cloudinary");
+        await setProvider(file, "upstash");
+        const imageKey = (await row(image)).storage_key;
+        const fileKey = (await row(file)).storage_key;
+        const sent = await send(a, cid, "", [image, file]);
+        expect(media.inspect.mock.calls.map(([att]) => att.provider).sort()).toEqual(["cloudinary", "upstash"]);
+
+        await chatService.attachmentReadUrl({ userId: b, attachmentId: file });
+        expect(media.readUrl).toHaveBeenCalledWith({ kind: "file", provider: "upstash", storageKey: fileKey, contentType: "application/pdf", fileName: "a.pdf" });
+
+        await chatService.recallMessage({ userId: a, messageId: sent.message.id });
+        expect(media.remove.mock.calls.map(([att]) => att)).toEqual(expect.arrayContaining([
+            { kind: "image", provider: "cloudinary", storageKey: imageKey, contentType: "image/png", fileName: null },
+            { kind: "file", provider: "upstash", storageKey: fileKey, contentType: "application/pdf", fileName: "a.pdf" },
+        ]));
+        expect(media.remove).toHaveBeenCalledTimes(2);
+
+        media.remove.mockClear();
+        const orphan = (await uploadFile(a, cid, { name: "old.zip" })).attachmentId;
+        await setProvider(orphan, "upstash");
+        await sql(`UPDATE community.chat_attachment SET created_at = created_at - interval '61 minutes' WHERE public_id = $1`, [orphan]);
+        await chatService.purgeOrphanAttachments({ limit: 500 });
+        expect(media.remove).toHaveBeenCalledWith(expect.objectContaining({ kind: "file", provider: "upstash", storageKey: `chat/${cid}/${orphan}.zip`, fileName: "old.zip" }));
+        expect(await rowCount(orphan)).toBe(0);
     });
 
     it("a body-less message with one image is accepted, and listings carry the attachment", async () => {
@@ -81,7 +194,7 @@ describe.skipIf(!hasDb)("chat attachments (PostgreSQL)", () => {
         const { attachmentId } = await upload(a, cid);
         const r = await send(a, cid, "", [attachmentId]);
         expect(r.message.body).toBe("");
-        expect(r.message.attachments).toEqual([{ id: attachmentId, width: 10, height: 20 }]);
+        expect(r.message.attachments).toEqual([{ id: attachmentId, kind: "image", width: 10, height: 20 }]);
         expect((await chatService.getMessage({ userId: b, messageId: r.message.id })).attachments).toHaveLength(1);
         expect((await chatService.listMessages({ userId: b, conversationId: cid })).items[0].attachments).toHaveLength(1);
         await expect(send(a, cid, "  ", [])).rejects.toMatchObject({ status: 422 });
@@ -110,7 +223,7 @@ describe.skipIf(!hasDb)("chat attachments (PostgreSQL)", () => {
         const { attachmentId } = await upload(a, cid);
         media.inspect.mockResolvedValueOnce({ contentType: "text/html", size: 1000 });
         await expect(send(a, cid, "x", [attachmentId])).rejects.toMatchObject({ status: 422 });
-        expect(media.remove).toHaveBeenCalledWith(`chat/${cid}/${attachmentId}.png`);
+        expect(media.remove).toHaveBeenCalledWith(expect.objectContaining({ provider: "s3", storageKey: `chat/${cid}/${attachmentId}.png` }));
         expect(await rowCount(attachmentId)).toBe(0);
     });
 
@@ -140,7 +253,7 @@ describe.skipIf(!hasDb)("chat attachments (PostgreSQL)", () => {
         const { attachmentId } = await upload(a, cid);
         const unsent = await send(a, cid, "", [attachmentId]);
         expect(await chatService.attachmentReadUrl({ userId: b, attachmentId })).toBe("https://read.test/get");
-        expect(media.signRead).toHaveBeenCalledWith(`chat/${cid}/${attachmentId}.png`);
+        expect(media.readUrl).toHaveBeenCalledWith({ kind: "image", provider: "s3", storageKey: `chat/${cid}/${attachmentId}.png`, contentType: "image/png", fileName: null });
         const stranger = await newUser();
         await expect(chatService.attachmentReadUrl({ userId: stranger, attachmentId })).rejects.toMatchObject({ status: 404 });
         await sql(`UPDATE community.conversation_member SET left_at = now() WHERE conversation_id = (SELECT id FROM community.conversation WHERE public_id = $1) AND user_id = $2`, [cid, ids[b]]);
@@ -156,8 +269,9 @@ describe.skipIf(!hasDb)("chat attachments (PostgreSQL)", () => {
         await sql(`UPDATE community.chat_attachment SET created_at = created_at - interval '61 minutes' WHERE public_id = $1`, [old]);
         const { removed } = await chatService.purgeOrphanAttachments({ limit: 500 });
         expect(removed).toBeGreaterThanOrEqual(1);
-        expect(media.remove).toHaveBeenCalledWith(`chat/${cid}/${old}.png`);
-        expect(media.remove).not.toHaveBeenCalledWith(`chat/${cid}/${fresh}.png`);
+        const purgedKeys = media.remove.mock.calls.map(([att]) => att.storageKey);
+        expect(purgedKeys).toContain(`chat/${cid}/${old}.png`);
+        expect(purgedKeys).not.toContain(`chat/${cid}/${fresh}.png`);
         expect(await rowCount(old)).toBe(0);
         expect(await rowCount(fresh)).toBe(1);
     });

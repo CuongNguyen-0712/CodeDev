@@ -306,7 +306,7 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
             await expect(chatService.editMessage({ userId: a, messageId: m.message.id, body: "again" })).rejects.toMatchObject({ status: 403 });
         });
 
-        it("recall clears the body, returns attachment keys and removes the files after commit", async () => {
+        it("recall clears the body, returns the removed attachments and removes the files after commit", async () => {
             const { remove } = await import("@/lib/chatMedia");
             const [a, b, cid] = await friends();
             const m = await send(a, cid, "with picture");
@@ -319,12 +319,12 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
             remove.mockRejectedValueOnce(new Error("storage down"));
             const r = await chatService.recallMessage({ userId: a, messageId: m.message.id });
             expect(r.message).toMatchObject({ body: "", deleted: true, attachments: [] });
-            expect(r.removedKeys).toEqual([key]);
+            expect(r.removed).toEqual([{ kind: "image", provider: "s3", storageKey: key, contentType: "image/png", fileName: null }]);
             expect(r.recipients).toEqual([{ publicId: b, state: "accepted" }]);
-            expect(remove).toHaveBeenCalledWith(key);
+            expect(remove).toHaveBeenCalledWith(r.removed[0]);
             expect((await chatService.listConversations({ userId: b, tab: "all" })).items[0].lastMessage.preview).toBe("This message was unsent");
             await expect(chatService.recallMessage({ userId: b, messageId: m.message.id })).rejects.toMatchObject({ status: 404 });
-            expect((await chatService.recallMessage({ userId: await newUser(), messageId: m.message.id, byAdmin: true })).removedKeys).toEqual([]);
+            expect((await chatService.recallMessage({ userId: await newUser(), messageId: m.message.id, byAdmin: true })).removed).toEqual([]);
         });
 
         it("decline hides the conversation and silently refuses the sender", async () => {

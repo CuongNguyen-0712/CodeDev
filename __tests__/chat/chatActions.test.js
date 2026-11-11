@@ -161,12 +161,28 @@ describe("respondRequestAction", () => {
 
 describe("createChatUploadAction", () => {
     it("uses chatUpload", async () => {
-        const input = { conversationId: CNV, contentType: "image/png", size: 1000, width: 10, height: 10 };
+        const input = { conversationId: CNV, kind: "image", name: "cat.png", contentType: "image/png", size: 1000, width: 10, height: 10 };
         const r = await a.createChatUploadAction(input);
         expect(r.options).toEqual({ limiter: rateLimiters.chatUpload, context: "createChatUploadAction" });
         expect(rateLimiters.chatUpload).toMatchObject({ limit: 20, prefix: "chat-upload" });
         expect(chatService.createUpload).toHaveBeenCalledWith({ userId: "u1", ...input });
         expect(await a.createChatUploadAction({ ...input, size: "1000" })).toMatchObject({ success: false, status: 422 });
+    });
+
+    it("images need a listed type and dimensions; files need neither, and their type and dimensions never reach the service", async () => {
+        const image = { conversationId: CNV, kind: "image", name: "cat.png", contentType: "image/png", size: 1000, width: 10, height: 10 };
+        for (const bad of [
+            { ...image, width: undefined }, { ...image, height: undefined }, { ...image, contentType: "image/gif" }, { ...image, contentType: undefined },
+            { ...image, kind: "video" }, { ...image, kind: undefined }, { ...image, name: "" }, { ...image, name: "x".repeat(256) }, { ...image, size: 0 },
+        ]) {
+            expect(await a.createChatUploadAction(bad)).toMatchObject({ success: false, status: 422 });
+        }
+        expect(chatService.createUpload).not.toHaveBeenCalled();
+
+        const file = { conversationId: CNV, kind: "file", name: "notes.pdf", size: 1000 };
+        expect(await a.createChatUploadAction(file)).toMatchObject({ success: true });
+        expect(await a.createChatUploadAction({ ...file, contentType: "text/html", width: 5, height: 5 })).toMatchObject({ success: true });
+        expect(chatService.createUpload.mock.calls).toEqual([[{ userId: "u1", ...file }], [{ userId: "u1", ...file }]]);
     });
 });
 
@@ -196,7 +212,7 @@ describe("actions return only what the browser needs", () => {
     });
 
     it("recall returns { message }", async () => {
-        chatService.recallMessage.mockResolvedValue({ message: { id: MSG }, recipients: [1], removedKeys: ["chat/k"] });
+        chatService.recallMessage.mockResolvedValue({ message: { id: MSG }, recipients: [1], removed: [{ kind: "image", provider: "s3", storageKey: "chat/k" }] });
         expect((await a.recallMessageAction(MSG)).data).toEqual({ message: { id: MSG } });
     });
 

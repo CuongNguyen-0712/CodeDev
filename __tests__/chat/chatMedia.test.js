@@ -8,7 +8,6 @@ const blob = vi.hoisted(() => ({
 }));
 const s3mock = vi.hoisted(() => ({
     buckets: { chat: "codedev-chat-media" },
-    storageInfo: vi.fn(() => ({ chatImagesConfigured: true })),
     s3: { presignPut: vi.fn(), presignGet: vi.fn(), head: vi.fn(), delete: vi.fn(), getDownloadUrl: vi.fn() },
 }));
 const cld = vi.hoisted(() => ({
@@ -29,110 +28,18 @@ vi.mock("@/lib/cloudinary", async (importOriginal) => ({
     destroyAsset: (...args) => cld.destroyAsset(...args),
 }));
 
-import {
-    chatMediaProvider, chatMediaKey, signUpload, signRead, inspect, remove,
-    storageFor, storageKeyFor, uploadTicket, inspectAttachment, readUrl, removeAttachment,
-} from "@/lib/chatMedia.js";
+import * as chatMedia from "@/lib/chatMedia.js";
 
-const KEY = "chat/cnv_x/att_y.png";
+const { storageFor, storageKeyFor, uploadTicket, inspect, readUrl, remove } = chatMedia;
 const notFound = (extra) => Object.assign(new Error("nf"), extra);
 
 beforeEach(() => vi.clearAllMocks());
 afterEach(() => vi.unstubAllEnvs());
 
-describe("provider and keys", () => {
-    it("uses Upstash when UPSTASH_BLOB_TOKEN is set", () => {
-        vi.stubEnv("UPSTASH_BLOB_TOKEN", "t");
-        expect(chatMediaProvider()).toBe("upstash");
-    });
-    it("uses S3 otherwise", () => {
-        vi.stubEnv("UPSTASH_BLOB_TOKEN", "");
-        expect(chatMediaProvider()).toBe("s3");
-    });
-    it("builds keys from public ids only", () => {
-        const key = (contentType) => chatMediaKey({ conversationId: "cnv_x", attachmentId: "att_y", contentType });
-        expect(key("image/webp")).toBe("chat/cnv_x/att_y.webp");
-        expect(key("image/jpeg")).toBe("chat/cnv_x/att_y.jpg");
-        expect(key("image/png")).toBe(KEY);
-        expect(() => key("image/gif")).toThrow();
-    });
-});
-
-describe("upstash", () => {
-    beforeEach(() => vi.stubEnv("UPSTASH_BLOB_TOKEN", "t"));
-
-    it("signs an upload with the declared type and size", async () => {
-        blob.signedUploadUrl.mockResolvedValue({ url: "https://u", headers: { "content-type": "image/png" }, expiresAt: new Date() });
-        const result = await signUpload(KEY, { contentType: "image/png", size: 1234 });
-        expect(blob.signedUploadUrl).toHaveBeenCalledWith(KEY, { contentType: "image/png", size: 1234 });
-        expect(result).toEqual({ url: "https://u", method: "PUT", headers: { "content-type": "image/png" } });
-    });
-    it("signs a read", async () => {
-        const expiresAt = new Date();
-        blob.signedReadUrl.mockResolvedValue({ url: "https://r", expiresAt });
-        expect(await signRead(KEY)).toEqual({ url: "https://r", expiresAt });
-    });
-    it("inspect returns type and size, null when missing, rethrows others", async () => {
-        blob.info.mockResolvedValueOnce({ contentType: "image/png", size: 5 });
-        expect(await inspect(KEY)).toEqual({ contentType: "image/png", size: 5 });
-        blob.info.mockRejectedValueOnce(notFound({ code: "not_found" }));
-        expect(await inspect(KEY)).toBeNull();
-        blob.info.mockRejectedValueOnce(notFound({ code: "unauthorized" }));
-        await expect(inspect(KEY)).rejects.toThrow();
-    });
-    it("remove ignores a missing object", async () => {
-        blob.del.mockRejectedValueOnce(notFound({ code: "not_found" }));
-        await expect(remove(KEY)).resolves.toBeUndefined();
-        expect(blob.del).toHaveBeenCalledWith(KEY);
-    });
-});
-
-describe("s3", () => {
-    beforeEach(() => vi.stubEnv("UPSTASH_BLOB_TOKEN", ""));
-
-    it("signs an upload with the declared type and size", async () => {
-        s3mock.s3.presignPut.mockResolvedValue("https://m/put");
-        const result = await signUpload(KEY, { contentType: "image/png", size: 1234 });
-        expect(s3mock.s3.presignPut).toHaveBeenCalledWith(KEY, { bucket: "codedev-chat-media", contentType: "image/png", size: 1234 });
-        expect(result).toEqual({ url: "https://m/put", method: "PUT", headers: { "Content-Type": "image/png", "Content-Length": "1234" } });
-    });
-    it("signs a read for 300 seconds", async () => {
-        s3mock.s3.presignGet.mockResolvedValue("https://m/get");
-        const before = Date.now();
-        const { url, expiresAt } = await signRead(KEY);
-        expect(url).toBe("https://m/get");
-        expect(s3mock.s3.presignGet).toHaveBeenCalledWith(KEY, { bucket: "codedev-chat-media", expiresIn: 300 });
-        expect(expiresAt.getTime() - before).toBeGreaterThanOrEqual(299_000);
-    });
-    it("inspect returns null on 404", async () => {
-        s3mock.s3.head.mockResolvedValueOnce({ ContentType: "image/png", ContentLength: 5 });
-        expect(await inspect(KEY)).toEqual({ contentType: "image/png", size: 5 });
-        s3mock.s3.head.mockRejectedValueOnce(notFound({ name: "NotFound", $metadata: { httpStatusCode: 404 } }));
-        expect(await inspect(KEY)).toBeNull();
-    });
-    it("remove deletes from the chat bucket", async () => {
-        await remove(KEY);
-        expect(s3mock.s3.delete).toHaveBeenCalledWith(KEY, { bucket: "codedev-chat-media" });
-    });
-});
-
-describe("unconfigured chat storage", () => {
-    it("throws 503 before touching any client", async () => {
-        vi.stubEnv("UPSTASH_BLOB_TOKEN", "");
-        s3mock.storageInfo.mockReturnValue({ chatImagesConfigured: false });
-        for (const call of [() => signUpload(KEY, { contentType: "image/png", size: 1 }), () => signRead(KEY), () => inspect(KEY), () => remove(KEY)]) {
-            await expect(call()).rejects.toMatchObject({ status: 503, message: "Chat images are not configured" });
-        }
-        expect(s3mock.s3.presignPut).not.toHaveBeenCalled();
-        expect(s3mock.s3.head).not.toHaveBeenCalled();
-        s3mock.storageInfo.mockReturnValue({ chatImagesConfigured: true });
-    });
-});
-
 describe("attachment storage adapter", () => {
     const CNV = "cnv_0123456789abcdefghijklmnop";
     const ATT = "att_0123456789abcdefghijklmnop";
-    const cloudImage = { kind: "image", provider: "cloudinary", storageKey: `codedev/chat/${CNV}/${ATT}`, contentType: "image/png", size: 10, fileName: null };
+    const cloudImage = { kind: "image", provider: "cloudinary", storageKey: `codedev/chat/${CNV}/${ATT}`, contentType: "image/png", size: 10, fileName: null, conversationId: CNV };
     const upstashFile = { kind: "file", provider: "upstash", storageKey: `chat/${CNV}/${ATT}.pdf`, contentType: "application/pdf", size: 10, fileName: "Report.pdf" };
     const s3File = { ...upstashFile, provider: "s3" };
     const s3Image = { kind: "image", provider: "s3", storageKey: `chat/${CNV}/${ATT}.png`, contentType: "image/png", size: 10, fileName: null };
@@ -168,8 +75,9 @@ describe("attachment storage adapter", () => {
         const ticket = await uploadTicket(cloudImage);
         const [params, secret] = cld.sdk.utils.api_sign_request.mock.calls[0];
         expect(secret).toBe("s3cr3t-value");
+        // asset_folder is signed too, so the browser cannot file the asset elsewhere; the public id keeps the full path.
         expect(params).toEqual({
-            public_id: cloudImage.storageKey, timestamp: expect.any(Number), type: "authenticated",
+            public_id: cloudImage.storageKey, asset_folder: `codedev/chat/${CNV}`, timestamp: expect.any(Number), type: "authenticated",
             allowed_formats: "jpg,png,webp", overwrite: "false",
         });
         expect(Math.abs(params.timestamp - Date.now() / 1000)).toBeLessThan(5);
@@ -192,7 +100,7 @@ describe("attachment storage adapter", () => {
         expect(options.expires_at - before).toBeGreaterThanOrEqual(300);
         expect(options.expires_at - before).toBeLessThanOrEqual(301);
 
-        await removeAttachment(cloudImage);
+        await remove(cloudImage);
         expect(cld.destroyAsset).toHaveBeenCalledWith(cloudImage.storageKey, { resourceType: "image", type: "authenticated" });
 
         s3mock.s3.presignGet.mockResolvedValue("https://m/get");
@@ -210,35 +118,59 @@ describe("attachment storage adapter", () => {
         expect(await readUrl(s3File)).toBe("https://m/dl");
         expect(s3mock.s3.getDownloadUrl).toHaveBeenCalledWith(s3File.storageKey, { bucket: "codedev-chat-media", filename: "Report.pdf" });
 
-        blob.signedUploadUrl.mockResolvedValue({ url: "https://u", headers: { "content-type": "application/pdf" }, expiresAt: new Date() });
-        expect(await uploadTicket(upstashFile)).toEqual({ method: "PUT", url: "https://u", headers: { "content-type": "application/pdf" } });
-        expect(blob.signedUploadUrl).toHaveBeenCalledWith(upstashFile.storageKey, { contentType: "application/pdf", size: 10 });
+        // R41: no overwrite, and the SDK's signed headers (if-none-match among them) reach the browser untouched.
+        const signed = { "content-type": "application/pdf", "if-none-match": "*" };
+        blob.signedUploadUrl.mockResolvedValue({ url: "https://u", headers: signed, expiresAt: new Date() });
+        expect(await uploadTicket(upstashFile)).toEqual({ method: "PUT", url: "https://u", headers: signed });
+        expect(blob.signedUploadUrl).toHaveBeenCalledWith(upstashFile.storageKey, { contentType: "application/pdf", size: 10, allowOverwrite: false });
         blob.info.mockResolvedValueOnce({ contentType: "application/pdf", size: 10, metadata: {} });
-        expect(await inspectAttachment(upstashFile)).toEqual({ contentType: "application/pdf", size: 10 });
+        expect(await inspect(upstashFile)).toEqual({ contentType: "application/pdf", size: 10 });
         blob.info.mockRejectedValueOnce(notFound({ code: "not_found" }));
-        expect(await inspectAttachment(upstashFile)).toBeNull();
+        expect(await inspect(upstashFile)).toBeNull();
         blob.del.mockRejectedValueOnce(notFound({ code: "not_found" }));
-        await expect(removeAttachment(upstashFile)).resolves.toBeUndefined();
+        await expect(remove(upstashFile)).resolves.toBeUndefined();
         expect(blob.del).toHaveBeenCalledWith(upstashFile.storageKey);
+    });
+
+    it("passes downloadAs only for files (R42)", async () => {
+        blob.signedReadUrl.mockResolvedValue({ url: "https://r", expiresAt: new Date() });
+        await readUrl({ ...upstashFile, kind: "image", contentType: "image/png", fileName: null });
+        expect(blob.signedReadUrl).toHaveBeenCalledWith(upstashFile.storageKey, {});
+    });
+
+    it("uses the MinIO chat bucket for s3 rows", async () => {
+        s3mock.s3.presignPut.mockResolvedValue("https://m/put");
+        expect(await uploadTicket(s3Image)).toEqual({ method: "PUT", url: "https://m/put", headers: { "Content-Type": "image/png", "Content-Length": "10" } });
+        expect(s3mock.s3.presignPut).toHaveBeenCalledWith(s3Image.storageKey, { bucket: "codedev-chat-media", contentType: "image/png", size: 10 });
+        s3mock.s3.head.mockResolvedValueOnce({ ContentType: "image/png", ContentLength: 5 });
+        expect(await inspect(s3Image)).toEqual({ contentType: "image/png", size: 5 });
+        s3mock.s3.head.mockRejectedValueOnce(notFound({ name: "NotFound", $metadata: { httpStatusCode: 404 } }));
+        expect(await inspect(s3Image)).toBeNull();
+        await remove(s3File);
+        expect(s3mock.s3.delete).toHaveBeenCalledWith(s3File.storageKey, { bucket: "codedev-chat-media" });
+    });
+
+    it("exports only the attachment API", () => {
+        expect(Object.keys(chatMedia).sort()).toEqual(["inspect", "readUrl", "remove", "storageFor", "storageKeyFor", "uploadTicket"]);
     });
 
     it("maps a Cloudinary not-found to null and rethrows other errors", async () => {
         cld.sdk.api.resource.mockResolvedValueOnce({ format: "webp", bytes: 42 });
-        expect(await inspectAttachment(cloudImage)).toEqual({ contentType: "image/webp", size: 42 });
+        expect(await inspect(cloudImage)).toEqual({ contentType: "image/webp", size: 42 });
         expect(cld.sdk.api.resource).toHaveBeenCalledWith(cloudImage.storageKey, { type: "authenticated", resource_type: "image" });
         cld.sdk.api.resource.mockRejectedValueOnce({ error: { message: "Resource not found", http_code: 404 } });
-        expect(await inspectAttachment(cloudImage)).toBeNull();
+        expect(await inspect(cloudImage)).toBeNull();
         cld.sdk.api.resource.mockRejectedValueOnce(Object.assign(new Error("nf"), { http_code: 404 }));
-        expect(await inspectAttachment(cloudImage)).toBeNull();
+        expect(await inspect(cloudImage)).toBeNull();
         cld.sdk.api.resource.mockRejectedValueOnce({ error: { message: "Bad credentials", http_code: 401 } });
-        await expect(inspectAttachment(cloudImage)).rejects.toMatchObject({ error: { http_code: 401 } });
+        await expect(inspect(cloudImage)).rejects.toMatchObject({ error: { http_code: 401 } });
     });
 
     it("answers 503 per kind when production storage is missing", async () => {
         vi.stubEnv("APP_ENV", "production");
         cld.configured.mockReturnValue(false);
         vi.stubEnv("UPSTASH_BLOB_TOKEN", "");
-        for (const fn of [uploadTicket, inspectAttachment, readUrl, removeAttachment]) {
+        for (const fn of [uploadTicket, inspect, readUrl, remove]) {
             await expect(fn(cloudImage)).rejects.toMatchObject({ status: 503, message: "Chat images are not configured" });
             await expect(fn(upstashFile)).rejects.toMatchObject({ status: 503, message: "Chat files are not configured" });
         }
