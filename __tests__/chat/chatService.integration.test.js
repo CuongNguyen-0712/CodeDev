@@ -1,6 +1,8 @@
 // Chat service rules (open, send, read) against real PostgreSQL; test users, their teams and conversations are deleted afterwards.
 import crypto from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/chatMedia", () => ({ remove: vi.fn(async () => { }) }));
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 const TAG = `cv${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")}`;
@@ -216,5 +218,174 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
         await expect(chatService.getConversation({ userId: outsider, conversationId: "cnv_bad" })).rejects.toMatchObject({ status: 400 });
         await expect(chatService.getMessage({ userId: outsider, messageId: "nope" })).rejects.toMatchObject({ status: 400 });
         expect(await chatService.getMessage({ userId: b, messageId: r.message.id })).toMatchObject({ id: r.message.id, conversationId });
+    });
+    describe("read state, edit, unsend, requests, blocks, reports, team", () => {
+        const friends = async () => {
+            const [a, b] = await pair();
+            await befriend(a, b);
+            return [a, b, (await send(a, b, "first")).conversation.id];
+        };
+
+        it("markRead never moves back and clamps to the newest message", async () => {
+            const [a, b, cid] = await friends();
+            const m2 = await send(a, cid, "second");
+            const m3 = await send(a, cid, "third");
+            const seq = (m) => m.message.seq;
+            expect(await chatService.markRead({ userId: b, conversationId: cid, seq: seq(m3) })).toEqual({ changed: true, lastReadSeq: seq(m3), others: [a] });
+            expect(await chatService.markRead({ userId: b, conversationId: cid, seq: seq(m2) })).toMatchObject({ changed: false, lastReadSeq: seq(m3) });
+            expect(await chatService.markRead({ userId: b, conversationId: cid, seq: "9999999999999" })).toMatchObject({ changed: false, lastReadSeq: seq(m3) });
+            await expect(chatService.markRead({ userId: b, conversationId: cid, seq: "x" })).rejects.toMatchObject({ status: 400 });
+            await expect(chatService.markRead({ userId: await newUser(), conversationId: cid, seq: seq(m3) })).rejects.toMatchObject({ status: 404 });
+        });
+
+        it("a pending reader does not expose read receipts", async () => {
+            const [a, b] = await pair();
+            const r = await send(a, b);
+            const read = await chatService.markRead({ userId: b, conversationId: r.conversation.id, seq: r.message.seq });
+            expect(read).toMatchObject({ changed: true, others: [] });
+            const seen = await chatService.getConversation({ userId: a, conversationId: r.conversation.id });
+            expect(seen.members.find((m) => m.id === b).lastReadSeq).toBe("0");
+        });
+
+        it("calls afterRead only when the mark moved", async () => {
+            const [a, b, cid] = await friends();
+            const last = await send(a, cid, "x");
+            const calls = [];
+            const original = chatService.afterRead;
+            chatService.afterRead = async (result) => { calls.push(result); throw new Error("hook down"); };
+            try {
+                await chatService.markRead({ userId: b, conversationId: cid, seq: last.message.seq });
+                await chatService.markRead({ userId: b, conversationId: cid, seq: last.message.seq });
+            } finally {
+                chatService.afterRead = original;
+            }
+            expect(calls).toHaveLength(1);
+            expect(calls[0]).toMatchObject({ conversationId: cid, userId: b, others: [a] });
+        });
+
+        it("edits within 15 minutes only, own messages only", async () => {
+            const [a, b, cid] = await friends();
+            const m = await send(a, cid, "old");
+            const calls = [];
+            const original = chatService.afterUpdate;
+            chatService.afterUpdate = async (result, opts) => { calls.push([result.message.body, opts]); };
+            try {
+                const edited = await chatService.editMessage({ userId: a, messageId: m.message.id, body: "new", socketId: "s9" });
+                expect(edited.message).toMatchObject({ body: "new", editedAt: expect.any(Date) });
+                expect(edited.recipients).toEqual([{ publicId: b, state: "accepted" }]);
+                expect(calls).toEqual([["new", { socketId: "s9" }]]);
+            } finally {
+                chatService.afterUpdate = original;
+            }
+            await expect(chatService.editMessage({ userId: b, messageId: m.message.id, body: "mine now" })).rejects.toMatchObject({ status: 404 });
+            await expect(chatService.editMessage({ userId: a, messageId: m.message.id, body: "  " })).rejects.toMatchObject({ status: 422 });
+            await sql(`UPDATE community.chat_message SET created_at = created_at - interval '16 minutes' WHERE public_id = $1`, [m.message.id]);
+            await expect(chatService.editMessage({ userId: a, messageId: m.message.id, body: "late" })).rejects.toMatchObject({ status: 403 });
+        });
+
+        it("cannot edit an unsent message", async () => {
+            const [a, , cid] = await friends();
+            const m = await send(a, cid, "oops");
+            await chatService.recallMessage({ userId: a, messageId: m.message.id });
+            await expect(chatService.editMessage({ userId: a, messageId: m.message.id, body: "again" })).rejects.toMatchObject({ status: 403 });
+        });
+
+        it("recall clears the body, returns attachment keys and removes the files after commit", async () => {
+            const { remove } = await import("@/lib/chatMedia");
+            const [a, b, cid] = await friends();
+            const m = await send(a, cid, "with picture");
+            const key = `chat/${cid}/${TAG}.png`;
+            await sql(
+                `INSERT INTO community.chat_attachment (public_id, conversation_id, uploader_id, message_id, storage_key, content_type, size_bytes)
+                 SELECT $1, c.id, $2, m.id, $3, 'image/png', 10 FROM community.conversation c, community.chat_message m WHERE c.public_id = $4 AND m.public_id = $5`,
+                [`att_${TAG}`, ids[a], key, cid, m.message.id]);
+            remove.mockClear();
+            remove.mockRejectedValueOnce(new Error("storage down"));
+            const r = await chatService.recallMessage({ userId: a, messageId: m.message.id });
+            expect(r.message).toMatchObject({ body: "", deleted: true, attachments: [] });
+            expect(r.removedKeys).toEqual([key]);
+            expect(r.recipients).toEqual([{ publicId: b, state: "accepted" }]);
+            expect(remove).toHaveBeenCalledWith(key);
+            expect((await chatService.listConversations({ userId: b, tab: "all" })).items[0].lastMessage.preview).toBe("This message was unsent");
+            await expect(chatService.recallMessage({ userId: b, messageId: m.message.id })).rejects.toMatchObject({ status: 404 });
+            expect((await chatService.recallMessage({ userId: await newUser(), messageId: m.message.id, byAdmin: true })).removedKeys).toEqual([]);
+        });
+
+        it("decline hides the conversation and silently refuses the sender", async () => {
+            const [a, b] = await pair();
+            const cid = (await send(a, b)).conversation.id;
+            expect(await chatService.respondRequest({ userId: b, conversationId: cid, accept: false })).toEqual({ state: "declined", others: [a] });
+            await expect(send(a, cid)).rejects.toMatchObject({ status: 403 });
+            expect((await chatService.listConversations({ userId: b, tab: "requests" })).items).toHaveLength(0);
+            expect((await chatService.listConversations({ userId: b, tab: "all" })).items).toHaveLength(0);
+            expect((await chatService.getConversation({ userId: a, conversationId: cid })).members.find((m) => m.id === b).state).toBe("pending");
+        });
+
+        it("accepting moves the request to the inbox", async () => {
+            const [a, b] = await pair();
+            const cid = (await send(a, b)).conversation.id;
+            expect(await chatService.respondRequest({ userId: b, conversationId: cid, accept: true })).toMatchObject({ state: "accepted" });
+            expect((await chatService.listConversations({ userId: b, tab: "all" })).items).toHaveLength(1);
+            expect((await send(a, cid, "now fine")).created).toBe(true);
+        });
+
+        it("block, unblock and list blocks", async () => {
+            const [a, b] = await pair();
+            const c = await newUser();
+            await expect(chatService.block({ userId: a, targetId: a })).rejects.toMatchObject({ status: 400 });
+            await expect(chatService.block({ userId: a, targetId: `${TAG}_nobody` })).rejects.toMatchObject({ status: 404 });
+            await chatService.block({ userId: a, targetId: b });
+            await chatService.block({ userId: a, targetId: b });
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            await chatService.block({ userId: a, targetId: c });
+            const { items } = await chatService.listBlocks({ userId: a });
+            expect(items.map((i) => i.id)).toEqual([c, b]);
+            expect(items[0]).toMatchObject({ username: c, nickname: null, blockedAt: expect.any(Date) });
+            await expect(send(b, a)).rejects.toMatchObject({ status: 403 });
+            await chatService.unblock({ userId: a, targetId: b });
+            await chatService.unblock({ userId: a, targetId: b });
+            await chatService.unblock({ userId: b, targetId: a });
+            expect((await chatService.listBlocks({ userId: a })).items.map((i) => i.id)).toEqual([c]);
+            expect((await send(b, a)).created).toBe(true);
+        });
+
+        it("reports once and not your own message", async () => {
+            const [a, b, cid] = await friends();
+            const m = await send(a, cid, "rude");
+            await expect(chatService.report({ userId: a, messageId: m.message.id, reason: "because" })).rejects.toMatchObject({ status: 400 });
+            await expect(chatService.report({ userId: b, messageId: m.message.id, reason: "no" })).rejects.toMatchObject({ status: 400 });
+            expect(await chatService.report({ userId: b, messageId: m.message.id, reason: "  abusive  " })).toEqual({ reported: true });
+            await expect(chatService.report({ userId: b, messageId: m.message.id, reason: "abusive again" })).rejects.toMatchObject({ status: 409 });
+            await expect(chatService.report({ userId: await newUser(), messageId: m.message.id, reason: "abusive" })).rejects.toMatchObject({ status: 404 });
+            const { rows } = await sql(`SELECT reason FROM community.chat_report r JOIN community.chat_message x ON x.id = r.message_id WHERE x.public_id = $1`, [m.message.id]);
+            expect(rows).toEqual([{ reason: "abusive" }]);
+        });
+
+        it("team members join and leave", async () => {
+            const a = await newUser();
+            const team = `${TAG}tm`;
+            await sql(`INSERT INTO community.team (id, name, size, host_id) VALUES ($1, 'Chat team', 2, $2)`, [team, ids[a]]);
+            const first = await chatService.ensureTeamConversation(team);
+            expect(first.id).toMatch(/^cnv_[0-9a-z]{26}$/);
+            expect(await chatService.ensureTeamConversation(team)).toEqual(first);
+            await expect(chatService.ensureTeamConversation(`${TAG}nope`)).rejects.toMatchObject({ status: 404 });
+            const events = [];
+            const original = chatService.afterMembership;
+            chatService.afterMembership = async (e) => { events.push(e); };
+            try {
+                await chatService.syncTeamMember(team, a, "joined");
+                expect((await send(a, first.id, "team hello")).created).toBe(true);
+                expect((await chatService.listMessages({ userId: a, conversationId: first.id })).items).toHaveLength(1);
+                await chatService.syncTeamMember(team, a, "left");
+                await expect(chatService.listMessages({ userId: a, conversationId: first.id })).rejects.toMatchObject({ status: 404 });
+                await expect(send(a, first.id)).rejects.toMatchObject({ status: 404 });
+                await chatService.syncTeamMember(team, a, "joined");
+                expect((await chatService.listMessages({ userId: a, conversationId: first.id })).items).toHaveLength(1);
+            } finally {
+                chatService.afterMembership = original;
+            }
+            expect(events.map((e) => e.event)).toEqual(["joined", "left", "joined"]);
+            await expect(chatService.syncTeamMember(`${TAG}nope`, a, "joined")).rejects.toMatchObject({ status: 404 });
+        });
     });
 });

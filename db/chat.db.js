@@ -42,6 +42,71 @@ export const chatDb = {
     lockByPublicId: (client, publicId) => one(client,
         `SELECT id::text AS id, public_id, kind FROM community.conversation WHERE public_id = $1 FOR UPDATE`, [publicId]),
 
+    lockByTeamId: (client, teamId) => one(client,
+        `SELECT id::text AS id, public_id, kind FROM community.conversation WHERE team_id = $1 FOR UPDATE`, [teamId]),
+
+    teamExists: async (client, teamId) => Boolean(await one(client, `SELECT 1 FROM community.team WHERE id = $1`, [teamId])),
+
+    /** Idempotent on team_id; returns the conversation's public id. */
+    ensureTeam: async (client, { publicId, teamId }) => {
+        await run(client, `INSERT INTO community.conversation (public_id, kind, team_id) VALUES ($1, 'team', $2) ON CONFLICT (team_id) DO NOTHING`, [publicId, teamId]);
+        return (await one(client, `SELECT public_id FROM community.conversation WHERE team_id = $1`, [teamId])).public_id;
+    },
+
+    joinTeam: (client, { conversationDbId, userDbId }) => client.query(
+        `INSERT INTO community.conversation_member (conversation_id, user_id, state) VALUES ($1, $2, 'accepted')
+         ON CONFLICT (conversation_id, user_id) DO UPDATE SET left_at = NULL, state = 'accepted'`, [conversationDbId, userDbId]),
+
+    leaveTeam: (client, { conversationDbId, userDbId }) => client.query(
+        `UPDATE community.conversation_member SET left_at = now() WHERE conversation_id = $1 AND user_id = $2`, [conversationDbId, userDbId]),
+
+    /** Moves the read mark forward only, never past the newest message; returns the old and new marks. */
+    advanceRead: (client, { conversationDbId, userDbId, seq }) => one(client,
+        `WITH old AS (SELECT last_read_message_id AS v FROM community.conversation_member WHERE conversation_id = $1 AND user_id = $2),
+              upd AS (UPDATE community.conversation_member SET last_read_message_id = GREATEST(last_read_message_id,
+                          LEAST($3::bigint, COALESCE((SELECT max(id) FROM community.chat_message WHERE conversation_id = $1), 0)))
+                      WHERE conversation_id = $1 AND user_id = $2 RETURNING last_read_message_id AS v)
+         SELECT old.v::text AS before, upd.v::text AS after FROM old, upd`, [conversationDbId, userDbId, seq]),
+
+    setState: (client, { conversationDbId, userDbId, state }) => client.query(
+        `UPDATE community.conversation_member SET state = $3 WHERE conversation_id = $1 AND user_id = $2`, [conversationDbId, userDbId, state]),
+
+    /** A message with its conversation's public id and whether the edit window has passed. */
+    messageRef: (client, { messageId, windowMs }) => one(client,
+        `SELECT m.id::text AS id, m.sender_id::text AS sender_id, m.deleted_at IS NOT NULL AS deleted,
+                m.created_at < now() - ($2::int * interval '1 millisecond') AS expired, c.public_id AS conversation_id
+         FROM community.chat_message m JOIN community.conversation c ON c.id = m.conversation_id WHERE m.public_id = $1`, [messageId, windowMs]),
+
+    messageById: (client, messageId) => one(client, `${MESSAGE} WHERE m.public_id = $1`, [messageId]),
+
+    editBody: (client, { messageDbId, body }) => client.query(
+        `UPDATE community.chat_message SET body = $2, edited_at = now() WHERE id = $1`, [messageDbId, body]),
+
+    /** Marks the message unsent, drops its attachment rows and returns their storage keys. */
+    recall: async (client, messageDbId) => {
+        await client.query(`UPDATE community.chat_message SET deleted_at = now(), body = '' WHERE id = $1`, [messageDbId]);
+        return (await client.query(`DELETE FROM community.chat_attachment WHERE message_id = $1 RETURNING storage_key`, [messageDbId])).rows.map((r) => r.storage_key);
+    },
+
+    addBlock: (client, { blockerDbId, blockedDbId }) => run(client,
+        `INSERT INTO community.user_block (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [blockerDbId, blockedDbId]),
+
+    removeBlock: (client, { blockerDbId, blockedDbId }) => run(client,
+        `DELETE FROM community.user_block WHERE blocker_id = $1 AND blocked_id = $2`, [blockerDbId, blockedDbId]),
+
+    listBlocks: async (userId) => (await sql(
+        `SELECT u.public_id AS id, u.username, ${NICKNAME("i")} AS nickname, i.image, b.created_at AS "blockedAt"
+         FROM identity.users me
+         JOIN community.user_block b ON b.blocker_id = me.id
+         JOIN identity.users u ON u.id = b.blocked_id
+         LEFT JOIN profile.info i ON i.user_id = u.id
+         WHERE me.public_id = $1 ORDER BY b.created_at DESC, u.id DESC`, [userId])).rows,
+
+    /** False when this reporter already reported the message. */
+    addReport: async (client, { messageDbId, reporterDbId, reason }) => (await run(client,
+        `INSERT INTO community.chat_report (message_id, reporter_id, reason) VALUES ($1, $2, $3) ON CONFLICT (message_id, reporter_id) DO NOTHING`,
+        [messageDbId, reporterDbId, reason])).rowCount === 1,
+
     /** Creates the direct conversation and its two members; false when another transaction created it first. */
     insertDirect: async (client, { publicId, directKey, members }) => {
         const row = await one(client,
