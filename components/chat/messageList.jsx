@@ -51,7 +51,7 @@ export function EmptyThread() {
 
 function ThreadSkeleton() {
     return (
-        <div className="flex flex-col gap-3 p-4" aria-busy="true" aria-label="Loading messages">
+        <div className="flex flex-col gap-3 p-4" aria-busy="true">
             {[false, true, false].map((mine, i) => (
                 <Skeleton key={i} className={mine ? "h-10 w-1/2 self-end rounded-2xl" : "h-14 w-2/3 rounded-2xl"} />
             ))}

@@ -6,6 +6,9 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 let blocked = [];
 const unblock = vi.fn();
 const showAlert = vi.fn();
+let pending = false;
+
+vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { id: "me" } }, status: "authenticated" }) }));
 
 vi.mock("@/clients/chat.client", () => ({ chatClient: { getBlocks: async () => ({ items: blocked }) } }));
 vi.mock("@/contexts/appContext", () => ({ useApp: () => ({ showAlert }) }));
@@ -16,7 +19,7 @@ vi.mock("@/mutations/chat.mutation", async () => {
         useUnblockUser: () => {
             const qc = useQueryClient();
             return {
-                isPending: false,
+                isPending: pending,
                 mutate: (id, opts) => {
                     unblock(id);
                     blocked = blocked.filter((b) => b.id !== id);
@@ -38,6 +41,7 @@ const renderIt = () => render(
 
 beforeEach(() => {
     vi.clearAllMocks();
+    pending = false;
     blocked = [
         { id: "u1", username: "ann", nickname: "Annie", image: null, blockedAt: "2026-11-01T00:00:00Z" },
         { id: "u2", username: "bob", nickname: null, image: null, blockedAt: "2026-11-02T00:00:00Z" },
@@ -59,6 +63,14 @@ describe("BlockedPeopleSection", () => {
         expect(unblock).toHaveBeenCalledWith("u1");
         await waitFor(() => expect(screen.queryByText("ann")).toBeNull());
         expect(screen.getByText("bob")).toBeTruthy();
+    });
+
+    it("disables every Unblock button while one unblock is pending", async () => {
+        pending = true;
+        renderIt();
+        await screen.findByText("ann");
+        expect(screen.getByRole("button", { name: "Unblock ann" }).disabled).toBe(true);
+        expect(screen.getByRole("button", { name: "Unblock bob" }).disabled).toBe(true);
     });
 
     it("shows the empty state", async () => {

@@ -16,7 +16,7 @@ export default function MessagesLayout({ children }) {
     const open = segment !== null;
 
     return (
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
             <h1 className="sr-only">Messages</h1>
             <div className="grid min-h-[calc(100svh-3rem-6rem)] md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] md:gap-6">
                 <aside className={cn("min-w-0", open && "max-md:hidden")} aria-label="Conversations">

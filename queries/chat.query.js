@@ -29,7 +29,7 @@ export const chatQueries = {
     unread() {
         return { queryKey: chatKeys.unread(), queryFn: () => chatClient.getUnread(), refetchInterval: 60_000, ...QUERY_TIMES.live };
     },
-    blocks() {
-        return { queryKey: chatKeys.blocks(), queryFn: () => chatClient.getBlocks(), ...QUERY_TIMES.personal };
+    blocks(status) {
+        return { queryKey: chatKeys.blocks(), queryFn: () => chatClient.getBlocks(), enabled: status === 'authenticated', ...QUERY_TIMES.personal };
     },
 };

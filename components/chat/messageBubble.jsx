@@ -139,7 +139,7 @@ export default function MessageBubble({ message, mine = false, others, showSende
                     {hasMenu && !editing && (
                         <DropdownMenu onOpenChange={(open) => open && setOpenedAt(Date.now())}>
                             <DropdownMenuTrigger asChild>
-                                <Button size="icon-xs" variant="ghost" className="shrink-0 text-muted-foreground data-[state=open]:bg-accent" aria-label="Message actions">
+                                <Button size="icon-sm" variant="ghost" className="shrink-0 text-muted-foreground data-[state=open]:bg-accent" aria-label={`More actions for ${nameOf(message.sender)}`}>
                                     <LuEllipsis />
                                 </Button>
                             </DropdownMenuTrigger>

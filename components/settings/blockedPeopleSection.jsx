@@ -1,5 +1,6 @@
 'use client';
 
+import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useApp } from "@/contexts/appContext";
@@ -13,8 +14,9 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 
 // The mutation invalidates the blocks query, so an unblocked row leaves the list on the refetch.
 export default function BlockedPeopleSection() {
+    const { status } = useSession();
     const { showAlert: alert } = useApp();
-    const { data, isLoading, isError, error, refetch } = useQuery(chatQueries.blocks());
+    const { data, isLoading, isError, error, refetch } = useQuery(chatQueries.blocks(status));
     const unblock = useUnblockUser();
 
     if (isLoading) {
@@ -30,8 +32,6 @@ export default function BlockedPeopleSection() {
     if (items.length === 0) {
         return <p className="px-4 py-3.5 text-sm text-muted-foreground">You haven&apos;t blocked anyone.</p>;
     }
-
-    const pendingId = unblock.isPending ? unblock.variables : null;
 
     return (
         <ul className="m-0 list-none divide-y p-0">
@@ -50,7 +50,7 @@ export default function BlockedPeopleSection() {
                             variant="outline"
                             size="sm"
                             aria-label={`Unblock ${name}`}
-                            disabled={pendingId === person.id}
+                            disabled={unblock.isPending}
                             onClick={() => unblock.mutate(person.id, {
                                 onError: (err) => alert(err?.status || 500, err?.message || "Could not unblock this person"),
                             })}

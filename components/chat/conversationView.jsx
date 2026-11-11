@@ -51,7 +51,7 @@ function ThreadHeader({ name, image, subtitle, children }) {
 
 function PaneSkeleton() {
     return (
-        <div className={PANE} aria-busy="true" aria-label="Loading conversation">
+        <div className={PANE} aria-busy="true">
             <div className="flex items-center gap-3 border-b px-3 py-2.5">
                 <Skeleton className="size-9 rounded-full" />
                 <Skeleton className="h-4 w-40" />
@@ -148,7 +148,7 @@ export default function ConversationView({ conversationId }) {
 
     return (
         <div className={PANE}>
-            <ThreadHeader name={name} image={conversation.image} subtitle={`${conversation.members.length} members`}>
+            <ThreadHeader name={name} image={conversation.image} subtitle={conversation.kind === "direct" ? undefined : `${conversation.members.length} members`}>
                 {other && <HeaderMenu name={name} other={other} />}
             </ThreadHeader>
             {me?.state === "pending" && (
