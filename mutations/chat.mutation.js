@@ -8,8 +8,9 @@ import {
 import { chatKeys } from "@/keys/chat.keys";
 import { callAction } from "@/lib/actionResult";
 import { READ_DEBOUNCE_MS, TYPING_THROTTLE_MS } from "@/lib/chat/limits";
-import { insertMessage, optimisticMessage, patchMessage, setMessageStatus } from "@/lib/chat/messageCache";
+import { insertMessage, optimisticMessage, patchMessage } from "@/lib/chat/messageCache";
 import { getPusherClient } from "@/lib/pusherClient";
+import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 
 // Lets the server skip this tab when it fans the event out.
 const withSocket = (input) => {
@@ -24,38 +25,52 @@ const refreshLists = (queryClient) => {
 };
 
 /**
- * variables: { clientId, body, sender, attachmentIds?, toUserId? }. The optimistic message is added once;
- * calling mutate again with the same clientId retries it (the server returns the first copy if it arrived).
+ * variables: { clientId, body, sender, attachmentIds?, toUserId? }. The unsent message lives in the outbox store
+ * (a refetch of the messages query must not drop it). Calling mutate again with the same clientId retries it;
+ * the server returns the first copy if it arrived.
  */
 export function useSendMessage(conversationId) {
     const queryClient = useQueryClient();
-    const key = conversationId ? chatKeys.messages(conversationId) : null;
     return useMutation({
         mutationFn: ({ clientId, body, attachmentIds, toUserId }) => callAction(() => sendMessageAction(withSocket({
             clientId, body, ...(attachmentIds?.length ? { attachmentIds } : {}),
             ...(conversationId ? { conversationId } : { toUserId }),
         }))),
         onMutate: ({ clientId, body, sender }) => {
-            if (!key) return;
-            const retrying = queryClient.getQueryData(key)?.pages.some((p) => p.items.some((m) => m.clientId === clientId && m.seq == null));
-            queryClient.setQueryData(key, (data) => (retrying
-                ? setMessageStatus(data, clientId, "sending")
-                : insertMessage(data, optimisticMessage({ clientId, body, sender, conversationId }))));
+            if (!conversationId) return;
+            const outbox = useChatOutboxStore.getState();
+            if (outbox.byConversation[conversationId]?.some((m) => m.clientId === clientId)) outbox.setUnsentStatus(conversationId, clientId, "sending");
+            else outbox.addUnsent(conversationId, optimisticMessage({ clientId, body, sender, conversationId }));
         },
-        onSuccess: ({ message }) => {
+        onSuccess: ({ message }, { clientId }) => {
             queryClient.setQueryData(chatKeys.messages(message.conversationId), (data) => insertMessage(data, message));
+            useChatOutboxStore.getState().removeUnsent(message.conversationId, clientId);
         },
         onError: (_, { clientId }) => {
-            if (key) queryClient.setQueryData(key, (data) => setMessageStatus(data, clientId, "failed"));
+            if (conversationId) useChatOutboxStore.getState().setUnsentStatus(conversationId, clientId, "failed");
         },
         onSettled: () => refreshLists(queryClient),
     });
 }
 
-function useMessageWrite(action) {
+// Optimistic: `change(message, variables)` is applied at once and rolled back when the action fails.
+function useMessageWrite(action, change) {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: (input) => callAction(() => action(input)),
+        mutationFn: ({ conversationId: _conversationId, ...input }) => callAction(() => action(input)),
+        onMutate: async (variables) => {
+            const key = chatKeys.messages(variables.conversationId);
+            await queryClient.cancelQueries({ queryKey: key });
+            const snapshot = queryClient.getQueryData(key);
+            queryClient.setQueryData(key, (data) => (data && {
+                ...data,
+                pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (m.id === variables.messageId ? change(m, variables) : m)) })),
+            }));
+            return { key, snapshot };
+        },
+        onError: (_, __, context) => {
+            if (context) queryClient.setQueryData(context.key, context.snapshot);
+        },
         onSuccess: ({ message }) => {
             queryClient.setQueryData(chatKeys.messages(message.conversationId), (data) => patchMessage(data, message));
             queryClient.invalidateQueries({ queryKey: chatKeys.inbox("all") });
@@ -63,10 +78,16 @@ function useMessageWrite(action) {
     });
 }
 
-// { messageId, body }
-export const useEditMessage = () => useMessageWrite((input) => editMessageAction(withSocket(input)));
-// messageId
-export const useRecallMessage = () => useMessageWrite((messageId) => recallMessageAction(withSocket({ messageId })));
+// { conversationId, messageId, body }
+export const useEditMessage = () => useMessageWrite(
+    (input) => editMessageAction(withSocket(input)),
+    (m, { body }) => ({ ...m, body, editedAt: new Date().toISOString() }),
+);
+// { conversationId, messageId }
+export const useRecallMessage = () => useMessageWrite(
+    ({ messageId }) => recallMessageAction(withSocket({ messageId })),
+    (m) => ({ ...m, deleted: true, body: "", attachments: [] }),
+);
 
 const pendingReads = new Map(); // conversationId -> { seq, timer }
 

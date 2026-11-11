@@ -7,6 +7,7 @@ import { chatClient } from "@/clients/chat.client";
 import { chatKeys } from "@/keys/chat.keys";
 import { TYPING_SHOW_MS } from "@/lib/chat/limits";
 import { createChatHandlers } from "@/lib/chat/realtimeHandlers";
+import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 import { selectTypingUsers, useChatTypingStore } from "@/stores/chatTypingStore";
 
 const CID = "cnv_1";
@@ -18,6 +19,7 @@ beforeEach(() => {
     h = createChatHandlers(qc);
     chatClient.getMessage.mockReset();
     useChatTypingStore.setState(useChatTypingStore.getInitialState());
+    useChatOutboxStore.setState(useChatOutboxStore.getInitialState());
 });
 afterEach(() => vi.useRealTimers());
 
@@ -51,7 +53,21 @@ describe("chat-message", () => {
     });
 });
 
+describe("chat-message and the outbox", () => {
+    it("removes the unsent copy with the same clientId (event before the send response)", () => {
+        seedMessages();
+        useChatOutboxStore.getState().addUnsent(CID, { clientId: "c2", status: "sending" });
+        h["chat-message"]({ conversationId: CID, message: msg(2) });
+        expect(useChatOutboxStore.getState().byConversation[CID]).toEqual([]);
+    });
+});
+
 describe("chat-read", () => {
+    it("does not refetch the inbox or unread", () => {
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        h["chat-read"]({ conversationId: CID, userId: "u2", seq: "10" });
+        expect(spy).not.toHaveBeenCalled();
+    });
     const seedDetail = (lastReadSeq) => qc.setQueryData(chatKeys.conversation(CID), { id: CID, members: [{ id: "u2", lastReadSeq }, { id: "u3", lastReadSeq: "0" }] });
     it("compares seq as BigInt strings, not text", () => {
         seedDetail("9");
@@ -67,6 +83,11 @@ describe("chat-read", () => {
 });
 
 describe("other events", () => {
+    it("chat-typing does not refetch the inbox or unread", () => {
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        h["chat-typing"]({ conversationId: CID, userId: "u2" });
+        expect(spy).not.toHaveBeenCalled();
+    });
     it("chat-typing sets then expires the typer", () => {
         vi.useFakeTimers();
         h["chat-typing"]({ conversationId: CID, userId: "u2" });

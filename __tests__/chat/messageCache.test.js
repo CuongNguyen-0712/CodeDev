@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { insertMessage, optimisticMessage, patchMessage, setMessageStatus } from "@/lib/chat/messageCache";
+import { insertMessage, mergeOutbox, optimisticMessage, patchMessage } from "@/lib/chat/messageCache";
 
 const msg = (seq, extra = {}) => ({ id: `msg_${seq}`, seq: String(seq), clientId: `c${seq}`, body: `m${seq}`, ...extra });
 const data = (...pages) => ({ pages: pages.map((items) => ({ items, nextCursor: null })), pageParams: pages.map(() => undefined) });
@@ -51,9 +51,16 @@ describe("optimistic messages", () => {
         expect(m).toMatchObject({ id: null, seq: null, clientId: "abc", conversationId: "cnv_1", body: "hi", attachments: [], editedAt: null, deleted: false, status: "sending" });
         expect(typeof m.createdAt).toBe("string");
     });
-    it("marks one failed by clientId", () => {
-        const opt = optimisticMessage({ clientId: "abc", body: "hi", sender: {}, conversationId: "c" });
-        const failed = setMessageStatus(data([opt]), "abc", "failed");
-        expect(failed.pages[0].items[0].status).toBe("failed");
+});
+
+describe("mergeOutbox", () => {
+    const unsent = (clientId) => optimisticMessage({ clientId, body: "hi", sender: {}, conversationId: "c" });
+    it("puts unsent items first, then server items", () => {
+        const merged = mergeOutbox([msg(5), msg(4)], [unsent("a")]);
+        expect(merged.map((m) => m.clientId)).toEqual(["a", "c5", "c4"]);
+    });
+    it("drops an unsent item whose clientId the server already has", () => {
+        const merged = mergeOutbox([msg(5, { clientId: "a" })], [unsent("a"), unsent("b")]);
+        expect(merged.map((m) => m.clientId)).toEqual(["b", "a"]);
     });
 });
