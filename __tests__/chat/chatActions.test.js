@@ -183,3 +183,25 @@ describe("block, unblock, report", () => {
         expect(await a.reportMessageAction({ messageId: MSG, reason: "no" })).toMatchObject({ success: false, status: 422 });
     });
 });
+
+describe("actions return only what the browser needs", () => {
+    it("edit returns { message }", async () => {
+        chatService.editMessage.mockResolvedValue({ message: { id: MSG }, recipients: [{ state: "pending" }] });
+        expect((await a.editMessageAction({ messageId: MSG, body: "x" })).data).toEqual({ message: { id: MSG } });
+    });
+
+    it("recall returns { message }", async () => {
+        chatService.recallMessage.mockResolvedValue({ message: { id: MSG }, recipients: [1], removedKeys: ["chat/k"] });
+        expect((await a.recallMessageAction(MSG)).data).toEqual({ message: { id: MSG } });
+    });
+
+    it("markRead returns { lastReadSeq }", async () => {
+        chatService.markRead.mockResolvedValue({ changed: true, lastReadSeq: "7", others: [1] });
+        expect((await a.markReadAction({ conversationId: CNV, seq: "7" })).data).toEqual({ lastReadSeq: "7" });
+    });
+
+    it("respond returns { state }", async () => {
+        chatService.respondRequest.mockResolvedValue({ state: "accepted", others: [1] });
+        expect((await a.respondRequestAction({ conversationId: CNV, accept: true })).data).toEqual({ state: "accepted" });
+    });
+});

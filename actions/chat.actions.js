@@ -23,7 +23,7 @@ export async function sendMessageAction(input) {
 // Edit an own message: { messageId, body, socketId? }.
 export async function editMessageAction(input) {
     return runAction(
-        async ({ userId }) => chatService.editMessage({ userId, ...parseChat(editMessageSchema, input) }),
+        async ({ userId }) => ({ message: (await chatService.editMessage({ userId, ...parseChat(editMessageSchema, input) })).message }),
         { limiter: rateLimiters.chatSend, context: "editMessageAction" }
     );
 }
@@ -32,14 +32,14 @@ export async function editMessageAction(input) {
 export async function recallMessageAction(input) {
     return runAction(async ({ userId }) => {
         const { messageId, socketId } = parseChat(recallSchema, asObject(input, "messageId"));
-        return chatService.recallMessage({ userId, messageId, socketId });
+        return { message: (await chatService.recallMessage({ userId, messageId, socketId })).message };
     }, { limiter: rateLimiters.chatSend, context: "recallMessageAction" });
 }
 
 // Mark read up to a message: { conversationId, seq }.
 export async function markReadAction(input) {
     return runAction(
-        async ({ userId }) => chatService.markRead({ userId, ...parseChat(markReadSchema, input) }),
+        async ({ userId }) => ({ lastReadSeq: (await chatService.markRead({ userId, ...parseChat(markReadSchema, input) })).lastReadSeq }),
         { limiter: rateLimiters.chatRead, context: "markReadAction" }
     );
 }
@@ -55,7 +55,7 @@ export async function typingAction(input) {
 // Accept or decline a message request: { conversationId, accept }.
 export async function respondRequestAction(input) {
     return runAction(
-        async ({ userId }) => chatService.respondRequest({ userId, ...parseChat(respondSchema, input) }),
+        async ({ userId }) => ({ state: (await chatService.respondRequest({ userId, ...parseChat(respondSchema, input) })).state }),
         { limiter: rateLimiters.chatSend, context: "respondRequestAction" }
     );
 }
