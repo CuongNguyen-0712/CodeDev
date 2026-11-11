@@ -7,6 +7,7 @@ import { channels, events } from "@/lib/realtime";
 const MEMBER_TTL_SECONDS = 60;
 const NOT_ALLOWED = "no"; // cached so a non-member's typing pings do not hit the DB either
 
+const fits = (payload) => Buffer.byteLength(JSON.stringify(payload), "utf8") <= INLINE_PAYLOAD_BYTES;
 const toChannels = (publicIds) => publicIds.map(channels.user);
 
 /** Realtime is best effort: a failed publish is logged and never reaches the caller. */
@@ -37,16 +38,20 @@ async function typingAudience(userId, conversationId) {
 }
 
 export const chatRealtime = {
-    messageCreated: ({ message, recipients, senderId, socketId }) => {
+    messageCreated: ({ message, preview, recipients, senderId, socketId }) => {
         const conversationId = message.conversationId;
-        const inline = { conversationId, message };
-        const payload = Buffer.byteLength(JSON.stringify(inline), "utf8") <= INLINE_PAYLOAD_BYTES
-            ? inline : { conversationId, messageId: message.id };
+        const inline = { conversationId, message, preview };
+        const payload = fits(inline)
+            ? inline : { conversationId, messageId: message.id, preview, seq: message.seq, senderId: message.sender.id, createdAt: message.createdAt };
         return send([...recipients.map((r) => r.publicId), senderId], events.CHAT_MESSAGE, payload, socketId);
     },
 
-    messageUpdated: ({ conversationId, messageId, recipients, senderId, socketId }) =>
-        send([...recipients.map((r) => r.publicId), senderId], events.CHAT_MESSAGE_UPDATED, { conversationId, messageId }, socketId),
+    messageUpdated: ({ message, preview, recipients, senderId, socketId }) => {
+        const conversationId = message.conversationId;
+        const inline = { conversationId, message, preview };
+        const payload = fits(inline) ? inline : { conversationId, messageId: message.id };
+        return send([...recipients.map((r) => r.publicId), senderId], events.CHAT_MESSAGE_UPDATED, payload, socketId);
+    },
 
     // `others` is empty for a pending reader, so no receipt leaks.
     read: ({ conversationId, userId, seq, others }) =>
@@ -73,14 +78,14 @@ export const chatRealtime = {
 /** Called once by chat.service (which this module must not import, to avoid a cycle). */
 export function installChatRealtime(chatService) {
     // A reply that accepted a request also refreshes the other members' detail (composer, canSend), as an accept does.
-    chatService.afterSend = async ({ message, recipients, acceptedByReply }, { socketId } = {}) => {
-        const sent = await chatRealtime.messageCreated({ message, recipients, senderId: message.sender.id, socketId });
+    chatService.afterSend = async ({ message, preview, recipients, acceptedByReply }, { socketId } = {}) => {
+        const sent = await chatRealtime.messageCreated({ message, preview, recipients, senderId: message.sender.id, socketId });
         if (acceptedByReply) await chatRealtime.conversationUpdated({ conversationId: message.conversationId, members: recipients.map((r) => r.publicId) });
         return sent;
     };
 
-    chatService.afterUpdate = ({ message, recipients }, { socketId } = {}) =>
-        chatRealtime.messageUpdated({ conversationId: message.conversationId, messageId: message.id, recipients, senderId: message.sender.id, socketId });
+    chatService.afterUpdate = ({ message, preview, recipients }, { socketId } = {}) =>
+        chatRealtime.messageUpdated({ message, preview, recipients, senderId: message.sender.id, socketId });
 
     chatService.afterRead = ({ conversationId, userId, lastReadSeq, others }) =>
         chatRealtime.read({ conversationId, userId, seq: lastReadSeq, others });

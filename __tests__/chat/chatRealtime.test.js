@@ -13,7 +13,7 @@ vi.mock("@/db/chat.db", () => ({ chatDb: { membership: (...a) => membership(...a
 const { chatRealtime, installChatRealtime } = await import("@/services/chatRealtime.service");
 const { INLINE_PAYLOAD_BYTES } = await import("@/lib/chat/limits");
 
-const msg = (body) => ({ id: "msg_1", conversationId: "cnv_1", sender: { id: "u_a" }, body });
+const msg = (body, extra = {}) => ({ id: "msg_1", seq: "7", conversationId: "cnv_1", sender: { id: "u_a" }, body, createdAt: "2026-01-01T00:00:00.000Z", ...extra });
 const recipients = [{ publicId: "u_b", state: "accepted" }];
 
 beforeEach(() => { publish.mockReset(); publish.mockResolvedValue(true); store.clear(); membership.mockReset(); members.mockReset(); });
@@ -24,7 +24,26 @@ describe("chatRealtime", () => {
         expect(publish.mock.calls[0][2].message.body).toHaveLength(100);
         const big = msg("😀".repeat(4000));
         expect(Buffer.byteLength(JSON.stringify({ conversationId: "cnv_1", message: big }))).toBeGreaterThan(INLINE_PAYLOAD_BYTES);
-        await chatRealtime.messageCreated({ message: big, recipients, senderId: "u_a" });
+        await chatRealtime.messageCreated({ message: big, preview: "x", recipients, senderId: "u_a" });
+        expect(publish.mock.calls[1][2]).toEqual({ conversationId: "cnv_1", messageId: "msg_1", preview: "x", seq: "7", senderId: "u_a", createdAt: "2026-01-01T00:00:00.000Z" });
+    });
+
+    it("chat-message carries the server preview, inline and as a ping", async () => {
+        const svc = {};
+        installChatRealtime(svc);
+        await svc.afterSend({ message: msg("```js\nx\n```"), preview: "[code]", recipients }, { socketId: null });
+        expect(publish.mock.calls[0][2]).toMatchObject({ conversationId: "cnv_1", message: { id: "msg_1" }, preview: "[code]" });
+        await svc.afterSend({ message: msg("a".repeat(9000)), preview: "a".repeat(10), recipients }, { socketId: null });
+        expect(publish.mock.calls[1][2]).toEqual({ conversationId: "cnv_1", messageId: "msg_1", preview: "a".repeat(10), seq: "7", senderId: "u_a", createdAt: "2026-01-01T00:00:00.000Z" });
+    });
+
+    it("chat-message-updated carries the edited and the unsent message", async () => {
+        const svc = {};
+        installChatRealtime(svc);
+        const unsent = msg("", { deleted: true });
+        await svc.afterUpdate({ message: unsent, preview: "This message was unsent", recipients }, { socketId: null });
+        expect(publish.mock.calls[0][2]).toEqual({ conversationId: "cnv_1", message: unsent, preview: "This message was unsent" });
+        await svc.afterUpdate({ message: msg("a".repeat(9000)), preview: "aaa", recipients }, { socketId: null });
         expect(publish.mock.calls[1][2]).toEqual({ conversationId: "cnv_1", messageId: "msg_1" });
     });
 

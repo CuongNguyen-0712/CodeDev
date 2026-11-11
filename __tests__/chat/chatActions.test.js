@@ -58,7 +58,7 @@ describe("sendMessageAction", () => {
     });
 
     it("returns only message and conversation (acceptedByReply and recipients stay on the server)", async () => {
-        chatService.send.mockResolvedValue({ message: { id: "m" }, conversation: { id: CNV }, created: true, recipients: [], acceptedByReply: true });
+        chatService.send.mockResolvedValue({ message: { id: "m" }, conversation: { id: CNV }, created: true, recipients: [], acceptedByReply: true, preview: "hi" });
         expect((await a.sendMessageAction({ conversationId: CNV, clientId: uuid(), body: "hi" })).data).toEqual({ message: { id: "m" }, conversation: { id: CNV } });
     });
 
@@ -207,12 +207,12 @@ describe("block, unblock, report", () => {
 
 describe("actions return only what the browser needs", () => {
     it("edit returns { message }", async () => {
-        chatService.editMessage.mockResolvedValue({ message: { id: MSG }, recipients: [{ state: "pending" }] });
+        chatService.editMessage.mockResolvedValue({ message: { id: MSG }, recipients: [{ state: "pending" }], preview: "x" });
         expect((await a.editMessageAction({ messageId: MSG, body: "x" })).data).toEqual({ message: { id: MSG } });
     });
 
     it("recall returns { message }", async () => {
-        chatService.recallMessage.mockResolvedValue({ message: { id: MSG }, recipients: [1], removed: [{ kind: "image", provider: "s3", storageKey: "chat/k" }] });
+        chatService.recallMessage.mockResolvedValue({ message: { id: MSG }, recipients: [1], preview: "This message was unsent", removed: [{ kind: "image", provider: "s3", storageKey: "chat/k" }] });
         expect((await a.recallMessageAction(MSG)).data).toEqual({ message: { id: MSG } });
     });
 

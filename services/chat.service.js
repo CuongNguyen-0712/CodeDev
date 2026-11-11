@@ -10,6 +10,7 @@ import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
 import { decodeCursor, encodeCursor, pageOf } from "@/lib/keysetCursor";
 import { reportSchema } from "@/lib/validation/blog";
+import { runAfter } from "@/lib/runAfter";
 import { installChatJobs, queueAttachmentDelete } from "@/services/chatJobs.service";
 import { installChatRealtime } from "@/services/chatRealtime.service";
 
@@ -81,7 +82,7 @@ async function verifyUploads(userId, ids) {
             await removeMedia(row);
         } catch (error) {
             console.error("[chat.send remove]", row.storageKey, error);
-            await queueAttachmentDelete([mediaOf(row)]); // the row goes below, so the orphan purge would never find this file
+            await runAfter(() => queueAttachmentDelete([mediaOf(row)])); // the row goes below, so the orphan purge would never find this file
         }
         await chatDb.deleteAttachments(null, [row.id]);
         throw new ApiError(`The uploaded ${row.kind} is invalid`, 422);
@@ -102,6 +103,12 @@ function preview(row) {
     if (!row.last_body.trim() && row.last_attachment_kind) return `[${row.last_attachment_kind}]`;
     return [...row.last_body].slice(0, PUSH_PREVIEW_CHARS).join("");
 }
+
+/** The inbox preview of one message, from the same rule as the inbox row. */
+const messagePreview = (m) => preview({
+    last_deleted: m.deleted, last_body: m.body,
+    last_attachment_kind: m.attachments.some((a) => a.kind === "image") ? "image" : m.attachments[0]?.kind ?? null,
+});
 
 const conversationItem = (row) => ({
     id: row.id, kind: row.kind, title: row.title, image: row.image, state: row.state,
@@ -162,14 +169,14 @@ async function lockedMember(client, userId, conversationId) {
 
 const othersOf = (members, mine) => members.filter((m) => m !== mine && !m.left_at);
 
-/** Runs a post-commit hook; its failure is logged and never changes the action's result. */
-async function after(hook, ...args) {
+/** Runs a post-commit hook after the response; its failure is logged and never changes the action's result. */
+const after = (hook, ...args) => runAfter(async () => {
     try {
         await chatService[hook](...args);
     } catch (error) {
         console.error(`[chat.${hook}]`, error);
     }
-}
+});
 
 /** Edit and recall: lock the message's conversation, then check the message is the caller's own (unless an admin recalls). */
 async function lockedMessage(client, { userId, messageId, byAdmin = false }) {
@@ -221,12 +228,14 @@ export const chatService = {
             const mine = members.find((m) => m.user_id === me.id && !m.left_at);
             if (!mine) throw conversationNotFound();
 
-            const finish = async (messageId, created) => ({
-                message: messageDto(await chatDb.messageForMember(client, { messageId, userId })),
-                created,
-                conversation: { id: conversation.public_id, kind: conversation.kind },
-                recipients: members.filter((m) => m.user_id !== me.id && !m.left_at && m.state !== "declined").map((m) => ({ publicId: m.public_id, state: m.state })),
-            });
+            const finish = async (messageId, created) => {
+                const message = messageDto(await chatDb.messageForMember(client, { messageId, userId }));
+                return {
+                    message, preview: messagePreview(message), created,
+                    conversation: { id: conversation.public_id, kind: conversation.kind },
+                    recipients: members.filter((m) => m.user_id !== me.id && !m.left_at && m.state !== "declined").map((m) => ({ publicId: m.public_id, state: m.state })),
+                };
+            };
             // A retried clientId returns the message it already created, before the rules that it already passed.
             const duplicate = (sent) => {
                 if (sent.conversation_id !== conversation.id) throw new ApiError("This client id was used for another conversation", 409);
@@ -250,13 +259,7 @@ export const chatService = {
             return duplicate(await chatDb.messageByClientId(client, { senderDbId: me.id, clientId }));
         });
 
-        if (result.created) {
-            try {
-                await chatService.afterSend(result, { socketId });
-            } catch (error) {
-                console.error("[chat.afterSend]", error);
-            }
-        }
+        if (result.created) await after("afterSend", result, { socketId });
         return result;
     },
 
@@ -388,7 +391,8 @@ export const chatService = {
             const { ref, recipients } = await lockedMessage(client, { userId, messageId });
             if (ref.deleted || ref.expired) throw refused();
             await chatDb.editBody(client, { messageDbId: ref.id, body });
-            return { message: messageDto(await chatDb.messageById(client, messageId)), recipients };
+            const message = messageDto(await chatDb.messageById(client, messageId));
+            return { message, preview: messagePreview(message), recipients };
         });
         await after("afterUpdate", result, { socketId });
         return result;
@@ -398,7 +402,8 @@ export const chatService = {
         const result = await withTransaction(async (client) => {
             const { ref, recipients } = await lockedMessage(client, { userId, messageId, byAdmin });
             const removed = ref.deleted ? [] : await chatDb.recall(client, ref.id);
-            return { message: messageDto(await chatDb.messageById(client, messageId)), recipients, removed };
+            const message = messageDto(await chatDb.messageById(client, messageId));
+            return { message, preview: messagePreview(message), recipients, removed };
         });
         // Files go after commit, each through its row's provider; a failed delete is logged and handed to Inngest to retry (a no-op when it is off).
         const failed = [];
@@ -410,7 +415,7 @@ export const chatService = {
                 failed.push(mediaOf(att));
             }
         }
-        await queueAttachmentDelete(failed);
+        if (failed.length) await runAfter(() => queueAttachmentDelete(failed));
         await after("afterUpdate", result, { socketId });
         return result;
     },

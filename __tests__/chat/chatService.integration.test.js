@@ -3,6 +3,9 @@ import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/chatMedia", () => ({ remove: vi.fn(async () => { }) }));
+// Outside a request the real `after` throws; tests choose: throw (inline) or queue.
+let afterImpl = () => { throw new Error("outside a request scope"); };
+vi.mock("next/server", () => ({ after: (fn) => afterImpl(fn) }));
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 const TAG = `cv${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")}`;
@@ -96,6 +99,40 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
         } finally {
             chatService.afterSend = original;
         }
+    });
+
+    it("send resolves before its hooks run, and returns the preview", async () => {
+        const [a, b] = await pair();
+        await befriend(a, b);
+        const queued = [];
+        const original = chatService.afterSend;
+        const hook = vi.fn(async () => { });
+        chatService.afterSend = hook;
+        afterImpl = (fn) => queued.push(fn);
+        try {
+            const r = await chatService.send({ userId: a, toUserId: b, clientId: uuid(), body: "```js\nx\n```" });
+            expect(r.preview).toBe("[code]");
+            expect(hook).not.toHaveBeenCalled();
+            await queued[0]();
+            expect(hook).toHaveBeenCalledTimes(1);
+        } finally {
+            afterImpl = () => { throw new Error("outside a request scope"); };
+            chatService.afterSend = original;
+        }
+    });
+
+    it("runAfter defers inside a request and runs inline outside one", async () => {
+        const { runAfter } = await import("@/lib/runAfter");
+        const fn = vi.fn(async () => { });
+        const queued = [];
+        afterImpl = (f) => queued.push(f);
+        await runAfter(fn);
+        expect(queued).toHaveLength(1);
+        expect(fn).not.toHaveBeenCalled();
+        afterImpl = () => { throw new Error("outside a request scope"); };
+        await runAfter(fn);
+        expect(fn).toHaveBeenCalledTimes(1);
+        await expect(runAfter(async () => { throw new Error("boom"); })).resolves.toBeUndefined();
     });
 
     it("blocks work both ways", async () => {
