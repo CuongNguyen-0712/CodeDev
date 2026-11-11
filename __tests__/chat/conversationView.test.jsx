@@ -71,6 +71,27 @@ describe("ConversationView", () => {
         await waitFor(() => expect(markReadAction).toHaveBeenCalledWith({ conversationId: "cnv_a", seq: "2" }), { timeout: 3000 });
     });
 
+    it("tracks the open conversation while visible and clears it on unmount, only if it still holds this id", async () => {
+        const { getOpenConversation, setOpenConversation } = await import("@/lib/chat/openConversation");
+        const first = renderWith(<ConversationView conversationId="cnv_a" />);
+        expect(getOpenConversation()).toBe("cnv_a");
+        const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+        document.dispatchEvent(new Event("visibilitychange"));
+        expect(getOpenConversation()).toBeNull();
+        visibility.mockReturnValue("visible");
+        document.dispatchEvent(new Event("visibilitychange"));
+        expect(getOpenConversation()).toBe("cnv_a");
+        first.unmount();
+        expect(getOpenConversation()).toBeNull();
+
+        const second = renderWith(<ConversationView conversationId="cnv_a" />);
+        setOpenConversation("cnv_b");   // another conversation took over before this one unmounted
+        second.unmount();
+        expect(getOpenConversation()).toBe("cnv_b");
+        visibility.mockRestore();
+        setOpenConversation(null);
+    });
+
     it("leaves for /messages and refreshes the inbox when the conversation is gone", async () => {
         detail = gone();
         renderWith(<ConversationView conversationId="cnv_a" />);

@@ -1,12 +1,13 @@
 'use client'
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useApp } from "@/contexts/appContext";
+import { getOpenConversation, setOpenConversation } from "@/lib/chat/openConversation";
 import { retryTransient } from "@/lib/queryTimes";
 import { useEditMessage, useRecallMessage, useReportMessage, useSendMessage } from "@/mutations/chat.mutation";
 import { chatQueries } from "@/queries/chat.query";
@@ -99,6 +100,15 @@ export default function ConversationView({ conversationId }) {
     const [failures, setFailures] = useState({});   // clientId -> { message, retryable }
 
     const gone = useLeaveWhenGone(query.error);
+
+    // Tells the realtime handlers which thread the viewer is looking at, so its new messages do not count as unread.
+    useEffect(() => {
+        const release = () => { if (getOpenConversation() === conversationId) setOpenConversation(null); };
+        const sync = () => (document.visibilityState === "visible" ? setOpenConversation(conversationId) : release());
+        sync();
+        document.addEventListener("visibilitychange", sync);
+        return () => { document.removeEventListener("visibilitychange", sync); release(); };
+    }, [conversationId]);
 
     if (status === "loading" || query.isPending || gone) return <PaneSkeleton />;
     if (query.isError) return <ErrorReload data={query.error} refetch={() => query.refetch()} title="Could not load this conversation" />;

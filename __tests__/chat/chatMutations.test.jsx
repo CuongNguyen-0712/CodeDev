@@ -12,10 +12,10 @@ vi.mock("@/actions/chat.actions", () => ({
 vi.mock("@/lib/actionResult", () => ({ callAction: (run) => run() }));
 vi.mock("@/lib/pusherClient", () => ({ getPusherClient: () => null }));
 
-import { editMessageAction, recallMessageAction, sendMessageAction } from "@/actions/chat.actions";
+import { editMessageAction, markReadAction, recallMessageAction, sendMessageAction } from "@/actions/chat.actions";
 import { chatKeys } from "@/keys/chat.keys";
 import { insertMessage, mergeOutbox } from "@/lib/chat/messageCache";
-import { useEditMessage, useRecallMessage, useSendMessage } from "@/mutations/chat.mutation";
+import { useEditMessage, useMarkRead, useRecallMessage, useSendMessage } from "@/mutations/chat.mutation";
 import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 
 const CID = "cnv_1";
@@ -132,5 +132,23 @@ describe("optimistic edit and unsend", () => {
         deferred.reject();
         await waitFor(() => expect(cached().find((m) => m.id === "msg_2")).toMatchObject({ body: "m2", deleted: false, editedAt: null }));
         expect(cached().map((m) => m.seq)).toEqual(["3", "2", "1"]);
+    });
+});
+
+describe("useMarkRead", () => {
+    const row = (id, unread) => ({ id, unread, lastMessage: null });
+    it("clears the row and lowers the badge once, without refetching; never below zero", async () => {
+        qc.setQueryData(chatKeys.inbox("all"), { pages: [{ items: [row(CID, true), row("o", true)], nextCursor: null }], pageParams: [undefined] });
+        qc.setQueryData(chatKeys.unread(), { unread: 1, requests: 0 });
+        markReadAction.mockResolvedValue({ success: true, data: { lastReadSeq: "2" } });
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        const { result } = renderHook(() => useMarkRead(), { wrapper });
+        act(() => { result.current(CID, "2"); });
+        await waitFor(() => expect(qc.getQueryData(chatKeys.unread()).unread).toBe(0), { timeout: 3000 });
+        expect(qc.getQueryData(chatKeys.inbox("all")).pages[0].items.map((r) => r.unread)).toEqual([false, true]);
+        act(() => { result.current(CID, "3"); });   // already read: the badge stays at 0
+        await waitFor(() => expect(markReadAction).toHaveBeenCalledTimes(2), { timeout: 3000 });
+        expect(qc.getQueryData(chatKeys.unread()).unread).toBe(0);
+        expect(spy).not.toHaveBeenCalled();
     });
 });

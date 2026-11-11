@@ -40,7 +40,7 @@ export function UserRealtimeBridge() {
         queryClient.invalidateQueries({ queryKey: chatKeys.all });
     }, [queryClient]);
 
-    const chatHandlers = useMemo(() => createChatHandlers(queryClient), [queryClient]);
+    const chatHandlers = useMemo(() => createChatHandlers(queryClient, userId), [queryClient, userId]);
 
     // Only what learning progress feeds (not sessions, sign-in methods, privacy). An in-flight
     // refetch, e.g. from the tab that made the change, is reused instead of restarted.

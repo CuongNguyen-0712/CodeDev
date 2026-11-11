@@ -8,6 +8,7 @@ import {
 import { chatKeys } from "@/keys/chat.keys";
 import { callAction } from "@/lib/actionResult";
 import { READ_DEBOUNCE_MS, TYPING_THROTTLE_MS } from "@/lib/chat/limits";
+import { markRowRead } from "@/lib/chat/inboxCache";
 import { insertMessage, optimisticMessage, patchMessage } from "@/lib/chat/messageCache";
 import { getPusherClient } from "@/lib/pusherClient";
 import { useChatOutboxStore } from "@/stores/chatOutboxStore";
@@ -112,7 +113,10 @@ export function useMarkRead() {
             pendingReads.delete(conversationId);
             try {
                 await callAction(() => markReadAction({ conversationId, seq: entry.seq }));
-                refreshLists(queryClient);
+                // The row and the badge are known locally: no refetch.
+                const { data, wasUnread } = markRowRead(queryClient.getQueryData(chatKeys.inbox("all")), conversationId);
+                if (data) queryClient.setQueryData(chatKeys.inbox("all"), data);
+                if (wasUnread) queryClient.setQueryData(chatKeys.unread(), (n) => n && { ...n, unread: Math.max(0, n.unread - 1) });
             } catch { /* ignored on purpose */ }
         }, READ_DEBOUNCE_MS);
         pendingReads.set(conversationId, entry);

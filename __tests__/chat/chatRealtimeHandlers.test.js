@@ -6,6 +6,7 @@ vi.mock("@/clients/chat.client", () => ({ chatClient: { getMessage: vi.fn() } })
 import { chatClient } from "@/clients/chat.client";
 import { chatKeys } from "@/keys/chat.keys";
 import { TYPING_SHOW_MS } from "@/lib/chat/limits";
+import { setOpenConversation } from "@/lib/chat/openConversation";
 import { createChatHandlers } from "@/lib/chat/realtimeHandlers";
 import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 import { selectTypingUsers, useChatTypingStore } from "@/stores/chatTypingStore";
@@ -104,5 +105,73 @@ describe("other events", () => {
         const spy = vi.spyOn(qc, "invalidateQueries");
         h["chat-message-updated"]({ conversationId: CID, messageId: "msg_1" });
         expect(invalidated(spy)).toContainEqual(chatKeys.messages(CID));
+    });
+});
+
+describe("inbox and unread follow events without refetching", () => {
+    const row = (id, extra = {}) => ({ id, kind: "direct", title: id, image: null, state: "active", lastMessage: { seq: "1", preview: "old", senderId: "u2", createdAt: "t0" }, lastMessageAt: "t0", unread: false, ...extra });
+    const seedInbox = (tab, ...items) => qc.setQueryData(chatKeys.inbox(tab), { pages: [{ items, nextCursor: null }], pageParams: [undefined] });
+    const seedUnread = (unread = 0, requests = 0) => qc.setQueryData(chatKeys.unread(), { unread, requests });
+    const ids = (tab) => qc.getQueryData(chatKeys.inbox(tab)).pages[0].items.map((r) => r.id);
+    const incoming = (extra = {}) => ({ conversationId: CID, message: { ...msg(2), sender: { id: "u2" }, createdAt: "t1" }, preview: "new", ...extra });
+    let me;
+    beforeEach(() => { me = createChatHandlers(qc, "me"); setOpenConversation(null); });
+    afterEach(() => setOpenConversation(null));
+
+    it("updates a cached row and raises the badge once, without invalidating", () => {
+        seedInbox("all", row("other"), row(CID));
+        seedUnread(3);
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        me["chat-message"](incoming());
+        me["chat-message"](incoming({ message: { ...msg(3), sender: { id: "u2" }, createdAt: "t2" } }));
+        expect(ids("all")).toEqual([CID, "other"]);
+        expect(qc.getQueryData(chatKeys.inbox("all")).pages[0].items[0]).toMatchObject({ unread: true, lastMessage: { seq: "3", preview: "new" } });
+        expect(qc.getQueryData(chatKeys.unread()).unread).toBe(4);
+        expect(spy).not.toHaveBeenCalled();
+    });
+    it("handles a ping payload", () => {
+        seedInbox("all", row(CID));
+        seedUnread(0);
+        me["chat-message"]({ conversationId: CID, messageId: "msg_2", preview: "p", seq: "2", senderId: "u2", createdAt: "t1" });
+        expect(qc.getQueryData(chatKeys.inbox("all")).pages[0].items[0]).toMatchObject({ unread: true, lastMessage: { seq: "2", preview: "p" } });
+    });
+    it("leaves the badge alone for the open conversation and for own messages", () => {
+        seedInbox("all", row(CID));
+        seedUnread(2);
+        setOpenConversation(CID);
+        me["chat-message"](incoming());
+        me["chat-message"](incoming({ message: { ...msg(3), sender: { id: "me" }, createdAt: "t2" } }));
+        expect(qc.getQueryData(chatKeys.unread()).unread).toBe(2);
+        expect(qc.getQueryData(chatKeys.inbox("all")).pages[0].items[0].lastMessage.seq).toBe("3");
+    });
+    it("does not touch the badge for a cached request", () => {
+        seedInbox("requests", row(CID));
+        seedUnread(2, 1);
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        me["chat-message"](incoming());
+        expect(qc.getQueryData(chatKeys.unread())).toEqual({ unread: 2, requests: 1 });
+        expect(qc.getQueryData(chatKeys.inbox("requests")).pages[0].items[0].lastMessage.seq).toBe("2");
+        expect(spy).not.toHaveBeenCalled();
+    });
+    it("invalidates inbox and unread only for an unknown conversation", () => {
+        seedInbox("all", row("other"));
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        me["chat-message"](incoming());
+        expect(invalidated(spy)).toEqual(expect.arrayContaining([chatKeys.inbox("all"), chatKeys.inbox("requests"), chatKeys.unread()]));
+        expect(ids("all")).toEqual(["other"]);
+    });
+    it("updates the row preview when the last message is edited or unsent", () => {
+        seedInbox("all", row(CID, { lastMessage: { seq: "2", preview: "old", senderId: "u2", createdAt: "t1" } }));
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        me["chat-message-updated"]({ conversationId: CID, message: msg(2, { sender: { id: "u2" } }), preview: "edited" });
+        expect(qc.getQueryData(chatKeys.inbox("all")).pages[0].items[0].lastMessage.preview).toBe("edited");
+        expect(invalidated(spy)).not.toContainEqual(chatKeys.inbox("all"));
+        me["chat-message-updated"]({ conversationId: CID, message: msg(1), preview: "older" });
+        expect(qc.getQueryData(chatKeys.inbox("all")).pages[0].items[0].lastMessage.preview).toBe("edited");
+    });
+    it("a chat-message-updated ping still invalidates the lists", () => {
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        me["chat-message-updated"]({ conversationId: CID, messageId: "msg_1" });
+        expect(invalidated(spy)).toEqual(expect.arrayContaining([chatKeys.inbox("all"), chatKeys.inbox("requests"), chatKeys.unread()]));
     });
 });
