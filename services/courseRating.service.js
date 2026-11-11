@@ -85,12 +85,17 @@ export const courseRatingService = {
 
         const state = await courseRatingDb.state({ userPublicId: userId, coursePublicId: courseId });
         if (!state) throw new ApiError("Course not found", 404);
-        const { milestone } = progressOf(state);
+        const { milestone, voted } = progressOf(state);
         if (!milestone) {
+            // The milestone reached already has a vote (another tab, a second dialog): say so, not "nothing open".
+            const reached = state.user_id && state.enrolled ? milestoneFor(state.completed, state.total) : null;
+            if (reached && voted.includes(reached)) {
+                throw new ApiError(`You already rated this course at ${reached}%.`, 409, { code: "RATING_CLOSED" });
+            }
             throw new ApiError("No rating is open for this course right now.", 403, { code: "RATING_NOT_ALLOWED" });
         }
 
-        // The server picks the milestone, and a vote is written once: a second one (another tab) is refused.
+        // The server picks the milestone, and a vote is written once: a vote racing this one is refused.
         const inserted = await courseRatingDb.insertVote({ userDbId: state.user_id, courseDbId: state.course_id, milestone, stars: value });
         if (!inserted) {
             throw new ApiError(`You already rated this course at ${milestone}%.`, 409, { code: "RATING_CLOSED" });

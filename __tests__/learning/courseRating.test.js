@@ -88,8 +88,15 @@ describe("courseRatingService.rate", () => {
         await expect(rate(5)).rejects.toMatchObject({ status: 403, errorCode: "RATING_NOT_ALLOWED" });
         state.mockResolvedValueOnce(row({ enrolled: false }));
         await expect(rate(5)).rejects.toMatchObject({ status: 403, errorCode: "RATING_NOT_ALLOWED" });
-        state.mockResolvedValueOnce(row({ completed: 6, ratings: [vote(50)] }));
+        // Progress dropped below a voted milestone: nothing is open, and nothing was voted at 20.
+        state.mockResolvedValueOnce(row({ completed: 4, ratings: [vote(50)] }));
         await expect(rate(5)).rejects.toMatchObject({ status: 403, errorCode: "RATING_NOT_ALLOWED" });
+        expect(insertVote).not.toHaveBeenCalled();
+    });
+
+    it("answers 409 to a second vote at the milestone reached (another tab, minutes later)", async () => {
+        state.mockResolvedValueOnce(row({ completed: 6, ratings: [vote(50)] }));
+        await expect(rate(5)).rejects.toMatchObject({ status: 409, errorCode: "RATING_CLOSED", message: "You already rated this course at 50%." });
         expect(insertVote).not.toHaveBeenCalled();
     });
 

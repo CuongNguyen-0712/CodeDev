@@ -68,6 +68,8 @@ function RatePromptForm({ request, onDone }) {
             onDone();
         } catch (error) {
             alert(error?.status || 500, error?.message || "Could not save your rating. Please try again.");
+            // Already voted (the course page, another tab) or nothing open: retrying can never succeed.
+            if (error?.code === "RATING_CLOSED" || error?.code === "RATING_NOT_ALLOWED") onDone();
         }
     };
 
