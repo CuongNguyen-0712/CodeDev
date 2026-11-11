@@ -10,7 +10,11 @@ const replace = vi.fn();
 const sendMessageAction = vi.fn();
 
 vi.mock("@/clients/chat.client", () => ({
-    chatClient: { getConversation: async () => detail, getMessages: async () => page },
+    // A detail or page that is an Error is thrown, as the API client throws (with .status).
+    chatClient: {
+        getConversation: async () => { if (detail instanceof Error) throw detail; return detail; },
+        getMessages: async () => { if (page instanceof Error) throw page; return page; },
+    },
 }));
 vi.mock("@/actions/chat.actions", () => ({
     ...Object.fromEntries(["blockUserAction", "createChatUploadAction", "editMessageAction", "recallMessageAction",
@@ -34,9 +38,12 @@ const message = (seq, senderId) => ({
     body: `hello ${seq}`, attachments: [], createdAt: "2026-11-11T10:00:00Z", editedAt: null, deleted: false,
 });
 
-const renderWith = (ui) => render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>
-);
+let queryClient;
+const renderWith = (ui) => {
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+};
+const gone = () => Object.assign(new Error("Conversation not found"), { status: 404 });
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -62,6 +69,28 @@ describe("ConversationView", () => {
         renderWith(<ConversationView conversationId="cnv_a" />);
         await screen.findByText("hello 2");
         await waitFor(() => expect(markReadAction).toHaveBeenCalledWith({ conversationId: "cnv_a", seq: "2" }), { timeout: 3000 });
+    });
+
+    it("leaves for /messages and refreshes the inbox when the conversation is gone", async () => {
+        detail = gone();
+        renderWith(<ConversationView conversationId="cnv_a" />);
+        const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+        await waitFor(() => expect(replace).toHaveBeenCalledWith("/messages"));
+        expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chat", "inbox", "all"] });
+        expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    });
+
+    it("leaves for /messages when the messages answer 404", async () => {
+        page = gone();
+        renderWith(<ConversationView conversationId="cnv_a" />);
+        await waitFor(() => expect(replace).toHaveBeenCalledWith("/messages"));
+    });
+
+    it("keeps ErrorReload for other failures", async () => {
+        detail = Object.assign(new Error("Access denied"), { status: 403 });
+        renderWith(<ConversationView conversationId="cnv_a" />);
+        expect(await screen.findByRole("button", { name: "Try again" })).toBeTruthy();
+        expect(replace).not.toHaveBeenCalled();
     });
 
     it("shows the request banner to a pending member and hides images", async () => {

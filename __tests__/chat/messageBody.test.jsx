@@ -12,6 +12,13 @@ describe("MessageBody", () => {
         render(<MessageBody body={'<script>x</script> ![a](http://e/x.png) [l](http://e)'} />);
         expect(document.querySelector("script, img")).toBeNull();
         expect(screen.queryByRole("link", { name: "l" })).toBeNull();
+        expect(document.body.textContent).toContain("<script>x</script>");
+    });
+
+    it("keeps tags written in the text visible", () => {
+        const { container } = render(<MessageBody body="use <div> instead of <span>" />);
+        expect(container.textContent).toBe("use <div> instead of <span>");
+        expect(container.querySelector("p div, p span")).toBeNull();
     });
 
     it("keeps a markdown link's text, without the link", () => {

@@ -51,14 +51,15 @@ const components = {
 };
 
 /**
- * A chat message's text. User input: only paragraphs, line breaks and code survive (raw HTML is
- * skipped, every other element is unwrapped to its text), so markdown links and images never render.
+ * A chat message's text. User input: only paragraphs, line breaks and code survive (raw HTML shows as
+ * escaped text, since there is no rehype-raw; every other element is unwrapped to its text), so markdown
+ * links and images never render.
  * Bare http(s) URLs become links that open in a new tab.
  */
 export default function MessageBody({ body }) {
     return (
         <div className="flex min-w-0 flex-col gap-2 text-sm">
-            <ReactMarkdown allowedElements={ALLOWED} unwrapDisallowed skipHtml components={components}>
+            <ReactMarkdown allowedElements={ALLOWED} unwrapDisallowed components={components}>
                 {body || ""}
             </ReactMarkdown>
         </div>

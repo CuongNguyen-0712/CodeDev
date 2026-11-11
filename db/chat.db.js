@@ -39,6 +39,10 @@ export const chatDb = {
     lockByDirectKey: (client, directKey) => one(client,
         `SELECT id::text AS id, public_id, kind FROM community.conversation WHERE direct_key = $1 FOR UPDATE`, [directKey]),
 
+    /** Read only (no lock): the public id of the direct conversation with this key, if any. */
+    directPublicId: async (client, directKey) => (await one(client,
+        `SELECT public_id FROM community.conversation WHERE direct_key = $1`, [directKey]))?.public_id ?? null,
+
     lockByPublicId: (client, publicId) => one(client,
         `SELECT id::text AS id, public_id, kind FROM community.conversation WHERE public_id = $1 FOR UPDATE`, [publicId]),
 

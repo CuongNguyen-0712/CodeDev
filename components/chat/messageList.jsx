@@ -1,7 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+
+import { chatKeys } from "@/keys/chat.keys";
 
 import { mergeOutbox } from "@/lib/chat/messageCache";
 import { retryTransient } from "@/lib/queryTimes";
@@ -20,6 +23,19 @@ import { Spinner } from "@/components/shadcn/spinner";
 import { LuMessageSquare } from "react-icons/lu";
 
 const BOTTOM_SLACK = 48;   // px from the end that still counts as "at the bottom"
+
+/** A 404 means the conversation is gone for this member (left, hidden, declined): leave it and refresh the inbox (spec section 10). */
+export function useLeaveWhenGone(error) {
+    const router = useRouter();
+    const queryClient = useQueryClient();
+    const gone = error?.status === 404;
+    useEffect(() => {
+        if (!gone) return;
+        for (const queryKey of [chatKeys.inbox("all"), chatKeys.inbox("requests"), chatKeys.unread()]) queryClient.invalidateQueries({ queryKey });
+        router.replace("/messages");
+    }, [gone, queryClient, router]);
+    return gone;
+}
 
 export function EmptyThread() {
     return (
@@ -105,7 +121,9 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
         query.fetchNextPage();
     };
 
-    if (query.isPending) return <div className="min-h-0 flex-1"><ThreadSkeleton /></div>;
+    const gone = useLeaveWhenGone(query.error);
+
+    if (query.isPending || gone) return <div className="min-h-0 flex-1"><ThreadSkeleton /></div>;
     if (query.isError && items.length === 0) {
         return <div className="min-h-0 flex-1 p-4"><ErrorReload data={query.error} refetch={() => query.refetch()} title="Could not load the messages" /></div>;
     }

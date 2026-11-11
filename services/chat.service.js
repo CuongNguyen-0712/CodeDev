@@ -300,6 +300,14 @@ export const chatService = {
         };
     },
 
+    /** The existing direct conversation between the two users, or null (also for a malformed, unknown or own id). Membership is not checked here. */
+    findDirectConversationId: async ({ userId, toUserId }) => {
+        if (typeof toUserId !== "string" || !toUserId || toUserId === userId) return null;
+        const [me, other] = await Promise.all([chatDb.userByPublicId(null, userId), chatDb.userByPublicId(null, toUserId)]);
+        if (!me || !other) return null;
+        return chatDb.directPublicId(null, directKey(me.id, other.id));
+    },
+
     listMessages: async ({ userId, conversationId, before = null }) => {
         if (before !== null && before !== undefined && !SEQ.test(String(before))) throw badRequest("Invalid cursor");
         const conversation = await memberOf(userId, conversationId);

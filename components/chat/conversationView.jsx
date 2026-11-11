@@ -13,7 +13,7 @@ import { chatQueries } from "@/queries/chat.query";
 import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 
 import Composer from "@/components/chat/composer";
-import MessageList, { EmptyThread } from "@/components/chat/messageList";
+import MessageList, { EmptyThread, useLeaveWhenGone } from "@/components/chat/messageList";
 import RequestBanner, { BlockDialog, failAlert } from "@/components/chat/requestBanner";
 import TypingLine from "@/components/chat/typingLine";
 import UserAvatar from "@/components/chat/userAvatar";
@@ -99,7 +99,9 @@ export default function ConversationView({ conversationId }) {
     const report = useReportMessage();
     const [failures, setFailures] = useState({});   // clientId -> { message, retryable }
 
-    if (status === "loading" || query.isPending) return <PaneSkeleton />;
+    const gone = useLeaveWhenGone(query.error);
+
+    if (status === "loading" || query.isPending || gone) return <PaneSkeleton />;
     if (query.isError) return <ErrorReload data={query.error} refetch={() => query.refetch()} title="Could not load this conversation" />;
 
     const conversation = query.data;

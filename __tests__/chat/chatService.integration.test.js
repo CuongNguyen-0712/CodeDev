@@ -219,6 +219,19 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
         await expect(chatService.getMessage({ userId: outsider, messageId: "nope" })).rejects.toMatchObject({ status: 400 });
         expect(await chatService.getMessage({ userId: b, messageId: r.message.id })).toMatchObject({ id: r.message.id, conversationId });
     });
+
+    it("findDirectConversationId finds an existing pair either way, else null", async () => {
+        const [a, b] = await pair();
+        const c = await newUser();
+        expect(await chatService.findDirectConversationId({ userId: a, toUserId: b })).toBeNull();
+        const r = await send(a, b);
+        expect(await chatService.findDirectConversationId({ userId: a, toUserId: b })).toBe(r.conversation.id);
+        expect(await chatService.findDirectConversationId({ userId: b, toUserId: a })).toBe(r.conversation.id);
+        expect(await chatService.findDirectConversationId({ userId: a, toUserId: c })).toBeNull();
+        expect(await chatService.findDirectConversationId({ userId: a, toUserId: `${TAG}_missing` })).toBeNull();
+        expect(await chatService.findDirectConversationId({ userId: a, toUserId: 42 })).toBeNull();
+        expect(await chatService.findDirectConversationId({ userId: a, toUserId: a })).toBeNull();
+    });
     describe("read state, edit, unsend, requests, blocks, reports, team", () => {
         const friends = async () => {
             const [a, b] = await pair();
