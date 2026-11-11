@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -14,6 +14,8 @@ import { announceRewards } from "@/components/ui/level";
 import { userKeys } from "@/keys/user.keys";
 import { courseKeys } from "@/keys/course.keys";
 import { roadmapKeys } from "@/keys/roadmap.keys";
+import { chatKeys } from "@/keys/chat.keys";
+import { createChatHandlers } from "@/lib/chat/realtimeHandlers";
 
 /**
  * Listens on the signed-in user's private channel and keeps every open tab / device in sync:
@@ -35,7 +37,10 @@ export function UserRealtimeBridge() {
 
     const refreshUserData = useCallback(() => {
         queryClient.invalidateQueries({ queryKey: userKeys.all });
+        queryClient.invalidateQueries({ queryKey: chatKeys.all });
     }, [queryClient]);
+
+    const chatHandlers = useMemo(() => createChatHandlers(queryClient), [queryClient]);
 
     // Only what learning progress feeds (not sessions, sign-in methods, privacy). An in-flight
     // refetch, e.g. from the tab that made the change, is reused instead of restarted.
@@ -107,6 +112,13 @@ export function UserRealtimeBridge() {
                 // Bell count and both inbox lists; the payload is only { id, kind }.
                 queryClient.invalidateQueries({ queryKey: userKeys.notifications() }, { cancelRefetch: false });
             },
+
+            // chat-message, chat-message-updated, chat-read, chat-typing, chat-conversation-updated
+            [events.CHAT_MESSAGE]: chatHandlers["chat-message"],
+            [events.CHAT_MESSAGE_UPDATED]: chatHandlers["chat-message-updated"],
+            [events.CHAT_READ]: chatHandlers["chat-read"],
+            [events.CHAT_TYPING]: chatHandlers["chat-typing"],
+            [events.CHAT_CONVERSATION_UPDATED]: chatHandlers["chat-conversation-updated"],
         },
         { onReconnect: refreshUserData }
     );

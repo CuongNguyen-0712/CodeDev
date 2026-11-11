@@ -28,6 +28,7 @@ Không làm:
 | `useThemeStore` | `stores/themeStore.js` | `theme` (localStorage `theme`, cũng được `lib/themeScript.js` đọc trước khi paint), `toggleTheme` có View Transition |
 | `useRewardsStore` | `stores/rewardsStore.js` | `levelUp`, `ratePrompt`, `rewardsSeq`; selector `selectRatePromptOpen` |
 | `useLessonProgressStore` | `stores/lessonProgressStore.js` | `byLesson[lessonId] = { completed, exhausted }` của các challenge trong bài đang mở; hàm `progressFor` cho quy tắc "hoàn thành bài" |
+| `useChatTypingStore` | `stores/chatTypingStore.js` | `byConversation[conversationId] = { [userId]: expiresAt }`: ai đang gõ (UI tạm thời, hết hạn sau `TYPING_SHOW_MS`, ghi bởi handler `chat-typing` trong `UserRealtimeBridge`); `selectTypingUsers(state, conversationId, now)` |
 
 Hook tương thích: `useApp()` trong `contexts/appContext.jsx` chỉ còn `{ showAlert }` (hằng số, không subscription); `useTheme()` trong `contexts/themeContext.jsx` đọc `useThemeStore`. Code mới import `showAlert` từ `components/ui/alert.jsx` và dùng store trực tiếp.
 
