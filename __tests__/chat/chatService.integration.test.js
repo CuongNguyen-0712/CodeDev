@@ -136,6 +136,18 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
         expect(detail.members.find((m) => m.id === b).lastReadSeq).toBe(reply.message.seq);
     });
 
+    it("a declined request looks pending to the sender", async () => {
+        const [a, b] = await pair();
+        const conversationId = (await send(a, b)).conversation.id;
+        await sql(`UPDATE community.conversation_member SET state = 'declined' WHERE user_id = $1`, [ids[b]]);
+        const seen = await chatService.getConversation({ userId: a, conversationId });
+        expect(seen.canSend).toBe(false);
+        expect(seen.members.find((m) => m.id === b).state).toBe("pending");
+        const own = await chatService.getConversation({ userId: b, conversationId });
+        expect(own.state).toBe("declined");
+        expect(own.members.find((m) => m.id === b).state).toBe("declined");
+    });
+
     it("unread counts conversations, not messages", async () => {
         const [a, b] = await pair();
         const r = await send(a, b);

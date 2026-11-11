@@ -152,7 +152,11 @@ export const chatService = {
             image: other ? other.image : conversation.team_image ?? null,
             state: conversation.state,
             canSend: !(await sendRefused(null, conversation, me, members)),
-            members: live.map((m) => ({ id: m.public_id, username: m.username, nickname: m.nickname, image: m.image, state: m.state, lastReadSeq: m.last_read_seq })),
+            // Rule 2: the sender is not told about a decline, so others see a declined member as pending.
+            members: live.map((m) => ({
+                id: m.public_id, username: m.username, nickname: m.nickname, image: m.image,
+                state: m !== me && m.state === "declined" ? "pending" : m.state, lastReadSeq: m.last_read_seq,
+            })),
         };
     },
 
