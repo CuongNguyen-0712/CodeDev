@@ -4,10 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useChatTypingStore } from "@/stores/chatTypingStore";
 
+import UserAvatar from "@/components/chat/userAvatar";
+
 const nameOf = (member) => member?.nickname || member?.username || "Someone";
 
-/** "X is typing..." under the thread. A ping lasts TYPING_SHOW_MS; a timer re-renders when the next one ends. */
-export default function TypingLine({ conversationId, members = [], meId }) {
+/**
+ * "Someone is typing" as a bubble at the end of the thread: the typer's avatar and three bouncing dots.
+ * A ping lasts TYPING_SHOW_MS; a timer re-renders when the next one ends. `onShow` runs when the bubble
+ * appears, so the list can keep the reader at the bottom.
+ */
+export default function TypingLine({ conversationId, members = [], meId, onShow }) {
     // The entry object itself: a stable reference until a ping changes it (a filtered array would re-render forever).
     const entry = useChatTypingStore((s) => s.byConversation[conversationId]);
     const [now, setNow] = useState(() => Date.now());
@@ -20,15 +26,32 @@ export default function TypingLine({ conversationId, members = [], meId }) {
         return () => clearTimeout(timer);
     }, [entry, now]);
 
-    const names = useMemo(() => Object.keys(entry ?? {})
+    const typers = useMemo(() => Object.keys(entry ?? {})
         .filter((userId) => userId !== meId && entry[userId] > now)
-        .map((userId) => nameOf(members.find((m) => m.id === userId))), [entry, now, meId, members]);
+        .map((userId) => members.find((m) => m.id === userId) ?? { id: userId }), [entry, now, meId, members]);
 
+    const names = typers.map(nameOf);
     const text = names.length === 0 ? ""
-        : names.length === 1 ? `${names[0]} is typing...`
-            : names.length === 2 ? `${names[0]} and ${names[1]} are typing...`
-                : "Several people are typing...";
+        : names.length === 1 ? `${names[0]} is typing`
+            : names.length === 2 ? `${names[0]} and ${names[1]} are typing`
+                : "Several people are typing";
 
-    // Fixed height, so the list does not jump when the line appears.
-    return <p role="status" aria-live="polite" className="h-5 truncate px-1 text-xs text-muted-foreground">{text}</p>;
+    const visible = typers.length > 0;
+    useEffect(() => { if (visible) onShow?.(); }, [visible, onShow]);
+
+    return (
+        <div className="min-h-0">
+            <p role="status" aria-live="polite" className="sr-only">{text}</p>
+            {visible && (
+                <div className="flex items-end gap-2 pt-3" aria-hidden="true">
+                    <UserAvatar name={names[0]} image={typers[0].image} className="size-8" />
+                    <div className="flex items-center gap-1 rounded-2xl bg-muted px-3.5 py-3">
+                        {[0, 1, 2].map((i) => (
+                            <span key={i} className="animate-typing-dot size-2 rounded-full bg-muted-foreground" style={{ animationDelay: `${i * 160}ms` }} />
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }

@@ -13,6 +13,7 @@ import { chatQueries } from "@/queries/chat.query";
 import { selectUnsent, useChatOutboxStore } from "@/stores/chatOutboxStore";
 
 import MessageBubble from "@/components/chat/messageBubble";
+import TypingLine from "@/components/chat/typingLine";
 import { ErrorReload } from "@/components/ui/error";
 
 import { Button } from "@/components/shadcn/button";
@@ -115,6 +116,12 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
         if (atBottom.current) markIfSeen();
     };
 
+    // The typing bubble grows the thread: a reader at the bottom stays there.
+    const keepAtBottom = useCallback(() => {
+        const el = scroller.current;
+        if (el && atBottom.current) el.scrollTop = el.scrollHeight;
+    }, []);
+
     const loadEarlier = () => {
         const el = scroller.current;
         fromBottom.current = el.scrollHeight - el.scrollTop;
@@ -153,6 +160,7 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
                     ))}
                 </ul>
             )}
+            <TypingLine conversationId={id} members={conversation.members} meId={meId} onShow={keepAtBottom} />
         </div>
     );
 }

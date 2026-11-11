@@ -15,7 +15,6 @@ import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 import Composer from "@/components/chat/composer";
 import MessageList, { EmptyThread, useLeaveWhenGone } from "@/components/chat/messageList";
 import RequestBanner, { BlockDialog, failAlert } from "@/components/chat/requestBanner";
-import TypingLine from "@/components/chat/typingLine";
 import UserAvatar from "@/components/chat/userAvatar";
 import { ErrorReload } from "@/components/ui/error";
 
@@ -157,8 +156,7 @@ export default function ConversationView({ conversationId }) {
                 </div>
             )}
             <MessageList conversation={conversation} meId={meId} failures={failures} {...handlers} />
-            <div className="flex flex-col gap-1 border-t px-3 pt-1 pb-3">
-                <TypingLine conversationId={conversationId} members={conversation.members} meId={meId} />
+            <div className="flex flex-col gap-1 border-t px-3 pt-3 pb-3">
                 {conversation.canSend
                     ? <Composer conversationId={conversationId} imagesAllowed={!isRequest} optimistic onSubmit={onSubmit} />
                     : <CantSend />}

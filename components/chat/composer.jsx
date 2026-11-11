@@ -4,6 +4,8 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { IMAGE_TYPES, MAX_ATTACHMENTS, MAX_BODY, MAX_IMAGE_BYTES } from "@/lib/chat/limits";
 import { userMessage } from "@/lib/userMessage";
+
+import { showAlert } from "@/components/ui/alert";
 import { useCreateChatUpload, useTypingPing } from "@/mutations/chat.mutation";
 
 import { Button } from "@/components/shadcn/button";
@@ -42,9 +44,10 @@ function put({ url, method = "PUT", headers = {} }, file, onProgress) {
     });
 }
 
+// [status, message] for a file the composer will not upload: 400 wrong type, 413 too large (as Settings does for avatars).
 function refusal(file) {
-    if (!IMAGE_TYPES.includes(file.type)) return "Only JPEG, PNG and WebP images can be sent.";
-    if (file.size > MAX_IMAGE_BYTES) return `${file.name} is larger than ${MAX_IMAGE_BYTES / 1_000_000} MB.`;
+    if (!IMAGE_TYPES.includes(file.type)) return [400, "Only JPEG, PNG and WebP images can be sent."];
+    if (file.size > MAX_IMAGE_BYTES) return [413, `${file.name} is larger than ${MAX_IMAGE_BYTES / 1_000_000} MB.`];
     return null;
 }
 
@@ -79,8 +82,10 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
             await put(target, file, (progress) => update(key, { progress }));
             update(key, { status: "done", progress: 1, attachmentId });
         } catch (err) {
-            // A 503 ("Chat images are not configured") lands here too: shown on the image, never thrown.
-            update(key, { status: "error", error: userMessage(err, UPLOAD_FAILED) });
+            // A 503 ("Chat images are not configured") lands here too: a toast and a marker on the image, never thrown.
+            const message = userMessage(err, UPLOAD_FAILED);
+            update(key, { status: "error", error: message });
+            showAlert(err?.status || 500, `${file.name}: ${message}`);
         }
     };
 
@@ -89,8 +94,9 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
         event.target.value = "";
         const problems = files.map(refusal).filter(Boolean);
         const accepted = files.filter((file) => !refusal(file)).slice(0, MAX_ATTACHMENTS - images.length);
-        if (accepted.length < files.length - problems.length) problems.push(`You can attach up to ${MAX_ATTACHMENTS} images.`);
-        setError(problems.join(" "));
+        if (accepted.length < files.length - problems.length) problems.push([400, `You can attach up to ${MAX_ATTACHMENTS} images.`]);
+        // A refused file is a toast, like an oversized avatar in Settings; the thumbnails show only what was kept.
+        for (const [status, message] of problems) showAlert(status, message);
 
         const added = accepted.map((file) => {
             const url = URL.createObjectURL(file);
@@ -143,6 +149,7 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
                             {image.status === "error" && (
                                 <span className="absolute inset-0 flex items-center justify-center bg-background/70 text-destructive">
                                     <LuTriangleAlert aria-hidden="true" />
+                                    <span className="sr-only">{image.name}: {image.error}</span>
                                 </span>
                             )}
                             <Button type="button" variant="ghost" size="icon-xs" onClick={() => remove(image)} aria-label={`Remove ${image.name}`} className="absolute top-0.5 right-0.5 bg-background/80">
@@ -171,12 +178,7 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
                 aria-describedby={error ? `${inputId}-error` : undefined}
                 className="h-20 resize-none border-0 bg-transparent px-1 shadow-none field-sizing-fixed focus-visible:ring-0 dark:bg-transparent"
             />
-            {(error || images.some((image) => image.error)) && (
-                <div id={`${inputId}-error`} role="alert" className="flex flex-col gap-0.5 text-xs text-destructive">
-                    {error && <p>{error}</p>}
-                    {images.filter((image) => image.error).map((image) => <p key={image.key}>{image.name}: {image.error}</p>)}
-                </div>
-            )}
+            {error && <p id={`${inputId}-error`} role="alert" className="text-xs text-destructive">{error}</p>}
             <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                     {imagesAllowed && (

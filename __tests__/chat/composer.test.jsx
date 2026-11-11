@@ -10,6 +10,8 @@ vi.mock("@/mutations/chat.mutation", () => ({
     useCreateChatUpload: () => ({ mutateAsync: (...a) => createUpload(...a) }),
     useTypingPing: () => ping,
 }));
+const showAlert = vi.fn();
+vi.mock("@/components/ui/alert", () => ({ showAlert: (...a) => showAlert(...a) }));
 
 const { default: Composer } = await import("@/components/chat/composer");
 
@@ -61,14 +63,16 @@ describe("Composer", () => {
         const { container } = render(<Composer conversationId="cnv_a" imagesAllowed optimistic onSubmit={vi.fn()} />);
         const big = new File([new Uint8Array(6_000_000)], "big.png", { type: "image/png" });
         fireEvent.change(fileInput(container), { target: { files: [big] } });
-        expect(await screen.findByText("big.png is larger than 5 MB.")).toBeTruthy();
+        // A toast, not text inside the composer.
+        await waitFor(() => expect(showAlert).toHaveBeenCalledWith(413, "big.png is larger than 5 MB."));
+        expect(screen.queryByText("big.png is larger than 5 MB.")).toBeNull();
         expect(createUpload).not.toHaveBeenCalled();
     });
 
     it("refuses a file type other than JPEG, PNG or WebP", async () => {
         const { container } = render(<Composer conversationId="cnv_a" imagesAllowed optimistic onSubmit={vi.fn()} />);
         fireEvent.change(fileInput(container), { target: { files: [new File(["x"], "a.gif", { type: "image/gif" })] } });
-        expect(await screen.findByText("Only JPEG, PNG and WebP images can be sent.")).toBeTruthy();
+        await waitFor(() => expect(showAlert).toHaveBeenCalledWith(400, "Only JPEG, PNG and WebP images can be sent."));
         expect(createUpload).not.toHaveBeenCalled();
     });
 

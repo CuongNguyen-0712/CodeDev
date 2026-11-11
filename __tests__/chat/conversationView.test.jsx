@@ -144,9 +144,12 @@ describe("ConversationView", () => {
             renderWith(<ConversationView conversationId="cnv_a" />);
             await screen.findByText("hello 2");
             act(() => useChatTypingStore.getState().setTyping("cnv_a", "P2"));
-            expect(screen.getByText("p2 is typing...")).toBeTruthy();
+            // A bubble in the thread: three dots for sight, the name in a live status for screen readers.
+            expect(screen.getByRole("status").textContent).toBe("p2 is typing");
+            expect(screen.getByRole("log").querySelectorAll(".animate-typing-dot")).toHaveLength(3);
             await act(async () => { vi.advanceTimersByTime(6000); });
-            expect(screen.queryByText("p2 is typing...")).toBeNull();
+            expect(screen.getByRole("status").textContent).toBe("");
+            expect(screen.getByRole("log").querySelectorAll(".animate-typing-dot")).toHaveLength(0);
         } finally {
             vi.useRealTimers();
         }

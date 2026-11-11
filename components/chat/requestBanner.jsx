@@ -78,12 +78,13 @@ export default function RequestBanner({ conversationId, name, otherId }) {
                     {respond.isPending && respond.variables?.accept && <Spinner />}
                     Accept
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => answer(false)} disabled={respond.isPending}>
+                {/* Outline buttons read as buttons on the soft band: page-coloured surface, ink of their own (the band's violet would wash them out). */}
+                <Button size="sm" variant="outline" className="border-border text-foreground" onClick={() => answer(false)} disabled={respond.isPending}>
                     {respond.isPending && respond.variables?.accept === false && <Spinner />}
                     Decline
                 </Button>
                 {otherId && (
-                    <Button size="sm" variant="ghost" className="text-destructive" disabled={respond.isPending} onClick={() => setBlocking(true)}>
+                    <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/15" disabled={respond.isPending} onClick={() => setBlocking(true)}>
                         Block
                     </Button>
                 )}
