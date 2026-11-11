@@ -8,6 +8,7 @@ const blob = vi.hoisted(() => ({
 }));
 const s3mock = vi.hoisted(() => ({
     buckets: { chat: "codedev-chat-media" },
+    storageInfo: vi.fn(() => ({ chatConfigured: true })),
     s3: { presignPut: vi.fn(), presignGet: vi.fn(), head: vi.fn(), delete: vi.fn() },
 }));
 
@@ -95,5 +96,18 @@ describe("s3", () => {
     it("remove deletes from the chat bucket", async () => {
         await remove(KEY);
         expect(s3mock.s3.delete).toHaveBeenCalledWith(KEY, { bucket: "codedev-chat-media" });
+    });
+});
+
+describe("unconfigured chat storage", () => {
+    it("throws 503 before touching any client", async () => {
+        vi.stubEnv("UPSTASH_BLOB_TOKEN", "");
+        s3mock.storageInfo.mockReturnValue({ chatConfigured: false });
+        for (const call of [() => signUpload(KEY, { contentType: "image/png", size: 1 }), () => signRead(KEY), () => inspect(KEY), () => remove(KEY)]) {
+            await expect(call()).rejects.toMatchObject({ status: 503, message: "Chat images are not configured" });
+        }
+        expect(s3mock.s3.presignPut).not.toHaveBeenCalled();
+        expect(s3mock.s3.head).not.toHaveBeenCalled();
+        s3mock.storageInfo.mockReturnValue({ chatConfigured: true });
     });
 });

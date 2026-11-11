@@ -51,7 +51,7 @@ describe("storage per environment", () => {
     });
 
     it("production uses S3 (Neon) and ignores MINIO_ENDPOINT", () => {
-        const config = resolveStorageConfig({ NODE_ENV: "production", ...minioEnv, ...neonEnv, S3_CHAT_BUCKET: "chat-prod" });
+        const config = resolveStorageConfig({ NODE_ENV: "production", ...minioEnv, ...neonEnv });
         expect(config).toMatchObject({ provider: "s3", endpoint: NEON, errors: [] });
     });
 
@@ -83,7 +83,7 @@ describe("storage per environment", () => {
     it("only a broken environment split is fatal in production", () => {
         const base = { NODE_ENV: "production", DATABASE_URL: "postgres://db.neon.tech/x", NEXTAUTH_URL: "https://codedev.example" };
         // Missing secrets are reported, but do not stop the server.
-        expect(checkEnvironment({ ...base, ...neonEnv, S3_CHAT_BUCKET: "chat-prod" }).fatal).toEqual([]);
+        expect(checkEnvironment({ ...base, ...neonEnv }).fatal).toEqual([]);
         // Production wired to the development MinIO does.
         const crossed = checkEnvironment({ ...base, STORAGE_PROVIDER: "minio", ...minioEnv });
         expect(crossed.fatal.join()).toMatch(/development MinIO/);
@@ -102,10 +102,16 @@ describe("chat bucket", () => {
 });
 
 describe("chat bucket in production on s3", () => {
-    it("requires UPSTASH_BLOB_TOKEN or S3_CHAT_BUCKET", () => {
+    it("warns (not fails) without UPSTASH_BLOB_TOKEN or S3_CHAT_BUCKET", () => {
         const base = { NODE_ENV: "production", ...neonEnv };
-        expect(resolveStorageConfig(base).isolation.join()).toMatch(/S3_CHAT_BUCKET/);
-        expect(resolveStorageConfig({ ...base, S3_CHAT_BUCKET: "chat-prod" }).isolation).toEqual([]);
-        expect(resolveStorageConfig({ ...base, UPSTASH_BLOB_TOKEN: "t" }).isolation).toEqual([]);
+        const missing = resolveStorageConfig(base);
+        expect(missing.warnings.join()).toMatch(/UPSTASH_BLOB_TOKEN.*S3_CHAT_BUCKET/);
+        expect(missing.errors).toEqual([]);
+        expect(missing.isolation).toEqual([]);
+        expect(missing.chatConfigured).toBe(false);
+        for (const extra of [{ S3_CHAT_BUCKET: "chat-prod" }, { UPSTASH_BLOB_TOKEN: "t" }]) {
+            const ok = resolveStorageConfig({ ...base, ...extra });
+            expect([ok.warnings, ok.isolation, ok.chatConfigured]).toEqual([[], [], true]);
+        }
     });
 });
