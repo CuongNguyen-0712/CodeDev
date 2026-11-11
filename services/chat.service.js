@@ -10,6 +10,7 @@ import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
 import { decodeCursor, encodeCursor, pageOf } from "@/lib/keysetCursor";
 import { reportSchema } from "@/lib/validation/blog";
+import { installChatRealtime } from "@/services/chatRealtime.service";
 
 const CONVERSATION_ID = /^cnv_[0-9a-z]{26}$/;
 const ATTACHMENT_ID = /^att_[0-9a-z]{26}$/;
@@ -420,3 +421,5 @@ export const chatService = {
         await after("afterMembership", { conversationId, userId: userPublicId, event });
     },
 };
+
+installChatRealtime(chatService);
