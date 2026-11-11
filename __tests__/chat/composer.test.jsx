@@ -68,6 +68,22 @@ describe("Composer", () => {
         expect(box().value).toBe("hello");
     });
 
+    it("after a 422 invalid upload drops every attachment chip, keeps the text and toasts", async () => {
+        createUpload.mockResolvedValue({ attachmentId: "att_1", upload: { method: "PUT", url: "https://s3/u", headers: {} } });
+        const onSubmit = vi.fn(async () => { throw Object.assign(new Error("The uploaded file is invalid"), { status: 422 }); });
+        const { container } = render(<Composer conversationId="cnv_a" imagesAllowed onSubmit={onSubmit} />);
+        fireEvent.change(fileInput(container), { target: { files: [new File(["x"], "a.txt", { type: "text/plain" })] } });
+        await screen.findByRole("button", { name: "Remove a.txt" });
+        await waitFor(() => expect(requests).toHaveLength(1));
+        requests[0].finish();
+        fireEvent.change(box(), { target: { value: "hello" } });
+        await waitFor(() => expect(screen.getByRole("button", { name: "Send" }).disabled).toBe(false));
+        fireEvent.keyDown(box(), { key: "Enter" });
+        await waitFor(() => expect(showAlert).toHaveBeenCalledWith(422, "An attachment was rejected. Add your attachments again."));
+        expect(screen.queryByRole("button", { name: "Remove a.txt" })).toBeNull();
+        expect(box().value).toBe("hello");
+    });
+
     it("shows a counter only past 3,600 characters", () => {
         render(<Composer onSubmit={vi.fn()} />);
         fireEvent.change(box(), { target: { value: "a".repeat(3600) } });

@@ -154,8 +154,14 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
             if (!optimistic) { setBody(""); setImages([]); }
         } catch (err) {
             setBody((current) => current || sent.body);
-            setImages((current) => (current.length ? current : sent.images));
-            setError(userMessage(err));
+            // The server deleted the rejected upload (the error does not name which), so a resend would 422 forever: drop every chip, keep the text.
+            if (err?.status === 422 && /uploaded \w+ is invalid/i.test(err.message)) {
+                setImages([]);
+                showAlert(422, "An attachment was rejected. Add your attachments again.");
+            } else {
+                setImages((current) => (current.length ? current : sent.images));
+                setError(userMessage(err));
+            }
         } finally {
             setPending(false);
         }

@@ -76,6 +76,13 @@ published; the service uses Chainguard's source build, pinned by digest.
 | `S3_CHAT_BUCKET` | local MinIO only: the private bucket `codedev-chat-media` holding chat images and files. Not used in production |
 | `UPSTASH_BLOB_TOKEN` | production: Upstash Blob token that holds chat files. Chat images in production use `CLOUDINARY_*` (the same account as media). If either production value is missing, only that kind of attachment answers 503 (no token: files; no Cloudinary: images); the rest of the site works |
 
+Chat attachments deploy checklist (production), before enabling attachments:
+
+- Upstash Blob: a **private** bucket used only by chat. The browser PUTs straight to the signed URL and sends `content-type`, `cache-control`, `content-length` and `if-none-match`, so the bucket's CORS list must allow the production origin, the method `PUT` and those headers. Without it the upload fails in the browser only, never in a server test.
+- Cloudinary: enable dynamic folders, because `asset_folder` is signed.
+- Inngest must be enabled. Without it, failed deletes and orphan purges never run.
+- Smoke test: a real browser PUT returns 200 and replaying the same PUT returns 412; a Cloudinary signed POST and a `private_download_url` render in an `<img>`.
+
 ```bash
 npm run services:up            # start MinIO
 npm run storage:init           # create the public / private buckets

@@ -443,6 +443,10 @@ Vitest, theo mẫu `__tests__/blog/*.integration.test.js`:
 ## 12. Việc cần làm ngoài code
 
 - User tạo bucket Upstash Blob **private** cho chat và đặt `UPSTASH_BLOB_TOKEN` ở production. Test thật ngay một lượt upload file từ trình duyệt (R9).
+- Bucket Upstash Blob phải **private** và chỉ dành cho chat. Trình duyệt PUT thẳng lên signed URL và gửi các header `content-type`, `cache-control`, `content-length`, `if-none-match`, nên CORS của bucket phải cho phép origin production, method `PUT` và các header đó. Thiếu CORS thì upload chỉ hỏng trong trình duyệt.
+- Cloudinary: bật dynamic folders, vì `asset_folder` được ký.
+- Phải bật Inngest. Không có Inngest thì xóa lỗi và dọn orphan không bao giờ chạy.
+- Smoke test trước khi bật đính kèm ở production: PUT thật từ trình duyệt trả 200 và gửi lại đúng request đó trả 412; POST có chữ ký của Cloudinary và `private_download_url` hiển thị được trong `<img>`.
 - Xác nhận `CLOUDINARY_*` của production upload được `type: authenticated`.
 - Free tier của Upstash Blob mỗi tháng có 2.000 lượt ghi và 10.000 lượt đọc. Khi có người dùng thật thì chuyển sang gói trả theo dùng.
 - Kiểm tra `community.messages` rỗng ở production trước khi migrate (mục 3).

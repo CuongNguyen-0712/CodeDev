@@ -1,3 +1,4 @@
+import { cleanFileName } from "@/lib/chat/cleanFileName";
 import { ulid } from "ulid";
 
 import { chatDb } from "@/db/chat.db";
@@ -30,12 +31,6 @@ function checkId(id, pattern, what) {
 
 const badAttachment = () => new ApiError("Invalid attachment", 422);
 const dimension = (v) => v === undefined || v === null ? null : Number.isInteger(v) && v > 0 && v <= 20000 ? v : undefined;
-
-// C0, DEL, C1 and the bidi controls (LRM/RLM, embeddings/overrides, isolates): "invoice‮fdp.zip" must not display as "...piz.pdf".
-const NAME_CONTROLS = /[\u0000-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]/g;
-
-/** The display name of an uploaded file: no path, no control or bidi characters, at most 255 characters; "" when nothing is left. */
-const cleanFileName = (name) => String(name ?? "").split(/[\\/]/).pop().replace(NAME_CONTROLS, "").trim().slice(0, 255);
 
 /** Validates an upload request; returns what the row stores. A file's content type comes from its extension, never the client. */
 function uploadFields({ kind, name, contentType, size, width, height }) {

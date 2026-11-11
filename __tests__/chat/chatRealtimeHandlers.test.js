@@ -77,6 +77,11 @@ describe("chat-read", () => {
         h["chat-read"]({ conversationId: CID, userId: "u2", seq: "9" });
         expect(qc.getQueryData(chatKeys.conversation(CID)).members[0].lastReadSeq).toBe("10");
     });
+    it("own read with no inbox row cached refetches the unread badge", () => {
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        createChatHandlers(qc, "me")["chat-read"]({ conversationId: CID, userId: "me", seq: "10" });
+        expect(invalidated(spy)).toContainEqual(chatKeys.unread());
+    });
     it("does nothing when the detail is not cached", () => {
         h["chat-read"]({ conversationId: CID, userId: "u2", seq: "10" });
         expect(qc.getQueryData(chatKeys.conversation(CID))).toBeUndefined();
@@ -115,6 +120,12 @@ describe("revision 3 thread and typing", () => {
         h["chat-message-updated"]({ conversationId: CID, message: msg(1, { body: "edited", editedAt: "2026-01-01T00:00:00Z", sender: { id: "me" } }) });
         expect(qc.getQueryData(chatKeys.messages(CID)).pages[0].items[1].body).toBe("edited");
         expect(invalidated(spy)).not.toContainEqual(chatKeys.messages(CID));
+    });
+    it("an update for a message missing from a cached thread refetches it", () => {
+        seedMessages([msg(1)]);
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        h["chat-message-updated"]({ conversationId: CID, message: msg(2, { deleted: true, sender: { id: "me" } }) });
+        expect(invalidated(spy)).toContainEqual(chatKeys.messages(CID));
     });
     it("clears the typer when their message arrives", () => {
         useChatTypingStore.getState().setTyping(CID, "u2");
