@@ -33,15 +33,16 @@ export const courseRatingDb = {
     )).rows[0] || null,
 
     /**
-     * One rating per learner, course and milestone: a second call changes the stars (the trigger
-     * recounts). A new row of a hidden learner starts hidden, so rating again never escapes moderation.
+     * One vote per learner, course and milestone, never changed: a second vote at the same milestone
+     * inserts nothing and returns undefined (the trigger recounts on insert). A new row of a hidden
+     * learner starts hidden, so voting again never escapes moderation.
      * shortcut: a hide committed while this insert runs is not seen (READ COMMITTED), so that one new
      * row stays visible; lock the learner's rows first if moderation ever races with ratings.
      */
-    upsert: async ({ userDbId, courseDbId, milestone, stars }) => (await sql(
+    insertVote: async ({ userDbId, courseDbId, milestone, stars }) => (await sql(
         `INSERT INTO community.course_rating (user_id, course_id, milestone, stars, is_hidden)
          VALUES ($1, $2, $3, $4, EXISTS (SELECT 1 FROM community.course_rating WHERE user_id = $1 AND course_id = $2 AND is_hidden))
-         ON CONFLICT (user_id, course_id, milestone) DO UPDATE SET stars = EXCLUDED.stars, updated_at = now()
+         ON CONFLICT (user_id, course_id, milestone) DO NOTHING
          RETURNING stars`,
         [userDbId, courseDbId, milestone, stars]
     )).rows[0],

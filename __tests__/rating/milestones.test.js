@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentMilestone, milestoneFor } from "@/lib/ratingRules";
+import { milestoneFor, nextMilestone, openMilestone } from "@/lib/ratingRules";
 
 describe("milestoneFor", () => {
     it.each([
@@ -10,10 +10,18 @@ describe("milestoneFor", () => {
     });
 });
 
-describe("currentMilestone", () => {
+describe("openMilestone", () => {
     it.each([
-        [20, null, 20], [20, 50, 50], [null, null, null], [100, 50, 100], [null, 20, 20],
-    ])("reached %s, highest rated %s -> %s", (reached, rated, expected) => {
-        expect(currentMilestone(reached, rated)).toBe(expected);
+        [20, [], 20], [50, [20], 50], [50, [50], null], [20, [50], null], [null, [], null], [100, [20, 50], 100],
+    ])("reached %s, voted %j -> %s", (reached, voted, expected) => {
+        expect(openMilestone(reached, voted)).toBe(expected);
+    });
+});
+
+describe("nextMilestone", () => {
+    it.each([
+        [20, [20], 50], [40, [50], 100], [100, [100], null], [null, [], 20],
+    ])("reached %s, voted %j -> %s", (reached, voted, expected) => {
+        expect(nextMilestone(reached, voted)).toBe(expected);
     });
 });

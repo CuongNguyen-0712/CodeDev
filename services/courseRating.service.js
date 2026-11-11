@@ -3,39 +3,49 @@ import { redis } from "@/lib/cache";
 import { cacheKeys } from "@/lib/cacheKeys";
 import { revalidateCoursePage } from "@/lib/pageCache";
 import { ApiError } from "@/lib/error/apiError";
-import { MIN_RATINGS, currentMilestone, milestoneFor } from "@/lib/ratingRules";
+import { MIN_RATINGS, milestoneFor, nextMilestone, openMilestone } from "@/lib/ratingRules";
 
 /**
  * Course ratings from learners (docs/superpowers/specs/2026-11-10-course-rating-section-design.md):
- * up to three 1-5 star ratings per learner and course, at 20%, 50% and 100% of the lessons. Only the
- * current milestone is open; the average counts each learner's latest one, shown from MIN_RATINGS on.
+ * one vote (1-5 stars) per learner at each of 20%, 50% and 100% of the lessons. Only the highest
+ * milestone reached opens, a vote is final, and the average counts each learner's latest vote,
+ * shown from MIN_RATINGS on.
  */
 export { MIN_RATINGS };
 
-// The learner's open milestone (null below 20% or not enrolled) and their stars per milestone.
+// The learner's votes, the milestone open for a vote (null when none) and the next one to open.
 function progressOf(state) {
     const ratings = state.ratings || [];
-    const highestRated = ratings.reduce((max, r) => Math.max(max, r.milestone), 0) || null;
-    const milestone = state.user_id && state.enrolled
-        ? currentMilestone(milestoneFor(state.completed, state.total), highestRated)
-        : null;
-    return { ratings, milestone };
+    const voted = ratings.map((r) => r.milestone);
+    const member = Boolean(state.user_id && state.enrolled);
+    const reached = member ? milestoneFor(state.completed, state.total) : null;
+    return {
+        ratings,
+        voted,
+        milestone: member ? openMilestone(reached, voted) : null,
+        next: member ? nextMilestone(reached, voted) : null,
+    };
 }
 
 const view = (state) => {
-    const { ratings, milestone } = progressOf(state);
+    const { ratings, voted, milestone, next } = progressOf(state);
     const eligible = Boolean(milestone);
+    const member = Boolean(state.user_id && state.enrolled);
     return {
         average: state.rating_count >= MIN_RATINGS ? state.rating_avg : null,
         count: state.rating_count,
         breakdown: (state.breakdown || []).map((b) => ({ milestone: b.milestone, average: b.count >= MIN_RATINGS ? b.avg : null, count: b.count })),
         milestone,
-        stars: ratings.find((r) => r.milestone === milestone)?.stars ?? null,
-        // Ascending: the client's optimistic update reads the last entry as the learner's latest.
-        history: eligible ? ratings.filter((r) => r.milestone < milestone).map((r) => ({ milestone: r.milestone, stars: r.stars })) : [],
+        next,
+        // Every vote, ascending: the client's optimistic update reads the last entry as the latest.
+        history: member ? ratings.map((r) => ({ milestone: r.milestone, stars: r.stars })) : [],
         eligible,
-        // Why the viewer cannot rate yet, so the page can say what to do next.
-        reason: eligible ? null : !state.user_id ? "signin" : !state.enrolled ? "enroll" : "progress",
+        // Why the viewer cannot vote now, so the page can say what to do next.
+        reason: eligible ? null
+            : !state.user_id ? "signin"
+            : !state.enrolled ? "enroll"
+            : voted.length === 0 ? "progress"
+            : next ? "voted" : "done",
     };
 };
 
@@ -52,9 +62,8 @@ export async function ratePromptFor({ userId, courseId, result }) {
         if (!state) return null;
         const after = milestoneFor(state.completed, state.total);
         const before = milestoneFor(state.completed - 1, state.total);
-        const { ratings, milestone } = progressOf(state);
+        const { milestone } = progressOf(state);
         if (!after || after === before || milestone !== after) return null;
-        if (ratings.some((r) => r.milestone === after)) return null;
         return { milestone: after, stars: null };
     } catch (error) {
         // The prompt is optional: never fail a lesson completion over it.
@@ -78,11 +87,14 @@ export const courseRatingService = {
         if (!state) throw new ApiError("Course not found", 404);
         const { milestone } = progressOf(state);
         if (!milestone) {
-            throw new ApiError("Reach 20% of this course to rate it.", 403, { code: "RATING_NOT_ALLOWED" });
+            throw new ApiError("No rating is open for this course right now.", 403, { code: "RATING_NOT_ALLOWED" });
         }
 
-        // The server picks the milestone: a locked one can never be written.
-        await courseRatingDb.upsert({ userDbId: state.user_id, courseDbId: state.course_id, milestone, stars: value });
+        // The server picks the milestone, and a vote is written once: a second one (another tab) is refused.
+        const inserted = await courseRatingDb.insertVote({ userDbId: state.user_id, courseDbId: state.course_id, milestone, stars: value });
+        if (!inserted) {
+            throw new ApiError(`You already rated this course at ${milestone}%.`, 409, { code: "RATING_CLOSED" });
+        }
         revalidateCoursePage(courseId);
         try {
             await redis.del(cacheKeys.courseDetailsPublic(courseId));

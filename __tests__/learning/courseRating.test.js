@@ -4,14 +4,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.fn();
-const upsert = vi.fn();
+const insertVote = vi.fn();
 // Vitest fails a test whenever a vi.fn implementation throws, even if the code catches it: the
 // lookup failure is simulated here instead.
 let lookupFails = false;
 vi.mock("@/db/courseRating.db", () => ({
     courseRatingDb: {
         state: async (...args) => { if (lookupFails) throw new Error("db down"); return state(...args); },
-        upsert: (...args) => upsert(...args),
+        insertVote: (...args) => insertVote(...args),
     },
 }));
 vi.mock("@/lib/cache", () => ({ redis: { del: vi.fn(async () => 1) } }));
@@ -24,20 +24,34 @@ const row = (over = {}) => ({
 });
 const get = () => courseRatingService.get({ userId: "u", courseId: "c" });
 
+const vote = (milestone, stars = 4) => ({ milestone, stars, is_hidden: false });
+
 describe("courseRatingService.get", () => {
     beforeEach(() => state.mockReset());
 
-    it("shows the learner's current milestone, their locked history and the breakdown", async () => {
+    it("opens the highest milestone reached, with the breakdown", async () => {
         state.mockResolvedValueOnce(row({
-            completed: 6, ratings: [{ milestone: 20, stars: 4, is_hidden: false }],
+            completed: 6,
             breakdown: [{ milestone: 20, avg: 4.5, count: 3 }, { milestone: 50, avg: 3, count: 2 }],
         }));
         expect(await get()).toEqual({
             average: 4.33, count: 3,
             breakdown: [{ milestone: 20, average: 4.5, count: 3 }, { milestone: 50, average: null, count: 2 }],
-            milestone: 50, stars: null, history: [{ milestone: 20, stars: 4 }],
+            milestone: 50, next: 100, history: [],
             eligible: true, reason: null,
         });
+    });
+
+    it("closes a voted milestone until the next one, also when progress dropped", async () => {
+        state.mockResolvedValueOnce(row({ completed: 6, ratings: [vote(20, 2), vote(50)] }));
+        expect(await get()).toMatchObject({ milestone: null, next: 100, history: [{ milestone: 20, stars: 2 }, { milestone: 50, stars: 4 }], eligible: false, reason: "voted" });
+        state.mockResolvedValueOnce(row({ completed: 4, ratings: [vote(50)] }));
+        expect(await get()).toMatchObject({ milestone: null, next: 100, reason: "voted" });
+    });
+
+    it("says the learner is done after the 100% vote (a migrated rating included)", async () => {
+        state.mockResolvedValueOnce(row({ completed: 10, ratings: [vote(100)] }));
+        expect(await get()).toMatchObject({ milestone: null, next: null, reason: "done" });
     });
 
     it("hides the average below 3 ratings", async () => {
@@ -56,11 +70,6 @@ describe("courseRatingService.get", () => {
         expect(await reason({ completed: 0, total: 0 })).toBe("progress");
     });
 
-    it("keeps the milestone already rated when progress dropped", async () => {
-        state.mockResolvedValueOnce(row({ completed: 4, ratings: [{ milestone: 50, stars: 3, is_hidden: false }] }));
-        expect(await get()).toMatchObject({ milestone: 50, stars: 3, history: [], eligible: true });
-    });
-
     it("answers 404 for an unknown course", async () => {
         state.mockResolvedValueOnce(null);
         await expect(get()).rejects.toMatchObject({ status: 404 });
@@ -68,10 +77,10 @@ describe("courseRatingService.get", () => {
 });
 
 describe("courseRatingService.rate", () => {
-    beforeEach(() => { state.mockReset(); upsert.mockReset(); });
+    beforeEach(() => { state.mockReset(); insertVote.mockReset(); });
     const rate = (stars) => courseRatingService.rate({ userId: "u", courseId: "c", stars });
 
-    it("refuses stars outside 1-5, unknown courses and learners below 20%", async () => {
+    it("refuses stars outside 1-5, unknown courses and learners with nothing open", async () => {
         for (const stars of [0, 6, 2.5, "x", null]) await expect(rate(stars)).rejects.toMatchObject({ status: 400 });
         state.mockResolvedValueOnce(null);
         await expect(rate(5)).rejects.toMatchObject({ status: 404 });
@@ -79,20 +88,23 @@ describe("courseRatingService.rate", () => {
         await expect(rate(5)).rejects.toMatchObject({ status: 403, errorCode: "RATING_NOT_ALLOWED" });
         state.mockResolvedValueOnce(row({ enrolled: false }));
         await expect(rate(5)).rejects.toMatchObject({ status: 403, errorCode: "RATING_NOT_ALLOWED" });
-        expect(upsert).not.toHaveBeenCalled();
+        state.mockResolvedValueOnce(row({ completed: 6, ratings: [vote(50)] }));
+        await expect(rate(5)).rejects.toMatchObject({ status: 403, errorCode: "RATING_NOT_ALLOWED" });
+        expect(insertVote).not.toHaveBeenCalled();
     });
 
-    it("saves at the milestone the server picks and returns the new view", async () => {
+    it("votes at the milestone the server opens and returns the new view", async () => {
+        insertVote.mockResolvedValueOnce({ stars: 5 });
         state.mockResolvedValueOnce(row({ completed: 6 }))
-            .mockResolvedValueOnce(row({ completed: 6, ratings: [{ milestone: 50, stars: 5, is_hidden: false }], rating_count: 4, rating_avg: 4.5 }));
-        expect(await rate(5)).toMatchObject({ average: 4.5, count: 4, milestone: 50, stars: 5 });
-        expect(upsert).toHaveBeenCalledWith({ userDbId: "42", courseDbId: "7", milestone: 50, stars: 5 });
+            .mockResolvedValueOnce(row({ completed: 6, ratings: [vote(50, 5)], rating_count: 4, rating_avg: 4.5 }));
+        expect(await rate(5)).toMatchObject({ average: 4.5, count: 4, milestone: null, reason: "voted", history: [{ milestone: 50, stars: 5 }] });
+        expect(insertVote).toHaveBeenCalledWith({ userDbId: "42", courseDbId: "7", milestone: 50, stars: 5 });
     });
 
-    it("updates the rated milestone, not an older one, when progress dropped", async () => {
-        state.mockResolvedValue(row({ completed: 4, ratings: [{ milestone: 50, stars: 3, is_hidden: false }] }));
-        await rate(4);
-        expect(upsert).toHaveBeenCalledWith({ userDbId: "42", courseDbId: "7", milestone: 50, stars: 4 });
+    it("answers 409 when the milestone already has a vote (another tab)", async () => {
+        insertVote.mockResolvedValueOnce(undefined);
+        state.mockResolvedValueOnce(row({ completed: 6 }));
+        await expect(rate(5)).rejects.toMatchObject({ status: 409, errorCode: "RATING_CLOSED" });
     });
 });
 
@@ -111,10 +123,10 @@ describe("ratePromptFor", () => {
         expect(await ask(first)).toEqual({ milestone: 50, stars: null });
     });
 
-    it("never asks without a crossing, when already rated, on a resubmitted lesson or for ineligible learners", async () => {
+    it("never asks without a crossing, when already voted, on a resubmitted lesson or for ineligible learners", async () => {
         state.mockResolvedValue(row({ completed: 3 }));
         expect(await ask(first)).toBeNull();
-        state.mockResolvedValue(row({ completed: 5, ratings: [{ milestone: 50, stars: 4, is_hidden: false }] }));
+        state.mockResolvedValue(row({ completed: 5, ratings: [vote(50)] }));
         expect(await ask(first)).toBeNull();
         state.mockResolvedValue(row({ completed: 2 }));
         expect(await ask({ awardedPoints: 0 })).toBeNull();
