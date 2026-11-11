@@ -53,6 +53,15 @@ function InboxList({ tab, filter, activeId }) {
         return <ErrorReload data={query.error} refetch={() => query.refetch()} title="Could not load your conversations" />;
     }
 
+    const loadMore = (
+        <LoadMore
+            hasNextPage={query.hasNextPage}
+            isFetchingNextPage={query.isFetchingNextPage}
+            fetchNextPage={query.fetchNextPage}
+            isError={query.isError && items.length > 0}
+        />
+    );
+
     if (!isLoading && shown.length === 0) {
         const Icon = tab === 'requests' ? LuInbox : LuMessageSquare;
         const title = needle ? "No matching conversations" : tab === 'requests' ? "No message requests" : "No conversations yet";
@@ -62,13 +71,16 @@ function InboxList({ tab, filter, activeId }) {
                 ? "When someone you don't know messages you, it shows up here first."
                 : "Start a conversation from someone's profile.";
         return (
-            <Empty className="border border-dashed">
-                <EmptyHeader>
-                    <EmptyMedia variant="icon"><Icon aria-hidden="true" /></EmptyMedia>
-                    <EmptyTitle>{title}</EmptyTitle>
-                    <EmptyDescription>{description}</EmptyDescription>
-                </EmptyHeader>
-            </Empty>
+            <div className="flex flex-col">
+                <Empty className="border border-dashed">
+                    <EmptyHeader>
+                        <EmptyMedia variant="icon"><Icon aria-hidden="true" /></EmptyMedia>
+                        <EmptyTitle>{title}</EmptyTitle>
+                        <EmptyDescription>{description}</EmptyDescription>
+                    </EmptyHeader>
+                </Empty>
+                {needle && loadMore}
+            </div>
         );
     }
 
@@ -79,12 +91,7 @@ function InboxList({ tab, filter, activeId }) {
                     ? <ConversationSkeleton />
                     : shown.map((item) => <ConversationRow key={item.id} item={item} active={item.id === activeId} />)}
             </div>
-            <LoadMore
-                hasNextPage={query.hasNextPage}
-                isFetchingNextPage={query.isFetchingNextPage}
-                fetchNextPage={query.fetchNextPage}
-                isError={query.isError && items.length > 0}
-            />
+            {loadMore}
         </div>
     );
 }

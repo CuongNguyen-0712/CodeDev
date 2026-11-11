@@ -95,4 +95,14 @@ describe("proxy", () => {
         getToken.mockResolvedValue(tokenWith(Date.now() + HOUR));
         expect((await proxy(new NextRequest("http://localhost/home"))).headers.get("location")).toBeNull();
     });
+
+    it("sends a signed-out visitor from the messages pages to sign-in", async () => {
+        getToken.mockResolvedValue(null);
+        for (const path of ["/messages", "/messages/cnv_a", "/messages/new"]) {
+            const res = await proxy(new NextRequest(`http://localhost${path}`));
+            const location = new URL(res.headers.get("location"));
+            expect(location.pathname).toBe("/auth");
+            expect(location.searchParams.get("next")).toBe(path);
+        }
+    });
 });

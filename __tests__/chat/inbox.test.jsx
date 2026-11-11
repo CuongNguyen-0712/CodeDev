@@ -97,6 +97,16 @@ describe("Inbox", () => {
         expect(getInbox).toHaveBeenLastCalledWith({ tab: "all", cursor: "c2" });
     });
 
+    it("keeps Load more reachable when the filter matches nothing", async () => {
+        inbox = { items: [row()], nextCursor: "c2" };
+        renderWith(<Inbox />);
+        await screen.findByRole("link", { name: /Ada/ });
+        fireEvent.change(screen.getByLabelText("Filter conversations"), { target: { value: "zzz" } });
+        expect(screen.getByText("No matching conversations")).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+        expect(getInbox).toHaveBeenLastCalledWith({ tab: "all", cursor: "c2" });
+    });
+
     it("marks the open conversation", async () => {
         inbox = { items: [row()], nextCursor: null };
         renderWith(<Inbox activeId="cnv_a" />);
