@@ -54,13 +54,16 @@ export function useSendMessage(conversationId) {
             const mine = detail?.members?.find((m) => m.id === sender?.id);
             if (detail && mine?.state !== "accepted") queryClient.invalidateQueries({ queryKey: chatKeys.conversation(message.conversationId) });
             // This tab never gets its own chat-message. No client-side preview helper exists (the action strips it), so refetch All only; unread is untouched.
-            queryClient.invalidateQueries({ queryKey: chatKeys.inbox("all") });
+            queryClient.invalidateQueries({ queryKey: chatKeys.inbox("all") }, { cancelRefetch: false });
         },
         onError: (_, { clientId }) => {
             if (conversationId) useChatOutboxStore.getState().setUnsentStatus(conversationId, clientId, "failed");
         },
     });
 }
+
+// The cache re-creates objects when a list shifts, so "still our optimistic copy" is a value comparison.
+const isSame = (a, b) => Boolean(a && b) && JSON.stringify(a) === JSON.stringify(b);
 
 // Optimistic: `change(message, variables)` is applied at once and rolled back (that message only) when the action fails.
 function useMessageWrite(action, change) {
@@ -76,17 +79,25 @@ function useMessageWrite(action, change) {
                 ...data,
                 pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (m.id === variables.messageId ? change(m, variables) : m)) })),
             }));
-            return { key, previous };
+            // What the cache really holds, to recognise it later.
+            const optimistic = queryClient.getQueryData(key)?.pages.flatMap((p) => p.items).find((m) => m.id === variables.messageId) ?? null;
+            return { key, previous, optimistic };
         },
+        // Touch only the cached message that is still our optimistic object: a realtime update that landed meanwhile stays.
         onError: (_, __, context) => {
-            // A rollback may legitimately revive a message, which patchMessage refuses: swap the copy directly.
-            if (context?.previous) queryClient.setQueryData(context.key, (data) => data && {
+            if (!context?.previous || !context.optimistic) return;
+            queryClient.setQueryData(context.key, (data) => data && {
                 ...data,
-                pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (m.id === context.previous.id ? context.previous : m)) })),
+                pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (isSame(m, context.optimistic) ? context.previous : m)) })),
             });
         },
-        onSuccess: ({ message }) => {
-            queryClient.setQueryData(chatKeys.messages(message.conversationId), (data) => patchMessage(data, message));
+        onSuccess: ({ message }, _, context) => {
+            queryClient.setQueryData(chatKeys.messages(message.conversationId), (data) => {
+                if (!data) return data;
+                const mine = data.pages.some((p) => p.items.some((m) => isSame(m, context?.optimistic)));
+                if (!mine) return patchMessage(data, message);
+                return { ...data, pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (isSame(m, context.optimistic) ? message : m)) })) };
+            });
             queryClient.invalidateQueries({ queryKey: chatKeys.inbox("all") });
         },
     });

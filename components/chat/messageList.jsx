@@ -74,7 +74,6 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     // Newest first in the cache; the thread reads top to bottom.
     const items = useMemo(() => [...mergeOutbox(serverItems, unsent)].reverse(), [serverItems, unsent]);
     const others = useMemo(() => conversation.members.filter((m) => m.id !== meId), [conversation.members, meId]);
-    const myLastRead = conversation.members.find((m) => m.id === meId)?.lastReadSeq;
     // Server items only: an unsent message has no seq.
     const newestSeq = serverItems[0]?.seq ?? null;
 
@@ -87,11 +86,8 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     const markIfSeen = useCallback(() => {
         if (!newestSeq || newestSeq === marked.current || !atBottom.current || document.visibilityState !== "visible") return;
         marked.current = newestSeq;
-        try {
-            if (myLastRead && BigInt(myLastRead) >= BigInt(newestSeq)) return;
-        } catch { /* a malformed seq is simply sent */ }
         markRead(id, newestSeq);
-    }, [id, newestSeq, myLastRead, markRead]);
+    }, [id, newestSeq, markRead]);
 
     useLayoutEffect(() => {
         const el = scroller.current;

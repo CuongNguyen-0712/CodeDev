@@ -14,7 +14,7 @@ vi.mock("@/lib/pusherClient", () => ({ getPusherClient: () => null, isPusherConn
 
 import { editMessageAction, markReadAction, recallMessageAction, sendMessageAction, typingAction } from "@/actions/chat.actions";
 import { chatKeys } from "@/keys/chat.keys";
-import { insertMessage, mergeOutbox } from "@/lib/chat/messageCache";
+import { insertMessage, mergeOutbox, patchMessage } from "@/lib/chat/messageCache";
 import { useEditMessage, useMarkRead, useRecallMessage, useSendMessage, useTypingPing } from "@/mutations/chat.mutation";
 import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 
@@ -102,7 +102,7 @@ describe("useSendMessage refreshes the conversation", () => {
     it("R55: refreshes the sender's own inbox row without touching unread", async () => {
         qc.setQueryData(chatKeys.conversation(CID), detail("accepted"));
         const spy = await send();
-        expect(spy).toHaveBeenCalledWith({ queryKey: chatKeys.inbox("all") });
+        expect(spy).toHaveBeenCalledWith({ queryKey: chatKeys.inbox("all") }, { cancelRefetch: false });
         expect(spy).not.toHaveBeenCalledWith({ queryKey: chatKeys.unread() });
         expect(spy).not.toHaveBeenCalledWith({ queryKey: chatKeys.inbox("requests") });
     });
@@ -141,6 +141,30 @@ describe("optimistic edit and unsend", () => {
         deferred.reject();
         await waitFor(() => expect(cached()[0]).toMatchObject({ body: "m2", editedAt: null }));
         expect(editMessageAction).toHaveBeenCalledWith({ messageId: "msg_2", body: "new" });
+    });
+
+    it("a hide that lands during a failing edit stays deleted", async () => {
+        editMessageAction.mockReturnValue(deferred.promise);
+        const { result } = renderHook(() => useEditMessage(), { wrapper });
+        act(() => { result.current.mutate({ conversationId: CID, messageId: "msg_2", body: "new" }); });
+        await waitFor(() => expect(cached()[0].body).toBe("new"));
+        qc.setQueryData(chatKeys.messages(CID), (d) => patchMessage(d, server(2, { deleted: true, body: "", editedAt: "2000-01-01T00:00:00Z" })));
+        deferred.reject();
+        await waitFor(() => expect(result.current.isError).toBe(true));
+        expect(cached()[0]).toMatchObject({ deleted: true });
+    });
+
+    it("applies the server copy even when the browser clock ran ahead", async () => {
+        editMessageAction.mockResolvedValue({ message: server(2, { body: "new", editedAt: "2000-01-01T00:00:00Z" }) });
+        const { result } = renderHook(() => useEditMessage(), { wrapper });
+        await act(async () => { await result.current.mutateAsync({ conversationId: CID, messageId: "msg_2", body: "new" }); });
+        expect(cached()[0]).toMatchObject({ body: "new", editedAt: "2000-01-01T00:00:00Z" });
+    });
+
+    it("a recall carrying an older editedAt is applied", () => {
+        qc.setQueryData(chatKeys.messages(CID), pagesOf(server(2, { editedAt: "2030-01-01T00:00:00Z" })));
+        qc.setQueryData(chatKeys.messages(CID), (d) => patchMessage(d, server(2, { deleted: true, body: "", editedAt: "2000-01-01T00:00:00Z" })));
+        expect(cached()[0].deleted).toBe(true);
     });
 
     it("edit shows the new body while the request is in flight", async () => {
