@@ -171,7 +171,7 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
                                 ? <LuTriangleAlert aria-hidden="true" className="size-5 shrink-0 text-destructive" />
                                 : <FileIcon name={image.name} className="size-5 shrink-0 text-muted-foreground" />}
                             <div className="flex min-w-0 flex-col gap-1">
-                                <span className="truncate text-sm font-medium text-foreground" title={image.name}>{image.name}</span>
+                                <span className="truncate text-sm font-medium" title={image.name}>{image.name}</span>
                                 <span className="text-xs text-muted-foreground tabular-nums">{formatFileSize(image.size)}</span>
                             </div>
                             {image.status === "uploading" && (

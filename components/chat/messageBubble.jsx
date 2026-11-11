@@ -156,7 +156,7 @@ export default function MessageBubble({ message, mine = false, others, showSende
                                 );
                                 // Same look, no link, until the message is sent (the route answers 404 before that).
                                 return unsent
-                                    ? <div key={a.id} role="group" aria-disabled="true" aria-label={`Download ${a.name}, ${size}`} className={card}>{inner}</div>
+                                    ? <div key={a.id} role="group" aria-disabled="true" aria-label={`${a.name}, ${size}, not sent yet`} className={card}>{inner}</div>
                                     : <a key={a.id} href={`/api/chat/attachments/${a.id}`} download aria-label={`Download ${a.name}, ${size}`} className={card}>{inner}</a>;
                             })}
                             {message.body && <MessageBody body={message.body} />}
