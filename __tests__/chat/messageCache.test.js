@@ -26,6 +26,20 @@ describe("insertMessage", () => {
         expect(after.pages[0].items.map((m) => m.seq)).toEqual(["6", "5"]);
     });
 
+    it("inserts an out-of-order message by seq", () => {
+        let d = data([msg(5)]);
+        d = insertMessage(d, msg(7));
+        d = insertMessage(d, msg(6));
+        expect(d.pages[0].items.map((m) => m.seq)).toEqual(["7", "6", "5"]);
+    });
+
+    it("orders by BigInt, not text, and can land on an older page", () => {
+        const d = insertMessage(data([msg(100), msg(20)], [msg(9)]), msg(10));
+        expect(d.pages[0].items.map((m) => m.seq)).toEqual(["100", "20"]);
+        expect(d.pages[1].items.map((m) => m.seq)).toEqual(["10", "9"]);
+        expect(insertMessage(data([msg(9)]), msg(2)).pages[0].items.map((m) => m.seq)).toEqual(["9", "2"]);
+    });
+
     it("returns data unchanged when no pages are cached", () => {
         expect(insertMessage(undefined, msg(1))).toBeUndefined();
         const empty = { pages: [], pageParams: [] };
@@ -67,5 +81,19 @@ describe("mergeOutbox", () => {
     it("drops an unsent item whose clientId the server already has", () => {
         const merged = mergeOutbox([msg(5, { clientId: "a" })], [unsent("a"), unsent("b")]);
         expect(merged.map((m) => m.clientId)).toEqual(["b", "a"]);
+    });
+});
+
+describe("patchMessage stale guards", () => {
+    it("never turns an unsent message back into a live one", () => {
+        const before = data([msg(1, { deleted: true, body: "" })]);
+        expect(patchMessage(before, msg(1, { deleted: false, body: "old", editedAt: "2026-01-01T00:00:00Z" }))).toBe(before);
+    });
+
+    it("ignores an edit older than the cached one", () => {
+        const before = data([msg(1, { deleted: false, editedAt: "2026-01-02T00:00:00Z", body: "new" })]);
+        expect(patchMessage(before, msg(1, { deleted: false, editedAt: "2026-01-01T00:00:00Z", body: "older" }))).toBe(before);
+        const after = patchMessage(before, msg(1, { deleted: false, editedAt: "2026-01-03T00:00:00Z", body: "newer" }));
+        expect(after.pages[0].items[0].body).toBe("newer");
     });
 });

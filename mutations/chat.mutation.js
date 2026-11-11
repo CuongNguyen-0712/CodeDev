@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -32,28 +32,33 @@ const refreshLists = (queryClient) => {
  */
 export function useSendMessage(conversationId) {
     const queryClient = useQueryClient();
+    const { reset } = useTypingPing(conversationId);
     return useMutation({
         mutationFn: ({ clientId, body, attachmentIds, toUserId }) => callAction(() => sendMessageAction(withSocket({
             clientId, body, ...(attachmentIds?.length ? { attachmentIds } : {}),
             ...(conversationId ? { conversationId } : { toUserId }),
         }))),
         onMutate: ({ clientId, body, sender, attachmentIds, attachments }) => {
+            reset(); // the next keystroke after a send may ping at once
             if (!conversationId) return;
             const outbox = useChatOutboxStore.getState();
             if (outbox.byConversation[conversationId]?.some((m) => m.clientId === clientId)) outbox.setUnsentStatus(conversationId, clientId, "sending");
             // attachmentIds kept so Retry resends the same images.
             else outbox.addUnsent(conversationId, { ...optimisticMessage({ clientId, body, sender, conversationId, attachments }), attachmentIds: attachmentIds ?? [] });
         },
-        onSuccess: ({ message }, { clientId }) => {
+        onSuccess: ({ message }, { clientId, sender }) => {
             queryClient.setQueryData(chatKeys.messages(message.conversationId), (data) => insertMessage(data, message));
             useChatOutboxStore.getState().removeUnsent(message.conversationId, clientId);
-            // A reply to a request accepts it: the banner and canSend come from the detail.
-            queryClient.invalidateQueries({ queryKey: chatKeys.conversation(message.conversationId) });
+            // A reply to a request accepts it: only then do the banner and canSend change, and the detail knows my state.
+            const detail = queryClient.getQueryData(chatKeys.conversation(message.conversationId));
+            const mine = detail?.members?.find((m) => m.id === sender?.id);
+            if (detail && mine?.state !== "accepted") queryClient.invalidateQueries({ queryKey: chatKeys.conversation(message.conversationId) });
+            // This tab never gets its own chat-message. No client-side preview helper exists (the action strips it), so refetch All only; unread is untouched.
+            queryClient.invalidateQueries({ queryKey: chatKeys.inbox("all") });
         },
         onError: (_, { clientId }) => {
             if (conversationId) useChatOutboxStore.getState().setUnsentStatus(conversationId, clientId, "failed");
         },
-        onSettled: () => refreshLists(queryClient),
     });
 }
 
@@ -74,7 +79,11 @@ function useMessageWrite(action, change) {
             return { key, previous };
         },
         onError: (_, __, context) => {
-            if (context?.previous) queryClient.setQueryData(context.key, (data) => patchMessage(data, context.previous));
+            // A rollback may legitimately revive a message, which patchMessage refuses: swap the copy directly.
+            if (context?.previous) queryClient.setQueryData(context.key, (data) => data && {
+                ...data,
+                pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (m.id === context.previous.id ? context.previous : m)) })),
+            });
         },
         onSuccess: ({ message }) => {
             queryClient.setQueryData(chatKeys.messages(message.conversationId), (data) => patchMessage(data, message));
@@ -97,12 +106,17 @@ export const useRecallMessage = () => useMessageWrite(
 const pendingReads = new Map(); // conversationId -> { seq, timer }
 
 /**
- * Returns markRead(conversationId, seq): waits READ_DEBOUNCE_MS per conversation and sends the highest
+ * Returns markRead(conversationId, seq) (meId finds my lastReadSeq in the cached detail): waits READ_DEBOUNCE_MS per conversation and sends the highest
  * seq seen. A failure is ignored; the next message marks it again.
  */
-export function useMarkRead() {
+export function useMarkRead(meId) {
     const queryClient = useQueryClient();
     return useCallback((conversationId, seq) => {
+        // Already read here (the detail's own lastReadSeq): nothing to send.
+        const read = queryClient.getQueryData(chatKeys.conversation(conversationId))?.members?.find((m) => m.id === meId)?.lastReadSeq;
+        try {
+            if (read != null && BigInt(seq) <= BigInt(read)) return;
+        } catch { /* unreadable seq: send it */ }
         const pending = pendingReads.get(conversationId);
         if (pending) {
             clearTimeout(pending.timer);
@@ -113,6 +127,12 @@ export function useMarkRead() {
             pendingReads.delete(conversationId);
             try {
                 await callAction(() => markReadAction({ conversationId, seq: entry.seq }));
+                // Remember it, so the same seq is not sent again.
+                queryClient.setQueryData(chatKeys.conversation(conversationId), (detail) => {
+                    const mine = detail?.members?.find((m) => m.id === meId);
+                    if (!mine || BigInt(entry.seq) <= BigInt(mine.lastReadSeq ?? 0)) return detail;
+                    return { ...detail, members: detail.members.map((m) => (m === mine ? { ...m, lastReadSeq: String(entry.seq) } : m)) };
+                });
                 // The row and the badge are known locally: no refetch.
                 const current = queryClient.getQueryData(chatKeys.inbox("all"));
                 const { data, wasUnread, found } = markRowRead(current, conversationId, entry.seq);
@@ -122,19 +142,25 @@ export function useMarkRead() {
             } catch { /* ignored on purpose */ }
         }, READ_DEBOUNCE_MS);
         pendingReads.set(conversationId, entry);
-    }, [queryClient]);
+    }, [queryClient, meId]);
 }
 
-/** Returns ping(): sends a typing signal at most once per TYPING_THROTTLE_MS. Failures are ignored. */
-export function useTypingPing(conversationId) {
-    const lastSent = useRef(0);
-    return useCallback(() => {
+const lastPing = new Map(); // conversationId -> ms of the last typing signal (shared so a send can reset it)
+
+function makePing(conversationId) {
+    const ping = () => {
+        if (document.visibilityState !== "visible") return;
         const now = Date.now();
-        if (now - lastSent.current < TYPING_THROTTLE_MS) return;
-        lastSent.current = now;
+        if (now - (lastPing.get(conversationId) ?? 0) < TYPING_THROTTLE_MS) return;
+        lastPing.set(conversationId, now);
         callAction(() => typingAction(withSocket({ conversationId }))).catch(() => { });
-    }, [conversationId]);
+    };
+    ping.reset = () => lastPing.delete(conversationId);
+    return ping;
 }
+
+/** Returns ping(): sends a typing signal at most once per TYPING_THROTTLE_MS, only while the tab is visible. `ping.reset()` lifts the throttle. Failures are ignored. */
+export const useTypingPing = (conversationId) => useMemo(() => makePing(conversationId), [conversationId]);
 
 // { conversationId, accept }
 export function useRespondRequest() {

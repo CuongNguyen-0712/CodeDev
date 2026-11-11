@@ -68,7 +68,7 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     const id = conversation.id;
     const query = useInfiniteQuery({ ...chatQueries.messages(id), retry: retryTransient });
     const unsent = useChatOutboxStore(selectUnsent(id));
-    const markRead = useMarkRead();
+    const markRead = useMarkRead(meId);
 
     const serverItems = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
     // Newest first in the cache; the thread reads top to bottom.

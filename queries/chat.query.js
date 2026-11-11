@@ -1,6 +1,7 @@
 import { chatClient } from "../clients/chat.client";
 
 import { chatKeys } from "@/keys/chat.keys";
+import { isPusherConnected } from "@/lib/pusherClient";
 import { QUERY_TIMES } from "@/lib/queryTimes";
 
 export const chatQueries = {
@@ -27,7 +28,13 @@ export const chatQueries = {
         };
     },
     unread() {
-        return { queryKey: chatKeys.unread(), queryFn: () => chatClient.getUnread(), refetchInterval: 60_000, ...QUERY_TIMES.live };
+        return {
+            queryKey: chatKeys.unread(),
+            queryFn: () => chatClient.getUnread(),
+            // R54: events keep the badge fresh while connected; 5 minutes is only a safety net.
+            refetchInterval: () => (isPusherConnected() ? 300_000 : 60_000),
+            ...QUERY_TIMES.live,
+        };
     },
     blocks(status) {
         return { queryKey: chatKeys.blocks(), queryFn: () => chatClient.getBlocks(), enabled: status === 'authenticated', ...QUERY_TIMES.personal };

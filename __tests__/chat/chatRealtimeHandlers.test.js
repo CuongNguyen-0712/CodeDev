@@ -108,6 +108,21 @@ describe("other events", () => {
     });
 });
 
+describe("revision 3 thread and typing", () => {
+    it("patches an edited message from the event without refetching", () => {
+        seedMessages([msg(2), msg(1)]);
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        h["chat-message-updated"]({ conversationId: CID, message: msg(1, { body: "edited", editedAt: "2026-01-01T00:00:00Z", sender: { id: "me" } }) });
+        expect(qc.getQueryData(chatKeys.messages(CID)).pages[0].items[1].body).toBe("edited");
+        expect(invalidated(spy)).not.toContainEqual(chatKeys.messages(CID));
+    });
+    it("clears the typer when their message arrives", () => {
+        useChatTypingStore.getState().setTyping(CID, "u2");
+        h["chat-message"]({ conversationId: CID, message: msg(2, { sender: { id: "u2" } }) });
+        expect(useChatTypingStore.getState().byConversation[CID]?.u2).toBeUndefined();
+    });
+});
+
 describe("inbox and unread follow events without refetching", () => {
     const row = (id, extra = {}) => ({ id, kind: "direct", title: id, image: null, state: "active", lastMessage: { seq: "1", preview: "old", senderId: "u2", createdAt: "t0" }, lastMessageAt: "t0", unread: false, ...extra });
     const seedInbox = (tab, ...items) => qc.setQueryData(chatKeys.inbox(tab), { pages: [{ items, nextCursor: null }], pageParams: [undefined] });

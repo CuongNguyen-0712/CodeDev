@@ -10,12 +10,12 @@ vi.mock("@/actions/chat.actions", () => ({
     unblockUserAction: vi.fn(), reportMessageAction: vi.fn(),
 }));
 vi.mock("@/lib/actionResult", () => ({ callAction: (run) => run() }));
-vi.mock("@/lib/pusherClient", () => ({ getPusherClient: () => null }));
+vi.mock("@/lib/pusherClient", () => ({ getPusherClient: () => null, isPusherConnected: () => false }));
 
-import { editMessageAction, markReadAction, recallMessageAction, sendMessageAction } from "@/actions/chat.actions";
+import { editMessageAction, markReadAction, recallMessageAction, sendMessageAction, typingAction } from "@/actions/chat.actions";
 import { chatKeys } from "@/keys/chat.keys";
 import { insertMessage, mergeOutbox } from "@/lib/chat/messageCache";
-import { useEditMessage, useMarkRead, useRecallMessage, useSendMessage } from "@/mutations/chat.mutation";
+import { useEditMessage, useMarkRead, useRecallMessage, useSendMessage, useTypingPing } from "@/mutations/chat.mutation";
 import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 
 const CID = "cnv_1";
@@ -80,12 +80,53 @@ describe("useSendMessage", () => {
 });
 
 describe("useSendMessage refreshes the conversation", () => {
-    it("invalidates the detail after a send, so a reply that accepted a request drops the banner", async () => {
+    const detail = (state) => ({ id: CID, members: [{ id: "u1", state, lastReadSeq: "0" }, { id: "u2", state: "accepted", lastReadSeq: "0" }] });
+    const send = async () => {
         sendMessageAction.mockResolvedValueOnce({ message: server(2) });
         const invalidate = vi.spyOn(qc, "invalidateQueries");
         const { result } = renderHook(() => useSendMessage(CID), { wrapper });
         await act(async () => { await result.current.mutateAsync({ clientId: "k2", body: "hey", sender: { id: "u1" } }); });
-        expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.conversation(CID) });
+        return invalidate;
+    };
+
+    it("refetches the detail while my own state is not accepted, so a reply drops the banner", async () => {
+        qc.setQueryData(chatKeys.conversation(CID), detail("pending"));
+        expect(await send()).toHaveBeenCalledWith({ queryKey: chatKeys.conversation(CID) });
+    });
+
+    it("refetches the sender's detail only while their own state is not accepted", async () => {
+        qc.setQueryData(chatKeys.conversation(CID), detail("accepted"));
+        expect(await send()).not.toHaveBeenCalledWith({ queryKey: chatKeys.conversation(CID) });
+    });
+
+    it("R55: refreshes the sender's own inbox row without touching unread", async () => {
+        qc.setQueryData(chatKeys.conversation(CID), detail("accepted"));
+        const spy = await send();
+        expect(spy).toHaveBeenCalledWith({ queryKey: chatKeys.inbox("all") });
+        expect(spy).not.toHaveBeenCalledWith({ queryKey: chatKeys.unread() });
+        expect(spy).not.toHaveBeenCalledWith({ queryKey: chatKeys.inbox("requests") });
+    });
+});
+
+describe("useTypingPing", () => {
+    const visibility = (v) => Object.defineProperty(document, "visibilityState", { value: v, configurable: true });
+    it("skips typing pings while the tab is hidden and resets after a send", async () => {
+        const T = "cnv_typing";
+        const { result } = renderHook(() => useTypingPing(T), { wrapper });
+        typingAction.mockResolvedValue({ success: true });
+        visibility("hidden");
+        result.current();
+        expect(typingAction).not.toHaveBeenCalled();
+        visibility("visible");
+        result.current();
+        result.current(); // throttled
+        expect(typingAction).toHaveBeenCalledTimes(1);
+
+        sendMessageAction.mockResolvedValueOnce({ message: server(3, { conversationId: T }) });
+        const send = renderHook(() => useSendMessage(T), { wrapper });
+        await act(async () => { await send.result.current.mutateAsync({ clientId: "k3", body: "x", sender: { id: "u1" } }); });
+        result.current();
+        expect(typingAction).toHaveBeenCalledTimes(2);
     });
 });
 
@@ -170,6 +211,17 @@ describe("useMarkRead", () => {
         await new Promise((r) => setTimeout(r, 20));
         expect(qc.getQueryData(chatKeys.inbox("all")).pages[0].items[0].unread).toBe(true);
         expect(qc.getQueryData(chatKeys.unread()).unread).toBe(1);
+    });
+    it("does not mark read a seq it already read", async () => {
+        qc.setQueryData(chatKeys.conversation(CID), { id: CID, members: [{ id: "u1", lastReadSeq: "9" }] });
+        const { result } = renderHook(() => useMarkRead("u1"), { wrapper });
+        act(() => { result.current(CID, "9"); result.current(CID, "5"); });
+        await new Promise((r) => setTimeout(r, 1500));
+        expect(markReadAction).not.toHaveBeenCalled();
+        markReadAction.mockResolvedValue({ success: true, data: { lastReadSeq: "10" } });
+        act(() => { result.current(CID, "10"); });
+        await waitFor(() => expect(markReadAction).toHaveBeenCalledTimes(1), { timeout: 3000 });
+        await waitFor(() => expect(qc.getQueryData(chatKeys.conversation(CID)).members[0].lastReadSeq).toBe("10"));
     });
     it("refetches the badge when the row is not in the cache", async () => {
         markReadAction.mockResolvedValue({ success: true, data: { lastReadSeq: "2" } });

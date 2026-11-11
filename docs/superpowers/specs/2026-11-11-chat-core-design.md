@@ -338,7 +338,7 @@ Một lệnh `trigger` cho nhiều kênh (≤ 5 thành viên, Pusher cho tới 1
    - Gửi tin xong thì reset throttle, để lần gõ tiếp theo báo ngay.
 8. **Người gửi chỉ refetch chi tiết hội thoại** khi cache đang ghi trạng thái của mình khác `accepted`. Đó là trường hợp trả lời một request. Các trường hợp còn lại không refetch.
 9. **`markRead` gộp ở một chỗ** (`useMarkRead`): bỏ qua khi `seq` không lớn hơn `lastReadSeq` của mình trong cache, so bằng BigInt.
-10. **Poll `unread`** chỉ chạy khi Pusher không ở trạng thái `connected`: `refetchInterval: () => connected ? false : 60_000`, đọc `getPusherClient().connection.state`. Khi đã kết nối thì dựa vào event, và vào refetch lúc `onReconnect`.
+10. **Poll `unread`** chỉ là lưới an toàn (R54: 5 phút khi đang kết nối): `refetchInterval: () => (isPusherConnected() ? 300_000 : 60_000)`, `isPusherConnected()` đọc `getPusherClient()?.connection?.state === "connected"`. Khi đã kết nối thì dựa vào event, và vào refetch lúc `onReconnect`; mất kết nối thì poll 60 giây.
 
 **Không làm** (cân nhắc sau):
 - typing bằng Pusher client events trên kênh riêng cho từng hội thoại;
