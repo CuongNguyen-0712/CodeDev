@@ -20,8 +20,6 @@ import { LuLoaderCircle, LuLogIn, LuStar } from "react-icons/lu";
 const REASON_TEXT = {
     enroll: () => "Enrol in this course to rate it.",
     progress: () => "Rate this course when you reach 20%.",
-    voted: (next) => `Your next rating opens at ${next}%.`,
-    done: () => "You rated every milestone of this course.",
 };
 
 function Average({ average, count }) {
@@ -50,12 +48,11 @@ function Breakdown({ breakdown = [] }) {
 
 // The open milestone's vote: stars only select, Submit casts the one vote. Keyed by milestone, so the
 // choice starts empty at each new milestone.
-function VoteForm({ milestone, pending, onSubmit }) {
+function VoteForm({ pending, onSubmit }) {
     const [picked, setPicked] = useState(0);
     return (
         <>
-            <span className="text-xs text-muted-foreground">Rate it at {milestone}%</span>
-            <RatingStars value={picked} onChange={setPicked} label={`Rate it at ${milestone}%`} disabled={pending} />
+            <RatingStars value={picked} onChange={setPicked} disabled={pending} />
             <Button type="button" size="sm" onClick={() => onSubmit(picked)} disabled={!picked || pending}>
                 {pending && <LuLoaderCircle className="animate-spin" aria-hidden="true" />}
                 {pending ? "Submitting…" : "Submit rating"}
@@ -83,6 +80,7 @@ export default function RatingSection({ courseId }) {
     };
 
     const count = Number(data?.count) || 0;
+    const latest = data?.history?.at(-1)?.stars;
 
     return (
         <section id="ratings" aria-labelledby="course-ratings-heading" className="scroll-mt-16 space-y-3">
@@ -118,19 +116,16 @@ export default function RatingSection({ courseId }) {
                             <p className="text-sm text-muted-foreground">{REASON_TEXT[data.reason]()}</p>
                         ) : (
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:shrink-0">
-                                {/* Votes are final: shown, never editable. */}
-                                {data.history?.map((entry) => (
-                                    <span key={entry.milestone} className="flex items-center gap-1 text-xs text-muted-foreground tabular" title={`At ${entry.milestone}%: ${entry.stars} out of 5`}>
-                                        {entry.milestone}%:
+                                <span className="text-xs text-muted-foreground">Your rating</span>
+                                {data.milestone ? (
+                                    <VoteForm key={data.milestone} pending={rate.isPending} onSubmit={submit} />
+                                ) : (
+                                    // Votes are final: only the latest one is shown, never editable.
+                                    <span className="flex items-center gap-1 text-sm font-medium text-foreground tabular" title={`${latest} out of 5`}>
                                         <LuStar className="size-3.5 text-xp fill-xp/20" aria-hidden="true" />
-                                        {entry.stars}
+                                        {latest}
                                         <span className="sr-only">out of 5</span>
                                     </span>
-                                ))}
-                                {data.milestone ? (
-                                    <VoteForm key={data.milestone} milestone={data.milestone} pending={rate.isPending} onSubmit={submit} />
-                                ) : (
-                                    <span className="text-sm text-muted-foreground">{(REASON_TEXT[data.reason] || REASON_TEXT.done)(data.next)}</span>
                                 )}
                             </div>
                         )}

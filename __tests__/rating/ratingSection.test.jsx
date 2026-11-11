@@ -30,20 +30,24 @@ describe("rating section", () => {
         fireEvent.click(submit);
         expect(rate.mutate).toHaveBeenCalledTimes(1);
         expect(rate.mutate.mock.calls[0][0]).toEqual({ courseId: "c", stars: 4 });
-        expect(screen.getByText("Rate it at 50%")).toBeTruthy();
+        expect(screen.getByText("Your rating")).toBeTruthy();
     });
 
-    it("shows the votes and when the next rating opens, with nothing to click", () => {
-        view = { ...base, milestone: null, reason: "voted", next: 50, history: [{ milestone: 20, stars: 3 }] };
+    it("shows only the learner's latest vote while no milestone is open, with nothing to click", () => {
+        view = { ...base, milestone: null, reason: "voted", next: 50, history: [{ milestone: 20, stars: 2 }, { milestone: 50, stars: 3 }] };
         render(<RatingSection courseId="c" />);
-        expect(screen.getByText("Your next rating opens at 50%.")).toBeTruthy();
+        const row = screen.getByText("Your rating").parentElement;
+        expect(row.textContent).toBe("Your rating3out of 5");
+        expect(screen.queryByText(/next rating/)).toBeNull();
+        expect(screen.queryByText(/%/)).toBeNull();
         expect(screen.queryByRole("radiogroup")).toBeNull();
         expect(screen.queryByRole("button", { name: "Submit rating" })).toBeNull();
     });
 
-    it("says the learner is done after the last milestone", () => {
+    it("shows only the learner's latest vote after the last milestone too", () => {
         view = { ...base, milestone: null, reason: "done", next: null, history: [{ milestone: 100, stars: 5 }] };
         render(<RatingSection courseId="c" />);
-        expect(screen.getByText("You rated every milestone of this course.")).toBeTruthy();
+        expect(screen.getByText("Your rating").parentElement.textContent).toBe("Your rating5out of 5");
+        expect(screen.queryByText(/every milestone/)).toBeNull();
     });
 });
