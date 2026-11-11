@@ -14,7 +14,7 @@ async function sendEvents(events, label) {
     }
 }
 
-/** Failed file deletes after commit, as `{ kind, provider, storageKey, contentType, fileName }`: Inngest retries them (chat/attachment.delete). */
+/** Failed file deletes after commit, as `{ kind, provider, storageKey }` only (no file names in a third party's history): Inngest retries them (chat/attachment.delete). */
 export const queueAttachmentDelete = (items) => sendEvents(items.length ? [{ name: "chat/attachment.delete", data: { items } }] : [], "attachment.delete");
 
 /** One chat/message.created per accepted recipient (requests get none); the id makes a retried send a no-op. */

@@ -12,6 +12,10 @@ vi.mock("@/lib/chatMedia", async () => ({
     remove: vi.fn(async () => { }),
 }));
 
+// Real job wiring, with the delete queue observable: queued items must not carry file names to Inngest.
+const queueAttachmentDelete = vi.hoisted(() => vi.fn(async () => { }));
+vi.mock("@/services/chatJobs.service", async (original) => ({ ...(await original()), queueAttachmentDelete }));
+
 const hasDb = Boolean(process.env.DATABASE_URL);
 const TAG = `ca${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")}`;
 const uuid = () => crypto.randomUUID();
@@ -111,6 +115,16 @@ describe.skipIf(!hasDb)("chat attachments (PostgreSQL)", () => {
         for (const name of ["dir/", " \u0001 ", "\u007f"]) await expect(uploadFile(a, cid, { name })).rejects.toMatchObject({ status: 422 });
     });
 
+    it("strips bidi and C1 controls, so a name cannot disguise its real extension", async () => {
+        const { a, cid } = await friends();
+        const r = await uploadFile(a, cid, { name: "invoice\u202efdp.zip" });
+        expect(await row(r.attachmentId)).toMatchObject({ file_name: "invoicefdp.zip", content_type: "application/zip" });
+        const all = "\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069\u200e\u200f\u0080\u0085\u009f";
+        const r2 = await uploadFile(a, cid, { name: `n${all}otes.txt` });
+        expect((await row(r2.attachmentId)).file_name).toBe("notes.txt");
+        await expect(uploadFile(a, cid, { name: all })).rejects.toMatchObject({ status: 422 });
+    });
+
     it("refuses .exe, .html and .svg files", async () => {
         const { a, cid } = await friends();
         for (const name of ["setup.exe", "page.html", "logo.svg", "README", "archive.tar.gz", "__proto__.__proto__"]) {
@@ -173,12 +187,25 @@ describe.skipIf(!hasDb)("chat attachments (PostgreSQL)", () => {
         await chatService.attachmentReadUrl({ userId: b, attachmentId: file });
         expect(media.readUrl).toHaveBeenCalledWith({ kind: "file", provider: "upstash", storageKey: fileKey, contentType: "application/pdf", fileName: "a.pdf" });
 
+        media.remove.mockRejectedValue(new Error("storage down"));
+        vi.spyOn(console, "error").mockImplementation(() => { });
         await chatService.recallMessage({ userId: a, messageId: sent.message.id });
+        // remove itself gets each row's provider (in process, so the full row is fine here).
         expect(media.remove.mock.calls.map(([att]) => att)).toEqual(expect.arrayContaining([
             { kind: "image", provider: "cloudinary", storageKey: imageKey, contentType: "image/png", fileName: null },
             { kind: "file", provider: "upstash", storageKey: fileKey, contentType: "application/pdf", fileName: "a.pdf" },
         ]));
         expect(media.remove).toHaveBeenCalledTimes(2);
+        media.remove.mockReset().mockResolvedValue(undefined);
+        // Both deletes failed, so both go to Inngest as { kind, provider, storageKey } only: no file name or type leaves the app.
+        expect(queueAttachmentDelete).toHaveBeenCalledTimes(1);
+        const queued = queueAttachmentDelete.mock.calls[0][0];
+        expect(queued).toEqual(expect.arrayContaining([
+            { kind: "image", provider: "cloudinary", storageKey: imageKey },
+            { kind: "file", provider: "upstash", storageKey: fileKey },
+        ]));
+        expect(queued).toHaveLength(2);
+        for (const item of queued) expect(Object.keys(item).sort()).toEqual(["kind", "provider", "storageKey"]);
 
         media.remove.mockClear();
         const orphan = (await uploadFile(a, cid, { name: "old.zip" })).attachmentId;

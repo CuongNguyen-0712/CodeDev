@@ -46,8 +46,8 @@ describe("chat push job", () => {
 });
 
 const items = [
-    { kind: "image", provider: "cloudinary", storageKey: "codedev/chat/cnv_1/att_1", contentType: "image/png", fileName: null },
-    { kind: "file", provider: "upstash", storageKey: "chat/cnv_1/att_2.pdf", contentType: "application/pdf", fileName: "a.pdf" },
+    { kind: "image", provider: "cloudinary", storageKey: "codedev/chat/cnv_1/att_1" },
+    { kind: "file", provider: "upstash", storageKey: "chat/cnv_1/att_2.pdf" },
 ];
 
 describe("chat attachment delete job", () => {

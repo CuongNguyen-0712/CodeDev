@@ -30,8 +30,11 @@ function checkId(id, pattern, what) {
 const badAttachment = () => new ApiError("Invalid attachment", 422);
 const dimension = (v) => v === undefined || v === null ? null : Number.isInteger(v) && v > 0 && v <= 20000 ? v : undefined;
 
-/** The display name of an uploaded file: no path, no control characters, at most 255 characters; "" when nothing is left. */
-const cleanFileName = (name) => String(name ?? "").split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 255);
+// C0, DEL, C1 and the bidi controls (LRM/RLM, embeddings/overrides, isolates): "invoice‮fdp.zip" must not display as "...piz.pdf".
+const NAME_CONTROLS = /[\u0000-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]/g;
+
+/** The display name of an uploaded file: no path, no control or bidi characters, at most 255 characters; "" when nothing is left. */
+const cleanFileName = (name) => String(name ?? "").split(/[\\/]/).pop().replace(NAME_CONTROLS, "").trim().slice(0, 255);
 
 /** Validates an upload request; returns what the row stores. A file's content type comes from its extension, never the client. */
 function uploadFields({ kind, name, contentType, size, width, height }) {
@@ -51,8 +54,8 @@ function uploadFields({ kind, name, contentType, size, width, height }) {
     return { contentType: FILE_TYPES[extension], fileName, width: null, height: null };
 }
 
-/** The `att` chatMedia takes, without the row's id or size (the shape of a queued delete). */
-const mediaOf = ({ kind, provider, storageKey, contentType, fileName }) => ({ kind, provider, storageKey, contentType, fileName });
+/** A queued delete: only what remove() reads, so no file name or type goes into Inngest's event history. */
+const mediaOf = ({ kind, provider, storageKey }) => ({ kind, provider, storageKey });
 
 /** Distinct, well-formed attachment ids (at most MAX_ATTACHMENTS), or 422. */
 function attachmentIdList(value) {
@@ -404,7 +407,7 @@ export const chatService = {
                 await removeMedia(att);
             } catch (error) {
                 console.error("[chat.recall remove]", att.storageKey, error);
-                failed.push(att);
+                failed.push(mediaOf(att));
             }
         }
         await queueAttachmentDelete(failed);
