@@ -132,7 +132,7 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     }
 
     return (
-        <div ref={scroller} onScroll={onScroll} role="log" aria-label="Messages" tabIndex={0} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset sm:px-4">
+        <div ref={scroller} onScroll={onScroll} role="log" aria-label="Messages" tabIndex={0} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pt-4 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset sm:px-4">
             {query.hasNextPage && (
                 <div className="flex justify-center pb-3">
                     <Button type="button" variant="outline" size="sm" onClick={loadEarlier} disabled={query.isFetchingNextPage}>

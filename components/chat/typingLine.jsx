@@ -40,7 +40,8 @@ export default function TypingLine({ conversationId, members = [], meId, onShow 
     useEffect(() => { if (visible) onShow?.(); }, [visible, onShow]);
 
     return (
-        <div className="min-h-0">
+        // pb-4 is the thread's bottom gap: an overflow flex column drops its own padding-bottom from the scroll range.
+        <div className="pb-4">
             <p role="status" aria-live="polite" className="sr-only">{text}</p>
             {visible && (
                 <div className="flex items-end gap-2 pt-3" aria-hidden="true">
