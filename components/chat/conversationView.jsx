@@ -209,7 +209,7 @@ export function NewConversationView({ recipient }) {
     return (
         <div className={PANE}>
             <ThreadHeader name={name} image={recipient.image} subtitle={`@${recipient.username}`} />
-            <div className="flex min-h-0 flex-1 flex-col p-4"><EmptyThread /></div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4"><EmptyThread /></div>
             <div className="border-t p-3">
                 <Composer onSubmit={onSubmit} />
             </div>

@@ -40,7 +40,8 @@ export function useLeaveWhenGone(error) {
 
 export function EmptyThread() {
     return (
-        <Empty className="m-auto border border-dashed">
+        // Compact (gap-3 p-4): on a phone the pane leaves the thread only a few lines above the composer.
+        <Empty className="m-auto flex-none gap-3 border border-dashed p-4 md:p-6">
             <EmptyHeader>
                 <EmptyMedia variant="icon"><LuMessageSquare aria-hidden="true" /></EmptyMedia>
                 <EmptyTitle>Say hello</EmptyTitle>

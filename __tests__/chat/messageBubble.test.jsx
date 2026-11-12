@@ -69,9 +69,9 @@ describe("MessageBubble", () => {
         const card = screen.getByRole("link", { name: "Download report.pdf, 2.4 MB" });
         expect(card.getAttribute("href")).toBe("/api/chat/attachments/att_f");
         expect(card.hasAttribute("download")).toBe(true);
-        expect(card.className).toContain("bg-primary-foreground/10");
+        expect(card.className).toContain("bg-primary");
         rerender(<MessageBubble message={message({ attachments })} others={[]} {...handlers} />);
-        expect(screen.getByRole("link", { name: "Download report.pdf, 2.4 MB" }).className).toContain("bg-background");
+        expect(screen.getByRole("link", { name: "Download report.pdf, 2.4 MB" }).className).toContain("bg-muted");
     });
 
     it("still renders an image attachment as an image", () => {
