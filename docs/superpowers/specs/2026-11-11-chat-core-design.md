@@ -1,6 +1,6 @@
 # Chat: lõi tin nhắn 1-1 và nhóm — thiết kế
 
-Date: 2026-11-11. Status: implemented, gồm revision 2 (2026-11-11): ảnh chat lên Cloudinary, file chat lên Upstash Blob, thêm đính kèm file (mục 4, 7, plan phần R2). Revision 3 (tối ưu realtime, mục 6.1) đã làm xong và đã đo. Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
+Date: 2026-11-11. Status: implemented, gồm revision 2 (2026-11-11): ảnh chat lên Cloudinary, file chat lên Upstash Blob, thêm đính kèm file (mục 4, 7, plan phần R2). Revision 3 (tối ưu realtime, mục 6.1) đã làm xong và đã đo. Đã merge vào `main`; migration 025 và 026 đã chạy trên production ngày 2026-11-12. Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
 
 ## 1. Context
 
@@ -449,7 +449,7 @@ Vitest, theo mẫu `__tests__/blog/*.integration.test.js`:
 - Smoke test trước khi bật đính kèm ở production: PUT thật từ trình duyệt trả 200 và gửi lại đúng request đó trả 412; POST có chữ ký của Cloudinary và `private_download_url` hiển thị được trong `<img>`.
 - Xác nhận `CLOUDINARY_*` của production upload được `type: authenticated`.
 - Free tier của Upstash Blob mỗi tháng có 2.000 lượt ghi và 10.000 lượt đọc. Khi có người dùng thật thì chuyển sang gói trả theo dùng.
-- Kiểm tra `community.messages` rỗng ở production trước khi migrate (mục 3).
+- ~~Kiểm tra `community.messages` rỗng ở production trước khi migrate (mục 3).~~ Xong 2026-11-12: migration 025 tự kiểm tra và đã chạy qua.
 - Theo dõi quota message của Pusher: "đang gõ" và ✓✓ tăng số event.
 - Mỗi lần xem ảnh chat production gọi API Cloudinary (`private_download_url`), không qua CDN: theo dõi quota Admin/Upload API của tài khoản; nếu cần thumbnail hoặc cache CDN có hạn thật thì phải bật token-based auth (gói trả phí của Cloudinary).
 
@@ -485,6 +485,10 @@ Vitest, theo mẫu `__tests__/blog/*.integration.test.js`:
   - R53: `markRowRead` nhận `seq`.
   - R54: poll `unread` 5 phút một lần khi đang kết nối.
   - R55: người gửi chỉ invalidate `inbox("all")`.
+- Đính kèm của tin bị báo cáo (nhánh `feat/chat-report-images`, merge 2026-11-12):
+  - R59: route admin `GET /api/admin/chat-reports/[messageId]/attachments/[attachmentId]` đọc qua `readUrl(att)` (thay `signRead(key)` đã bỏ ở R39), nên ảnh lẫn file đều mở được.
+  - R60: danh sách báo cáo trả mỗi đính kèm dạng `{ id, kind, name }`; ảnh hiện thumbnail, file hiện thành link tải theo tên.
+  - R61: audit mỗi lần xem là `chat.report.view_attachment` (thay `chat.report.view_image`).
 
 ## Chưa kiểm tra được ở local
 
