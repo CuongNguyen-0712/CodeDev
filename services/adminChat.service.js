@@ -1,5 +1,6 @@
 import { adminDb } from "@/db/admin.db";
 import { chatDb } from "@/db/chat.db";
+import { readUrl } from "@/lib/chatMedia";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
 import { decodeCursor, encodeCursor, pageOf } from "@/lib/keysetCursor";
@@ -38,5 +39,16 @@ export const adminChatService = {
             });
         });
         return { changed: true };
+    },
+
+    // Short-lived read URL of an attachment (image or file) on a message with an open report; each view is audited. 404 hides whether the ids exist.
+    attachmentUrl: async ({ actor, messageId, attachmentId, ip = null }) => {
+        const att = await chatDb.reportedAttachment(null, { messageId, attachmentId });
+        if (!att) throw new ApiError("Attachment not found", 404);
+        await withTransaction((client) => adminDb.audit(client, {
+            actorId: actor.id, action: "chat.report.view_attachment", targetType: "chat_message", targetId: messageId,
+            after: { attachmentId }, ip,
+        }));
+        return await readUrl(att);
     },
 };

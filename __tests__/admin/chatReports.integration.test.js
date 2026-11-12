@@ -69,7 +69,7 @@ describe.skipIf(!hasDb)("admin chat reports (PostgreSQL)", () => {
         const [item] = items;
         expect(item).toMatchObject({
             messageId: message.public_id, body: expect.stringContaining("body 2"), conversationKind: "direct", reports: 2,
-            sender: { id: sender, username: sender, nickname: null }, attachments: [expect.stringMatching(/^att_/)],
+            sender: { id: sender, username: sender, nickname: null }, attachments: [{ id: expect.stringMatching(/^att_/), kind: "image", name: null }],
         });
         expect(item.reasons.sort()).toEqual(["Reason one here", "Reason two here"]);
         expect(new Date(item.firstReportedAt).getTime()).not.toBeNaN();

@@ -154,7 +154,8 @@ export const chatDb = {
                     FROM community.chat_report WHERE resolved_at IS NULL GROUP BY message_id)
          SELECT m.public_id AS "messageId", m.body, c.kind AS "conversationKind", r.reports, r.reasons, r.first_at AS "firstReportedAt",
                 u.public_id AS sender_id, u.username AS sender_username, ${NICKNAME("i")} AS sender_nickname,
-                COALESCE((SELECT array_agg(a.public_id ORDER BY a.id) FROM community.chat_attachment a WHERE a.message_id = m.id), '{}') AS attachments,
+                COALESCE((SELECT json_agg(json_build_object('id', a.public_id, 'kind', a.kind, 'name', a.file_name) ORDER BY a.id)
+                          FROM community.chat_attachment a WHERE a.message_id = m.id), '[]'::json) AS attachments,
                 r.first_at::text AS cursor_at, m.public_id AS cursor_id
          FROM r
          JOIN community.chat_message m ON m.id = r.message_id
@@ -169,6 +170,14 @@ export const chatDb = {
     resolveReports: async (client, { messageDbId, adminDbId }) => (await client.query(
         `UPDATE community.chat_report SET resolved_at = now(), resolved_by = $2 WHERE message_id = $1 AND resolved_at IS NULL`,
         [messageDbId, adminDbId])).rowCount,
+
+    /** An attachment of `messageId` (chatMedia shape), only while that message has an open report; else null. */
+    reportedAttachment: async (client, { messageId, attachmentId }) => (await one(client,
+        `SELECT ${ATTACHMENT} FROM community.chat_attachment a
+         JOIN community.chat_message m ON m.id = a.message_id
+         WHERE m.public_id = $1 AND a.public_id = $2
+           AND EXISTS (SELECT 1 FROM community.chat_report r WHERE r.message_id = m.id AND r.resolved_at IS NULL)`,
+        [messageId, attachmentId])) ?? null,
 
     hasOpenReports: async (client, messageDbId) => (await one(client,
         `SELECT EXISTS (SELECT 1 FROM community.chat_report WHERE message_id = $1 AND resolved_at IS NULL) AS open`, [messageDbId])).open,

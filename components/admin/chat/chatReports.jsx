@@ -10,6 +10,7 @@ import { QUERY_TIMES, retryTransient } from "@/lib/queryTimes";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import PageHeader from "@/components/admin/shell/pageHeader";
 import RowAction from "@/components/admin/ui/rowAction";
+import FileIcon from "@/components/chat/fileIcon";
 import { formatDate, formatRelative } from "@/components/admin/ui/format";
 import { useAdminChatReportAction } from "@/mutations/premium.mutation";
 import { Badge } from "@/components/shadcn/badge";
@@ -69,7 +70,34 @@ export default function ChatReports() {
                                     </p>
                                     {message.body && <p className="text-sm break-words whitespace-pre-line">{message.body}</p>}
                                     {message.attachments.length > 0 && (
-                                        <p className="text-sm text-muted-foreground">{message.attachments.length} {message.attachments.length === 1 ? "image" : "images"}</p>
+                                        <ul className="flex flex-wrap gap-2">
+                                            {message.attachments.map((attachment, index) => {
+                                                const src = `/api/admin/chat-reports/${message.messageId}/attachments/${attachment.id}`;
+                                                if (attachment.kind === "file") {
+                                                    return (
+                                                        <li key={attachment.id} className="w-full">
+                                                            <a href={src} className="inline-flex max-w-full items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                                                                <FileIcon name={attachment.name} className="size-4 shrink-0 text-muted-foreground" />
+                                                                <span className="truncate" title={attachment.name}>{attachment.name}</span>
+                                                            </a>
+                                                        </li>
+                                                    );
+                                                }
+                                                return (
+                                                    <li key={attachment.id}>
+                                                        <a href={src} target="_blank" rel="noopener noreferrer" className="block rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                                                            {/* eslint-disable-next-line @next/next/no-img-element -- the route 302s to a short-lived signed URL */}
+                                                            <img
+                                                                src={src}
+                                                                alt={`Image ${index + 1} of ${message.attachments.length} from ${message.sender.username}`}
+                                                                loading="lazy"
+                                                                className="size-20 rounded-md border border-border bg-muted object-cover"
+                                                            />
+                                                        </a>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
                                     )}
                                     <ul className="list-disc space-y-0.5 pl-4 text-sm break-words text-muted-foreground">
                                         {message.reasons.map((reason, index) => <li key={index}>{reason}</li>)}

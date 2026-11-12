@@ -266,7 +266,7 @@ Theo quy tắc của spec api-vs-action-boundary.
 | `blockUserAction(userId)` / `unblockUserAction(userId)` | `chatSend` |
 | `reportMessageAction({ messageId, reason })` | `feedback` (có sẵn) |
 
-Validate bằng schema thuần trong `lib/validation/chat.js` + `parseOrThrow`. Admin: `GET /api/admin/chat-reports`, `PATCH /api/admin/chat-reports/[messageId]` (route, vì cần `requirePermission`, quy tắc 4), action `hide` (thu hồi tin như luật 8) hoặc `dismiss`; ghi audit như các route admin khác.
+Validate bằng schema thuần trong `lib/validation/chat.js` + `parseOrThrow`. Admin: `GET /api/admin/chat-reports`, `PATCH /api/admin/chat-reports/[messageId]` (route, vì cần `requirePermission`, quy tắc 4), action `hide` (thu hồi tin như luật 8) hoặc `dismiss`; ghi audit như các route admin khác. Đính kèm của tin bị báo cáo: `GET /api/admin/chat-reports/[messageId]/attachments/[attachmentId]` (thư mục `[id]`), cùng quyền, chỉ khi tin còn báo cáo mở và đính kèm thuộc đúng tin đó (khác: 404), 302 tới `readUrl(att)` với `Cache-Control: private, max-age=240`, mỗi lần xem ghi audit `chat.report.view_attachment`; hàng admin hiện ảnh thu nhỏ, file là link tải theo tên.
 
 **Client:** `keys/chat.keys.js`, `clients/chat.client.js` (chỉ GET), `queries/chat.query.js`, `mutations/chat.mutation.js` (`unwrapActionResult(await callWithAuthRetry(...))`).
 
