@@ -509,6 +509,11 @@
         animation-delay: calc(min(var(--enter-index, 0), 8) * 45ms);
     }
 
+    /* Chat typing bubble (components/chat/typingLine.jsx): three dots rise and brighten in turn. */
+    .animate-typing-dot {
+        animation: chat-typing 1.2s ease-in-out infinite;
+    }
+
     /* Page sections (layouts set .page-enter): each top-level block of a page rises in turn. */
     .page-enter > :not(footer) > * {
         animation: cd-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
@@ -547,6 +552,17 @@
     from {
         opacity: 0;
         transform: translateY(8px);
+    }
+}
+
+@keyframes chat-typing {
+    0%, 60%, 100% {
+        opacity: 0.4;
+        transform: translateY(0);
+    }
+    30% {
+        opacity: 1;
+        transform: translateY(-4px);
     }
 }
 

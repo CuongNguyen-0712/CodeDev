@@ -111,6 +111,7 @@ export const useAdminSetRatingHidden = () => useAdminWrite((input) => adminClien
 export const useAdminSetCommentHidden = () => useAdminWrite((input) => adminClient.setCommentHidden(input));
 export const useAdminSetBlogCommentHidden = () => useAdminWrite((input) => adminClient.setBlogCommentHidden(input));
 export const useAdminBlogAction = () => useAdminWrite((input) => adminClient.actOnBlog(input));
+export const useAdminChatReportAction = () => useAdminWrite((input) => adminClient.actOnChatReport(input));
 export const useAdminSetFeedbackHandled = () => useAdminWrite((input) => adminClient.setFeedbackHandled(input));
 export const useAdminCreateAnnouncement = () => useAdminWrite((input) => adminClient.createAnnouncement(input));
 export const useAdminUpdateAnnouncement = () => useAdminWrite((input) => adminClient.updateAnnouncement(input));

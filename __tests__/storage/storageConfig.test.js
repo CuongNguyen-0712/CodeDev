@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { resolveStorageConfig, s3ClientOptions, describeStorage } from "@/lib/storageConfig.mjs";
 import { appEnv, isDeployedEnv, isLocalUrl } from "@/lib/appEnv.mjs";
@@ -46,7 +48,7 @@ describe("storage per environment", () => {
         expect(resolveStorageConfig({ NODE_ENV: "development", ...minioEnv, MINIO_ACCESS_KEY: "app", MINIO_SECRET_KEY: "app-secret" }).credentials)
             .toEqual({ accessKeyId: "app", secretAccessKey: "app-secret" });
         expect(resolveStorageConfig({ NODE_ENV: "development", MINIO_ENDPOINT: MINIO }).errors.join()).toMatch(/MINIO_ROOT_USER/);
-        expect(config.buckets).toEqual({ public: "public", private: "private" });
+        expect(config.buckets).toEqual({ public: "public", private: "private", chat: "codedev-chat-media" });
         expect(s3ClientOptions(config)).toMatchObject({ forcePathStyle: true, endpoint: MINIO });
     });
 
@@ -87,5 +89,53 @@ describe("storage per environment", () => {
         // Production wired to the development MinIO does.
         const crossed = checkEnvironment({ ...base, STORAGE_PROVIDER: "minio", ...minioEnv });
         expect(crossed.fatal.join()).toMatch(/development MinIO/);
+    });
+});
+
+describe("chat bucket", () => {
+    it("defaults to codedev-chat-media and honours S3_CHAT_BUCKET", () => {
+        expect(resolveStorageConfig({ NODE_ENV: "development", ...minioEnv }).buckets.chat).toBe("codedev-chat-media");
+        expect(resolveStorageConfig({ NODE_ENV: "development", S3_CHAT_BUCKET: "c", ...minioEnv }).buckets.chat).toBe("c");
+    });
+    it("production on MinIO without UPSTASH_BLOB_TOKEN is an isolation error naming it", () => {
+        const config = resolveStorageConfig({ NODE_ENV: "production", STORAGE_PROVIDER: "minio", ...minioEnv });
+        expect(config.isolation.join()).toMatch(/UPSTASH_BLOB_TOKEN/);
+    });
+});
+
+describe("chat storage in production", () => {
+    const cloudinaryEnv = { CLOUDINARY_CLOUD_NAME: "c", CLOUDINARY_API_KEY: "k", CLOUDINARY_API_SECRET: "s" };
+
+    it("warns, never errors, for missing chat storage in production", () => {
+        const base = { NODE_ENV: "production", ...neonEnv };
+        const missing = resolveStorageConfig(base);
+        expect(missing.warnings.join()).toMatch(/Chat images.*Cloudinary/);
+        expect(missing.warnings.join()).toMatch(/Chat files.*UPSTASH_BLOB_TOKEN/);
+        expect([missing.errors, missing.isolation]).toEqual([[], []]);
+        expect([missing.chatImagesConfigured, missing.chatFilesConfigured]).toEqual([false, false]);
+        expect(missing).not.toHaveProperty("chatConfigured");
+
+        const images = resolveStorageConfig({ ...base, ...cloudinaryEnv });
+        expect([images.chatImagesConfigured, images.chatFilesConfigured, images.warnings.length]).toEqual([true, false, 1]);
+        const all = resolveStorageConfig({ ...base, ...cloudinaryEnv, UPSTASH_BLOB_TOKEN: "t" });
+        expect([all.chatImagesConfigured, all.chatFilesConfigured, all.warnings, all.errors, all.isolation]).toEqual([true, true, [], [], []]);
+    });
+
+    it("counts chat storage as configured outside production (MinIO)", () => {
+        const dev = resolveStorageConfig({ NODE_ENV: "development", ...minioEnv });
+        expect([dev.chatImagesConfigured, dev.chatFilesConfigured, dev.warnings]).toEqual([true, true, []]);
+    });
+});
+
+describe("presigned PUT", () => {
+    it("carries no SDK default checksum (S3 would check it against the uploaded body)", async () => {
+        const config = resolveStorageConfig({ NODE_ENV: "development", ...minioEnv });
+        const client = new S3Client(s3ClientOptions(config));
+        // Built like lib/s3.js presignPut; signing is local, nothing is sent.
+        const command = new PutObjectCommand({ Bucket: "codedev-chat-media", Key: "chat/x.png", ContentType: "image/png", ContentLength: 68 });
+        const url = new URL(await getSignedUrl(client, command, { expiresIn: 60, signableHeaders: new Set(["content-type", "content-length"]) }));
+        const params = [...url.searchParams.keys()].map((k) => k.toLowerCase());
+        expect(params).toContain("x-amz-signature");
+        expect(params.filter((k) => k.startsWith("x-amz-checksum") || k === "x-amz-sdk-checksum-algorithm")).toEqual([]);
     });
 });

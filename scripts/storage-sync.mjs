@@ -4,6 +4,8 @@
  * MinIO of compose.yml (MINIO_* variables): every bucket, folder placeholder and file,
  * keeping keys, content type and metadata. Read-only on the source; never deletes on the target.
  *
+ * The chat bucket (S3_CHAT_BUCKET) is created by --init only and never synced.
+ *
  * Usage:
  *   node scripts/storage-sync.mjs                    # .env.local, both buckets
  *   node scripts/storage-sync.mjs --init             # only create the buckets in MinIO
@@ -60,7 +62,10 @@ const source = initOnly ? null : new S3Client(s3ClientOptions(sourceConfig));
 const target = new S3Client(s3ClientOptions(targetConfig));
 
 // The Payload `media` bucket holds uploads, not a copy of the remote: only --init creates it.
-const buckets = [targetConfig.buckets.public, targetConfig.buckets.private, ...(initOnly ? [process.env.S3_MEDIA_BUCKET || "media"] : [])]
+// The chat bucket is private user content: --init creates it; sync never touches it.
+// No PutBucketCors: this MinIO answers 501 NotImplemented, and its default CORS already allows browser PUT/GET/HEAD
+// from any origin (verified with a presigned-URL OPTIONS preflight).
+const buckets = [targetConfig.buckets.public, targetConfig.buckets.private, ...(initOnly ? [process.env.S3_MEDIA_BUCKET || "media", targetConfig.buckets.chat] : [])]
     .filter((bucket) => !onlyBucket || bucket === onlyBucket);
 
 if (!initOnly) console.log(`source: ${describeStorage(sourceConfig)}`);

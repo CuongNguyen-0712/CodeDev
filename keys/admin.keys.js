@@ -22,6 +22,7 @@ export const adminKeys = {
     blog: (filters) => [...adminKeys.all, 'blog', filters],
     blogComments: () => [...adminKeys.all, 'blogComments'],
     blogPost: (postId) => [...adminKeys.all, 'blogPost', postId],
+    chatReports: () => [...adminKeys.all, 'chatReports'],
     announcements: () => [...adminKeys.all, 'announcements'],
     announcementAudience: (audience) => [...adminKeys.all, 'announcementAudience', audience],
 }

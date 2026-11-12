@@ -1,6 +1,6 @@
 # Chat: lõi tin nhắn 1-1 và nhóm — thiết kế
 
-Date: 2026-11-11. Status: design (brainstorming, path: architectural). Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
+Date: 2026-11-11. Status: implemented, gồm revision 2 (2026-11-11): ảnh chat lên Cloudinary, file chat lên Upstash Blob, thêm đính kèm file (mục 4, 7, plan phần R2). Revision 3 (tối ưu realtime, mục 6.1) đã làm xong và đã đo. Sub-project 1/3 của "message chat" (`future-plan.txt`, `docs/development-plan.md` §3.2).
 
 ## 1. Context
 
@@ -24,21 +24,23 @@ Date: 2026-11-11. Status: design (brainstorming, path: architectural). Sub-proje
 |---|---|
 | D1 | Có cả chat 1-1 và chat team (team 2–5 người, `chk_team_size`). |
 | D2 | 1-1: ai cũng nhắn được cho người bật `show_profile`. Tin từ người chưa quen vào **hộp chờ** (message request). |
-| D3 | Nội dung: text, khối code (```` ``` ````) được tô màu, ảnh. |
-| D4 | Ảnh lưu private. Local: MinIO, bucket mới `codedev-chat-media`. Production: **Upstash Blob**, `UPSTASH_BLOB_TOKEN` (user tự cấu hình env production). |
+| D3 | Nội dung: text, khối code (```` ``` ````) được tô màu, ảnh, file đính kèm (tài liệu + code, revision 2). |
+| D4 | Đính kèm lưu private (revision 2). Local: ảnh và file vào MinIO, bucket `codedev-chat-media`. Production: ảnh lên **Cloudinary** `type: "authenticated"` (tài khoản Cloudinary production đã có), file lên **Upstash Blob** (bucket private riêng cho chat, `UPSTASH_BLOB_TOKEN`). Neon S3 chỉ giữ bài nộp code. Xem qua link ký có hạn. |
 | D5 | Giao diện: trang `/messages` (hai cột desktop, một cột mobile) + icon tin nhắn trên navbar cạnh chuông, có badge. |
 | D6 | Có: đã xem (✓✓), đang gõ, sửa/thu hồi, web push khi chưa đọc. |
 | D7 | Realtime: fan-out qua kênh user có sẵn (phương án A); tin lớn chỉ gửi ping, client fetch (phương án C). |
 
 Mặc định do thiết kế này đặt (user đã duyệt cùng các phần thiết kế):
 
-- Một tin: tối đa 4.000 ký tự, tối đa 4 ảnh, mỗi ảnh tối đa 5 MB, chỉ `image/jpeg`, `image/png`, `image/webp`.
+- Một tin: tối đa 4.000 ký tự, tối đa 4 đính kèm (ảnh và file tính chung).
+- Ảnh: tối đa 5 MB, chỉ `image/jpeg`, `image/png`, `image/webp`.
+- File (revision 2): tối đa 15 MB (dưới mức 16 MB của một lần PUT lên Upstash Blob, không cần multipart), theo đuôi file `pdf txt md csv json zip js ts jsx tsx py java c cpp h go rs sql`; mọi đuôi khác bị chặn (gồm html, svg, file thực thi).
 - Sửa trong 15 phút sau khi gửi; thu hồi không giới hạn thời gian.
-- Khi người nhận còn `pending`, người gửi chỉ gửi được 1 tin, không kèm ảnh.
+- Khi người nhận còn `pending`, người gửi chỉ gửi được 1 tin, không kèm đính kèm nào.
 - Push gom theo hội thoại trong 60 giây, chỉ gửi khi tin vẫn chưa đọc; tin trong hộp chờ không push.
 - Admin chỉ thấy đúng tin bị báo cáo, không đọc được cả hội thoại.
 
-Ngoài phạm vi: gọi thoại/video, file không phải ảnh, reaction, trả lời trích dẫn, tìm kiếm trong tin nhắn, tắt thông báo theo hội thoại, dock chat nổi, chỉnh sửa ảnh/thumbnail, presence online.
+Ngoài phạm vi: gọi thoại/video, file ngoài danh sách cho phép, xem trước nội dung file (pdf viewer, code preview), quét virus, reaction, trả lời trích dẫn, tìm kiếm trong tin nhắn, tắt thông báo theo hội thoại, dock chat nổi, chỉnh sửa ảnh/thumbnail, presence online.
 
 ## 3. Mô hình dữ liệu
 
@@ -123,12 +125,33 @@ CREATE TABLE community.chat_report (
 CREATE INDEX idx_chat_report_open ON community.chat_report (created_at) WHERE resolved_at IS NULL;
 ```
 
+**Revision 2:** migration mới `db/migrations/20261111_026_chat_files.sql` (025 đã chạy ở local, không sửa lại):
+
+```sql
+ALTER TABLE community.chat_attachment
+    ADD COLUMN kind varchar(10) NOT NULL DEFAULT 'image' CHECK (kind IN ('image', 'file')),
+    ADD COLUMN provider varchar(20) NOT NULL DEFAULT 's3' CHECK (provider IN ('s3', 'cloudinary', 'upstash')),
+    ADD COLUMN file_name varchar(255),                -- tên hiển thị đã làm sạch; NULL cho ảnh
+    DROP CONSTRAINT chat_attachment_content_type_check,
+    DROP CONSTRAINT chat_attachment_size_bytes_check,
+    ADD CONSTRAINT chat_attachment_kind_type CHECK (
+        (kind = 'image' AND content_type IN ('image/jpeg', 'image/png', 'image/webp') AND size_bytes BETWEEN 1 AND 5000000)
+        OR (kind = 'file' AND content_type IN ('application/pdf', 'text/plain', 'text/markdown', 'text/csv', 'application/json', 'application/zip')
+            AND size_bytes BETWEEN 1 AND 15000000 AND file_name IS NOT NULL)
+    ),
+    ADD CONSTRAINT chat_attachment_provider_kind CHECK (
+        provider = 's3' OR (provider = 'cloudinary' AND kind = 'image') OR (provider = 'upstash' AND kind = 'file')
+    );
+```
+
+Tên constraint cũ là tên Postgres sinh ra ở migration 025 (đã kiểm tra ở DB local: `chat_attachment_content_type_check`, `chat_attachment_size_bytes_check`). `content_type` của file do server quyết theo đuôi (bảng ở mục 4), không lấy từ trình duyệt.
+
 `community.messages` (bảng cũ, `id integer`, không có `client_id`, không chứa được nhóm) bị `DROP` trong cùng migration. **Điều kiện:** trước khi chạy `db:migrate:prod`, xác nhận `SELECT count(*) FROM community.messages` = 0 ở production; nếu khác 0, dừng và hỏi user.
 
 ### Luật nghiệp vụ
 
 1. **Mở hội thoại 1-1.** A gửi tin đầu cho B (`toUserId`): upsert `conversation` theo `direct_key`. A ở `accepted`. B ở `accepted` nếu `community.friend` có cặp A–B ở `accepted` hoặc A và B cùng một team (`team_members.status = 'approved'`); ngược lại B ở `pending`. B phải bật `show_profile` và `status = 'active'`, nếu không trả 404.
-2. **Hộp chờ.** Khi B còn `pending`: A chỉ có 1 tin trong hội thoại, không ảnh; B thấy hội thoại ở tab Requests; B không phát ✓✓ và "đang gõ". B chấp nhận → `accepted`. B từ chối → `declined`: hội thoại ẩn khỏi B, A không được báo, tin tiếp theo của A trả 403. B tự nhắn cho A → B về `accepted`.
+2. **Hộp chờ.** Khi B còn `pending`: A chỉ có 1 tin trong hội thoại, không đính kèm; B thấy hội thoại ở tab Requests; B không phát ✓✓ và "đang gõ". B chấp nhận → `accepted`. B từ chối → `declined`: hội thoại ẩn khỏi B, A không được báo, tin tiếp theo của A trả 403. B tự nhắn cho A → B về `accepted`.
 3. **Chặn** áp dụng cho 1-1, theo cả hai chiều: nếu có `user_block` theo bất kỳ chiều nào thì không gửi được tin và không tạo được hội thoại mới (403). Hội thoại cũ vẫn đọc được. Chat team không bị ảnh hưởng.
 4. **Team.** `ensureTeamConversation(teamId)` tạo hội thoại `team` (idempotent theo `team_id`). `syncTeamMember(teamId, userId, 'joined' | 'left')`: joined → upsert member `accepted`, `left_at = NULL`; left → `left_at = now()`. Thành viên có `left_at` không đọc, không gửi được (404).
 5. **Chưa đọc.** Hội thoại chưa đọc khi có tin `id > last_read_message_id`, `sender_id <> me`, `deleted_at IS NULL`. Badge navbar = số hội thoại chưa đọc ở trạng thái `accepted` (không đếm số tin). Requests đếm riêng số hội thoại `pending`.
@@ -137,25 +160,81 @@ CREATE INDEX idx_chat_report_open ON community.chat_report (created_at) WHERE re
 8. **Thu hồi** chỉ người gửi (hoặc admin qua báo cáo): `deleted_at = now()`, `body = ''`, xoá dòng attachment và file. UI hiện "Tin nhắn đã được thu hồi".
 9. **Xoá tài khoản** cascade xoá tin, thành viên và chặn của người đó (giống `post_comment`). Hội thoại 1-1 còn một thành viên vẫn giữ.
 
-## 4. Lưu ảnh
+## 4. Lưu đính kèm (revision 2)
 
-`lib/chatMedia.js` (server-only), ba hàm, chọn adapter theo env:
+Thay thiết kế ban đầu (ảnh lên Upstash Blob). Ảnh chuyển sang Cloudinary; Upstash Blob chỉ còn giữ file chat.
+
+**Vì sao file chat không lên Neon S3 cùng bài nộp code:**
+- Credential của Neon Object Storage gắn với **branch**, không gắn với bucket. Scope chỉ có `storage:read` và `storage:write` ([Neon docs](https://neon.com/docs/storage/authentication)).
+- Vì vậy key ghi file chat cũng ghi, xoá và đọc được bucket bài nộp code. Tách bucket không tách được quyền.
+- Token Upstash Blob chỉ có hiệu lực trên đúng một bucket. Token chat bị lộ hay code chat có bug thì bài nộp code vẫn không bị đụng tới.
+- Quota, chi phí, log và sự cố cũng tách riêng.
+
+| | Local / dev / test | Production |
+|---|---|---|
+| Ảnh | MinIO `codedev-chat-media` | Cloudinary, `type: "authenticated"`, public id `codedev/chat/{cnv}/{att}` (theo quy ước folder `codedev/...` của `lib/cloudinary.js`) |
+| File | MinIO `codedev-chat-media` | Upstash Blob, bucket private riêng cho chat (`UPSTASH_BLOB_TOKEN`), key `chat/{cnv}/{att}.{ext}` |
+
+Theo spec media 2026-11-09, tài khoản Cloudinary chỉ dùng cho production: dev và test không bao giờ ghi lên Cloudinary. Cột `provider` của mỗi dòng ghi nơi lưu thật, nên đọc và xoá luôn đi đúng chỗ, kể cả khi env thay đổi sau này.
+
+`lib/chatMedia.js` (server-only) đổi interface, mọi hàm nhận một attachment `{ kind, provider, storageKey, contentType, size, fileName }`:
 
 ```js
-signUpload(key, { contentType, size }) // -> { url, method: "PUT", headers }
-signRead(key)                          // -> { url, expiresAt }
-inspect(key)                           // -> { contentType, size } | null
-remove(key)
+storageFor(kind)                        // -> "cloudinary" | "upstash" | "s3": nơi lưu cho upload mới theo env
+uploadTicket(att)                       // -> { method: "PUT", url, headers } | { method: "POST", url, fields }
+inspect(att)                            // -> { contentType, size } | null (không tồn tại)
+readUrl(att)                            // -> URL có hạn (ảnh: xem; file: tải về)
+remove(att)                             // không tồn tại vẫn thành công
 ```
 
-- `UPSTASH_BLOB_TOKEN` có giá trị → Upstash Blob (`@upstash/blob`, dependency mới): `bucket.signedUploadUrl`, `bucket.signedReadUrl` (tối đa 10 phút), `bucket.info`, `bucket.del`. Token chỉ ở server, không bao giờ `NEXT_PUBLIC_`.
-- Ngược lại → S3/MinIO qua `lib/s3.js`, bucket `S3_CHAT_BUCKET` (mặc định `codedev-chat-media`), presign PUT/GET bằng `@aws-sdk/s3-request-presigner` có sẵn, `HeadObject`, `DeleteObject`. Thêm `buckets.chat` vào `lib/storageConfig.mjs`.
-- Production không được rơi về MinIO: `storageConfig` báo lỗi nếu production thiếu cả `UPSTASH_BLOB_TOKEN` lẫn `S3_CHAT_BUCKET` trên S3 thật, theo cách `isolationError` đang làm.
-- `scripts/storage-sync.mjs --init` tạo bucket `codedev-chat-media` trong MinIO và đặt CORS cho `PUT` từ origin dev. `storage-sync` **không** đồng bộ bucket chat từ production (production ảnh ở Upstash).
-- Key do server sinh: `chat/{conversationPublicId}/{attachmentPublicId}.{jpg|png|webp}`. Không dùng tên file của người dùng.
-- Upstash không có lifecycle rule theo prefix: dọn dẹp do job (mục 8).
+**S3 / MinIO** (chỉ local / dev / test, cả ảnh lẫn file): giữ code hiện có trong `lib/s3.js`.
+- Upload: presign PUT, ký `Content-Type` và `Content-Length`, checksum `WHEN_REQUIRED`.
+- `inspect`: `HeadObject`.
+- `remove`: `DeleteObject`.
+- `readUrl`:
+  - ảnh: presign GET 300 giây;
+  - file: `getDownloadUrl` với `ResponseContentDisposition: attachment; filename="<file_name>"`, nên trình duyệt luôn tải về chứ không mở ra.
+- Key do server sinh: `chat/{cnv}/{att}.{ext}`. `ext` lấy theo bảng loại file bên dưới, không bao giờ từ tên file người dùng.
 
-`.env.example`: thêm `S3_CHAT_BUCKET` và `UPSTASH_BLOB_TOKEN` (để trống, ghi chú chỉ production).
+**Cloudinary** (ảnh production), dùng SDK `cloudinary` đã có:
+- Upload: signed upload thẳng từ trình duyệt. Server trả `{ method: "POST", url: "https://api.cloudinary.com/v1_1/<cloud>/image/upload", fields }`. `fields` gồm `api_key`, `timestamp`, `public_id`, `type: "authenticated"`, `allowed_formats: "jpg,png,webp"`, `overwrite: false` và `signature`, ký bằng `cloudinary.utils.api_sign_request` với `CLOUDINARY_API_SECRET`. Secret không bao giờ ra client. Ảnh tối đa 5 MB.
+- `inspect`: `cloudinary.api.resource(public_id, { type: "authenticated" })`. So `format` với loại đã khai báo và `bytes` với kích thước đã khai báo. Lỗi `not found` thì trả `null`.
+- `readUrl`: `cloudinary.utils.private_download_url(public_id, format, { type: "authenticated", expires_at: now + 300 })`. Link hết hạn thật sau 5 phút. Link đi qua API Cloudinary chứ không qua CDN: không có resize/thumbnail, và mỗi lần xem tính vào quota API.
+- `remove`: `destroyAsset(public_id, { resourceType: "image" })` cộng `type: "authenticated"`. Mở rộng `lib/cloudinary.js` để nhận `type`; caller hiện có giữ mặc định.
+
+**Upstash Blob** (file production). Dùng `@upstash/blob`, đã có trong `package.json`. Adapter Upstash trong `lib/chatMedia.js` đã có sẵn, kèm test; chỉ đổi phạm vi từ "mọi ảnh và file" thành "chỉ file".
+- Upload: `bucket.signedUploadUrl(key, { contentType, size })` trả về `{ method: "PUT", url, headers }`. Mỗi lần upload là một PUT duy nhất, nên file phải ≤ 15 MB.
+- `inspect`: `bucket.info(key)`. Lỗi `not_found` thì trả `null`.
+- `readUrl`: `bucket.signedReadUrl(key, { downloadAs: file_name })`. Link sống tối đa 10 phút. `downloadAs` buộc trình duyệt tải file về chứ không mở ra.
+- `remove`: `bucket.del(key)`.
+- Token chỉ nằm ở server, không bao giờ đặt trong biến `NEXT_PUBLIC_`.
+- Rủi ro R9: trình duyệt PUT thẳng lên URL của `signedUploadUrl`, trong khi Upstash ghi hàm này là dành cho CLI/server. Phải test thật ngay khi có token. Nếu PUT từ trình duyệt bị chặn, dự phòng là upload qua server action. Server action giới hạn 6 MB, nên dự phòng này kéo theo giới hạn file nhỏ hơn.
+
+**Loại file cho phép** (`lib/chat/limits.js`, đuôi viết thường → content-type lưu):
+
+| Đuôi | Content-type |
+|---|---|
+| `pdf` | `application/pdf` |
+| `txt` `js` `ts` `jsx` `tsx` `py` `java` `c` `cpp` `h` `go` `rs` `sql` | `text/plain` |
+| `md` | `text/markdown` |
+| `csv` | `text/csv` |
+| `json` | `application/json` |
+| `zip` | `application/zip` |
+
+**Cấu hình**:
+- `buckets.chat = S3_CHAT_BUCKET || "codedev-chat-media"`: chỉ dùng cho MinIO local; production không lưu chat trên S3.
+- Production thiếu `CLOUDINARY_*`: upload ảnh trả 503 "Chat images are not configured".
+- Production thiếu `UPSTASH_BLOB_TOKEN`: upload file trả 503 "Chat files are not configured".
+- Cả hai trường hợp chỉ ghi `warnings`, không chặn khởi động và không ảnh hưởng S3 của bài nộp code (giữ cách làm của R8b). Luật hiện tại trong `lib/storageConfig.mjs` ("production + s3 + không có token + không có `S3_CHAT_BUCKET`") bỏ điều kiện `S3_CHAT_BUCKET`.
+- Production vẫn không thể rơi về MinIO nhờ luật isolation có sẵn.
+
+**Khác**:
+- `scripts/storage-sync.mjs --init` tạo bucket `codedev-chat-media` trong MinIO. MinIO không hỗ trợ `PutBucketCors` nên dùng CORS mặc định. `storage-sync` không đồng bộ bucket chat.
+- Cloudinary và Upstash đều không có lifecycle rule theo prefix: dọn dẹp do job (mục 8).
+- `.env.example`:
+  - giữ `UPSTASH_BLOB_TOKEN`, ghi chú bắt buộc ở production cho file chat, để trống ở local;
+  - giữ `S3_CHAT_BUCKET`, ghi chú chỉ dùng cho MinIO local;
+  - ghi chú `CLOUDINARY_*` cũng phục vụ ảnh chat ở production.
 
 ## 5. Bề mặt API
 
@@ -171,7 +250,7 @@ Theo quy tắc của spec api-vs-action-boundary.
 | `GET /api/chat/messages/[id]` | một tin (sau khi nhận ping) |
 | `GET /api/chat/unread` | `{ unread, requests }` cho badge |
 | `GET /api/chat/blocks` | danh sách người mình chặn (settings) |
-| `GET /api/chat/attachments/[id]` | 302 tới signed URL, `Cache-Control: private, max-age=240` (quy tắc 6: redirect) |
+| `GET /api/chat/attachments/[id]` | 302 tới `readUrl(att)` (ảnh: xem; file: tải về), `Cache-Control: private, max-age=240` (quy tắc 6: redirect) |
 
 **Server action** (`actions/chat.actions.js`, bọc `runAction`):
 
@@ -183,7 +262,7 @@ Theo quy tắc của spec api-vs-action-boundary.
 | `markReadAction({ conversationId, messageId })` | `chatRead` 120/60s |
 | `typingAction(conversationId)` | `chatTyping` 30/60s |
 | `respondRequestAction({ conversationId, accept })` | `chatSend` |
-| `createChatUploadAction({ conversationId, contentType, size, width, height })` | `chatUpload` 20/60s |
+| `createChatUploadAction({ conversationId, kind, name, contentType, size, width, height })` → `{ attachmentId, upload }`, `upload` là vé PUT hoặc POST (mục 4); `contentType` của file do server quyết theo đuôi của `name` | `chatUpload` 20/60s |
 | `blockUserAction(userId)` / `unblockUserAction(userId)` | `chatSend` |
 | `reportMessageAction({ messageId, reason })` | `feedback` (có sẵn) |
 
@@ -199,7 +278,7 @@ Thêm vào `lib/realtime.js` (kênh user, không thêm kênh mới, không sửa
 |---|---|---|
 | `chat-message` | `{ conversationId, message }` nếu JSON ≤ 8 KB; ngược lại `{ conversationId, messageId }` | mọi thành viên `accepted`/`pending` chưa rời, trừ tab gửi (`socketId`) |
 | `chat-message-updated` | `{ conversationId, messageId }` | như trên |
-| `chat-read` | `{ conversationId, userId, messageId }` | thành viên khác (không gửi khi người đọc còn `pending`) |
+| `chat-read` | `{ conversationId, userId, seq }` (R13) | thành viên khác (không gửi khi người đọc còn `pending`) |
 | `chat-typing` | `{ conversationId, userId }` | thành viên khác (không gửi khi `pending`/`declined`) |
 | `chat-conversation-updated` | `{ conversationId }` | thành viên (chấp nhận yêu cầu, team đổi thành viên) |
 
@@ -213,6 +292,67 @@ Một lệnh `trigger` cho nhiều kênh (≤ 5 thành viên, Pusher cho tới 1
 - `chat-typing`: ghi vào store Zustand `useChatTypingStore` (`byConversation[id] = { userId: expiresAt }`), hết hạn sau 5 giây. Đây là state UI tạm thời, không phải dữ liệu server, nên hợp với `docs/state-management.md`.
 - `onReconnect` (đã có) cũng invalidate `chatKeys.all`.
 
+### 6.1 Revision 3: tối ưu realtime (2026-11-11, implemented)
+
+**Đo trên code hiện tại.** Tình huống: A gửi 1 tin, B đang mở hội thoại, mỗi người 1 tab.
+- `chat-message` làm B refetch inbox All (mọi trang đã tải), inbox Requests và `unread`: 2–3 GET.
+- A refetch chi tiết hội thoại ở mọi lần gửi.
+- Sửa hoặc thu hồi tin làm mọi người nhận refetch tất cả các trang tin đã tải.
+- Mỗi tab poll `/api/chat/unread` 60 giây một lần, kể cả khi Pusher đang kết nối.
+- Các route GET của chat dùng chung limiter `api` (120/phút/user). Chat khoảng 1 tin/giây là đã chạm 429.
+
+**Mục tiêu:**
+- Khi hội thoại đã có trong cache, người nhận tốn **0 GET** cho mỗi tin nhắn.
+- Mỗi tin chỉ còn 2 request: POST gửi và POST markRead.
+- Không thêm kênh, không thêm event Pusher, không đổi luật quyền (mục 3) hay luật lộ trạng thái (rule 2).
+
+**Server**
+
+1. **Payload `chat-message` có thêm `preview`:** `{ conversationId, message, preview }`.
+   - `preview` do server tính bằng chính hàm `preview()` của inbox, nên chỉ có một chỗ quyết định `[code]` / `[image]` / `[file]`.
+   - Khi payload phải rút về dạng ping (> 8 KB), ping cũng mang `preview` vì nó ngắn: `{ conversationId, messageId, preview, seq, senderId, createdAt }`.
+2. **Payload `chat-message-updated` mang luôn tin đã sửa:** `{ conversationId, message, preview }`.
+   - Áp dụng cho cả sửa lẫn thu hồi. Với tin thu hồi, `preview` là `"This message was unsent"`.
+   - Khi > 8 KB thì rút về `{ conversationId, messageId }` như cũ.
+3. **Hook sau commit chạy bằng `after()` của `next/server`.**
+   - Áp dụng cho `afterSend`, `afterUpdate`, `afterRead`, `afterRespond`, `afterMembership` và việc gửi event Inngest. Response trả về trước, Pusher và Inngest chạy sau.
+   - Helper `runAfter(fn)`: có request scope thì gọi `after(fn)`. Không có (job, script, test) thì chạy `fn` ngay, có try/catch và log như hiện tại.
+
+**Client**
+
+4. **Cập nhật inbox và `unread` trực tiếp trong cache, không refetch.** Các hàm thuần đặt trong `lib/chat/inboxCache.js`.
+   - **`chat-message` cho hội thoại C đã có trong `inbox("all")` hoặc `inbox("requests")`:**
+     - đưa C lên đầu trang đầu tiên;
+     - đặt `lastMessage = { seq, preview, senderId, createdAt }` và `lastMessageAt`;
+     - nếu tin là của người khác và C không đang mở ở tab hiển thị, đặt `unread = true`. Nếu trước đó dòng C chưa unread và C nằm trong tab All, `unread.unread + 1`.
+   - **C không có trong cache nào** (hội thoại mới hoặc request mới): invalidate `inbox("all")`, `inbox("requests")` và `unread` như cũ. Trường hợp này hiếm.
+   - **Tin của chính mình từ tab khác:** chỉ cập nhật `lastMessage`, không đổi `unread`.
+   - **`markRead` thành công:** đặt `unread = false` cho dòng C. Nếu trước đó dòng là `true` thì `unread.unread - 1`, không xuống dưới 0. Đây là trường hợp duy nhất giảm badge.
+   - **`chat-message-updated` sửa đúng tin đang là `lastMessage` của dòng** (cùng `seq`): cập nhật `preview`.
+   - **`chat-conversation-updated` và `onReconnect`:** giữ invalidate như cũ, vì hiếm.
+5. **Sửa và thu hồi:** khi payload có `message` thì gọi `patchMessage`, không refetch các trang tin. Khi chỉ có ping thì invalidate như cũ.
+6. **Chèn tin theo `seq`:** `insertMessage` đặt tin vào đúng vị trí theo `seq` thay vì luôn đặt lên đầu, để hai event tới lệch thứ tự vẫn hiện đúng.
+7. **Typing:**
+   - Khi tin của X tới, xoá ngay trạng thái đang gõ của X trong hội thoại đó.
+   - Không gửi typing khi `document.visibilityState !== "visible"`.
+   - Gửi tin xong thì reset throttle, để lần gõ tiếp theo báo ngay.
+8. **Người gửi chỉ refetch chi tiết hội thoại** khi cache đang ghi trạng thái của mình khác `accepted`. Đó là trường hợp trả lời một request. Các trường hợp còn lại không refetch.
+9. **`markRead` gộp ở một chỗ** (`useMarkRead`): bỏ qua khi `seq` không lớn hơn `lastReadSeq` của mình trong cache, so bằng BigInt.
+10. **Poll `unread`** chỉ là lưới an toàn (R54: 5 phút khi đang kết nối): `refetchInterval: () => (isPusherConnected() ? 300_000 : 60_000)`, `isPusherConnected()` đọc `getPusherClient()?.connection?.state === "connected"`. Khi đã kết nối thì dựa vào event, và vào refetch lúc `onReconnect`; mất kết nối thì poll 60 giây.
+
+**Không làm** (cân nhắc sau):
+- typing bằng Pusher client events trên kênh riêng cho từng hội thoại;
+- chọn một tab chính trong nhiều tab bằng BroadcastChannel;
+- presence online.
+
+**Kiểm tra:**
+- Test thuần cho `inboxCache`: đưa lên đầu, đặt unread, tăng và giảm badge, hội thoại lạ thì invalidate.
+- Test handler: không gọi `invalidateQueries` khi C đã có trong cache.
+- Test `runAfter` cho cả hai nhánh.
+- E2E trên trình duyệt: mở tab Network của B lúc A gửi 5 tin liên tiếp. B không có GET `/api/chat/*` nào, chỉ có POST markRead.
+
+**Đo được** (Playwright, hai context): A gửi 5 tin liên tiếp thì B có 0 GET `/api/chat/*` và 1 POST markRead (đã debounce). A sửa 1 tin thì B có 0 request, bản sửa hiện đúng. Trước đó: 2–3 GET cho mỗi tin ở mỗi người nhận (khoảng 10–15 cho 5 tin).
+
 ## 7. Các luồng
 
 **Gửi.** Client sinh `clientId` (`crypto.randomUUID()`), thêm tin optimistic trạng thái `sending`, gọi `sendMessageAction`. Server, trong một transaction: khoá dòng member của người gửi, kiểm tra luật 1–4, insert tin `ON CONFLICT (sender_id, client_id) DO NOTHING` (trùng → trả tin cũ, không fan-out lại), gắn attachment (`uploader_id = me`, cùng hội thoại, `message_id IS NULL`, sau khi `inspect` khớp), cập nhật `last_message_*`, `last_read_message_id` của người gửi. Sau commit: fan-out, rồi gửi event Inngest `chat/message.created` cho từng người nhận `accepted`.
@@ -225,9 +365,23 @@ Một lệnh `trigger` cho nhiều kênh (≤ 5 thành viên, Pusher cho tới 1
 
 **Sửa / thu hồi.** Optimistic trên client, hoàn tác khi lỗi. Server publish `chat-message-updated`. Thu hồi: xoá file sau commit; lỗi → event Inngest `chat/attachment.delete` thử lại.
 
-**Ảnh.** (1) `createChatUploadAction` kiểm tra thành viên, không ở hộp chờ, loại và kích thước khai báo → insert `chat_attachment` (`message_id NULL`) → trả presigned PUT. (2) Trình duyệt PUT thẳng lên storage, hiện tiến độ. (3) Gửi tin kèm `attachmentIds`; server `inspect` từng file: không tồn tại, sai loại hoặc lớn hơn khai báo → 422, xoá file. (4) `<img src="/api/chat/attachments/{id}">`: route kiểm tra người xem là thành viên chưa rời, rồi 302 tới `signRead`. `width`/`height` do client báo chỉ dùng để giữ tỉ lệ khung.
+**Đính kèm (revision 2).**
+1. `createChatUploadAction`:
+   - kiểm tra người gọi là thành viên, và không ai trong hội thoại ở trạng thái khác `accepted`;
+   - kiểm tra `kind`: ảnh theo loại và tối đa 5 MB; file theo đuôi và tối đa 15 MB;
+   - làm sạch `name` thành `file_name`: bỏ đường dẫn và ký tự điều khiển, tối đa 255 ký tự;
+   - chọn `provider` bằng `storageFor(kind)`;
+   - insert `chat_attachment` với `message_id NULL`;
+   - trả về `uploadTicket`.
+2. Trình duyệt upload thẳng lên nơi lưu, có hiện tiến độ:
+   - vé `PUT`: gửi file làm body, kèm `headers` (bỏ `Content-Length`);
+   - vé `POST`: gửi `FormData` gồm các `fields` cộng field `file`.
+3. Gửi tin kèm `attachmentIds`. Server `inspect` từng đính kèm. Không tồn tại, sai loại, hoặc lớn hơn khai báo thì trả 422 và xoá file.
+4. Đọc: `/api/chat/attachments/{id}` kiểm tra người xem là thành viên chưa rời và tin chưa thu hồi, rồi trả 302 tới `readUrl`.
+   - Ảnh: hiện bằng `<img>`. `width`/`height` do client báo, chỉ dùng để giữ tỉ lệ khung.
+   - File: hiện thành thẻ có link tải về.
 
-**Push.** Inngest function `chat-push`, `debounce: { key: "event.data.userId + ':' + event.data.conversationId", period: "60s" }`. Khi chạy: đọc member; nếu `state = 'accepted'`, chưa rời và `last_read_message_id < messageId` → `pushToUsers([userId], { title, body, link: "/messages/{conversationPublicId}" })`. `title`: tên người gửi (1-1) hoặc tên team. `body`: preview 80 ký tự đầu nếu chỉ có 1 tin chưa đọc, ngược lại "N tin nhắn mới"; khối code thành `[code]`, ảnh thành `[ảnh]`.
+**Push.** Inngest function `chat-push`, `debounce: { key: "event.data.userId + ':' + event.data.conversationId", period: "60s" }`. Khi chạy: đọc member; nếu `state = 'accepted'`, chưa rời và `last_read_message_id < messageId` → `pushToUsers([userId], { title, body, link: "/messages/{conversationPublicId}" })`. `title`: tên người gửi (1-1) hoặc tên team. `body`: preview 80 ký tự đầu nếu chỉ có 1 tin chưa đọc, ngược lại "N tin nhắn mới"; khối code thành `[code]`, ảnh thành `[image]`, file thành `[file]` (inbox preview cũng vậy).
 
 **Chặn / báo cáo.** Nút trong menu hội thoại 1-1 (chặn) và menu từng tin (báo cáo). Danh sách đã chặn + bỏ chặn trong `components/settings/privacySection.jsx`. Admin `/admin/chat-reports` theo mẫu kiểm duyệt bình luận blog (`app/admin/blog/page.jsx`, `GET/PATCH /api/admin/blog/comments`): chỉ hiện tin bị báo cáo, người gửi, lý do, số báo cáo.
 
@@ -236,8 +390,14 @@ Một lệnh `trigger` cho nhiều kênh (≤ 5 thành viên, Pusher cho tới 1
 Trong `jobs/` (Inngest):
 
 - `chat-push` (mục 7).
-- `chat-attachment-delete`: xoá file theo key, retry mặc định, hết lượt → dead-letter có sẵn.
-- Cron `chat-orphan-attachments` (thêm vào `jobs/crons.js`, mỗi giờ): attachment `message_id IS NULL` và `created_at < now() - 1 hour` → xoá file rồi xoá dòng, mỗi lần tối đa 500.
+- `chat-attachment-delete`:
+  - xoá file theo từng attachment, mỗi attachment có dạng `{ kind, provider, storageKey }`;
+  - event `chat/attachment.delete` mang `{ items: [...] }` thay cho `{ keys }` cũ, để xoá đúng nơi lưu (Cloudinary hoặc S3);
+  - retry mặc định, hết lượt thì đẩy vào dead-letter có sẵn.
+- Cron `chat-orphan-attachments` (thêm vào `jobs/crons.js`, mỗi giờ):
+  - chọn attachment có `message_id IS NULL` và `created_at < now() - 1 hour`;
+  - xoá file theo `provider` rồi mới xoá dòng;
+  - mỗi bước tối đa 50 dòng.
 
 ## 9. Giao diện
 
@@ -245,7 +405,8 @@ Trước khi bắt đầu task UI đầu tiên của plan: chạy `ui-consistenc
 
 - Navbar: icon tin nhắn cạnh `notificationCenter`, badge số hội thoại chưa đọc (`useQuery` `GET /api/chat/unread`, `refetchInterval` 60 giây làm lưới an toàn khi Pusher rớt). Bấm → `/messages`.
 - `/messages`: cột trái gồm ô tìm theo tên hội thoại (lọc phía client trên trang đã tải), tab All / Requests (có số), danh sách hội thoại (avatar, tên, preview, thời gian, chấm chưa đọc). Cột phải trống với lời nhắc chọn hội thoại.
-- `/messages/[id]`: header (tên, số thành viên, menu), danh sách tin cuộn ngược với "tải thêm" khi lên đầu (`useInfiniteQuery` theo `before`), dòng "đang gõ", ô soạn (Enter gửi, Shift+Enter xuống dòng, nút đính kèm ảnh, xem trước ảnh trước khi gửi). Tin của mình căn phải, trạng thái `sending` / `failed` (nút thử lại) / ✓ / ✓✓.
+- `/messages/[id]`: header (tên, số thành viên, menu), danh sách tin cuộn ngược với "tải thêm" khi lên đầu (`useInfiniteQuery` theo `before`), dòng "đang gõ", ô soạn (Enter gửi, Shift+Enter xuống dòng, một nút đính kèm nhận cả ảnh lẫn file: ảnh xem trước bằng thumbnail, file hiện thành chip có icon, tên, dung lượng và tiến độ upload; file bị từ chối báo bằng toast). Tin của mình căn phải, trạng thái `sending` / `failed` (nút thử lại) / ✓ / ✓✓.
+- Thẻ file trong bubble: icon theo loại, tên (cắt bớt nếu dài), dung lượng, nút tải về; tin của mình và của người khác dùng cùng thẻ, khác màu nền như bubble.
 - Hội thoại ở hộp chờ: banner "X muốn nhắn tin với bạn" + Chấp nhận / Từ chối / Chặn.
 - `/messages/new?to=<publicId>`: mở hội thoại 1-1 có sẵn hoặc khung soạn trống. Nút "Nhắn tin" ở trang profile và kết quả tìm người.
 - Mobile (< 768px): một cột; vào hội thoại thì ẩn danh sách, có nút quay lại.
@@ -259,7 +420,8 @@ Trước khi bắt đầu task UI đầu tiên của plan: chạy `ui-consistenc
 |---|---|---|
 | Không phải thành viên, đã rời, hội thoại hoặc người nhận không tồn tại / ẩn profile | 404 | đóng hội thoại, refetch inbox |
 | Bị chặn; gửi thêm khi người nhận `pending`; người nhận `declined` | 403 "Không thể gửi tin nhắn" (không nói lý do) | tin `failed`, không có thử lại |
-| Body rỗng không ảnh, > 4.000 ký tự, > 4 ảnh, ảnh trong hộp chờ, ảnh sai loại/kích thước | 422 | giữ nội dung trong ô soạn |
+| Body rỗng không đính kèm, > 4.000 ký tự, > 4 đính kèm, đính kèm trong hộp chờ, ảnh hoặc file sai loại/kích thước | 422 | giữ nội dung trong ô soạn; lỗi chọn file báo bằng toast |
+| Nơi lưu chưa cấu hình ở production (`CLOUDINARY_*` cho ảnh, `UPSTASH_BLOB_TOKEN` cho file) | 503 | toast; phần còn lại của chat vẫn chạy |
 | Sửa quá 15 phút / tin của người khác | 403 / 404 | hoàn tác |
 | Vượt limiter | 429 | tin `failed`, có thử lại |
 | Mất mạng / timeout | — | tin `failed`, thử lại với cùng `clientId` |
@@ -272,14 +434,61 @@ Vitest, theo mẫu `__tests__/blog/*.integration.test.js`:
 - `__tests__/chat/chatService.integration.test.js` (DB thật): luật hộp chờ (tin đầu, giới hạn 1 tin, không ảnh, accept, decline, tự `accepted` khi là bạn hoặc cùng team); chặn hai chiều; gửi lại cùng `clientId` ra một dòng và không fan-out lại; rời team mất quyền đọc/gửi; sửa trong/ngoài 15 phút; thu hồi xoá body và attachment; badge đếm theo hội thoại; phân trang `before` và keyset inbox; `markRead` không lùi.
 - `__tests__/chat/chatActions.test.js`: quyền, limiter, validate; mock `lib/pusher.js` để kiểm tra fan-out đúng kênh, loại `socketId`, payload ≤ 8 KB inline và > 8 KB thành ping.
 - `__tests__/chat/chatRoutes.test.js`: các route GET; route ảnh 302 cho thành viên, 404 cho người ngoài và người đã rời.
-- `__tests__/chat/chatMedia.test.js`: chọn adapter theo env; mock `@upstash/blob` và S3 presigner.
-- `__tests__/chat/chatPush.test.js`: đã đọc → không push; `pending` → không push; nội dung preview/`[code]`/`[ảnh]`.
+- `__tests__/chat/chatMedia.test.js`: `storageFor` theo env (production: ảnh → cloudinary, file → upstash; dev: cả hai → s3); vé POST Cloudinary có `type: authenticated`, `public_id`, `signature` và không lộ `api_secret`; `readUrl` file: S3 có `Content-Disposition: attachment`, Upstash có `downloadAs: file_name`; `inspect`/`remove` đi đúng `provider` của dòng; mock SDK `cloudinary`, `@upstash/blob` và S3 presigner; file 15.000.001 byte bị 422.
+- `__tests__/chat/chatAttachments.integration.test.js` thêm: file theo đuôi (pdf được, `.exe`/`.html`/`.svg` bị 422), content-type do server quyết, `file_name` được làm sạch, giới hạn 4 đính kèm tính chung, file trong hộp chờ 422.
+- `__tests__/chat/chatPush.test.js`: đã đọc → không push; `pending` → không push; nội dung preview/`[code]`/`[image]`/`[file]`.
 - `__tests__/admin/chatReports.integration.test.js`: chỉ trả tin bị báo cáo; `hide` thu hồi tin; cần quyền.
 - E2E (`tests/_e2e`): hai tài khoản, gửi, nhận realtime, ✓✓, hộp chờ chấp nhận.
 
 ## 12. Việc cần làm ngoài code
 
-- User tạo bucket Upstash Blob và đặt `UPSTASH_BLOB_TOKEN` ở production.
+- User tạo bucket Upstash Blob **private** cho chat và đặt `UPSTASH_BLOB_TOKEN` ở production. Test thật ngay một lượt upload file từ trình duyệt (R9).
+- Bucket Upstash Blob phải **private** và chỉ dành cho chat. Trình duyệt PUT thẳng lên signed URL và gửi các header `content-type`, `cache-control`, `content-length`, `if-none-match`, nên CORS của bucket phải cho phép origin production, method `PUT` và các header đó. Thiếu CORS thì upload chỉ hỏng trong trình duyệt.
+- Cloudinary: bật dynamic folders, vì `asset_folder` được ký.
+- Phải bật Inngest. Không có Inngest thì xóa lỗi và dọn orphan không bao giờ chạy.
+- Smoke test trước khi bật đính kèm ở production: PUT thật từ trình duyệt trả 200 và gửi lại đúng request đó trả 412; POST có chữ ký của Cloudinary và `private_download_url` hiển thị được trong `<img>`.
+- Xác nhận `CLOUDINARY_*` của production upload được `type: authenticated`.
+- Free tier của Upstash Blob mỗi tháng có 2.000 lượt ghi và 10.000 lượt đọc. Khi có người dùng thật thì chuyển sang gói trả theo dùng.
 - Kiểm tra `community.messages` rỗng ở production trước khi migrate (mục 3).
 - Theo dõi quota message của Pusher: "đang gõ" và ✓✓ tăng số event.
-- Free tier Upstash Blob (10.000 lượt đọc/tháng) sẽ hết nhanh với ảnh chat; cần gói trả theo dùng.
+- Mỗi lần xem ảnh chat production gọi API Cloudinary (`private_download_url`), không qua CDN: theo dõi quota Admin/Upload API của tài khoản; nếu cần thumbnail hoặc cache CDN có hạn thật thì phải bật token-based auth (gói trả phí của Cloudinary).
+
+## Thay đổi trong lúc làm
+
+- R8b: thiếu cấu hình lưu trữ chat ở production chỉ là cảnh báo; chỉ đính kèm chat trả 503, phần còn lại của site chạy bình thường (thay cho lỗi isolation ban đầu). Revision 2 giữ nguyên nguyên tắc này: thiếu `CLOUDINARY_*` → ảnh 503, thiếu `UPSTASH_BLOB_TOKEN` → file 503.
+- R13/R16: đơn vị đọc là `seq`, không phải `messageId`: payload `chat-read` là `{ conversationId, userId, seq }`, `markReadAction` nhận `{ conversationId, seq }`.
+- R15: lỗi validate của chat trả 422 (parser riêng `parseChat`), không phải 400 như phần còn lại của codebase.
+- R17: action trả về dữ liệu rút gọn: `{ message }` (sửa, thu hồi), `{ lastReadSeq }` (đã đọc), `{ state }` (trả lời yêu cầu).
+- R23: "Blocked people" là một `SettingsSection` riêng (`settings-blocked`) cạnh Privacy, không nằm trong `privacySection.jsx`.
+- R25: trang `/admin/chat-reports` hiển thị dạng hàng như các danh sách admin khác, không phải bảng.
+- R26: admin ẩn tin phải nhập lý do 10–500 ký tự, như các route admin khác.
+- R27: tin chưa gửi được (đang gửi / lỗi) nằm trong outbox Zustand phía client theo `conversationId`, không nằm trong query cache; gửi lại dùng cùng `clientId`.
+- R31: `/messages/new` tra hội thoại 1-1 sẵn có phía server (`findDirectConversationId`) và chuyển tới `/messages/<id>`; chỉ khi chưa có mới hiện khung soạn trống.
+- R32: `MessageBody` không dùng `skipHtml`; HTML trong tin được hiển thị như văn bản (react-markdown không có rehype-raw nên vẫn an toàn).
+- Revision 2 (2026-11-11, user yêu cầu sau khi lõi chat xong):
+  - Ảnh production lên Cloudinary `type: authenticated`, xem qua `private_download_url` có hạn 5 phút.
+  - File (tài liệu + code, ≤ 15 MB) production lên Upstash Blob, bucket private riêng. Lý do: credential Neon S3 gắn với branch, nên bucket riêng trên Neon không tách được quyền khỏi bài nộp code.
+  - Local: cả ảnh lẫn file vào MinIO `codedev-chat-media`.
+  - Thêm migration 026 (`kind`, `provider`, `file_name`).
+  - Đã cập nhật các mục 2, 3, 4, 5, 7, 8, 9, 10, 11, 12. Đã code xong (plan, phần Revision 2).
+  - R39: `lib/chatMedia.js` chỉ có một API: `storageFor`, `storageKeyFor`, `uploadTicket`, `inspect`, `readUrl`, `remove` (các hàm theo key cũ đã bỏ).
+  - R40: staging dùng S3 (như `mediaStore`, `storageFor` dùng `isProductionEnv`); chỉ production mới dùng Cloudinary và Upstash.
+  - R41: Upstash upload dùng `allowOverwrite: false` (thêm header `if-none-match: *`), không ghi đè byte sau khi `inspect`.
+  - R43: chữ ký Cloudinary thêm `asset_folder` để tài khoản dynamic-folder đặt ảnh chat vào thư mục chat.
+  - R44: bỏ ký tự điều khiển bidi và C1 khỏi tên file, chống giả tên hiển thị.
+  - R45: thông báo quá số lượng đổi thành "You can attach up to 4 files." (gồm cả ảnh và file).
+  - R46: đính kèm của tin chưa gửi (`seq == null`) chỉ là bản xem trước, không có liên kết.
+- Revision 3 (mục 6.1):
+  - R49/R56: thu hồi luôn thắng; guard `editedAt` chỉ áp dụng giữa các bản từ server; rollback chỉ đụng bản optimistic của chính nó.
+  - R50: `chat-read` cũng gửi tới kênh riêng của người đọc.
+  - R51: thu hồi thì refetch các danh sách.
+  - R53: `markRowRead` nhận `seq`.
+  - R54: poll `unread` 5 phút một lần khi đang kết nối.
+  - R55: người gửi chỉ invalidate `inbox("all")`.
+
+## Chưa kiểm tra được ở local
+
+Cần thông tin đăng nhập production; ở local chỉ test bằng mock:
+- Cloudinary: signed POST và `private_download_url` chạy thật.
+- Upstash: `signedUploadUrl` chạy thật từ trình duyệt, gồm header `if-none-match` (R9).
+

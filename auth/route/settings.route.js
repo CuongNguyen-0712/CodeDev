@@ -15,4 +15,16 @@ export default [
         resource: RESOURCE.SETTINGS,
         access: ACCESS.PRIVATE
     },
+    {
+        path: "/messages",
+        action: ACTION.LIST,
+        resource: RESOURCE.SETTINGS,
+        access: ACCESS.PRIVATE
+    },
+    {
+        path: "/messages/:id",
+        action: ACTION.LIST,
+        resource: RESOURCE.SETTINGS,
+        access: ACCESS.PRIVATE
+    },
 ]

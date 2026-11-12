@@ -8,9 +8,10 @@ import { RankSummary } from "@/components/ranking/rankSummary";
 import { ExpProgress, LevelBadge, levelProgress } from "@/components/ui/level";
 import { ImageLightbox } from "@/components/ui/imageLightbox";
 
+import { Button } from "@/components/shadcn/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
 
-import { LuCircleCheck, LuCode, LuEyeOff, LuSparkles, LuTrophy } from "react-icons/lu";
+import { LuCircleCheck, LuCode, LuEyeOff, LuMessageSquare, LuSparkles, LuTrophy } from "react-icons/lu";
 
 const memberSince = (value) => {
     const date = value ? new Date(value) : null;
@@ -71,6 +72,14 @@ export default function PublicProfilePage({ profile }) {
                         <LevelBadge level={progress.level} title={progress.title} />
                     </div>
                 </div>
+                {session?.user?.id && !isSelf ? (
+                    <Button asChild size="sm" className="ml-auto shrink-0">
+                        <Link href={`/messages/new?to=${encodeURIComponent(profile.id)}`}>
+                            <LuMessageSquare aria-hidden="true" />
+                            Message
+                        </Link>
+                    </Button>
+                ) : null}
             </header>
 
             <div className="overflow-hidden rounded-lg border">

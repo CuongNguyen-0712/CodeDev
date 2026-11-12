@@ -28,6 +28,10 @@ Không làm:
 | `useThemeStore` | `stores/themeStore.js` | `theme` (localStorage `theme`, cũng được `lib/themeScript.js` đọc trước khi paint), `toggleTheme` có View Transition |
 | `useRewardsStore` | `stores/rewardsStore.js` | `levelUp`, `ratePrompt`, `rewardsSeq`; selector `selectRatePromptOpen` |
 | `useLessonProgressStore` | `stores/lessonProgressStore.js` | `byLesson[lessonId] = { completed, exhausted }` của các challenge trong bài đang mở; hàm `progressFor` cho quy tắc "hoàn thành bài" |
+| `useChatOutboxStore` | `stores/chatOutboxStore.js` | `byConversation[conversationId] = [tin chưa gửi xong, mới nhất trước]` với `status` `sending` / `failed` (chỉ ở client, sống sót qua refetch của query tin nhắn; xoá khi server xác nhận). Hợp nhất với dữ liệu server bằng `mergeOutbox` trong `lib/chat/messageCache.js` |
+| `useChatTypingStore` | `stores/chatTypingStore.js` | `byConversation[conversationId] = { [userId]: expiresAt }`: ai đang gõ (UI tạm thời, hết hạn sau `TYPING_SHOW_MS`, ghi bởi handler `chat-typing` trong `UserRealtimeBridge`); `selectTypingUsers(state, conversationId, now)` |
+
+Không phải store: `lib/chat/openConversation.js` giữ một ref cấp module `openId` (hội thoại đang mở trong tab đang hiển thị). `ConversationView` đặt khi mount và khi tab hiện, xoá khi unmount hoặc tab ẩn (chỉ khi ref còn giữ id của nó). Chỉ `realtimeHandlers` đọc, để tin nhắn của hội thoại đang xem không tính là chưa đọc. Không có component nào render từ nó và không chứa dữ liệu server.
 
 Hook tương thích: `useApp()` trong `contexts/appContext.jsx` chỉ còn `{ showAlert }` (hằng số, không subscription); `useTheme()` trong `contexts/themeContext.jsx` đọc `useThemeStore`. Code mới import `showAlert` từ `components/ui/alert.jsx` và dùng store trực tiếp.
 
