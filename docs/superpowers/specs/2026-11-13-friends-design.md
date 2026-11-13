@@ -1,6 +1,6 @@
 # Bạn bè — thiết kế
 
-Date: 2026-11-13. Status: approved 2026-11-13. Sub-project 2/3 của "message chat" (spec lõi: `2026-11-11-chat-core-design.md` §1). Sub-project 3 (team) làm sau, spec riêng.
+Date: 2026-11-13. Status: implemented 2026-11-13. Sub-project 2/3 của "message chat" (spec lõi: `2026-11-11-chat-core-design.md` §1). Sub-project 3 (team) làm sau, spec riêng.
 
 ## 1. Mục đích
 

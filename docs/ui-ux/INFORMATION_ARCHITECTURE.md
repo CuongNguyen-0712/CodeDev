@@ -19,7 +19,7 @@ Part of the CodeDev UI/UX plan. Master document: [UI_UX_MASTER_PLAN.md](./UI_UX_
 | Learning | `/learning` | Home | PRIVATE | `learning/learningPage.jsx` |
 | Learning | `/learning/[id]` | Default | PROTECTED (`canAccessRoute`, else `/403`) | `learning/[id]/studyingPage.jsx` |
 | Account | `/onboarding` | Default | PRIVATE | `onboarding/onboardingPage.jsx` |
-| Account | `/profile`, `/settings`, `/contact` | Home | PRIVATE | `profile/*`, `settings/*`, `contact/contactPage.jsx` |
+| Account | `/profile`, `/settings`, `/contact` | Home | PRIVATE | `profile/*`, `settings/*`, `contact/contactPage.jsx` (three tabs Find people / Friends / Invitations, selected by `?tab=`; friend actions: invite, accept, decline, cancel, unfriend, message) |
 | Commerce | `/orders`, `/orders/[id]` | Home | PRIVATE | `commerce/ordersPage.jsx`, `orderStatusPage.jsx` |
 | Commerce | `/checkout/mock/[orderId]` | Default | PRIVATE | `commerce/mockCheckoutPage.jsx` (mock provider only) |
 | Admin | `/admin` | Home | PRIVATE + DB permission `admin.read` | `admin/adminPage.jsx` |
