@@ -22,7 +22,7 @@ export function buildData() {
             headers: { ...headers, Cookie: cookieHeader(s.cookies) }, jar: new http.CookieJar(),
         }));
         const lessons = (prog?.modules || []).flatMap((m) => m.lessons || []);
-        const lesson = lessons.find((l) => l.status === "in_progress") || lessons[0];
+        const lesson = lessons[0]; // the seed unlocks the first lesson of each course; later ones depend on a user
         if (!lesson) continue;
         const chals = lesson.challenges || [];
         const quiz = chals.find((x) => x.type === "quiz");

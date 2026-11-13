@@ -29,7 +29,7 @@ function stressStages() {
 
 // Built lazily: only the chosen profile is checked against the number of minted sessions.
 const scenarios = {
-    smoke: () => ({ executor: "constant-vus", vus: within(5), duration: "1m" }),
+    smoke: () => ({ executor: "constant-vus", vus: within(5), duration: __ENV.DURATION || "1m" }),
     stress: () => ({ executor: "ramping-vus", startVUs: 0, stages: stressStages(), gracefulRampDown: "30s" }),
     soak: () => ({ executor: "constant-vus", vus: within(Math.round(0.7 * N)), duration: "30m" }),
     spike: () => ({

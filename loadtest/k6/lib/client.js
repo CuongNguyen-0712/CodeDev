@@ -23,7 +23,7 @@ export function createClient({ baseUrl, session, actions, journey = "unknown", o
 
     function send(method, path, body, { endpoint, cls, headers = {} }) {
         const tags = {
-            endpoint, class: cls, journey: client.journey, stage: String(stageOf(exec.instance.currentTestRunDuration, STAGE_MS)),
+            endpoint, class: cls, journey: client.journey, stage: String(stageOf(Date.now() - exec.scenario.startTime, STAGE_MS)),
         };
         const res = http.request(method, baseUrl + path, body, {
             headers: { "x-forwarded-for": ip, Cookie: cookieHeader(jar), ...headers },
