@@ -25,7 +25,7 @@ export function parseActionResponse(status, body) {
 // `actionOk` is only passed for server actions; their failures arrive as HTTP 200.
 export function classifyResponse(status, actionOk) {
     if (status === 429) return "limited";
-    if (status === 0 || status === 404 || status >= 500 || actionOk === false) return "error";
+    if (status === 0 || status >= 400 || actionOk === false) return "error";
     return "ok";
 }
 
@@ -67,4 +67,13 @@ export function mergeCookies(jar, resCookies) {
 
 export function cookieHeader(jar) {
     return Object.entries(jar).map(([k, v]) => `${k}=${v}`).join("; ");
+}
+
+// One session per VU: two VUs on one session would present the same refresh token twice, and the
+// second rotation counts as reuse and revokes the session.
+export function sessionIndex(vu, total) {
+    if (!(vu >= 1 && vu <= total)) {
+        throw new Error(`VU ${vu} has no session of its own (${total} minted): lower the VUs or mint more sessions`);
+    }
+    return vu - 1;
 }

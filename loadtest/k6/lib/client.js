@@ -70,7 +70,9 @@ export function createClient({ baseUrl, session, actions, journey = "unknown", o
             a = parse && parse(res);
             status = effectiveStatus(res, a);
         }
-        record(tags, status, a ? a.ok : undefined);
+        // Still unauthenticated after the refresh and the retry: a persistent auth failure.
+        const stillAuth = session && needsRefresh(status, res.body, res.url);
+        record(tags, status, stillAuth ? false : a ? a.ok : undefined);
         return a ? { res, action: a } : res;
     }
 

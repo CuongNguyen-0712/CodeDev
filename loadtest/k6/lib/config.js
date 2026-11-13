@@ -1,5 +1,6 @@
 // Init-context only: reads the env and the Task 3 inputs mounted at /data.
 import { SharedArray } from "k6/data";
+import { sessionIndex } from "./pure.js";
 
 export const BASE_URL = __ENV.BASE_URL || "http://app:3000";
 // What the app believes its own origin is (NEXTAUTH_URL); sessions were minted against it.
@@ -11,5 +12,5 @@ export const actions = JSON.parse(open("/data/actions.json"));
 // How many of the minted sessions this run uses.
 export const N = Math.min(Number(__ENV.N) || sessions.length, sessions.length);
 
-// Each VU owns one session; the same VU always gets the same user.
-export const sessionForVu = (vu) => sessions[(vu - 1) % N];
+// Each VU owns one session; fails fast when there are more VUs than sessions.
+export const sessionForVu = (vu) => sessions[sessionIndex(vu, N)];

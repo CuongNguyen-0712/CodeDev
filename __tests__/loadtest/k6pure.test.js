@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { expect, it } from "vitest";
 import {
     THRESHOLDS, STAGE_MS, STAGE_VUS, WEIGHTS,
-    classifyResponse, cookieHeader, mergeCookies, needsRefresh, parseActionResponse, pickJourney, stageOf,
+    classifyResponse, cookieHeader, mergeCookies, needsRefresh, parseActionResponse, pickJourney, sessionIndex, stageOf,
 } from "@/loadtest/k6/lib/pure.js";
 
 const fixture = (name) => fs.readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
@@ -26,6 +26,9 @@ it("keeps 429 apart from errors", () => {
     expect(classifyResponse(0)).toBe("error");
     expect(classifyResponse(503)).toBe("error");
     expect(classifyResponse(404)).toBe("error");
+    expect(classifyResponse(401)).toBe("error");
+    expect(classifyResponse(403)).toBe("error");
+    expect(classifyResponse(302)).toBe("ok");
     expect(classifyResponse(200, true)).toBe("ok");
 });
 
@@ -52,4 +55,11 @@ it("keeps the newest cookie values and drops cleared ones", () => {
     );
     expect(jar).toEqual({ s: "new", cd_refresh: "r1" });
     expect(cookieHeader(jar)).toBe("s=new; cd_refresh=r1");
+});
+
+it("gives each VU its own session and fails fast when sessions run out", () => {
+    expect(sessionIndex(1, 20)).toBe(0);
+    expect(sessionIndex(20, 20)).toBe(19);
+    expect(() => sessionIndex(21, 20)).toThrow(/no session of its own/);
+    expect(() => sessionIndex(0, 20)).toThrow();
 });
