@@ -1,7 +1,7 @@
 // One-command load run:
 //   node scripts/loadtest/run.mjs --env .env.loadtest --profile smoke --inngest inline [--n N] [--max-vus 3000] [--sessions K] [--build] [--yes]
 // Steps: 1 reset DB, 2 start app, 3 actions, 4 sessions, 5 reset statements + sampler, 6 k6, 7 stop sampler + snapshot + meta.
-// Step 8 (report.mjs) is added by the report task. A failing step keeps the run directory and exits non-zero.
+// 8 report (docs/loadtest/, also after k6 exit 99). A failing step keeps the run directory and exits non-zero.
 import fs from "node:fs";
 import path from "node:path";
 import { execFile, execFileSync, spawn } from "node:child_process";
@@ -9,6 +9,7 @@ import { parseArgs, promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { assertSafeTarget, loadEnvFile } from "./target.mjs";
 import { startSampler } from "./sample.mjs";
+import { writeReport } from "./report.mjs";
 import { inngestMode, needsN, peakSessions } from "./samplePure.mjs";
 
 const execFileP = promisify(execFile);
@@ -166,5 +167,14 @@ try {
     if (interrupted) await new Promise(() => {}); // the handler finishes and exits 130
     await wrapUp();
     console.error(`load run failed at step ${step}: ${e.message}\nrun directory kept: ${dir}`);
+    process.exit(1);
+}
+
+// Outside main(): a report failure must not rewrite the run directory (wrapUp would).
+try {
+    console.log(`report: ${await writeReport(dir)}`);
+} catch (e) {
+    console.error(`report failed: ${e.message}
+run directory kept untouched: ${dir}`);
     process.exit(1);
 }
