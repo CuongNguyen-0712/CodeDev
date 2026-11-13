@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { seedPlan } from "@/scripts/loadtest/seedPlan.mjs";
-import { assertSafeTarget } from "@/scripts/loadtest/target.mjs";
+import { assertSafeTarget, isLocalLoadtest } from "@/scripts/loadtest/target.mjs";
 
 it("plans deterministic, well-formed users", () => {
     const a = seedPlan({ users: 50, courseIds: ["c1", "c2", "c3", "c4"], seed: 7 });
@@ -26,4 +26,11 @@ it("refuses dev and production databases", () => {
     expect(() => assertSafeTarget("postgres://x@localhost:5432/codedev", { root, confirmed: true })).toThrow(/loadtest/);
     expect(() => assertSafeTarget("postgres://u:p@ep-x.neon.tech/neondb", { root, confirmed: false })).toThrow(/--yes/);
     expect(() => assertSafeTarget("postgres://u:p@localhost:5433/loadtest_base", { root, confirmed: false })).not.toThrow();
+});
+
+it("bootstraps data only on a local loadtest database", () => {
+    expect(isLocalLoadtest("postgres://u:p@localhost:5435/loadtest_base")).toBe(true);
+    expect(isLocalLoadtest("postgres://u:p@postgres-load:5432/loadtest_run")).toBe(true);
+    expect(isLocalLoadtest("postgres://u:p@localhost:5432/codedev")).toBe(false);
+    expect(isLocalLoadtest("postgres://u:p@ep-x.neon.tech/loadtest_base")).toBe(false);
 });

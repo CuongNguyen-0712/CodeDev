@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { assertSafeTarget, loadEnvFile } from "./target.mjs";
+import { assertSafeTarget, isLocalLoadtest, loadEnvFile } from "./target.mjs";
 import { PER_USER, seedPlan } from "./seedPlan.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -70,11 +70,13 @@ try {
 
 async function reset(existing) {
     await tx(async () => {
+        const touched = (await db.query(`SELECT DISTINCT r.course_id FROM learning.register r JOIN identity.users u ON u.id = r.user_id WHERE u.username LIKE 'lt\\_%'`)).rows.map((r) => r.course_id);
         // Conversations outlive their members, so they go first (members and messages cascade from them).
         await db.query(`DELETE FROM community.conversation WHERE id IN (
             SELECT m.conversation_id FROM community.conversation_member m JOIN identity.users u ON u.id = m.user_id WHERE u.username LIKE 'lt\\_%')`);
         await db.query("DELETE FROM identity.users WHERE username LIKE 'lt\\_%'");
-        await db.query("UPDATE catalog.course c SET students = (SELECT count(*) FROM learning.register r WHERE r.course_id = c.id)");
+        // Only the counters lt_ users moved; other courses keep their own value.
+        await db.query("UPDATE catalog.course c SET students = (SELECT count(*) FROM learning.register r WHERE r.course_id = c.id) WHERE c.id = ANY($1)", [touched]);
     });
     console.log(`reset: removed ${existing} lt_ users`);
 }
@@ -84,6 +86,7 @@ async function courseIds() {
     const free = `SELECT public_id FROM catalog.course WHERE publish_status = 'published' AND access_model = 'free' AND NOT is_deleted ORDER BY public_id`;
     let rows = (await db.query(free)).rows;
     if (rows.length < PER_USER.courses) {
+        if (!isLocalLoadtest(url)) throw new Error(`need ${PER_USER.courses} published free courses, found ${rows.length}`);
         for (const name of FREE_SEEDS) await db.query(fs.readFileSync(path.join(root, "db/seeds", `${name}.sql`), "utf8"));
         await db.query(`UPDATE catalog.course SET publish_status = 'published', is_hidden = false
                         WHERE access_model = 'free' AND NOT is_deleted AND publish_status = 'draft'`);

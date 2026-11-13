@@ -22,6 +22,11 @@ function identity(url) {
     }
 }
 
+// True for a local host (not Neon etc.) with a loadtest* database name: the only place the seed may bootstrap data.
+export const isLocalHost = (url) => LOCAL_HOSTS.has(new URL(url).hostname);
+export const isLoadtestDb = (url) => new URL(url).pathname.slice(1).startsWith("loadtest");
+export const isLocalLoadtest = (url) => isLocalHost(url) && isLoadtestDb(url);
+
 // Throws unless the load scripts may write to `url`.
 export function assertSafeTarget(url, { root: base = root, confirmed = false } = {}) {
     let parsed;
@@ -39,8 +44,8 @@ export function assertSafeTarget(url, { root: base = root, confirmed = false } =
             throw new Error(`Refusing: this is the DATABASE_URL of ${name}; load runs only write to loadtest* databases`);
         }
     }
-    if (LOCAL_HOSTS.has(parsed.hostname)) {
-        if (!parsed.pathname.slice(1).startsWith("loadtest")) {
+    if (isLocalHost(url)) {
+        if (!isLoadtestDb(url)) {
             throw new Error(`Refusing: local database "${parsed.pathname.slice(1)}" does not start with loadtest`);
         }
     } else if (!confirmed) {
