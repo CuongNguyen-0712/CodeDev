@@ -31,7 +31,7 @@ async function ContactPrefetch({ searchParams }) {
     const queryClient = new QueryClient();
 
     if (userId) {
-        const lists = (FIRST_PAGES[tab] || FIRST_PAGES.find)(userId);
+        const lists = FIRST_PAGES[Object.hasOwn(FIRST_PAGES, tab) ? tab : "find"](userId);
         await Promise.all([
             ...lists.map(([query, load]) => load.then(
                 (page) => queryClient.setQueryData(query.queryKey, { pages: [page], pageParams: [null] }),

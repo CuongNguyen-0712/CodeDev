@@ -9,7 +9,7 @@ import { useFriendAction } from "@/mutations/friend.mutation";
 import { useApp } from "@/contexts/appContext";
 import { failAlert } from "@/components/chat/requestBanner";
 import SearchBar from "@/components/ui/searchBar";
-import { PeopleEmpty, PersonList, PersonRow, personName } from "./personRow";
+import { PeopleEmpty, PersonList, PersonRow } from "./personRow";
 
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -90,13 +90,9 @@ export default function FriendsTab() {
                 ) : (
                     <PeopleEmpty icon={LuUsers} title="No friends yet" description="Send a friend request from Find people. Once it is accepted, they show up here." />
                 )}
-                renderRow={(item, index) => {
-                    const name = personName(item);
-                    return (
-                        <PersonRow key={item.id} item={item} name={name} meta={`@${item.username}`} index={index}
-                            actions={<FriendMenu user={item} name={name} />} />
-                    );
-                }}
+                renderRow={(item, index) => (
+                    <PersonRow key={item.id} item={item} index={index} actions={<FriendMenu user={item} name={item.username} />} />
+                )}
             />
         </section>
     );

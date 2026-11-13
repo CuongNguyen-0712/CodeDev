@@ -14,9 +14,6 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 
 import { LuLoaderCircle, LuMessageSquare } from "react-icons/lu";
 
-/** The nickname when one is set ('None' means unset), else the username. */
-export const personName = (user) => (user.nickname && user.nickname !== 'None' ? user.nickname : user.username) || 'Unknown user';
-
 const LIST = "m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0";
 
 function PersonSkeleton() {
@@ -33,9 +30,13 @@ function PersonSkeleton() {
     );
 }
 
-/** One person on /contact: avatar, name (linked when the profile is public), a second line, level and actions; Message for anyone but me. */
-export function PersonRow({ item, name, meta, actions, index = 0 }) {
+/**
+ * One person on /contact: avatar, username (linked when the profile is public), nickname ('None' means unset),
+ * level and actions; Message for anyone but me.
+ */
+export function PersonRow({ item, actions, index = 0 }) {
     const { data: session } = useSession();
+    const name = item.username || 'Unknown user';
     return (
         <li className="animate-enter flex items-center gap-3 px-4 py-3" style={{ '--enter-index': index % 20 }}>
             <UserAvatar name={name} image={item.image} />
@@ -51,7 +52,9 @@ export function PersonRow({ item, name, meta, actions, index = 0 }) {
                         </Link>
                     ) : name}
                 </p>
-                <p className="m-0 truncate text-xs text-muted-foreground">{meta}</p>
+                <p className="m-0 truncate text-xs text-muted-foreground">
+                    {item.nickname && item.nickname !== 'None' ? item.nickname : 'No nickname'}
+                </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
                 <div className="flex items-center gap-2">

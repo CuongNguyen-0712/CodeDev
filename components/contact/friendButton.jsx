@@ -17,9 +17,10 @@ import { LuCheck, LuClock, LuUserPlus, LuX } from "react-icons/lu";
 
 /**
  * The friend control for one person, by my `friendship` with them: Add friend, Requested (cancel after a
- * confirm), Accept + Decline, or nothing once we are friends. `notify` toasts an answer whose row then leaves the list.
+ * confirm), Accept + Decline, or nothing once we are friends. `invitation`: shown in the Invitations lists, where
+ * the row leaves after an answer (so the answer is toasted) and a sent request reads Cancel instead of Requested.
  */
-export default function FriendButton({ user, friendship, notify = false }) {
+export default function FriendButton({ user, friendship, invitation = false }) {
     const { showAlert } = useApp();
     const { send, respond, cancel } = useFriendAction();
     const [confirming, setConfirming] = useState(false);
@@ -29,7 +30,7 @@ export default function FriendButton({ user, friendship, notify = false }) {
 
     // mutateAsync: an optimistic change can unmount this row before the answer comes back.
     const run = (mutation, input, done) => mutation.mutateAsync(input).then(
-        () => { if (notify && done) showAlert(200, done); },
+        () => { if (invitation && done) showAlert(200, done); },
         failAlert(showAlert),
     );
 
@@ -52,11 +53,14 @@ export default function FriendButton({ user, friendship, notify = false }) {
     }
 
     if (friendship === 'sent') {
+        const [label, Icon, aria] = invitation
+            ? ['Cancel', LuX, `Cancel friend request to ${name}`]
+            : ['Requested', LuClock, `Requested, cancel request to ${name}`];
         return (
             <>
-                <Button variant="outline" size="sm" disabled={busy} onClick={() => setConfirming(true)} aria-label={`Requested, cancel request to ${name}`}>
-                    {busy ? <Spinner /> : <LuClock aria-hidden="true" />}
-                    <span className="max-sm:sr-only">Requested</span>
+                <Button variant="outline" size="sm" disabled={busy} onClick={() => setConfirming(true)} aria-label={aria}>
+                    {busy ? <Spinner /> : <Icon aria-hidden="true" />}
+                    <span className="max-sm:sr-only">{label}</span>
                 </Button>
                 <AlertDialog open={confirming} onOpenChange={(next) => !cancel.isPending && setConfirming(next)}>
                     <AlertDialogContent>
@@ -68,7 +72,7 @@ export default function FriendButton({ user, friendship, notify = false }) {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                             <AlertDialogCancel disabled={cancel.isPending}>Keep request</AlertDialogCancel>
-                            <AlertDialogAction disabled={cancel.isPending} onClick={() => run(cancel, user.id)}>
+                            <AlertDialogAction disabled={cancel.isPending} onClick={() => run(cancel, user.id, `Request to ${name} cancelled`)}>
                                 {cancel.isPending && <Spinner />}
                                 Cancel request
                             </AlertDialogAction>

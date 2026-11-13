@@ -24,10 +24,19 @@ vi.mock("@/lib/pusherClient", () => ({ isPusherConnected: () => true }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { id: "me" } }, status: "authenticated" }) }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => params, usePathname: () => "/contact" }));
 vi.mock("@/contexts/appContext", () => ({ useApp: () => ({ showAlert: vi.fn() }) }));
+const social = vi.hoisted(() => ({
+    searchUsers: vi.fn(async () => ({ items: [], nextCursor: null })),
+    listFriends: vi.fn(async () => ({ items: [], nextCursor: null })),
+    listInvitations: vi.fn(async () => ({ items: [], nextCursor: null })),
+    counts: vi.fn(async () => ({ friends: 1, received: 0 })),
+}));
+vi.mock("@/services/social.service", () => ({ socialService: social }));
+vi.mock("@/lib/session", () => ({ getAuthSession: async () => ({ user: { id: "me" } }) }));
 
 const actions = await import("@/actions/social.actions");
 const { default: ContactPage } = await import("@/components/contact/contactPage");
 const { default: FriendButton } = await import("@/components/contact/friendButton");
+const { default: Page } = await import("@/app/(shell)/contact/page");
 
 const person = (id, over = {}) => ({ id, username: id, nickname: null, image: null, level: 1, levelTitle: "Newbie", ...over });
 const pageOf = (...items) => ({ items, nextCursor: null });
@@ -107,6 +116,19 @@ describe("FriendButton", () => {
         await waitFor(() => expect(actions.sendFriendRequestAction).toHaveBeenCalledWith("amy"));
     });
 
+    it("Accept and Decline call respond with accept true / false", async () => {
+        actions.respondFriendRequestAction.mockResolvedValue({ friendship: "friends", user: person("amy") });
+        renderWith(<FriendButton user={person("amy")} friendship="received" />);
+        fireEvent.click(screen.getByRole("button", { name: "Accept friend request from amy" }));
+        await waitFor(() => expect(actions.respondFriendRequestAction).toHaveBeenCalledWith({ userId: "amy", accept: true }));
+        cleanup();
+
+        actions.respondFriendRequestAction.mockResolvedValue({ friendship: null, user: person("amy") });
+        renderWith(<FriendButton user={person("amy")} friendship="received" />);
+        fireEvent.click(screen.getByRole("button", { name: "Decline friend request from amy" }));
+        await waitFor(() => expect(actions.respondFriendRequestAction).toHaveBeenLastCalledWith({ userId: "amy", accept: false }));
+    });
+
     it("Requested asks before cancelling", async () => {
         actions.cancelFriendRequestAction.mockResolvedValue({ friendship: null, user: person("amy") });
         renderWith(<FriendButton user={person("amy")} friendship="sent" />);
@@ -136,14 +158,14 @@ describe("Find people", () => {
 describe("Friends tab", () => {
     beforeEach(() => { params = new URLSearchParams("tab=friends"); });
 
-    it("lists friends with @username and Message", async () => {
+    it("lists friends as Find does: username, then nickname or No nickname, and Message", async () => {
         data.friends = pageOf(person("amy", { nickname: "Amy L" }), person("ben", { nickname: "None" }));
         renderWith(<ContactPage />);
-        await screen.findByText("Amy L");
-        expect(screen.getByText("@amy")).toBeTruthy();
-        // 'None' is an unset nickname: the username stands in.
-        expect(screen.getByText("ben")).toBeTruthy();
-        expect(screen.getByRole("link", { name: "Message Amy L" })).toBeTruthy();
+        await screen.findByText("amy");
+        expect(screen.getByText("Amy L")).toBeTruthy();
+        // 'None' is an unset nickname.
+        expect(screen.getByText("ben").closest("li").textContent).toMatch(/No nickname/);
+        expect(screen.getByRole("link", { name: "Message amy" })).toBeTruthy();
     });
 
     it("Unfriend asks for confirmation before calling remove", async () => {
@@ -180,8 +202,13 @@ describe("Invitations tab", () => {
         await within(received).findByRole("button", { name: "Accept friend request from bob" });
         expect(within(received).getByRole("button", { name: "Decline friend request from bob" })).toBeTruthy();
 
+        // Cancel confirms as Requested does in Find people.
         const sent = screen.getByRole("heading", { name: /Sent/ }).closest("section");
         fireEvent.click(await within(sent).findByRole("button", { name: "Cancel friend request to cat" }));
+        const dialog = await screen.findByRole("alertdialog");
+        expect(within(dialog).getByText("Cancel your request to cat?")).toBeTruthy();
+        expect(actions.cancelFriendRequestAction).not.toHaveBeenCalled();
+        fireEvent.click(within(dialog).getByRole("button", { name: "Cancel request" }));
         await waitFor(() => expect(actions.cancelFriendRequestAction).toHaveBeenCalledWith("cat"));
         expect(api.getFriendInvitations.mock.calls.map(([p]) => p.direction).sort()).toEqual(["received", "sent"]);
     });
@@ -190,5 +217,25 @@ describe("Invitations tab", () => {
         renderWith(<ContactPage />);
         expect(await screen.findByText("No invitations")).toBeTruthy();
         expect(await screen.findByText("No pending requests")).toBeTruthy();
+    });
+});
+
+describe("contact page prefetch", () => {
+    // Runs the server component under the page's Suspense and returns the HydrationBoundary state.
+    const prefetch = async (tab) => {
+        const inner = Page({ searchParams: Promise.resolve({ tab }) }).props.children;
+        return (await inner.type(inner.props)).props.state.queries.map((q) => q.queryKey);
+    };
+
+    it("prefetches the open tab's first page and the counts", async () => {
+        const keys = await prefetch("invitations");
+        expect(social.listInvitations.mock.calls.map(([a]) => a.direction).sort()).toEqual(["received", "sent"]);
+        expect(social.searchUsers).not.toHaveBeenCalled();
+        expect(keys).toEqual(expect.arrayContaining([["friends", "counts"], ["friends", "invitations", "received"]]));
+    });
+
+    it.each(["constructor", "toString", undefined])("?tab=%s falls back to Find people", async (tab) => {
+        await prefetch(tab);
+        expect(social.searchUsers).toHaveBeenCalledWith({ userId: "me", search: "", limit: 10 });
     });
 });

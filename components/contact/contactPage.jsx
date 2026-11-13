@@ -7,7 +7,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { userQueries } from "@/queries/user.query";
 import { friendQueries } from "@/queries/friend.query";
-import SearchBar from "../ui/searchBar";
+import SearchBar from "@/components/ui/searchBar";
 import FriendButton from "./friendButton";
 import FriendsTab from "./friendsTab";
 import InvitationsTab from "./invitationsTab";
@@ -62,19 +62,10 @@ function FindPeople() {
                     ) : (
                         <PeopleEmpty icon={LuUserSearch} title="No other learners yet" description="New learners will appear here as they join." />
                     )}
-                    renderRow={(item, index) => {
-                        const name = item.username || item.name || 'Unknown user';
-                        return (
-                            <PersonRow
-                                key={item.id}
-                                item={item}
-                                name={name}
-                                meta={item.nickname && item.nickname !== 'None' ? item.nickname : 'No nickname'}
-                                index={index}
-                                actions={<FriendButton user={item} friendship={item.friendship ?? null} />}
-                            />
-                        );
-                    }}
+                    renderRow={(item, index) => (
+                        <PersonRow key={item.id} item={item} index={index}
+                            actions={<FriendButton user={item} friendship={item.friendship ?? null} />} />
+                    )}
                 />
             </section>
         </>
