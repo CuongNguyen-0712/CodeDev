@@ -1,5 +1,5 @@
-import { Column, Row, Section, Text } from "@react-email/components";
-import { EmailAction, EmailLayout, bodyText } from "./emailBadge";
+import { Text } from "@react-email/components";
+import { COLOR, EmailAction, EmailLayout, EmailNotice, bodyText, smallText } from "./emailBadge";
 
 /**
  * "Verify your email" message (docs/email-verification-plan.md 6.6). Formatted dates add notices:
@@ -24,28 +24,24 @@ export default function VerifyEmailTemplate({ name, email, url, hours = 24, lock
     }
 
     return (
-        <EmailLayout preview={preview} badge="Verification" baseUrl={baseUrl} linkUrl={url} heading={heading}>
+        <EmailLayout preview={preview} baseUrl={baseUrl} linkUrl={url} heading={heading}>
             <Text style={{ ...bodyText, margin: "0 0 16px" }}>
                 {`Hi ${name?.trim() || "there"}, confirm that ${email} is your email address for CodeDev.`}
             </Text>
 
             {notices.length > 0 && (
-                <Section style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, margin: "20px 0" }}>
-                    <Row>
-                        <Column style={{ padding: "14px 16px" }}>
-                            {notices.map((notice, i) => (
-                                <Text key={i} style={{ color: "#92400e", fontSize: 14, lineHeight: "20px", fontWeight: i === 0 ? 600 : 400, margin: i === 0 ? 0 : "8px 0 0" }}>
-                                    {notice}
-                                </Text>
-                            ))}
-                        </Column>
-                    </Row>
-                </Section>
+                <EmailNotice>
+                    {notices.map((notice, i) => (
+                        <Text key={i} style={{ color: COLOR.warning, fontSize: 14, lineHeight: "20px", fontWeight: i === 0 ? 600 : 400, margin: i === 0 ? 0 : "8px 0 0" }}>
+                            {notice}
+                        </Text>
+                    ))}
+                </EmailNotice>
             )}
 
             <EmailAction label="Verify email" url={url} />
 
-            <Text style={{ color: "#6b7280", fontSize: 13, lineHeight: "20px", margin: "16px 0 0" }}>
+            <Text style={{ ...smallText, margin: "16px 0 0" }}>
                 {`This link expires in ${hours} ${hours === 1 ? "hour" : "hours"}. If it has expired, sign in and send a new one from the banner. If you did not create a CodeDev account, ignore this email.`}
             </Text>
         </EmailLayout>

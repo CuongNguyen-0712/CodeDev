@@ -1,16 +1,33 @@
 import { Body, Button, Column, Container, Head, Heading, Html, Img, Link, Preview, Row, Section, Text } from "@react-email/components";
 
-// Email clients ignore the app's CSS, so brand colours are inlined here.
-export const BRAND = "#7C3AED";
+/**
+ * Light-theme tokens of app/globals.css, inlined because email clients ignore the app's CSS.
+ * Keep them in step with --foreground, --muted-foreground, --canvas, --border, --primary and --warning*.
+ */
+export const COLOR = {
+    ink: "#17141F",
+    muted: "#605B6E",
+    canvas: "#F7F6FA",
+    card: "#FFFFFF",
+    border: "#D6D1DF",
+    brand: "#7C3AED",
+    warning: "#B45309",
+    warningSoft: "#FDF5E6",
+};
 const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
+/** Body paragraph; long emails and names wrap instead of widening the card. */
+export const bodyText = { color: COLOR.ink, fontSize: 16, lineHeight: "24px", overflowWrap: "anywhere" };
+/** Secondary line: expiry, "ignore this", footer. */
+export const smallText = { color: COLOR.muted, fontSize: 13, lineHeight: "20px" };
+
 /**
- * Shell shared by every CodeDev email: head, preview, card, brand header, h1 and footer.
+ * Shell shared by every CodeDev email: head, preview, card, wordmark, h1 and footer.
  * Outlook desktop (Word engine) ignores max-width and padding on a <table>: the card gets a
  * width attribute and the padding sits on a <td>. The logo's origin comes from `baseUrl`, else
  * from `linkUrl` (a link in the mail), else from NEXTAUTH_URL.
  */
-export function EmailLayout({ preview, badge, baseUrl = null, linkUrl = null, heading, children }) {
+export function EmailLayout({ preview, baseUrl = null, linkUrl = null, heading, children }) {
     let origin = baseUrl;
     if (!origin && linkUrl) {
         try {
@@ -24,12 +41,12 @@ export function EmailLayout({ preview, badge, baseUrl = null, linkUrl = null, he
         <Html lang="en">
             <EmailHead />
             <Preview>{preview}</Preview>
-            <Body style={{ backgroundColor: "#f6f6f9", fontFamily: FONT, margin: 0, padding: "28px 12px" }}>
-                <Container width="500" style={{ width: "100%", maxWidth: 500, backgroundColor: "#ffffff", borderRadius: 12, border: "1px solid #e5e7eb", margin: "0 auto" }}>
+            <Body style={{ backgroundColor: COLOR.canvas, fontFamily: FONT, margin: 0, padding: "28px 12px" }}>
+                <Container width="500" style={{ width: "100%", maxWidth: 500, backgroundColor: COLOR.card, borderRadius: 12, border: `1px solid ${COLOR.border}`, margin: "0 auto" }}>
                     <Row>
                         <Column style={{ padding: "36px 32px" }}>
-                            <EmailBrandBadge badge={badge} baseUrl={origin} />
-                            <Heading as="h1" style={{ color: "#111827", fontSize: 22, fontWeight: 700, margin: "0 0 16px" }}>
+                            <EmailBrandBadge baseUrl={origin} />
+                            <Heading as="h1" style={{ color: COLOR.ink, fontSize: 26, lineHeight: "32px", fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 16px" }}>
                                 {heading}
                             </Heading>
                             {children}
@@ -43,38 +60,40 @@ export function EmailLayout({ preview, badge, baseUrl = null, linkUrl = null, he
 }
 
 /**
- * The button plus the "paste this link" fallback. The fallback is left out of the plain-text
- * version, where the button already prints the URL.
+ * The button, then the same link as small plain text for clients that block buttons. The text
+ * link is left out of the plain-text version, where the button already prints the URL.
  */
 export function EmailAction({ label, url }) {
     return (
         <>
-            <Section style={{ margin: "24px 0" }}>
+            <Section style={{ margin: "24px 0 12px" }}>
                 <Button
                     href={url}
-                    style={{ backgroundColor: BRAND, borderRadius: 8, color: "#ffffff", fontSize: 15, fontWeight: 600, padding: "12px 24px", textDecoration: "none", display: "inline-block" }}
+                    style={{ backgroundColor: COLOR.brand, borderRadius: 8, color: "#FFFFFF", fontSize: 16, fontWeight: 600, padding: "14px 28px", textDecoration: "none", display: "inline-block" }}
                 >
                     {label}
                 </Button>
             </Section>
-            <Section data-skip-in-text="true" style={{ backgroundColor: "#f9fafb", border: "1px solid #f3f4f6", borderRadius: 8, margin: "24px 0 16px" }}>
-                <Row>
-                    <Column style={{ padding: "12px 14px", wordBreak: "break-all", overflowWrap: "anywhere" }}>
-                        <Text style={{ color: "#6b7280", fontSize: 12, lineHeight: "18px", margin: "0 0 6px" }}>
-                            Or paste this link into your browser:
-                        </Text>
-                        <Link href={url} style={{ color: BRAND, fontSize: 13, lineHeight: "19px", wordBreak: "break-all", overflowWrap: "anywhere" }}>
-                            {url}
-                        </Link>
-                    </Column>
-                </Row>
-            </Section>
+            <Text data-skip-in-text="true" style={{ ...smallText, margin: "0 0 16px" }}>
+                Button not working? Paste this link into your browser:{" "}
+                <Link href={url} style={{ color: COLOR.brand, wordBreak: "break-all", overflowWrap: "anywhere" }}>
+                    {url}
+                </Link>
+            </Text>
         </>
     );
 }
 
-/** Body paragraph; long emails and names wrap instead of widening the card. */
-export const bodyText = { color: "#374151", fontSize: 15, lineHeight: "24px", overflowWrap: "anywhere" };
+/** Consequence or deadline: one flat amber field, the only filled block in a mail. */
+export function EmailNotice({ children }) {
+    return (
+        <Section style={{ backgroundColor: COLOR.warningSoft, borderRadius: 8, margin: "20px 0" }}>
+            <Row>
+                <Column style={{ padding: "14px 16px" }}>{children}</Column>
+            </Row>
+        </Section>
+    );
+}
 
 /**
  * <head> for CodeDev emails: without the viewport meta, mobile webviews lay the message out at
@@ -90,12 +109,8 @@ export function EmailHead() {
     );
 }
 
-/**
- * Standard brand badge & header for CodeDev transactional emails.
- * Renders the project's circuit brain mark badge alongside the signature `_CodeDev;` wordmark
- * and an optional contextual status badge pill (e.g. "Verification", "Security").
- */
-export default function EmailBrandBadge({ badge = null, baseUrl = null }) {
+/** The circuit brain mark and the `_CodeDev;` wordmark: the only brand element in a mail. */
+export default function EmailBrandBadge({ baseUrl = null }) {
     const origin = baseUrl || process.env.NEXTAUTH_URL || "http://localhost:3000";
     const logoUrl = `${String(origin).replace(/\/+$/, "")}/image/static/logo.png`;
 
@@ -105,19 +120,19 @@ export default function EmailBrandBadge({ badge = null, baseUrl = null }) {
                 <tbody>
                     <tr>
                         <td style={{ verticalAlign: "middle", paddingRight: "12px", width: "36px" }}>
+                            {/* alt="": the wordmark next to it already says CodeDev. */}
                             <Img
                                 src={logoUrl}
                                 width="36"
                                 height="36"
-                                alt="CodeDev"
+                                alt=""
                                 style={{
                                     display: "block",
                                     width: "36px",
                                     height: "36px",
                                     borderRadius: "8px",
-                                    border: "1px solid #e5e7eb",
                                     // The PNG is transparent: a solid plate keeps it visible when a client darkens the mail.
-                                    backgroundColor: "#ffffff",
+                                    backgroundColor: COLOR.card,
                                 }}
                             />
                         </td>
@@ -133,28 +148,10 @@ export default function EmailBrandBadge({ badge = null, baseUrl = null }) {
                                 }}
                             >
                                 <span style={{ color: "#EA580C" }}>_</span>
-                                <span style={{ color: "#7C3AED" }}>CodeDev</span>
+                                <span style={{ color: COLOR.brand }}>CodeDev</span>
                                 <span style={{ color: "#DB2777" }}>;</span>
                             </Text>
                         </td>
-                        {badge && (
-                            <td data-skip-in-text="true" style={{ verticalAlign: "middle", paddingLeft: "12px" }}>
-                                <span
-                                    style={{
-                                        display: "inline-block",
-                                        backgroundColor: "#f3e8ff",
-                                        color: "#7C3AED",
-                                        fontSize: "12px",
-                                        fontWeight: "600",
-                                        padding: "3px 9px",
-                                        borderRadius: "9999px",
-                                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                                    }}
-                                >
-                                    {badge}
-                                </span>
-                            </td>
-                        )}
                     </tr>
                 </tbody>
             </table>
@@ -168,8 +165,8 @@ export default function EmailBrandBadge({ badge = null, baseUrl = null }) {
  */
 export function EmailFooter() {
     return (
-        <Section style={{ marginTop: "32px", borderTop: "1px solid #e5e7eb", paddingTop: "20px" }}>
-            <Text style={{ color: "#6b7280", fontSize: "12px", lineHeight: "18px", margin: 0 }}>
+        <Section style={{ marginTop: "32px", borderTop: `1px solid ${COLOR.border}`, paddingTop: "20px" }}>
+            <Text style={{ ...smallText, fontSize: 12, lineHeight: "18px", margin: 0 }}>
                 © {new Date().getFullYear()} CodeDev, interactive developer courses.
             </Text>
         </Section>

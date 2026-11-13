@@ -24,7 +24,8 @@ describe("Email templates", () => {
             // Brand logo and wordmark
             expect(html).toContain("logo.png");
             expect(html).toContain("CodeDev");
-            expect(html).toContain("Verification");
+            // No status pill: the wordmark is the only brand element.
+            expect(html).not.toContain("Verification");
 
             // Content
             expect(html).toContain("Verify your email");
@@ -39,7 +40,7 @@ describe("Email templates", () => {
 
             // Plain text: the URL once (the button), no "paste this link" block, no badge pill.
             expect(text.split("token=0123456789abcdef").length - 1).toBe(1);
-            expect(text).not.toContain("Or paste this link");
+            expect(text).not.toContain("Paste this link");
             expect(text).not.toContain("Verification");
             // Outlook desktop ignores max-width: the card carries a width attribute.
             expect(html).toContain('width="500"');
@@ -107,7 +108,7 @@ describe("Email templates", () => {
 
             expect(html).toContain("logo.png");
             expect(html).toContain("CodeDev");
-            expect(html).toContain("Security");
+            expect(html).not.toContain(">Security<");
             expect(html).toContain("Link GitHub to your account");
             expect(html).toContain("Link GitHub");
             expect(html).toContain("This link expires in 30 minutes.");
