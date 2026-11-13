@@ -36,6 +36,13 @@ describe("Email templates", () => {
             expect(text).toContain("24 hours");
             // The footer never says "ignore": security notices ask the reader to act.
             expect(text).not.toMatch(/safely ignore/);
+
+            // Plain text: the URL once (the button), no "paste this link" block, no badge pill.
+            expect(text.split("token=0123456789abcdef").length - 1).toBe(1);
+            expect(text).not.toContain("Or paste this link");
+            expect(text).not.toContain("Verification");
+            // Outlook desktop ignores max-width: the card carries a width attribute.
+            expect(html).toContain('width="500"');
         });
 
         it("says 1 hour, not 1 hours, and trims a blank name", async () => {
