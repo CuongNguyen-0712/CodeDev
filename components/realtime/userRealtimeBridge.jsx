@@ -15,7 +15,9 @@ import { userKeys } from "@/keys/user.keys";
 import { courseKeys } from "@/keys/course.keys";
 import { roadmapKeys } from "@/keys/roadmap.keys";
 import { chatKeys } from "@/keys/chat.keys";
+import { friendKeys } from "@/keys/friend.keys";
 import { createChatHandlers } from "@/lib/chat/realtimeHandlers";
+import { applyFriendChange } from "@/lib/social/friendCache";
 
 /**
  * Listens on the signed-in user's private channel and keeps every open tab / device in sync:
@@ -38,6 +40,7 @@ export function UserRealtimeBridge() {
     const refreshUserData = useCallback(() => {
         queryClient.invalidateQueries({ queryKey: userKeys.all });
         queryClient.invalidateQueries({ queryKey: chatKeys.all });
+        queryClient.invalidateQueries({ queryKey: friendKeys.all });
     }, [queryClient]);
 
     const chatHandlers = useMemo(() => createChatHandlers(queryClient, userId), [queryClient, userId]);
@@ -119,6 +122,9 @@ export function UserRealtimeBridge() {
             [events.CHAT_READ]: chatHandlers["chat-read"],
             [events.CHAT_TYPING]: chatHandlers["chat-typing"],
             [events.CHAT_CONVERSATION_UPDATED]: chatHandlers["chat-conversation-updated"],
+
+            // { user, friendship, previous } from my side: patch friends, invitations, counts and people search.
+            [events.FRIEND_UPDATED]: (change) => applyFriendChange(queryClient, change),
         },
         { onReconnect: refreshUserData }
     );

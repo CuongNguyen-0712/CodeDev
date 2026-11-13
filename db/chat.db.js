@@ -44,6 +44,22 @@ export const chatDb = {
     lockByDirectKey: (client, directKey) => one(client,
         `SELECT id::text AS id, public_id, kind FROM community.conversation WHERE direct_key = $1 FOR UPDATE`, [directKey]),
 
+    /**
+     * Friends skip the request box (friends rule 6): the pair's direct conversation, locked, has its pending or
+     * declined members accepted. Returns { conversationId, members: [publicId] } of the members changed, or null.
+     */
+    acceptDirectMembers: async (client, aDbId, bDbId) => {
+        const conversation = await one(client,
+            `SELECT id::text AS id, public_id FROM community.conversation
+             WHERE direct_key = LEAST($1::bigint, $2::bigint) || ':' || GREATEST($1::bigint, $2::bigint) FOR UPDATE`, [aDbId, bDbId]);
+        if (!conversation) return null;
+        const { rows } = await client.query(
+            `UPDATE community.conversation_member cm SET state = 'accepted' FROM identity.users u
+             WHERE cm.conversation_id = $1 AND u.id = cm.user_id AND cm.state IN ('pending', 'declined')
+             RETURNING u.public_id`, [conversation.id]);
+        return rows.length ? { conversationId: conversation.public_id, members: rows.map((r) => r.public_id) } : null;
+    },
+
     /** Read only (no lock): the public id of the direct conversation with this key, if any. */
     directPublicId: async (client, directKey) => (await one(client,
         `SELECT public_id FROM community.conversation WHERE direct_key = $1`, [directKey]))?.public_id ?? null,

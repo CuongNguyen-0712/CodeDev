@@ -101,4 +101,22 @@ export const userClient = {
         const res = await apiClient.get('/users', { params });
         return res.data;
     },
+
+    // { items, nextCursor }; ?search=&cursor=
+    getFriends: async (params) => {
+        const res = await apiClient.get('/friends', { params });
+        return res.data;
+    },
+
+    // ?direction=received|sent&cursor= -> { items, nextCursor }
+    getFriendInvitations: async (params) => {
+        const res = await apiClient.get('/friends/invitations', { params });
+        return res.data;
+    },
+
+    // { friends, received }
+    getFriendCounts: async () => {
+        const res = await apiClient.get('/friends/counts');
+        return res.data;
+    },
 };

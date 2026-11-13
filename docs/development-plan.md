@@ -87,7 +87,7 @@ Client: `hooks/usePusherChannel.js` (đếm tham chiếu kênh, tự refetch khi
 - **Bảng xếp hạng điểm** bằng Redis sorted set (`ZINCRBY` khi được cộng điểm), theo tuần / tháng / toàn thời gian.
 - **Presence trong thảo luận khóa học** (presence channel): ai đang học / đang gõ.
 - Bình luận: trả lời theo luồng, sửa/xóa, báo cáo vi phạm + kiểm duyệt (`comment-deleted` realtime).
-- **Chat** (`/messages`): đã làm (lõi): 1-1 với hộp yêu cầu và lõi hội thoại team (thiết kế: [spec](superpowers/specs/2026-11-11-chat-core-design.md), kế hoạch: [plan](superpowers/plans/2026-11-11-chat-core.md)). Còn lại: luồng bạn bè và luồng team (tạo / mời / rời nhóm trên giao diện), là sub-project 2 và 3.
+- **Chat** (`/messages`): đã làm (lõi): 1-1 với hộp yêu cầu và lõi hội thoại team (thiết kế: [spec](superpowers/specs/2026-11-11-chat-core-design.md), kế hoạch: [plan](superpowers/plans/2026-11-11-chat-core.md)). Luồng bạn bè đã làm (sub-project 2: trang `/contact` ba tab Find people / Friends / Invitations, mời / chấp nhận / từ chối / hủy / hủy kết bạn, thông báo `friend_request` và `friend_accepted`; thiết kế: [spec](superpowers/specs/2026-11-13-friends-design.md)). Còn lại: luồng team (tạo / mời / rời nhóm trên giao diện), là sub-project 3.
 
 ### 3.3 Học tập
 - **Chấm code phía server**: hiện `submitCoding` chấm dựa trên kết quả do trình duyệt báo về (`results`). Chuyển sang chạy test trong sandbox phía server (worker cô lập / Judge0 / container tạm) để kết quả và điểm không thể bị giả.

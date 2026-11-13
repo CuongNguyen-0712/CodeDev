@@ -1,6 +1,6 @@
 # Bạn bè — thiết kế
 
-Date: 2026-11-13. Status: approved 2026-11-13. Sub-project 2/3 của "message chat" (spec lõi: `2026-11-11-chat-core-design.md` §1). Sub-project 3 (team) làm sau, spec riêng.
+Date: 2026-11-13. Status: implemented 2026-11-13. Sub-project 2/3 của "message chat" (spec lõi: `2026-11-11-chat-core-design.md` §1). Sub-project 3 (team) làm sau, spec riêng.
 
 ## 1. Mục đích
 
@@ -47,7 +47,7 @@ Quyết định của người viết spec: phần bạn bè nằm trong **`serv
 
 ## 4. Dữ liệu
 
-Giữ nguyên bảng `community.friend`, không đổi enum. Migration `20261113_027_friend_indexes.sql` thay index theo mục 7.1 (Query): hai index ghép theo người gửi / người nhận, bỏ `idx_friend_receiver` vì thành tiền tố thừa.
+Giữ nguyên bảng `community.friend`, không đổi enum. Migration `20261113_027_friend_indexes.sql` thay index theo mục 7.1 (Query): hai index ghép theo người gửi / người nhận, bỏ `idx_friend_receiver` vì thành tiền tố thừa. Migration `20261113_028_friend_cleanup.sql` dọn dữ liệu cũ: xóa dòng của mọi cặp đang có chặn (theo chiều nào cũng vậy, cho khớp luật 5), điền `updated_at` còn NULL rồi đặt `NOT NULL` (phân trang Invitations theo `(updated_at, id)` hỏng khi gặp NULL), bỏ `idx_friend_sender` vì là tiền tố thừa của `idx_friend_sender_state`.
 
 Ý nghĩa của một dòng (cặp A–B):
 
@@ -71,13 +71,13 @@ Mọi thao tác ghi chạy trong một transaction, khóa dòng của cặp (`SE
    - `pending` do A gửi → không làm gì, trả trạng thái hiện tại (idempotent).
    - `pending` do B gửi → coi như A **chấp nhận** (luật 2).
    - `accepted` → 409 "Already friends".
-   - `rejected` hoặc `cancelled` → `UPDATE` thành `pending`, `sender = A`, `receiver = B`, `created_at = updated_at = now()`.
+   - `rejected` hoặc `cancelled` → `UPDATE` thành `pending`, `sender = A`, `receiver = B`, `updated_at = now()`; `created_at = now()`, trừ khi dòng `cancelled` do chính A gửi thì giữ `created_at` cũ (luật 7).
 2. **Chấp nhận / từ chối**: chỉ receiver của dòng `pending`. Chấp nhận → `accepted`; từ chối → `rejected`. Dòng không còn `pending` → 409.
 3. **Hủy lời mời**: chỉ sender của dòng `pending` → `cancelled`.
 4. **Hủy kết bạn**: một trong hai người của dòng `accepted` → xóa dòng. Hội thoại chat giữ nguyên trạng thái.
 5. **Chặn**: `chatService.block` xóa dòng của cặp (mọi trạng thái) trong cùng lần gọi. Bỏ chặn không khôi phục.
 6. **Khi thành bạn** (luật 1 nhánh "B đã mời" và luật 2): nếu cặp có hội thoại 1-1 (`direct_key`) mà một thành viên đang `pending` hoặc `declined` → chuyển thành `accepted` trong cùng transaction, rồi phát `chat-conversation-updated` cho thành viên đó để hộp thư và tab Requests cập nhật.
-7. **Thông báo theo từng lời mời** *(quyết định của người viết spec, sau builder check)*: `dedupeKey = <publicId người gửi>:<created_at của dòng, epoch ms>`. Mỗi lời mời mới (kể cả gửi lại sau khi bị từ chối / hủy / hủy kết bạn) báo một lần; bấm gửi lại khi đang `pending` không báo thêm (idempotent, `created_at` không đổi). Spam bị chặn bởi rate limit riêng (mục 6), và người nhận luôn có thể chặn. Thông báo cũ không bị xóa khi lời mời hết hiệu lực: chúng là lịch sử, link mở tab Invitations với trạng thái rỗng.
+7. **Thông báo theo từng lời mời** *(quyết định của người viết spec, sau builder check)*: `dedupeKey = <publicId người gửi>:<created_at của dòng, epoch ms>`. Mỗi lời mời mới (kể cả gửi lại sau khi bị từ chối, sau khi người kia hủy lời mời của họ, hay sau khi hủy kết bạn) báo một lần; bấm gửi lại khi đang `pending` không báo thêm (idempotent, `created_at` không đổi). Người gửi tự hủy rồi gửi lại cho cùng người nhận thì dòng giữ `created_at` cũ, nên `dedupeKey` trùng và không có thông báo mới (chặn vòng gửi → hủy → gửi spam người nhận). Gửi lại sau khi bị từ chối là lời mời mới: `created_at` mới, một thông báo mới. Spam còn bị chặn bởi rate limit riêng (mục 6), và người nhận luôn có thể chặn. Thông báo cũ không bị xóa khi lời mời hết hiệu lực: chúng là lịch sử, link mở tab Invitations với trạng thái rỗng.
 8. **Người kia không còn hoạt động** *(quyết định của người viết spec)*: mọi danh sách (Friends, Invitations, `/api/users`) chỉ hiện người `status = 'active'`. `show_profile` chỉ chặn việc **tìm thấy và mời mới**; bạn bè và lời mời đã có vẫn hiện dù người kia tắt "Show my profile". Trả lời / hủy / hủy kết bạn với người không còn `active` → 404; dòng friend giữ nguyên trong DB.
 9. **Sau hủy kết bạn hoặc chặn** *(quyết định của người viết spec)*: hội thoại 1-1 giữ trạng thái `accepted`; hai người vẫn nhắn được nếu không có chặn (chat đã kiểm tra chặn khi gửi). Mục đích của bạn bè là bỏ qua hộp chờ một lần, không phải giấy phép nhắn tin.
 10. **Thứ tự** *(quyết định của người viết spec)*: event `friend-updated`, `chat-conversation-updated` và thông báo chạy **sau commit**, best effort qua `after()` (`lib/runAfter.js`) như chat; lỗi realtime chỉ ghi log, không hoàn tác thao tác.
@@ -197,7 +197,7 @@ Trước task UI đầu tiên của plan: chạy `ui-consistency:finding-pattern
 
 ## 10. Việc ngoài code
 
-- Chạy migration 027 trên production (`npm run db:migrate:prod -- --yes`) trước khi deploy. Migration tạo index trên bảng `community.friend` gần như rỗng nên không khóa lâu.
+- Chạy migration 027 và 028 trên production (`npm run db:migrate:prod -- --yes`) trước khi deploy. Hai migration tạo / bỏ index và sửa dữ liệu trên bảng `community.friend` gần như rỗng nên không khóa lâu.
 - Không có biến môi trường mới.
 
 ## 11. Để người làm tự quyết
