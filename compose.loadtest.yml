@@ -37,13 +37,19 @@ services:
       - ./tests/loadtest:/data
     networks: [backend, monitoring]
 
-  # The app under test: fixed size, staging behaviour. Its env file is .env.loadtest, selected by
+  # The app under test: fixed size. Its env file is .env.loadtest, selected by
   # CODEDEV_ENV_FILE inside .env.loadtest itself (compose reads it from --env-file).
   app:
+    build:
+      # `next build` prerenders roadmap pages from the database: give it the seeded base DB through the host port.
+      args:
+        BUILD_DATABASE_URL: postgres://postgres:${POSTGRES_LOAD_PASSWORD}@host.docker.internal:${POSTGRES_LOAD_PORT:-5433}/loadtest_base
     cpus: 1
     mem_limit: 2g
     environment:
-      APP_ENV: staging
+      # development, not staging: lib/envCheck.mjs makes staging fatal with MinIO storage and an http NEXTAUTH_URL.
+      APP_ENV: development
+      LESSON_CONTENT_SOURCE: sanity
 
   # k6 pushes its metrics here (docs/docker.md monitoring stack).
   prometheus:
