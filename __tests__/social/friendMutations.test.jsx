@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { createElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,7 +11,7 @@ vi.mock("@/lib/actionResult", () => ({ callAction: (run) => run() }));
 const connected = vi.hoisted(() => ({ value: true }));
 vi.mock("@/lib/pusherClient", () => ({ isPusherConnected: () => connected.value }));
 
-import { respondFriendRequestAction, sendFriendRequestAction } from "@/actions/social.actions";
+import { cancelFriendRequestAction, respondFriendRequestAction, sendFriendRequestAction } from "@/actions/social.actions";
 import { friendKeys } from "@/keys/friend.keys";
 import { userKeys } from "@/keys/user.keys";
 import { applyFriendChange } from "@/lib/social/friendCache";
@@ -88,5 +88,37 @@ describe("useFriendAction", () => {
         await act(async () => { await result.current.send.mutateAsync("cat"); });
         expect(friendshipOf("cat")).toBe("sent");
         expect(qc.getQueryState(friendKeys.counts()).isInvalidated).toBe(true);
+    });
+
+    it("a later action does not drop the recovery refetch, nor an in-flight counts refetch", async () => {
+        const invitationsFn = vi.fn()
+            .mockImplementationOnce(() => new Promise(() => { })) // cancelled by the next action
+            .mockResolvedValue({ items: [person("bob"), person("dan")], nextCursor: null });
+        let settleCounts;
+        const countsFn = vi.fn(() => new Promise((resolve) => { settleCounts = resolve; }));
+        const { result } = renderHook(() => {
+            useInfiniteQuery({
+                queryKey: friendKeys.invitations("received"), queryFn: invitationsFn,
+                initialPageParam: null, getNextPageParam: () => undefined, staleTime: Infinity,
+            });
+            useQuery({ queryKey: friendKeys.counts(), queryFn: countsFn, staleTime: Infinity });
+            return useFriendAction();
+        }, { wrapper });
+
+        act(() => { result.current.respond.mutate({ userId: "bob", accept: true }); });
+        await vi.waitFor(() => expect(friendshipOf("bob")).toBe("friends"));
+        await act(async () => { fail(); await vi.waitFor(() => expect(result.current.respond.isError).toBe(true)); });
+        await vi.waitFor(() => expect(invitationsFn).toHaveBeenCalledTimes(1));
+        expect(countsFn).toHaveBeenCalledTimes(1);
+
+        cancelFriendRequestAction.mockResolvedValue({ friendship: null, user: person("cat") });
+        await act(async () => { await result.current.cancel.mutateAsync("cat"); });
+
+        await vi.waitFor(() => expect(qc.getQueryState(friendKeys.invitations("received")).isInvalidated).toBe(false));
+        expect(invitationsFn).toHaveBeenCalledTimes(2);
+        expect(qc.getQueryState(friendKeys.counts()).fetchStatus).toBe("fetching");
+        await act(async () => { settleCounts({ friends: 1, received: 2 }); });
+        await vi.waitFor(() => expect(qc.getQueryState(friendKeys.counts()).isInvalidated).toBe(false));
+        expect(countsFn).toHaveBeenCalledTimes(1);
     });
 });

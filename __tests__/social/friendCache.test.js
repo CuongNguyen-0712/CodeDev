@@ -16,16 +16,19 @@ const ids = (data) => data.pages.map((p) => p.items.map((u) => u.id));
 const change = (id, friendship, previous, username = id) => ({ user: person(id, username), friendship, previous });
 
 describe("patchFriendList", () => {
-    it("inserts a new friend in username order inside the loaded range", () => {
+    it("inserts a new friend in username order into a fully loaded list", () => {
         const data = pagesOf([person("amy"), person("cat")], [person("dan")]);
         const snapshot = JSON.stringify(data);
         expect(ids(patchFriendList(data, change("bob", "friends", "received")))).toEqual([["amy", "bob", "cat"], ["dan"]]);
+        expect(ids(patchFriendList(data, change("zed", "friends", "sent")))).toEqual([["amy", "cat"], ["dan", "zed"]]);
+        expect(ids(patchFriendList(pagesOf([]), change("bob", "friends", "sent")))).toEqual([["bob"]]);
         expect(JSON.stringify(data)).toBe(snapshot);
     });
-    it("appends past the last row only when every page is loaded", () => {
-        expect(ids(patchFriendList(pagesOf([person("amy")]), change("zed", "friends", "sent")))).toEqual([["amy", "zed"]]);
-        const partial = { ...pagesOf([person("amy")]), pages: [{ items: [person("amy")], nextCursor: "c0" }] };
+    it("returns null when a page is left to load, even inside the loaded range", () => {
+        const partial = { pages: [{ items: [person("amy"), person("cat")], nextCursor: "c0" }], pageParams: [null] };
+        expect(patchFriendList(partial, change("bob", "friends", "received"))).toBeNull();
         expect(patchFriendList(partial, change("zed", "friends", "sent"))).toBeNull();
+        expect(ids(patchFriendList(partial, change("amy", null, "friends")))).toEqual([["cat"]]);
     });
     it("leaves a searched list alone when the new friend does not match the search", () => {
         const data = pagesOf([person("amy")]);

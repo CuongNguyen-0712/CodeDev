@@ -42,7 +42,11 @@ function useFriendWrite(action, next) {
         onMutate: async (input) => {
             const found = findPerson(queryClient, input?.userId ?? input);
             if (!found) return null;
-            await Promise.all([queryClient.cancelQueries({ queryKey: friendKeys.all }), queryClient.cancelQueries({ queryKey: USERS })]);
+            // Counts are never written here: their in-flight refetch may finish.
+            await Promise.all([
+                queryClient.cancelQueries({ queryKey: friendKeys.all, predicate: (q) => q.queryKey[1] !== "counts" }),
+                queryClient.cancelQueries({ queryKey: USERS }),
+            ]);
             const change = { user: found.user, friendship: next(input, found.previous), previous: found.previous };
             applyFriendChange(queryClient, change, { counts: false });
             return change;
@@ -64,6 +68,12 @@ function useFriendWrite(action, next) {
             applyFriendChange(queryClient, { user, friendship }, { counts: false });
             // No socket, no echo: refetch the tab numbers instead.
             if (!isPusherConnected()) queryClient.invalidateQueries({ queryKey: friendKeys.counts() });
+        },
+        // onMutate cancels in-flight refetches (an earlier error's recovery among them): restart the ones still due.
+        onSettled: () => {
+            const due = { predicate: (q) => q.state.isInvalidated };
+            queryClient.invalidateQueries({ queryKey: friendKeys.all, ...due }, { cancelRefetch: false });
+            queryClient.invalidateQueries({ queryKey: USERS, ...due }, { cancelRefetch: false });
         },
     });
 }
