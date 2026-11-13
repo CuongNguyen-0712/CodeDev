@@ -12,50 +12,22 @@ import zlib from "node:zlib";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import { STAGE_MS, STAGE_VUS, THRESHOLDS } from "../../loadtest/k6/lib/pure.js";
-import { addPoint, bottlenecks, computeN, percentile, runValidity } from "./reportPure.mjs";
+import { bottlenecks, computeN, finishFold, foldLine, newFold, percentile, runValidity, RAMP_MS } from "./reportPure.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const RAMP_MS = 10000;
 const WATCHED = ['"metric":"http_req_duration"', '"metric":"failed_requests"', '"metric":"limited"'];
 
 const readJson = (f, fallback) => (fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : fallback);
 const fmt = (x, d = 0) => (Number.isFinite(x) ? x.toFixed(d) : "n/a");
 const cell = (s) => String(s).replace(/\s+/g, " ").replace(/\|/g, "\\|").replace(/`/g, "'");
 
-async function readK6(file, hold) {
-    const stages = new Map();
-    const journeys = {};
-    const zeroPoints = new Map(); // "<stage>|<key>" -> failed_requests value-0 points
-    let t0 = null;
+async function readK6(file, opts) {
+    const st = newFold();
     const rl = readline.createInterface({ input: fs.createReadStream(file).pipe(zlib.createGunzip()), crlfDelay: Infinity });
     for await (const line of rl) {
-        if (!WATCHED.some((w) => line.includes(w)) || line.includes('"type":"Metric"')) continue;
-        const { metric, data } = JSON.parse(line);
-        const tags = data.tags ?? {};
-        if (tags.stage === undefined || !tags.class) continue; // setup traffic carries no stage tag
-        const time = Date.parse(data.time);
-        t0 ??= time; // scenario start ~ first tagged point (the first request happens within ms of it)
-        const stage = hold ? Number(tags.stage) : 0;
-        if (hold && time - t0 - stage * STAGE_MS < RAMP_MS) continue; // ramp-up is not steady state
-        const base = { stage, cls: tags.class, endpoint: tags.endpoint };
-        if (metric === "http_req_duration") addPoint(stages, { ...base, ms: data.value, outcome: null });
-        else if (metric === "limited") addPoint(stages, { ...base, ms: null, outcome: "limited" });
-        else {
-            journeys[tags.journey] = (journeys[tags.journey] ?? 0) + 1;
-            if (data.value) addPoint(stages, { ...base, ms: null, outcome: "error" });
-            else {
-                const k = `${stage}|${base.cls} ${base.endpoint}`;
-                zeroPoints.set(k, (zeroPoints.get(k) ?? 0) + 1);
-            }
-        }
+        if (WATCHED.some((w) => line.includes(w))) foldLine(st, line, opts);
     }
-    // One failed_requests point per request: the value-0 ones minus the 429s (already counted as "limited") are "ok".
-    for (const [k, v0] of zeroPoints) {
-        const i = k.indexOf("|");
-        const s = stages.get(Number(k.slice(0, i)));
-        s.total += Math.max(0, v0 - (s.limitedBy.get(k.slice(i + 1)) ?? 0));
-    }
-    return { stages, journeys };
+    return finishFold(st);
 }
 
 function table(head, rows) {
@@ -73,7 +45,7 @@ export async function buildReport(runDir) {
     const meta = readJson(path.join(runDir, "meta.json"));
     if (!meta) throw new Error(`no meta.json in ${runDir}`);
     const stress = meta.profile === "stress";
-    const { stages, journeys } = await readK6(path.join(runDir, "k6.json.gz"), stress);
+    const { stages, journeys } = await readK6(path.join(runDir, "k6.json.gz"), { hold: stress, maxVus: meta.maxVus });
     const samplesFile = path.join(runDir, "samples.ndjson");
     const samples = fs.existsSync(samplesFile) ? fs.readFileSync(samplesFile, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
     const statements = readJson(path.join(runDir, "statements.json"), []);
@@ -95,7 +67,7 @@ export async function buildReport(runDir) {
         out.push(r.breakStage === null
             ? "No threshold broke before the run ended (the real limit is above the last stage; raise --max-vus)."
             : `First break at stage ${r.breakStage} (${(r.breakStage + 1) * STAGE_VUS} VUs): ${r.reason}.`);
-        out.push("", `Thresholds: read p95 <= ${THRESHOLDS.readP95} ms, write p95 <= ${THRESHOLDS.writeP95} ms, error rate <= ${THRESHOLDS.errorRate * 100}% (HTTP 429 is not an error). N is the highest stage where every stage up to it passes.`,
+        out.push("", `Thresholds: read p95 < ${THRESHOLDS.readP95} ms, write p95 < ${THRESHOLDS.writeP95} ms, error rate < ${THRESHOLDS.errorRate * 100}% (HTTP 429 is not an error). A stage passes only strictly below each limit; N is the highest stage where every stage up to it passes. Requests after the scheduled end (VUs finishing their last iteration) are dropped.`,
             `Only the hold window is measured: points in the first ${RAMP_MS / 1000} s of each ${STAGE_MS / 1000} s stage (the ramp) are ignored, so N is read at a steady VU level. Stage start = first tagged k6 point + stage x ${STAGE_MS / 1000} s.`, "");
         out.push(table(["stage", "VUs", "reads", "read p95 ms", "writes", "write p95 ms", "requests", "error %", "429"],
             [...stages.keys()].sort((a, b) => a - b).map((k) => {

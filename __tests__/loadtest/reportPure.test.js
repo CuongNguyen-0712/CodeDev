@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { THRESHOLDS } from "../../loadtest/k6/lib/pure.js";
-import { aggregateStages, bottlenecks, computeN, percentile, runValidity } from "../../scripts/loadtest/reportPure.mjs";
+import { aggregateStages, bottlenecks, computeN, finishFold, foldLine, newFold, percentile, runValidity } from "../../scripts/loadtest/reportPure.mjs";
 
 const pts = (stage, cls, ms, n, outcome = "ok") => Array.from({ length: n }, () => ({ stage, cls, endpoint: "/x", ms, outcome }));
 
@@ -31,4 +31,59 @@ it("uses nearest-rank percentiles and counts outcome-only points without latency
     const [s] = aggregateStages([{ stage: 0, cls: "read", endpoint: "/x", ms: 10, outcome: null }, { stage: 0, cls: "read", endpoint: "/x", ms: null, outcome: "error" }]).values();
     expect(s).toMatchObject({ total: 1, errors: 1 });
     expect(s.read).toEqual([10]);
+});
+
+it("breaks exactly at the limit: p95 800 ms read, 1500 ms write, 1.0% errors", () => {
+    expect(computeN(aggregateStages(pts(0, "read", 800, 10)), THRESHOLDS)).toEqual({ n: null, breakStage: 0, reason: "read p95 800 ms >= 800" });
+    expect(computeN(aggregateStages(pts(0, "write", 1500, 10)), THRESHOLDS).reason).toBe("write p95 1500 ms >= 1500");
+    const onePct = aggregateStages([...pts(0, "read", 100, 99), ...pts(0, "read", 100, 1, "error")]);
+    expect(computeN(onePct, THRESHOLDS)).toMatchObject({ n: null, breakStage: 0 });
+});
+
+// k6 NDJSON lines; the scenario starts at t=0 (first tagged point).
+const T0 = Date.parse("2026-11-14T00:00:00Z");
+const line = (metric, atMs, value, stage, extra = {}) =>
+    JSON.stringify({ metric, type: "Point", data: { time: new Date(T0 + atMs).toISOString(), value, tags: { class: "read", endpoint: "/x", journey: "learner", stage: String(stage), ...extra } } });
+const fold = (lines, opts) => {
+    const st = newFold();
+    lines.forEach((l) => foldLine(st, l, opts));
+    return finishFold(st);
+};
+const stress = { hold: true, maxVus: 100 }; // 2 stages: 0 and 1
+
+it("fold drops the ramp and the tail past the last stage, caps vus at maxVus", () => {
+    const { stages } = fold([
+        line("http_req_duration", 0, 5, 0), // t0 and ramp
+        line("http_req_duration", 9000, 5, 0), // ramp
+        line("http_req_duration", 10000, 300, 0), // kept
+        line("http_req_duration", 130000, 7, 1), // stage 1 ramp (120 s + 10 s edge is kept; 129 s is not)
+        line("http_req_duration", 129000, 7, 1), // ramp
+        line("http_req_duration", 250000, 9, 2), // tail: stage 2 never ran
+    ], stress);
+    expect([...stages.keys()].sort()).toEqual([0, 1]);
+    expect(stages.get(0).read).toEqual([300]);
+    expect(stages.get(1).read).toEqual([7]);
+    const odd = fold([line("http_req_duration", 10000, 1, 0), line("http_req_duration", 140000, 1, 1)], { hold: true, maxVus: 70 });
+    expect(odd.stages.get(1).vus).toBe(70);
+});
+
+it("fold counts a 429 as limited and not ok, and a retry as 2 latency samples but 1 outcome", () => {
+    const { stages } = fold([
+        line("http_req_duration", 0, 1, 0), // sets t0 (ramp, dropped)
+        line("http_req_duration", 20000, 10, 0),
+        line("failed_requests", 20001, 0, 0), // ok request
+        line("http_req_duration", 21000, 10, 0),
+        line("failed_requests", 21001, 0, 0),
+        line("limited", 21001, 1, 0), // 429: also a value-0 failed_requests point
+        line("http_req_duration", 22000, 10, 0), // refresh + retry: 2 samples
+        line("http_req_duration", 22100, 10, 0),
+        line("failed_requests", 22101, 1, 0), // 1 outcome: error
+    ], stress);
+    expect(stages.get(0)).toMatchObject({ total: 3, errors: 1, limited: 1 });
+    expect(stages.get(0).read).toHaveLength(4);
+});
+
+it("fold pools every point of a non-stress run into stage 0, ramp included", () => {
+    const { stages } = fold([line("http_req_duration", 0, 5, 3), line("http_req_duration", 500000, 6, 9)], { hold: false, maxVus: 5 });
+    expect(stages.get(0).read).toEqual([5, 6]);
 });
