@@ -77,6 +77,19 @@ describe.skipIf(!hasDb)("friend side effects", () => {
         expect(secondKey).not.toBe(firstKey);
     });
 
+    it("send, cancel, send by the same sender notifies once in total (created_at is kept)", async () => {
+        const [a, b] = await pair();
+        await send(a, b);
+        const first = await createdAtMs(a, b);
+        await socialService.cancel({ userId: a, targetId: b });
+        await new Promise((r) => setTimeout(r, 5)); // now() has moved on
+        await send(a, b);
+        expect(await createdAtMs(a, b)).toBe(first);
+        // Both calls carry the same dedupeKey, so notificationDb inserts one row only.
+        const keys = notify.mock.calls.map(([, { dedupeKey }]) => dedupeKey);
+        expect(new Set(keys)).toEqual(new Set([`${a}:${first}`]));
+    });
+
     it("accept notifies the original sender", async () => {
         const [a, b] = await pair();
         await send(a, b);

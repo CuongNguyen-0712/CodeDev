@@ -152,9 +152,13 @@ export const socialDb = {
         `INSERT INTO community.friend (sender_id, receiver_id, status) VALUES ($1, $2, 'pending')
          ON CONFLICT ((LEAST(sender_id, receiver_id)), (GREATEST(sender_id, receiver_id))) DO NOTHING`, [senderDbId, receiverDbId]),
 
-    /** A new invitation on an old rejected / cancelled row: new sender, new created_at (returned). */
+    /**
+     * A new invitation on an old rejected / cancelled row: new sender, new created_at (returned).
+     * The sender resending their own cancelled invitation keeps created_at, so its notification dedupeKey repeats (rule 7).
+     */
     resetPending: async (client, id, senderDbId, receiverDbId) => (await client.query(
-        `UPDATE community.friend SET sender_id = $2, receiver_id = $3, status = 'pending', created_at = now(), updated_at = now()
+        `UPDATE community.friend SET sender_id = $2, receiver_id = $3, status = 'pending', updated_at = now(),
+                created_at = CASE WHEN status = 'cancelled' AND sender_id = $2 THEN created_at ELSE now() END
          WHERE id = $1 RETURNING created_at`, [id, senderDbId, receiverDbId])).rows[0].created_at,
 
     setStatus: (client, id, status) => client.query(
