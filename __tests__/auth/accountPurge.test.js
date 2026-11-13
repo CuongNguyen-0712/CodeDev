@@ -85,8 +85,8 @@ describe.skipIf(!hasDb)("never-verified account purge (PostgreSQL)", () => {
         const { emailVerificationService } = await import("@/services/emailVerification.service");
         await emailVerificationService.remind(user.publicId, "lock");
         expect(sent[0].subject).toMatch(/^Verify your email by .+ to keep using CodeDev$/);
-        expect(sent[0].text).toContain("you need to verify before you can use your account");
-        expect(sent[0].text).toMatch(/are deleted, with all their data, on .+\./);
+        expect(sent[0].text).toContain("your account is locked until you verify");
+        expect(sent[0].text).toMatch(/we delete your account and all its data on .+\./);
     });
 
     it("reminds once, 2 days before the deletion", async () => {

@@ -94,7 +94,9 @@ describe.skipIf(!hasDb)("account linking (PostgreSQL)", () => {
         expect(state.rows[0]).toMatchObject({ email_verified: true, purge_after: null });
         expect(state.rows[0].revoked_at).not.toBeNull();
         expect(await authService.getSessionStatus(session.sessionId)).toBeNull();
-        expect(sent.at(-1).text).toContain("Your password was changed");
+        expect(sent.at(-1).text).toContain("We changed your password");
+        expect(sent.at(-1).text).toMatch(/on \d{1,2} \w{3} \d{4}, \d{2}:\d{2} UTC/);
+        expect(sent.at(-1).html).toContain("/settings#settings-signin");
 
         // The new session: the new password signs in (login needs a role, as every real user has).
         await sql(`INSERT INTO identity.user_roles (user_id, role_id) VALUES ($1, public.default_role_id())`, [user.id]);
