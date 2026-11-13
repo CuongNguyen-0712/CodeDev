@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { THRESHOLDS } from "../../loadtest/k6/lib/pure.js";
-import { aggregateStages, bottlenecks, computeN, finishFold, foldLine, newFold, percentile, runValidity, stageAtVus } from "../../scripts/loadtest/reportPure.mjs";
+import { aggregateStages, bottlenecks, computeN, finishFold, foldLine, newFold, percentile, runValidity, stageAtVus, inWindow } from "../../scripts/loadtest/reportPure.mjs";
 
 const pts = (stage, cls, ms, n, outcome = "ok") => Array.from({ length: n }, () => ({ stage, cls, endpoint: "/x", ms, outcome }));
 
@@ -97,4 +97,14 @@ it("with maxVus 70 and both stages passing, N is 70 and its stage index is 1", (
     expect(computeN(stages, THRESHOLDS)).toEqual({ n: 70, breakStage: null, reason: null });
     expect(stageAtVus(stages, 70)).toBe(1);
     expect(stageAtVus(stages, null)).toBeNull();
+});
+
+it("judges validity only inside the k6 window: busy setup ignored, busy test minute counted", () => {
+    const st = fold([line("http_req_duration", 0, 1, 0), line("http_req_duration", 180000, 1, 1)], stress);
+    const cpuAt = (ms, cpu) => ({ t: T0 + ms, cpu });
+    const setup = Array.from({ length: 24 }, (_, i) => cpuAt(-120000 + i * 5000, 90)); // before t0
+    const quiet = Array.from({ length: 36 }, (_, i) => cpuAt(i * 5000, 20));
+    expect(runValidity(inWindow([...setup, ...quiet], st))).toEqual({ valid: true, worstMinuteCpu: 20 });
+    const busy = Array.from({ length: 12 }, (_, i) => cpuAt(60000 + i * 5000, 85));
+    expect(runValidity(inWindow([...setup, ...quiet.slice(0, 12), ...busy], st)).valid).toBe(false);
 });

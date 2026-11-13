@@ -21,8 +21,8 @@ Endpoint table below is for the break stage (no N).
 
 ## Run validity
 
-**INVALID**: worst 1-minute mean host CPU of the load machine 88.6% (limit 80%). The load generator was saturated, so latencies may reflect it, not the app.
-k6 container peak CPU: 1301.8% (informational; docker percent, 100 = one core).
+Valid: worst 1-minute mean host CPU of the load machine during the k6 test window (setup and VU initialisation excluded) 26.7% (limit 80%).
+k6 container peak CPU: 17.5% (informational; docker percent, 100 = one core).
 k6 exit code: 99.
 
 ## Latency by endpoint

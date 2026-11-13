@@ -96,8 +96,11 @@ export function runValidity(hostSamples) {
 // (`hold`) drops the ramp (first RAMP_MS of each stage) and the tail: the run ends at S x STAGE_MS,
 // but VUs finish their iteration (gracefulStop) and keep sending requests tagged stage S, a level
 // that never ran. Non-stress profiles pool everything into stage 0.
+// Samples taken while k6 was measuring: setup and VU initialisation before the first tagged point are not the test.
+export const inWindow = (samples, st) => (st.t0 === null ? samples : samples.filter((x) => x.t >= st.t0 && x.t <= st.tEnd));
+
 export const RAMP_MS = 10000;
-export const newFold = () => ({ stages: new Map(), journeys: {}, zeroPoints: new Map(), t0: null });
+export const newFold = () => ({ stages: new Map(), journeys: {}, zeroPoints: new Map(), t0: null, tEnd: null });
 
 export function foldLine(st, line, { hold, maxVus }) {
     const { metric, type, data } = JSON.parse(line);
@@ -108,6 +111,7 @@ export function foldLine(st, line, { hold, maxVus }) {
     st.t0 ??= time; // scenario start ~ first tagged point
     const stage = hold ? Number(tags.stage) : 0;
     if (hold && (stage >= Math.ceil(maxVus / STAGE_VUS) || time - st.t0 - stage * STAGE_MS < RAMP_MS)) return;
+    st.tEnd = Math.max(st.tEnd ?? time, time); // last kept point
     const base = { stage, cls: tags.class, endpoint: tags.endpoint };
     const cap = hold ? maxVus : undefined;
     if (metric === "http_req_duration") addPoint(st.stages, { ...base, ms: data.value, outcome: null }, cap);

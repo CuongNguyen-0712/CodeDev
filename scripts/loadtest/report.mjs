@@ -12,7 +12,7 @@ import zlib from "node:zlib";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import { STAGE_MS, THRESHOLDS } from "../../loadtest/k6/lib/pure.js";
-import { bottlenecks, computeN, finishFold, foldLine, newFold, percentile, runValidity, stageAtVus, RAMP_MS } from "./reportPure.mjs";
+import { bottlenecks, computeN, finishFold, foldLine, newFold, inWindow, percentile, runValidity, stageAtVus, RAMP_MS } from "./reportPure.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const WATCHED = ['"metric":"http_req_duration"', '"metric":"failed_requests"', '"metric":"limited"'];
@@ -45,11 +45,12 @@ export async function buildReport(runDir) {
     const meta = readJson(path.join(runDir, "meta.json"));
     if (!meta) throw new Error(`no meta.json in ${runDir}`);
     const stress = meta.profile === "stress";
-    const { stages, journeys } = await readK6(path.join(runDir, "k6.json.gz"), { hold: stress, maxVus: meta.maxVus });
+    const fold = await readK6(path.join(runDir, "k6.json.gz"), { hold: stress, maxVus: meta.maxVus });
+    const { stages, journeys } = fold;
     const samplesFile = path.join(runDir, "samples.ndjson");
     const samples = fs.existsSync(samplesFile) ? fs.readFileSync(samplesFile, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
     const statements = readJson(path.join(runDir, "statements.json"), []);
-    const host = samples.filter((s) => s.kind === "host");
+    const host = inWindow(samples.filter((s) => s.kind === "host"), fold);
     const docker = samples.filter((s) => s.kind === "docker");
     const db = samples.filter((s) => s.kind === "db");
     const peak = (list, f) => (list.length ? Math.max(...list.map(f)) : NaN);
@@ -88,8 +89,8 @@ export async function buildReport(runDir) {
         atN = stages.get(0);
     }
 
-    out.push("## Run validity", "", `${validity.valid ? "Valid" : "**INVALID**"}: worst 1-minute mean host CPU of the load machine ${validity.worstMinuteCpu}% (limit 80%).${validity.valid ? "" : " The load generator was saturated, so latencies may reflect it, not the app."}`,
-        `k6 container peak CPU: ${fmt(dockerPeak(/^k6-/, (s) => s.cpu), 1)}% (informational; docker percent, 100 = one core).`, `k6 exit code: ${meta.k6ExitCode}.`, "");
+    out.push("## Run validity", "", `${validity.valid ? "Valid" : "**INVALID**"}: worst 1-minute mean host CPU of the load machine during the k6 test window (setup and VU initialisation excluded) ${validity.worstMinuteCpu}% (limit 80%).${validity.valid ? "" : " The load generator was saturated, so latencies may reflect it, not the app."}`,
+        `k6 container peak CPU: ${fmt(peak(inWindow(docker.filter((s) => /^k6-/.test(s.name)), fold), (s) => s.cpu), 1)}% (informational; docker percent, 100 = one core).`, `k6 exit code: ${meta.k6ExitCode}.`, "");
 
     out.push("## Latency by endpoint", "");
     const rows = atN ? endpointRows(atN) : [];
