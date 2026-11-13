@@ -1,6 +1,6 @@
 # Đo khả năng chịu tải — thiết kế
 
-Date: 2026-11-13. Status: chờ duyệt.
+Date: 2026-11-13. Status: implemented (local).
 
 ## 1. Mục đích
 
@@ -91,7 +91,7 @@ Mọi thao tác tạo/xoá nhánh, đổi CU, chạy migration trên Neon đều
 - Tỷ lệ dữ liệu (bao nhiêu khoá/user, bao nhiêu giao dịch) là giả định, ghi rõ trong output của script và trong báo cáo.
 - Ghi dữ liệu bằng SQL/hàm DB có sẵn (`db/*.db.js`, SQL function) khi hợp lý, để trigger và counter đúng như thật.
 
-`scripts/loadtest/sessions.mjs --env <env> --count <k>`: với k user `lt_`, tạo row session + refresh token bằng `sessionDb`, mã hoá session JWT bằng `encodeAuthJwt` đúng shape mà callback `jwt` của next-auth tạo ra, ghi `tests/loadtest/sessions.json` (git-ignored) gồm cookie session + refresh cookie. Chạy lại trước mỗi lần chạy tải, trên đúng DB của lần chạy đó (`loadtest_run` local hoặc nhánh run Neon), dùng cùng `NEXTAUTH_SECRET` với app. Refresh token dùng lại sẽ làm `db/session.db.js` thu hồi session, nên mỗi VU giữ một session riêng và giữ cookie giữa các vòng lặp.
+`scripts/loadtest/sessions.mjs --env <env> --base <url> --count <k>`: với k user `lt_` đã seed, **đăng nhập thật qua HTTP** (`/api/auth/csrf` rồi `/api/auth/callback/credentials`, mỗi user một `x-forwarded-for` riêng) và lưu cookie session + refresh nhận được vào `tests/loadtest/sessions.json` (git-ignored). Không tự mã hoá JWT: cách này không phải sao chép shape token và dùng đúng cấu hình app. Mật khẩu chung là `LOADTEST_PASSWORD` trong env file. Refresh token chỉ dùng được một lần (dùng lại thì `db/session.db.js` thu hồi session), nên `load:run` mint session mới mỗi lần chạy, trên đúng app của lần chạy đó (`loadtest_run` local hoặc nhánh run Neon). Số session ≤ số user đã seed; mỗi VU giữ một session riêng và giữ cookie giữa các vòng lặp (k6 ném lỗi nếu VU nhiều hơn session).
 
 Session hết access sau 15 phút: VU xử lý như trình duyệt — gặp 401/redirect thì gọi `/api/auth/refresh` với refresh cookie rồi thử lại. Tải refresh vì thế cũng được đo, như production.
 
@@ -100,7 +100,7 @@ Session hết access sau 15 phút: VU xử lý như trình duyệt — gặp 401
 ### 5.3 App local
 
 - **DB**: service mới `postgres-load` trong `compose.yml`, profile `loadtest`, image `postgres:16` (cùng major với Neon), cổng host `5433` để không đụng DB dev `localhost:5432/codedev`. Giới hạn `cpus: 1`, `mem_limit: 4g`. Bật `shared_preload_libraries=pg_stat_statements` và `max_connections` bằng Neon (225). Volume riêng.
-- Build và chạy bằng `compose.yml` profile `app` với `CODEDEV_ENV_FILE=.env.loadtest`, `APP_ENV=staging`. `.env.loadtest` (git-ignored) trỏ `DATABASE_URL` vào `postgres-load/loadtest_run` (driver `pg` tự chọn theo host), Redis local, MinIO local, Mailpit, Pusher/Beams rỗng, Cloudinary rỗng.
+- Build và chạy bằng `compose.yml` profile `app` với `CODEDEV_ENV_FILE=.env.loadtest`, `APP_ENV=development` (không phải staging: `lib/envCheck.mjs` coi staging là lỗi chết khi dùng MinIO/storage local và `NEXTAUTH_URL` http; staging thật chỉ đo ở pha Vercel). Cổng host của app theo `APP_PORT` (máy chạy đặt 3100 vì dev server giữ 3000), của `postgres-load` theo `POSTGRES_LOAD_PORT` (mặc định 5433, máy chạy 5435); script đọc cổng từ env file. `minio` được bật cùng app (`run.mjs`). Build cần `BUILD_DATABASE_URL` vì prerender đọc DB; `compose.loadtest.yml` trỏ nó vào `loadtest_base`. `.env.loadtest` (git-ignored) trỏ `DATABASE_URL` vào `postgres-load/loadtest_run` (driver `pg` tự chọn theo host), Redis local, MinIO local, Mailpit, Pusher/Beams rỗng, Cloudinary rỗng.
 - Giới hạn container app **1 vCPU / 2 GB** (gần một function Vercel) để N là con số "mỗi instance" có nghĩa.
 - Code runner: `sandbox-gateway` của compose như hiện tại.
 - Realtime (Pusher) không đo ở local; đo ở pha Vercel.
@@ -116,8 +116,8 @@ Thư mục `loadtest/k6/`. Chạy: `docker run --rm -v ./loadtest:/scripts -v ./
 
 | Hành trình | Tỷ lệ | Thao tác chính |
 |---|---|---|
-| Khách (không đăng nhập) | 30% | trang chủ, danh sách khoá, chi tiết khoá, roadmap, ranking |
-| Học viên | 50% | `me`, khoá của tôi, mở lesson, nộp quiz, đăng ký khoá, ranking của tôi |
+| Khách (không đăng nhập) | 30% | trang chủ, danh sách khoá, chi tiết khoá, roadmap (ranking cần đăng nhập nên không thuộc khách) |
+| Học viên | 50% | `me`, khoá của tôi, mở lesson, nộp quiz, đăng ký khoá, ranking (`/ranking`, `/api/ranking`) và ranking của tôi |
 | Xã hội | 15% | danh sách bạn, gửi/chấp nhận lời mời, danh sách chat, gửi tin |
 | Lập trình | 5% | nộp code run, poll tới khi xong |
 
