@@ -101,9 +101,11 @@ describe.skipIf(!hasDb)("friend side effects", () => {
         await send(a, b);
         notify.mockClear();
         await respond(b, a, false);
+        expect(notify).not.toHaveBeenCalled();
         await send(b, a);
         notify.mockClear();
         await socialService.cancel({ userId: b, targetId: a });
+        expect(notify).not.toHaveBeenCalled();
         await send(a, b);
         await respond(b, a, true);
         notify.mockClear();
