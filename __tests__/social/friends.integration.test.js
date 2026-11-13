@@ -182,6 +182,58 @@ describe.skipIf(!hasDb)("friend requests (PostgreSQL)", () => {
         await expect(send(a, b)).rejects.toMatchObject({ status: 409, message: "Already friends" });
     });
 
+    const statesOf = async (conversationId) => (await sql(
+        `SELECT u.public_id, m.state FROM community.conversation_member m
+         JOIN community.conversation c ON c.id = m.conversation_id JOIN identity.users u ON u.id = m.user_id
+         WHERE c.public_id = $1`, [conversationId])).rows.reduce((acc, r) => ({ ...acc, [r.public_id]: r.state }), {});
+    const chat = async (from, to) => (await chatService.send({ userId: from, toUserId: to, clientId: crypto.randomUUID(), body: "hi" })).conversation.id;
+
+    it("blocking removes the friendship in any state", async () => {
+        for (const make of [
+            async (a, b) => send(a, b),
+            async (a, b) => { await send(a, b); await respond(b, a, true); },
+            async (a, b) => { await send(a, b); await respond(b, a, false); },
+        ]) {
+            const [a, b] = await pair();
+            await make(a, b);
+            expect(await rowsOf(a, b)).toHaveLength(1);
+            expect(await chatService.block({ userId: b, targetId: a })).toEqual({ blocked: true });
+            expect(await rowsOf(a, b)).toHaveLength(0);
+        }
+    });
+
+    it("after a block the pending invitation is gone from both sides", async () => {
+        const [a, b] = await pair();
+        await send(a, b);
+        await chatService.block({ userId: a, targetId: b });
+        await expect(respond(b, a, true)).rejects.toMatchObject({ status: 409 });
+        await expect(socialService.cancel({ userId: a, targetId: b })).rejects.toMatchObject({ status: 409 });
+        // Unblocking does not bring it back (rule 5).
+        await chatService.unblock({ userId: a, targetId: b });
+        expect(await rowsOf(a, b)).toHaveLength(0);
+        await expect(respond(b, a, true)).rejects.toMatchObject({ status: 409 });
+    });
+
+    it("becoming friends turns a pending or declined direct conversation into accepted", async () => {
+        // Pending: A wrote to B, then B accepts A's invitation.
+        const [a, b] = await pair();
+        const first = await chat(a, b);
+        expect(await statesOf(first)).toEqual({ [a]: "accepted", [b]: "pending" });
+        await send(a, b);
+        expect(await statesOf(first)).toEqual({ [a]: "accepted", [b]: "pending" });
+        await respond(b, a, true);
+        expect(await statesOf(first)).toEqual({ [a]: "accepted", [b]: "accepted" });
+
+        // Declined: D declined C's message, then their invitations cross (rule 1, "B already invited").
+        const [c, d] = await pair();
+        const second = await chat(c, d);
+        await chatService.respondRequest({ userId: d, conversationId: second, accept: false });
+        expect(await statesOf(second)).toEqual({ [c]: "accepted", [d]: "declined" });
+        await send(c, d);
+        expect(await send(d, c)).toMatchObject({ friendship: "friends" });
+        expect(await statesOf(second)).toEqual({ [c]: "accepted", [d]: "accepted" });
+    });
+
     it("400 for a malformed id or yourself", async () => {
         const a = await newUser();
         for (const targetId of ["", "x".repeat(65), 42, null, undefined]) {

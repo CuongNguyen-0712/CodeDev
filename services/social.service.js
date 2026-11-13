@@ -2,10 +2,15 @@ import { chatDb } from "@/db/chat.db";
 import { socialDb } from "@/db/social.db";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
+import { publishToUser } from "@/lib/pusher";
+import { events } from "@/lib/realtime";
+import { runAfter } from "@/lib/runAfter";
 import { friendTargetSchema, respondSchema } from "@/lib/validation/social";
 import { parseOrThrow } from "@/lib/validation/premium";
 import { rankingDb } from "@/db/ranking.db";
 import { ensureRankingSnapshot, isRankingPublic } from "@/services/ranking.service";
+import { chatRealtime } from "@/services/chatRealtime.service";
+import { notificationService } from "@/services/notification.service";
 
 function decodeUserCursor(raw) {
     if (!raw) return null;
@@ -29,20 +34,62 @@ function friendshipOf(row, meDbId) {
 }
 
 /**
+ * After commit (rule 10), `friend-updated` to both people, each with their own view: `user` is the other person.
+ * `a` and `b` are `{ dbId, user }`; a failed publish is logged by runAfter and never reaches the caller.
+ */
+export async function publishFriendUpdated(before, row, a, b) {
+    for (const [to, other] of [[a, b], [b, a]]) {
+        await runAfter(() => publishToUser(to.user.id, events.FRIEND_UPDATED, {
+            user: other.user, friendship: friendshipOf(row, to.dbId), previous: friendshipOf(before, to.dbId),
+        }));
+    }
+}
+
+/** Post-commit effects of a change made by `me`: the request box, one notification per invitation (rule 7), events. */
+async function afterFriendChange({ before, row, me, other, conversation }) {
+    if (conversation) await runAfter(() => chatRealtime.conversationUpdated(conversation));
+    // A new invitation is always sent by `me`; an accept is always made by `me`, the receiver.
+    const createdAt = row?.created_at.getTime();
+    if (row?.status === "pending") {
+        await runAfter(() => notificationService.notify(other.user.id, {
+            kind: "friend_request", title: "New friend request", message: `${me.user.username} sent you a friend request.`,
+            link: "/contact?tab=invitations", dedupeKey: `${me.user.id}:${createdAt}`,
+        }));
+    } else if (row?.status === "accepted") {
+        await runAfter(() => notificationService.notify(other.user.id, {
+            kind: "friend_accepted", title: "Friend request accepted", message: `${me.user.username} accepted your friend request.`,
+            link: "/contact?tab=friends", dedupeKey: `${me.user.id}:${createdAt}`,
+        }));
+    }
+    await publishFriendUpdated(before, row, me, other);
+}
+
+/**
  * One friend write in one transaction: both users locked (ascending id), then the pair row.
  * `change({ client, me, other, row })` returns the row's new state (or null once deleted).
  */
-function friendWrite(userId, targetId, change, { inviting = false } = {}) {
+async function friendWrite(userId, targetId, change, { inviting = false } = {}) {
     if (userId === targetId) throw new ApiError("You can't add yourself as a friend", 400);
-    return withTransaction(async (client) => {
+    const result = await withTransaction(async (client) => {
         const users = await socialDb.lockUsers(client, [userId, targetId]);
         const me = users.find((u) => u.public_id === userId);
         const other = users.find((u) => u.public_id === targetId);
         // Rule 8: inactive people are never acted on; a hidden profile only stops new invitations.
         if (!me || !other || other.status !== "active" || (inviting && !other.show_profile)) throw userNotFound();
-        const row = await change({ client, me, other, row: await socialDb.lockPair(client, me.id, other.id) });
-        return { friendship: friendshipOf(row, me.id), user: await socialDb.userSummary(client, other.id) };
+        const before = await socialDb.lockPair(client, me.id, other.id);
+        const row = await change({ client, me, other, row: before });
+        // Rule 6: becoming friends takes the pair's direct conversation out of the request box.
+        const conversation = row?.status === "accepted" && before?.status !== "accepted"
+            ? await chatDb.acceptDirectMembers(client, me.id, other.id) : null;
+        return {
+            before, row, conversation,
+            me: { dbId: me.id, user: await socialDb.userSummary(client, me.id) },
+            other: { dbId: other.id, user: await socialDb.userSummary(client, other.id) },
+        };
     });
+    // Every change moves the row's status; a repeated send leaves it as it was and has no effects.
+    if (result.before?.status !== result.row?.status) await afterFriendChange(result);
+    return { friendship: friendshipOf(result.row, result.me.dbId), user: result.other.user };
 }
 
 /** The receiver accepts a pending row. Shared by respond(accept) and a send that crosses an invitation. */
@@ -90,8 +137,8 @@ export const socialService = {
             }
             if (row.status === "accepted") throw new ApiError("Already friends", 409);
             if (row.status === "pending") return row.sender_id === me.id ? row : accept(client, row);
-            await socialDb.resetPending(client, row.id, me.id, other.id);
-            return { ...row, sender_id: me.id, receiver_id: other.id, status: "pending" };
+            const createdAt = await socialDb.resetPending(client, row.id, me.id, other.id);
+            return { ...row, sender_id: me.id, receiver_id: other.id, status: "pending", created_at: createdAt };
         }, { inviting: true });
     },
 

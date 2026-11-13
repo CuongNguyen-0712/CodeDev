@@ -75,10 +75,10 @@ export const socialDb = {
         `INSERT INTO community.friend (sender_id, receiver_id, status) VALUES ($1, $2, 'pending')
          ON CONFLICT ((LEAST(sender_id, receiver_id)), (GREATEST(sender_id, receiver_id))) DO NOTHING`, [senderDbId, receiverDbId]),
 
-    /** A new invitation on an old rejected / cancelled row: new sender, new created_at. */
-    resetPending: (client, id, senderDbId, receiverDbId) => client.query(
+    /** A new invitation on an old rejected / cancelled row: new sender, new created_at (returned). */
+    resetPending: async (client, id, senderDbId, receiverDbId) => (await client.query(
         `UPDATE community.friend SET sender_id = $2, receiver_id = $3, status = 'pending', created_at = now(), updated_at = now()
-         WHERE id = $1`, [id, senderDbId, receiverDbId]),
+         WHERE id = $1 RETURNING created_at`, [id, senderDbId, receiverDbId])).rows[0].created_at,
 
     setStatus: (client, id, status) => client.query(
         `UPDATE community.friend SET status = $2, updated_at = now() WHERE id = $1`, [id, status]),

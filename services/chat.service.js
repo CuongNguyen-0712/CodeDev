@@ -2,6 +2,7 @@ import { cleanFileName } from "@/lib/chat/cleanFileName";
 import { ulid } from "ulid";
 
 import { chatDb } from "@/db/chat.db";
+import { socialDb } from "@/db/social.db";
 import { inspect as inspectMedia, readUrl, remove as removeMedia, storageFor, storageKeyFor, uploadTicket } from "@/lib/chatMedia";
 import {
     MAX_BODY, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, IMAGE_TYPES, MAX_FILE_BYTES, FILE_TYPES, ORPHAN_BATCH, ORPHAN_MAX_AGE_MINUTES,
@@ -14,6 +15,7 @@ import { reportSchema } from "@/lib/validation/blog";
 import { runAfter } from "@/lib/runAfter";
 import { installChatJobs, queueAttachmentDelete } from "@/services/chatJobs.service";
 import { installChatRealtime } from "@/services/chatRealtime.service";
+import { publishFriendUpdated } from "@/services/social.service";
 
 const CONVERSATION_ID = /^cnv_[0-9a-z]{26}$/;
 const ATTACHMENT_ID = /^att_[0-9a-z]{26}$/;
@@ -433,7 +435,20 @@ export const chatService = {
         const { me, target } = await blockTarget(userId, targetId);
         if (!me || !target) throw new ApiError("User not found", 404);
         if (me.id === target.id) throw badRequest("You can't block yourself");
-        await chatDb.addBlock(null, { blockerDbId: me.id, blockedDbId: target.id });
+        // Friends rule 5: the block also ends the pair's friend row in any state, under the friend writes' locks (users, then pair).
+        const removed = await withTransaction(async (client) => {
+            await socialDb.lockUsers(client, [me.public_id, target.public_id]);
+            await chatDb.addBlock(client, { blockerDbId: me.id, blockedDbId: target.id });
+            const row = await socialDb.lockPair(client, me.id, target.id);
+            if (!row) return null;
+            await socialDb.deletePair(client, me.id, target.id);
+            return {
+                row,
+                me: { dbId: me.id, user: await socialDb.userSummary(client, me.id) },
+                other: { dbId: target.id, user: await socialDb.userSummary(client, target.id) },
+            };
+        });
+        if (removed) await publishFriendUpdated(removed.row, null, removed.me, removed.other);
         return { blocked: true };
     },
 
