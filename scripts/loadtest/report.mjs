@@ -11,8 +11,8 @@ import path from "node:path";
 import zlib from "node:zlib";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
-import { STAGE_MS, STAGE_VUS, THRESHOLDS } from "../../loadtest/k6/lib/pure.js";
-import { bottlenecks, computeN, finishFold, foldLine, newFold, percentile, runValidity, RAMP_MS } from "./reportPure.mjs";
+import { STAGE_MS, THRESHOLDS } from "../../loadtest/k6/lib/pure.js";
+import { bottlenecks, computeN, finishFold, foldLine, newFold, percentile, runValidity, stageAtVus, RAMP_MS } from "./reportPure.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const WATCHED = ['"metric":"http_req_duration"', '"metric":"failed_requests"', '"metric":"limited"'];
@@ -66,7 +66,7 @@ export async function buildReport(runDir) {
         out.push(r.n === null ? "**N = none**: the first stage already broke a threshold." : `**N = ${r.n} concurrent VUs.**`);
         out.push(r.breakStage === null
             ? "No threshold broke before the run ended (the real limit is above the last stage; raise --max-vus)."
-            : `First break at stage ${r.breakStage} (${(r.breakStage + 1) * STAGE_VUS} VUs): ${r.reason}.`);
+            : `First break at stage ${r.breakStage} (${stages.get(r.breakStage).vus} VUs): ${r.reason}.`);
         out.push("", `Thresholds: read p95 < ${THRESHOLDS.readP95} ms, write p95 < ${THRESHOLDS.writeP95} ms, error rate < ${THRESHOLDS.errorRate * 100}% (HTTP 429 is not an error). A stage passes only strictly below each limit; N is the highest stage where every stage up to it passes. Requests after the scheduled end (VUs finishing their last iteration) are dropped.`,
             `Only the hold window is measured: points in the first ${RAMP_MS / 1000} s of each ${STAGE_MS / 1000} s stage (the ramp) are ignored, so N is read at a steady VU level. Stage start = first tagged k6 point + stage x ${STAGE_MS / 1000} s.`, "");
         out.push(table(["stage", "VUs", "reads", "read p95 ms", "writes", "write p95 ms", "requests", "error %", "429"],
@@ -78,9 +78,9 @@ export async function buildReport(runDir) {
             const list = bottlenecks(st, THRESHOLDS);
             out.push(`Bottleneck endpoints at ${label} (p95 over ${THRESHOLDS.bottleneckFactor}x the class threshold): ${list.length ? list.map((b) => `${cell(b.endpoint)} (${b.cls}, ${fmt(b.p95)} ms)`).join(", ") : "none"}.`, "");
         };
-        const nStage = r.n === null ? null : stages.get(r.n / STAGE_VUS - 1);
+        const nStage = stages.get(stageAtVus(stages, r.n));
         if (nStage) bn(nStage, `N (${r.n} VUs)`);
-        if (r.breakStage !== null) bn(stages.get(r.breakStage), `the break stage (${(r.breakStage + 1) * STAGE_VUS} VUs)`);
+        if (r.breakStage !== null) bn(stages.get(r.breakStage), `the break stage (${stages.get(r.breakStage).vus} VUs)`);
         atN = nStage ?? (r.breakStage !== null ? stages.get(r.breakStage) : [...stages.values()].pop());
         out.push(`Endpoint table below is for ${nStage ? `N (${r.n} VUs)` : "the break stage (no N)"}.`, "");
     } else {

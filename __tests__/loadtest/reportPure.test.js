@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { THRESHOLDS } from "../../loadtest/k6/lib/pure.js";
-import { aggregateStages, bottlenecks, computeN, finishFold, foldLine, newFold, percentile, runValidity } from "../../scripts/loadtest/reportPure.mjs";
+import { aggregateStages, bottlenecks, computeN, finishFold, foldLine, newFold, percentile, runValidity, stageAtVus } from "../../scripts/loadtest/reportPure.mjs";
 
 const pts = (stage, cls, ms, n, outcome = "ok") => Array.from({ length: n }, () => ({ stage, cls, endpoint: "/x", ms, outcome }));
 
@@ -86,4 +86,15 @@ it("fold counts a 429 as limited and not ok, and a retry as 2 latency samples bu
 it("fold pools every point of a non-stress run into stage 0, ramp included", () => {
     const { stages } = fold([line("http_req_duration", 0, 5, 3), line("http_req_duration", 500000, 6, 9)], { hold: false, maxVus: 5 });
     expect(stages.get(0).read).toEqual([5, 6]);
+});
+
+it("with maxVus 70 and both stages passing, N is 70 and its stage index is 1", () => {
+    const { stages } = fold([
+        line("http_req_duration", 0, 1, 0),
+        line("http_req_duration", 20000, 100, 0), line("failed_requests", 20001, 0, 0),
+        line("http_req_duration", 140000, 100, 1), line("failed_requests", 140001, 0, 1),
+    ], { hold: true, maxVus: 70 });
+    expect(computeN(stages, THRESHOLDS)).toEqual({ n: 70, breakStage: null, reason: null });
+    expect(stageAtVus(stages, 70)).toBe(1);
+    expect(stageAtVus(stages, null)).toBeNull();
 });

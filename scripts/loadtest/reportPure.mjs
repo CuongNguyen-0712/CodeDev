@@ -60,6 +60,9 @@ export function computeN(stages, t) {
     return { n, breakStage: null, reason: null };
 }
 
+// Index of the stage that ran at `n` VUs (vus is capped at maxVus, so n / STAGE_VUS - 1 is not always an integer).
+export const stageAtVus = (stages, n) => (n === null ? null : [...stages].find(([, s]) => s.vus === n)?.[0] ?? null);
+
 export function bottlenecks(stage, t) {
     const out = [];
     for (const [key, ms] of stage.byEndpoint) {
