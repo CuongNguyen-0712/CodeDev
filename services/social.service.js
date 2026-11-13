@@ -2,6 +2,7 @@ import { chatDb } from "@/db/chat.db";
 import { socialDb } from "@/db/social.db";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
+import { decodeCursor, encodeCursor, pageOf } from "@/lib/keysetCursor";
 import { publishToUser } from "@/lib/pusher";
 import { events } from "@/lib/realtime";
 import { runAfter } from "@/lib/runAfter";
@@ -22,6 +23,8 @@ function decodeUserCursor(raw) {
     }
     throw new ApiError("Invalid cursor", 400);
 }
+
+const FRIEND_ROW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const userNotFound = () => new ApiError("User not found", 404);
 const notPending = () => new ApiError("There is no pending friend request", 409);
@@ -124,6 +127,23 @@ export const socialService = {
 
         return { items, nextCursor };
     },
+
+    /** Accepted friends (rule 8: active only, hidden profiles included), keyset on (username, id). */
+    listFriends: async ({ userId, search = "", cursor = null, limit = 20 }) => {
+        const rows = await socialDb.listFriends({ userId, search, cursor: decodeUserCursor(cursor), limit: limit + 1 });
+        return pageOf(rows, limit, (last) => encodeCursor(last.username, last.cursor_id));
+    },
+
+    /** Pending invitations the caller received or sent, newest first, keyset on (updated_at, id). */
+    listInvitations: async ({ userId, direction, cursor = null, limit = 20 }) => {
+        const rows = await socialDb.listInvitations({
+            userId, received: direction === "received", cursor: decodeCursor(cursor, FRIEND_ROW_ID), limit: limit + 1,
+        });
+        return pageOf(rows, limit, (last) => encodeCursor(last.cursor_at, last.cursor_id));
+    },
+
+    /** `{ friends, received }` for the tab numbers on /contact. */
+    counts: async ({ userId }) => socialDb.counts(userId),
 
     /** Rule 1: invite; a request crossing the other person's pending one accepts it. */
     sendRequest: async ({ userId, targetId }) => {

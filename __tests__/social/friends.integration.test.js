@@ -1,4 +1,4 @@
-// Friend request write rules (send, respond, cancel, remove) against real PostgreSQL; test users and their conversations are deleted afterwards.
+// Friend request rules (send, respond, cancel, remove) and reads (lists, invitations, counts, people search) against real PostgreSQL; test users and their conversations are deleted afterwards.
 import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -232,6 +232,131 @@ describe.skipIf(!hasDb)("friend requests (PostgreSQL)", () => {
         await send(c, d);
         expect(await send(d, c)).toMatchObject({ friendship: "friends" });
         expect(await statesOf(second)).toEqual({ [c]: "accepted", [d]: "accepted" });
+    });
+
+    // Reads. Rows go straight into the table; `ago` (seconds) orders invitations by updated_at.
+    const link = (sender, receiver, status, ago = 0) => sql(
+        `INSERT INTO community.friend (sender_id, receiver_id, status, updated_at) VALUES ($1, $2, $3, now() - make_interval(secs => $4))`,
+        [ids[sender], ids[receiver], status, ago]);
+    // The row for `target` in the viewer's people search, or undefined. Usernames share the tag, so the page is wide.
+    const findPerson = async (viewer, target) => (await socialService.searchUsers({ userId: viewer, search: target, limit: 200 }))
+        .items.find((u) => u.id === target);
+    const idsOf = (page) => page.items.map((u) => u.id);
+    const allFriends = async (userId) => idsOf(await socialService.listFriends({ userId }));
+    const allInvitations = async (userId, direction) => idsOf(await socialService.listInvitations({ userId, direction }));
+
+    it("/api/users keeps invited people and returns their friendship", async () => {
+        const [v, sent, received, friend, none, rejected] = [await newUser(), await newUser(), await newUser(), await newUser(), await newUser(), await newUser()];
+        await link(v, sent, "pending");
+        await link(received, v, "pending");
+        await link(friend, v, "accepted");
+        await link(v, rejected, "rejected");
+        expect(await findPerson(v, sent)).toMatchObject({ friendship: "sent" });
+        expect(await findPerson(v, received)).toMatchObject({ friendship: "received" });
+        expect(await findPerson(v, friend)).toMatchObject({ friendship: "friends" });
+        expect(await findPerson(v, none)).toMatchObject({ friendship: null });
+        expect(await findPerson(v, rejected)).toMatchObject({ friendship: null });
+        // Seen from the other side.
+        expect(await findPerson(sent, v)).toMatchObject({ friendship: "received" });
+    });
+
+    it("/api/users hides people with a block in either direction", async () => {
+        const [v, blocked, blocker] = [await newUser(), await newUser(), await newUser()];
+        await sql(`INSERT INTO community.user_block (blocker_id, blocked_id) VALUES ($1, $2), ($3, $1)`, [ids[v], ids[blocked], ids[blocker]]);
+        expect(await findPerson(v, blocked)).toBeUndefined();
+        expect(await findPerson(v, blocker)).toBeUndefined();
+        expect(await findPerson(blocked, v)).toBeUndefined();
+        expect(await findPerson(blocker, v)).toBeUndefined();
+        expect(await findPerson(blocked, blocker)).toMatchObject({ friendship: null });
+    });
+
+    it("a friend who turns show_profile off stays in Friends but leaves Find people", async () => {
+        const [v, friend] = await pair();
+        await link(v, friend, "accepted");
+        await sql(`UPDATE profile.info SET show_profile = false WHERE user_id = $1`, [ids[friend]]);
+        expect(await findPerson(v, friend)).toBeUndefined();
+        expect(await allFriends(v)).toEqual([friend]);
+        expect(await allFriends(friend)).toEqual([v]);
+    });
+
+    it("inactive users leave Friends and Invitations", async () => {
+        const [v, friend, received, sent] = [await newUser(), await newUser(), await newUser(), await newUser()];
+        await link(v, friend, "accepted");
+        await link(received, v, "pending");
+        await link(v, sent, "pending");
+        expect(await allFriends(v)).toEqual([friend]);
+        expect(await socialService.counts({ userId: v })).toEqual({ friends: 1, received: 1 });
+        await sql(`UPDATE identity.users SET status = 'inactive' WHERE id = ANY($1::bigint[])`, [[ids[friend], ids[received], ids[sent]]]);
+        expect(await allFriends(v)).toEqual([]);
+        expect(await allInvitations(v, "received")).toEqual([]);
+        expect(await allInvitations(v, "sent")).toEqual([]);
+        expect(await socialService.counts({ userId: v })).toEqual({ friends: 0, received: 0 });
+    });
+
+    it("listFriends pages by (username, id) without gaps or repeats", async () => {
+        const v = await newUser();
+        const friends = [];
+        for (let i = 0; i < 25; i++) {
+            const f = await newUser();
+            friends.push(f);
+            // Both directions of the edge.
+            await (i % 2 ? link(v, f, "accepted") : link(f, v, "accepted"));
+        }
+        await link(v, await newUser(), "pending");
+        const first = await socialService.listFriends({ userId: v });
+        expect(first.items).toHaveLength(20);
+        expect(Object.keys(first.items[0]).sort()).toEqual(["id", "image", "level", "levelTitle", "nickname", "username"]);
+        const second = await socialService.listFriends({ userId: v, cursor: first.nextCursor });
+        expect(second.items).toHaveLength(5);
+        expect(second.nextCursor).toBeNull();
+        expect([...idsOf(first), ...idsOf(second)]).toEqual([...friends].sort());
+        await expect(socialService.listFriends({ userId: v, cursor: "not-a-cursor" })).rejects.toMatchObject({ status: 400 });
+    });
+
+    it("listFriends search filters by username", async () => {
+        const [v, a, b] = [await newUser(), await newUser(), await newUser()];
+        await link(v, a, "accepted");
+        await link(b, v, "accepted");
+        expect(idsOf(await socialService.listFriends({ userId: v, search: b }))).toEqual([b]);
+        expect(idsOf(await socialService.listFriends({ userId: v, search: b.toUpperCase() }))).toEqual([b]);
+        expect(idsOf(await socialService.listFriends({ userId: v, search: "%" }))).toEqual([]);
+        expect(idsOf(await socialService.listFriends({ userId: v, search: "  " }))).toEqual([a, b].sort());
+    });
+
+    it("listInvitations returns received and sent separately, newest first, paged", async () => {
+        const v = await newUser();
+        const [r1, r2, r3, s1, s2, f] = [await newUser(), await newUser(), await newUser(), await newUser(), await newUser(), await newUser()];
+        await link(r1, v, "pending", 30);
+        await link(r2, v, "pending", 10);
+        await link(r3, v, "pending", 20);
+        await link(v, s1, "pending", 5);
+        await link(v, s2, "pending", 1);
+        await link(v, f, "accepted");
+        const first = await socialService.listInvitations({ userId: v, direction: "received", limit: 2 });
+        expect(idsOf(first)).toEqual([r2, r3]);
+        expect(Object.keys(first.items[0]).sort()).toEqual(["id", "image", "level", "levelTitle", "nickname", "username"]);
+        const second = await socialService.listInvitations({ userId: v, direction: "received", limit: 2, cursor: first.nextCursor });
+        expect(idsOf(second)).toEqual([r1]);
+        expect(second.nextCursor).toBeNull();
+        expect(await allInvitations(v, "sent")).toEqual([s2, s1]);
+        expect(await allInvitations(r1, "sent")).toEqual([v]);
+        await expect(socialService.listInvitations({ userId: v, direction: "received", cursor: "not-a-cursor" }))
+            .rejects.toMatchObject({ status: 400 });
+    });
+
+    it("counts returns friends and received pending", async () => {
+        const v = await newUser();
+        const others = [];
+        for (let i = 0; i < 7; i++) others.push(await newUser());
+        await link(v, others[0], "accepted");
+        await link(others[1], v, "accepted");
+        await link(others[2], v, "pending");
+        await link(others[3], v, "pending");
+        await link(others[4], v, "pending");
+        await link(v, others[5], "pending");
+        await link(others[6], v, "rejected");
+        expect(await socialService.counts({ userId: v })).toEqual({ friends: 2, received: 3 });
+        expect(await socialService.counts({ userId: others[5] })).toEqual({ friends: 0, received: 1 });
     });
 
     it("400 for a malformed id or yourself", async () => {

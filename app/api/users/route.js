@@ -2,7 +2,7 @@ import { apiRoute } from "@/lib/routeHandler";
 import { rateLimiters } from "@/lib/rateLimit";
 import { socialService } from "@/services/social.service";
 
-/** GET /api/users?search=&cursor=&limit= -> { items, nextCursor }: people the learner can add. */
+/** GET /api/users?search=&cursor=&limit= -> { items, nextCursor }: people the learner can find, each with their `friendship`. */
 export const GET = apiRoute(async ({ req, userId }) => {
     const { searchParams } = new URL(req.url);
     const search = (searchParams.get("search") || "").slice(0, 100);
