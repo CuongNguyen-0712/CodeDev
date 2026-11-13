@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "load:compose": "docker compose -f compose.yml -f compose.loadtest.yml --env-file .env.loadtest",
+    "load:seed": "node scripts/loadtest/seed.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rmdir /s /q .next && rmdir /s /q node_modules && del package-lock.json",
