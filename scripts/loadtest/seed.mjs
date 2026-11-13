@@ -95,8 +95,15 @@ async function courseIds() {
     return rows.map((r) => r.public_id);
 }
 
+// The app build prerenders roadmaps and needs at least one; same local-only gate as the course bootstrap.
+async function ensureRoadmaps() {
+    if ((await db.query("SELECT 1 FROM roadmap.roadmaps LIMIT 1")).rowCount || !isLocalLoadtest(url)) return;
+    await db.query(fs.readFileSync(path.join(root, "db/seeds/roadmaps.sql"), "utf8"));
+}
+
 async function seed() {
     const plan = seedPlan({ users, courseIds: await courseIds(), seed: 20261113 });
+    await ensureRoadmaps();
     const hash = await bcrypt.hash(password, 10);
     const ids = plan.users.map(generateSonyflake);
     const publicIds = plan.users.map(() => ulid());
@@ -118,6 +125,8 @@ async function seed() {
             );
             for (const u of slice) {
                 await db.query("SELECT public.register_course($1, c) FROM unnest($2::text[]) AS c", [publicIds[u.index - 1], u.courses]);
+                // First visit of each course, as the app does (learning_progress_content): register -> in_progress, first lesson unlocked.
+                await db.query("SELECT public.learning_progress_content($1, c) FROM unnest($2::text[]) AS c", [publicIds[u.index - 1], u.courses]);
                 await db.query(
                     `SELECT public.post_exp($1::bigint, a, 'lesson', n::bigint, NULL, 'lt:' || $3::text || ':exp:' || n)
                      FROM unnest($2::int[]) WITH ORDINALITY AS t(a, n)`,
