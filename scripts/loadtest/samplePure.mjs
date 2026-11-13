@@ -32,3 +32,13 @@ export function peakSessions(profile, { n, maxVus }) {
     if (profile === "spike") return 2 * n;
     throw new Error(`unknown profile ${profile}: use smoke, stress, soak or spike`);
 }
+
+// "server" when the env file points the app at an Inngest server (dev server or cloud keys), else functions run inline.
+export function inngestMode(env) {
+    return env.INNGEST_DEV || env.INNGEST_EVENT_KEY ? "server" : "inline";
+}
+
+// Soak and spike are relative to the N that stress measured: refuse to guess it.
+export function needsN(profile, n) {
+    return (profile === "soak" || profile === "spike") && !(Number(n) > 0);
+}

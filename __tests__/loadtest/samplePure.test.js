@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { cpuPercent, parseDockerStats, peakSessions } from "../../scripts/loadtest/samplePure.mjs";
+import { cpuPercent, inngestMode, needsN, parseDockerStats, peakSessions } from "../../scripts/loadtest/samplePure.mjs";
 
 it("computes busy percent across cores", () => {
     const prev = [{ times: { user: 100, nice: 0, sys: 0, idle: 900, irq: 0 } }];
@@ -24,4 +24,17 @@ it("picks the peak VUs each profile needs", () => {
     expect(peakSessions("stress", { maxVus: 400 })).toBe(400);
     expect(peakSessions("soak", { n: 100 })).toBe(70);
     expect(peakSessions("spike", { n: 100 })).toBe(200);
+});
+it("derives the inngest mode from the env file", () => {
+    expect(inngestMode({})).toBe("inline");
+    expect(inngestMode({ INNGEST_DEV: "", INNGEST_EVENT_KEY: "" })).toBe("inline");
+    expect(inngestMode({ INNGEST_DEV: "1" })).toBe("server");
+    expect(inngestMode({ INNGEST_EVENT_KEY: "k" })).toBe("server");
+});
+it("requires n only for soak and spike", () => {
+    expect(needsN("soak", undefined)).toBe(true);
+    expect(needsN("spike", "0")).toBe(true);
+    expect(needsN("spike", "50")).toBe(false);
+    expect(needsN("smoke", undefined)).toBe(false);
+    expect(needsN("stress", undefined)).toBe(false);
 });

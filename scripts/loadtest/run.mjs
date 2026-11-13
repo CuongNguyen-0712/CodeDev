@@ -9,7 +9,7 @@ import { parseArgs, promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { assertSafeTarget, loadEnvFile } from "./target.mjs";
 import { startSampler } from "./sample.mjs";
-import { peakSessions } from "./samplePure.mjs";
+import { inngestMode, needsN, peakSessions } from "./samplePure.mjs";
 
 const execFileP = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -42,7 +42,10 @@ try {
 const base = `http://localhost:${env.APP_PORT || "3000"}`;
 const users = JSON.parse(fs.readFileSync(path.join(root, "tests/loadtest/users.json"), "utf8")).length;
 // k6 reads N for soak/spike (default there = all sessions, which would make spike peak 2x too high) and MAX_VUS for stress.
-const n = Number(a.n ?? 100);
+if (needsN(a.profile, a.n)) die("--n <N> required for soak/spike (the capacity measured by stress)");
+const n = a.n === undefined ? null : Number(a.n);
+const inngest = inngestMode(env);
+if (a.inngest !== inngest) die(`Refusing: --inngest ${a.inngest} but ${a.env} says ${inngest} (INNGEST_DEV / INNGEST_EVENT_KEY); change one so they agree`);
 const maxVus = Number(a["max-vus"]);
 const peak = peakSessions(a.profile, { n, maxVus });
 const sessions = Number(a.sessions ?? peak);
@@ -68,7 +71,7 @@ let step = "";
 let stop = null;
 const meta = {
     env: envName, profile: a.profile, commit: "", users, sessions, startedAt: new Date().toISOString(), endedAt: null,
-    inngest: a.inngest, prometheus: false, n, maxVus, k6ExitCode: null,
+    inngest, prometheus: false, n, maxVus, k6ExitCode: null,
 };
 const writeMeta = () => fs.writeFileSync(path.join(dir, "meta.json"), JSON.stringify(meta, null, 2));
 
@@ -110,7 +113,7 @@ async function main() {
     );
     const rel = `/data/runs/${name}`;
     const k6Args = compose(
-        "run", "--rm", "--name", k6Name, "-e", `PROFILE=${a.profile}`, "-e", `MAX_VUS=${maxVus}`, "-e", `N=${a.profile === "soak" || a.profile === "spike" ? n : sessions}`,
+        "run", "--rm", "--name", k6Name, "-e", `PROFILE=${a.profile}`, "-e", `MAX_VUS=${maxVus}`, "-e", `N=${n ?? sessions}`,
         "k6", "run", "--out", `json=${rel}/k6.json.gz`, "--summary-export", `${rel}/summary.json`,
         ...(meta.prometheus ? ["--out", "experimental-prometheus-rw"] : []),
         "/scripts/k6/main.js",
@@ -123,22 +126,45 @@ async function main() {
     step = "7 snapshot";
     await stop();
     stop = null;
-    const rows = await psql(
-        `SELECT COALESCE(json_agg(t), '[]'::json) FROM (SELECT query, calls, mean_exec_time, total_exec_time, rows FROM pg_stat_statements WHERE dbid = (SELECT oid FROM pg_database WHERE datname = 'loadtest_run') ORDER BY total_exec_time DESC LIMIT 20) t;`,
-        "loadtest_run",
-    );
-    fs.writeFileSync(path.join(dir, "statements.json"), JSON.stringify(JSON.parse(rows.trim()), null, 2));
+    await snapshot();
     meta.endedAt = new Date().toISOString();
     writeMeta();
     console.log(`done: ${dir}`);
 }
 
+async function snapshot() {
+    const rows = await psql(
+        `SELECT COALESCE(json_agg(t), '[]'::json) FROM (SELECT query, calls, mean_exec_time, total_exec_time, rows FROM pg_stat_statements WHERE dbid = (SELECT oid FROM pg_database WHERE datname = 'loadtest_run') ORDER BY total_exec_time DESC LIMIT 20) t;`,
+        "loadtest_run",
+    );
+    fs.writeFileSync(path.join(dir, "statements.json"), JSON.stringify(JSON.parse(rows.trim()), null, 2));
+}
+
+// Shared by failure and signal exits: keep what was measured so far.
+async function wrapUp() {
+    if (stop) await stop().catch(() => {});
+    stop = null;
+    await snapshot().catch(() => {});
+    meta.endedAt = new Date().toISOString();
+    writeMeta();
+}
+
+let interrupted = false; // the signal handler owns the exit once set
+for (const sig of ["SIGINT", "SIGTERM"]) {
+    process.once(sig, async () => {
+        interrupted = true;
+        console.error(`${sig}: stopping k6 and saving the run`);
+        await execFileP("docker", ["stop", k6Name]).catch(() => {});
+        await wrapUp();
+        process.exit(130);
+    });
+}
+
 try {
     await main();
 } catch (e) {
-    if (stop) await stop().catch(() => {});
-    meta.endedAt = new Date().toISOString();
-    writeMeta();
+    if (interrupted) await new Promise(() => {}); // the handler finishes and exits 130
+    await wrapUp();
     console.error(`load run failed at step ${step}: ${e.message}\nrun directory kept: ${dir}`);
     process.exit(1);
 }
