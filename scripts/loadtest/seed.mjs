@@ -164,7 +164,7 @@ async function seed() {
             const conv = await db.query(
                 `INSERT INTO community.conversation (public_id, kind, direct_key)
                  SELECT p, 'direct', k FROM unnest($1::text[], $2::text[]) AS t(p, k) RETURNING id, direct_key`,
-                [chats.map(() => ulid()), chats.map((c) => c.key)],
+                [chats.map(() => `cnv_${ulid().toLowerCase()}`), chats.map((c) => c.key)],
             );
             const convId = new Map(conv.rows.map((r) => [r.direct_key, r.id]));
             await db.query(
@@ -174,7 +174,7 @@ async function seed() {
             );
             const msgs = chats.flatMap((c) =>
                 Array.from({ length: PER_USER.messages }, (_, k) => ({
-                    p: ulid(),
+                    p: `msg_${ulid().toLowerCase()}`,
                     c: convId.get(c.key),
                     s: k % 2 ? c.a : c.b,
                     body: `load message ${k + 1}`,
