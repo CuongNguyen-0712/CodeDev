@@ -81,7 +81,7 @@ Mỗi lần chạy `run.mjs` tự `DROP DATABASE loadtest_run; CREATE DATABASE l
 
 Trước khi chạy:
 
-- **Inngest**: kiểm tra *tên* biến env production trên Vercel (không xem giá trị). Có `INNGEST_EVENT_KEY` thì `.env.loadtest` đặt `INNGEST_DEV=1` (và `INNGEST_EVENT_KEY`) và truyền `--inngest server` (service `inngest`, profile `dev`, `run.mjs` tự bật). Không có thì để trống cả hai và `--inngest inline`. `run.mjs` từ chối nếu cờ và env file không khớp. Giá trị ghi vào `meta.json` và báo cáo.
+- **Inngest**: chỉ chế độ `inline` được hỗ trợ (`--inngest inline`). Trong `.env.loadtest` để trống `INNGEST_DEV` và `INNGEST_EVENT_KEY`, tuyệt đối không đặt event key thật. `run.mjs` từ chối `--inngest server` và từ chối env file có một trong hai biến. Chế độ server chưa hỗ trợ vì service `inngest` trong `compose.yml` gọi `host.docker.internal:3000` (server dev của bạn, không phải container app tải) và `INNGEST_DEV` trong container app trỏ `localhost:8288`, nơi không có gì chạy. Giá trị ghi vào `meta.json` và báo cáo.
 - **Lesson trên Sanity**: các khoá đã seed phải có lesson trên dataset mà `.env.loadtest` trỏ tới. Mở thử một `/learning/<id>?lesson=<lesson>` bằng một session (body không rỗng) rồi mới chạy.
 - App phải dừng khi seed lại `loadtest_base`; `run.mjs` tự dừng app, tạo lại `loadtest_run`, bật lại app.
 - Trong Git Bash, chạy k6 tay cần `MSYS_NO_PATHCONV=1`.
@@ -108,9 +108,10 @@ Stress dừng sớm khi `failed_requests` vượt 20% (sau 2 phút đánh giá).
 
 Giám sát (tuỳ chọn): `npm run load:compose -- --profile monitoring up -d prometheus grafana`, dashboard `codedev-loadtest` trên Grafana. Chạy trước `load:run` để `meta.prometheus` là `true`.
 
-Code runner: `coderun.js` đo admission, hàng đợi và poll của app, không đo sức chịu của sandbox thật. Chạy tay (sau khi có `sessions.json` và `actions.json` từ một lần `load:run`):
+Code runner: `coderun.js` đo admission, hàng đợi và poll của app, không đo sức chịu của sandbox thật. Refresh token chỉ dùng một lần nên `sessions.json` của một `load:run` dài hơn 15 phút đã bị thu hồi: mint lại trước (`K` ≥ số VU đỉnh của coderun) rồi chạy tay (cần `actions.json` từ một lần `load:run`):
 
 ```bash
+npm run load:sessions -- --env .env.loadtest --base http://localhost:<APP_PORT> --count <K>
 MSYS_NO_PATHCONV=1 npm run load:compose -- run --rm -e MAX_RATE=3 k6 run /scripts/k6/coderun.js
 ```
 
@@ -135,7 +136,7 @@ Code runner thật: `coderun.js` với `MAX_RATE` nhỏ. Chưa có cờ `--max-r
 `run.mjs` gọi `report.mjs` ở bước cuối (cả khi k6 thoát 99 do ngưỡng). Chạy lại tay: `node scripts/loadtest/report.mjs tests/loadtest/runs/<run>`. File không bao giờ bị ghi đè (thêm hậu tố `-2`).
 
 - **Capacity (N)**: số VU cao nhất mà mọi bậc tới đó đều đạt cả ba ngưỡng; kèm lý do bậc đầu tiên gãy. `N = none` nghĩa là bậc đầu đã gãy. Nếu không bậc nào gãy, báo cáo ghi chưa gãy tới `MAX_VUS`: N chỉ là cận dưới.
-- **Bảng bậc**: p95 đọc/ghi, số request, tỷ lệ lỗi, số 429. 429 không là lỗi nhưng được đếm.
+- **Bảng bậc**: p95 đọc/ghi, số request, tỷ lệ lỗi, số 429. 429 không là lỗi nhưng được đếm. Bậc cuối bị cắt giữa chừng (đo được < 90% của 110 s hold) ghi `partial`: nó có thể là bậc gãy nhưng không bao giờ đặt N.
 - **Bottleneck endpoints**: endpoint có p95 vượt 2x ngưỡng của lớp mình ở N (hoặc bậc gãy).
 - **Run validity**: lần chạy **không hợp lệ** khi máy chạy k6 có cửa sổ 1 phút nào CPU trung bình > 80%: N khi đó bị giới hạn bởi máy tải, không phải app. Chạy lại (đóng bớt ứng dụng, giảm `--max-vus`) và không dùng con số đó.
 - **Top 10 queries**: `pg_stat_statements` theo tổng thời gian trong `loadtest_run`.
@@ -148,7 +149,7 @@ Nút thắt đầu tiên là chỗ tài nguyên chạm trần trước (CPU app 
 
 Báo cáo: [`2026-11-14-loadtest-stress.md`](2026-11-14-loadtest-stress.md). 5 000 user seed vào `loadtest_base` (224 s), 3 000 session mint trước khi chạy, app `development` + Inngest `inline`, commit `f8379d48`.
 
-- **N = none**: bậc 50 VU đã gãy (read p95 10 016 ms), `failed_requests` vượt 20% nên k6 dừng sau ~9 phút (exit 99), chưa tới bậc 100 trọn vẹn. Con số này nghĩa là app trên DB 1 CPU với 5 000 user không giữ nổi 50 VU, không phải N thật.
-- **Nút thắt**: CPU DB chạm trần 1 vCPU (đỉnh 106%), app 97%. Truy vấn ranking của tôi (`WITH me AS ...`) mất 25–28 s mỗi lần và kéo theo hầu hết endpoint đọc tới timeout 10 s; `/api/ranking` p95 30 s. `learning_progress()` là truy vấn nặng thứ hai (180 ms mean, 73 lần). Cần xem kế hoạch truy vấn ranking trên 5 000 user trước khi chạy lại.
+- **N = none**: bậc 0 (50 VU) đã gãy (read p95 10 016 ms). Bậc 1 (100 VU) chỉ đo được 50 trong 110 s hold nên báo cáo ghi `partial` và nó không bao giờ đặt N. `failed_requests` vượt 20% nên k6 dừng: cửa sổ k6 đo chỉ ~3 phút (18:21:19 tới 18:24:19 UTC); ~8 phút 44 s là cả `load:run` (reset DB, khởi tạo 3 000 VU, mint session, đo, snapshot). Con số này nghĩa là app trên DB 1 CPU với 5 000 user không giữ nổi 50 VU, không phải N thật.
+- **Nút thắt đầu tiên**: pool pg của app (tối đa 10 kết nối, `lib/db.js:41`) bị cạn, nhiều khả năng do truy vấn ranking chậm (`getStanding`, `WITH me AS ...`) giữ kết nối 25–28 s mỗi lần; CPU DB chạm trần 1 vCPU (đỉnh 106%, app 97%) là yếu tố góp phần. Bằng chứng: sampler DB thấy `active` kẹt ở 11 (một lần 12) suốt cửa sổ đo, tức pool 10 + 1 của sampler; 13 endpoint đọc có p95 = 10 005–10 077 ms ≈ `DB_CONNECT_TIMEOUT_MS` 10 000 (`lib/db.js:42`), là request chờ kết nối tới hết hạn; lỗi là 500 (374) và 503 (24 response). `/api/ranking` p95 30 051 ms là timeout client 30 s của k6 (status 0, 24 request), không phải thời gian server. Đây là giả thuyết, chưa xác nhận: cần kế hoạch truy vấn ranking (`EXPLAIN (ANALYZE, BUFFERS)`) trên 5 000 user; `pg_stat_statements` bỏ sót câu lệnh bị huỷ nên chỉ thấy 2 lần gọi ranking (25 508 và 28 612 ms). `learning_progress()` là truy vấn nặng thứ hai (180 ms mean, 73 lần).
 - **Cờ INVALID đã được sửa**: `runValidity` giờ chỉ tính CPU máy tải trong cửa sổ k6 đo (từ điểm k6 đầu tiên tới điểm cuối), bỏ giai đoạn khởi tạo 3 000 VU. Báo cáo tính lại ghi hợp lệ (CPU máy tải tối đa 26,7% theo phút), nên kết luận N = none ở bậc 50 VU là đáng tin.
 - Lần chạy kế tiếp nên dùng `--max-vus` nhỏ hơn (khởi tạo k6 với 3 000 VU tốn CPU máy tải) hoặc sửa nút thắt ranking trước.

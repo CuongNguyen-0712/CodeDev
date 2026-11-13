@@ -12,7 +12,7 @@ import zlib from "node:zlib";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import { STAGE_MS, THRESHOLDS } from "../../loadtest/k6/lib/pure.js";
-import { bottlenecks, computeN, finishFold, foldLine, newFold, inWindow, percentile, runValidity, stageAtVus, RAMP_MS } from "./reportPure.mjs";
+import { HOLD_MS, bottlenecks, computeN, finishFold, foldLine, holdCoverage, newFold, inWindow, partialStages, percentile, runValidity, stageAtVus, RAMP_MS } from "./reportPure.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const WATCHED = ['"metric":"http_req_duration"', '"metric":"failed_requests"', '"metric":"limited"'];
@@ -62,18 +62,21 @@ export async function buildReport(runDir) {
     const validity = runValidity(host);
     let atN = null;
     if (stress) {
-        const r = computeN(stages, THRESHOLDS);
+        const partial = partialStages(fold);
+        const covered = (k) => `${Math.round((holdCoverage(fold, k) * HOLD_MS) / 1000)} of ${HOLD_MS / 1000} s`;
+        const r = computeN(stages, THRESHOLDS, partial);
         out.push("## Capacity (N)", "");
         out.push(r.n === null ? "**N = none**: the first stage already broke a threshold." : `**N = ${r.n} concurrent VUs.**`);
         out.push(r.breakStage === null
             ? "No threshold broke before the run ended (the real limit is above the last stage; raise --max-vus)."
-            : `First break at stage ${r.breakStage} (${stages.get(r.breakStage).vus} VUs): ${r.reason}.`);
+            : `First break at stage ${r.breakStage} (${stages.get(r.breakStage).vus} VUs): ${r.reason}.${partial.has(r.breakStage) ? ` This is a partial stage (${covered(r.breakStage)} of hold measured): it is the break stage, but it could not set N.` : ""}`);
+        if (partial.size) out.push(`Partial stages (under 90% of the hold window measured, marked "partial" in the table; the run ended inside them) never set N: ${[...partial].sort((a, b) => a - b).map((k) => `stage ${k} (${covered(k)})`).join(", ")}.`);
         out.push("", `Thresholds: read p95 < ${THRESHOLDS.readP95} ms, write p95 < ${THRESHOLDS.writeP95} ms, error rate < ${THRESHOLDS.errorRate * 100}% (HTTP 429 is not an error). A stage passes only strictly below each limit; N is the highest stage where every stage up to it passes. Requests after the scheduled end (VUs finishing their last iteration) are dropped.`,
             `Only the hold window is measured: points in the first ${RAMP_MS / 1000} s of each ${STAGE_MS / 1000} s stage (the ramp) are ignored, so N is read at a steady VU level. Stage start = first tagged k6 point + stage x ${STAGE_MS / 1000} s.`, "");
         out.push(table(["stage", "VUs", "reads", "read p95 ms", "writes", "write p95 ms", "requests", "error %", "429"],
             [...stages.keys()].sort((a, b) => a - b).map((k) => {
                 const s = stages.get(k);
-                return [k, s.vus, s.read.length, fmt(percentile(s.read, 95)), s.write.length, fmt(percentile(s.write, 95)), s.total, fmt(s.total ? (100 * s.errors) / s.total : 0, 2), s.limited];
+                return [partial.has(k) ? `${k} (partial, ${covered(k)})` : k, s.vus, s.read.length, fmt(percentile(s.read, 95)), s.write.length, fmt(percentile(s.write, 95)), s.total, fmt(s.total ? (100 * s.errors) / s.total : 0, 2), s.limited];
             })), "");
         const bn = (st, label) => {
             const list = bottlenecks(st, THRESHOLDS);

@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { THRESHOLDS } from "../../loadtest/k6/lib/pure.js";
-import { aggregateStages, bottlenecks, computeN, finishFold, foldLine, newFold, percentile, runValidity, stageAtVus, inWindow } from "../../scripts/loadtest/reportPure.mjs";
+import { aggregateStages, bottlenecks, computeN, finishFold, foldLine, newFold, percentile, runValidity, stageAtVus, inWindow, partialStages } from "../../scripts/loadtest/reportPure.mjs";
 
 const pts = (stage, cls, ms, n, outcome = "ok") => Array.from({ length: n }, () => ({ stage, cls, endpoint: "/x", ms, outcome }));
 
@@ -107,4 +107,26 @@ it("judges validity only inside the k6 window: busy setup ignored, busy test min
     expect(runValidity(inWindow([...setup, ...quiet], st))).toEqual({ valid: true, worstMinuteCpu: 20 });
     const busy = Array.from({ length: 12 }, (_, i) => cpuAt(60000 + i * 5000, 85));
     expect(runValidity(inWindow([...setup, ...quiet.slice(0, 12), ...busy], st)).valid).toBe(false);
+});
+
+it("finishFold skips a stage that only holds value-0 failed_requests points", () => {
+    const st = newFold();
+    st.zeroPoints.set("3|read /x", 2);
+    expect(() => finishFold(st)).not.toThrow();
+});
+
+it("a partial last stage can break but never sets N", () => {
+    const st = fold([
+        line("http_req_duration", 0, 1, 0),
+        line("http_req_duration", 10000, 100, 0), line("http_req_duration", 119000, 100, 0),
+        line("http_req_duration", 130000, 100, 1), line("http_req_duration", 180000, 100, 1), // 50 of 110 s
+    ], stress);
+    expect([...partialStages(st)]).toEqual([1]);
+    expect(computeN(st.stages, THRESHOLDS, partialStages(st))).toEqual({ n: 50, breakStage: null, reason: null });
+    const slow = fold([
+        line("http_req_duration", 0, 1, 0),
+        line("http_req_duration", 10000, 100, 0), line("http_req_duration", 119000, 100, 0),
+        line("http_req_duration", 130000, 5000, 1), line("http_req_duration", 180000, 5000, 1),
+    ], stress);
+    expect(computeN(slow.stages, THRESHOLDS, partialStages(slow))).toMatchObject({ n: 50, breakStage: 1 });
 });

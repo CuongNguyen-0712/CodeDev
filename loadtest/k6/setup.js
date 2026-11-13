@@ -36,6 +36,8 @@ export function buildData() {
         });
         if (code) out.coding.push({ courseId: c.id, lessonId: String(lesson.id), challengeId: String(code.id) });
     }
+    // Session 0 is VU 1's session: it must not be refreshed here, so an expired token shows up as no courses (learning-progress 401).
+    if (!out.courses.length) throw new Error("setup: no workable course (session 0 expired?)");
     console.log(`setup: ${out.courses.length} courses, ${out.coding.length} with a coding challenge, ${users.length} users`);
     return out;
 }

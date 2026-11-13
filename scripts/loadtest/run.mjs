@@ -30,8 +30,9 @@ const die = (msg) => {
     console.error(msg);
     process.exit(1);
 };
-if (!a.profile) die("usage: run.mjs --env .env.loadtest --profile smoke|stress|soak|spike --inngest inline|server [--n N] [--max-vus 3000] [--sessions K] [--build] [--yes]");
-if (!["inline", "server"].includes(a.inngest)) die("--inngest must be inline or server");
+if (!a.profile) die("usage: run.mjs --env .env.loadtest --profile smoke|stress|soak|spike --inngest inline [--n N] [--max-vus 3000] [--sessions K] [--build] [--yes]");
+if (a.inngest === "server") die("--inngest server is not supported yet (the Inngest dev server cannot reach the app container); use --inngest inline");
+if (a.inngest !== "inline") die("--inngest must be inline");
 
 const env = loadEnvFile(a.env);
 // Before anything is reset: only a local loadtest* database (or an explicit --yes target) may be dropped and recreated.
@@ -40,13 +41,20 @@ try {
 } catch (e) {
     die(e.message);
 }
+// The app container writes through its own DATABASE_URL: it must be the compose loadtest_run database too.
+try {
+    const u = new URL(env.DATABASE_URL);
+    if (u.hostname !== "postgres-load" || u.pathname !== "/loadtest_run") throw new Error();
+} catch {
+    die(`Refusing: DATABASE_URL in ${a.env} must point at host postgres-load and database /loadtest_run (the app would write load data elsewhere)`);
+}
 const base = `http://localhost:${env.APP_PORT || "3000"}`;
 const users = JSON.parse(fs.readFileSync(path.join(root, "tests/loadtest/users.json"), "utf8")).length;
 // k6 reads N for soak/spike (default there = all sessions, which would make spike peak 2x too high) and MAX_VUS for stress.
 if (needsN(a.profile, a.n)) die("--n <N> required for soak/spike (the capacity measured by stress)");
 const n = a.n === undefined ? null : Number(a.n);
 const inngest = inngestMode(env);
-if (a.inngest !== inngest) die(`Refusing: --inngest ${a.inngest} but ${a.env} says ${inngest} (INNGEST_DEV / INNGEST_EVENT_KEY); change one so they agree`);
+if (inngest !== "inline") die(`Refusing: ${a.env} sets INNGEST_DEV / INNGEST_EVENT_KEY (Inngest server mode is not supported yet); leave both empty`);
 const maxVus = Number(a["max-vus"]);
 const peak = peakSessions(a.profile, { n, maxVus });
 const sessions = Number(a.sessions ?? peak);

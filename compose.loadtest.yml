@@ -40,6 +40,8 @@ services:
   # The app under test: fixed size. Its env file is .env.loadtest, selected by
   # CODEDEV_ENV_FILE inside .env.loadtest itself (compose reads it from --env-file).
   app:
+    # Own tag: a load build must not replace the codedev_app image of the normal compose app.
+    image: codedev_app_loadtest
     build:
       # `next build` prerenders roadmap pages from the database: give it the seeded base DB through the host port.
       args:

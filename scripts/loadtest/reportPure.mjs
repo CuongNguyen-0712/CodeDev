@@ -41,7 +41,8 @@ export function aggregateStages(points) {
 }
 
 // Every stage up to N must hold every threshold; 429 never counts as a failure.
-export function computeN(stages, t) {
+// `partial` (optional Set of stage indexes, see partialStages) may break a stage but never sets N.
+export function computeN(stages, t, partial = new Set()) {
     let n = null;
     for (const stage of [...stages.keys()].sort((a, b) => a - b)) {
         const s = stages.get(stage);
@@ -55,7 +56,7 @@ export function computeN(stages, t) {
         else if (wp >= t.writeP95) reason = `write p95 ${Math.round(wp)} ms ${op(wp, t.writeP95)} ${t.writeP95}`;
         else if (rate >= t.errorRate) reason = `error rate ${(rate * 100).toFixed(1)}% ${op(rate, t.errorRate)} ${t.errorRate * 100}%`;
         if (reason) return { n, breakStage: stage, reason };
-        n = s.vus;
+        if (!partial.has(stage)) n = s.vus;
     }
     return { n, breakStage: null, reason: null };
 }
@@ -100,7 +101,16 @@ export function runValidity(hostSamples) {
 export const inWindow = (samples, st) => (st.t0 === null ? samples : samples.filter((x) => x.t >= st.t0 && x.t <= st.tEnd));
 
 export const RAMP_MS = 10000;
-export const newFold = () => ({ stages: new Map(), journeys: {}, zeroPoints: new Map(), t0: null, tEnd: null });
+export const HOLD_MS = STAGE_MS - RAMP_MS;
+export const newFold = () => ({ stages: new Map(), journeys: {}, zeroPoints: new Map(), t0: null, tEnd: null, cover: new Map() });
+
+// Hold coverage per stage = span between its first and last kept point (stress only). Under 90% of the hold
+// window means the run ended inside the stage (k6 abort): its numbers are real but it is no steady level.
+export const holdCoverage = (st, stage) => {
+    const c = st.cover.get(stage);
+    return c ? Math.min(1, (c.last - c.first) / HOLD_MS) : 1;
+};
+export const partialStages = (st) => new Set([...st.cover.keys()].filter((k) => holdCoverage(st, k) < 0.9));
 
 export function foldLine(st, line, { hold, maxVus }) {
     const { metric, type, data } = JSON.parse(line);
@@ -112,6 +122,10 @@ export function foldLine(st, line, { hold, maxVus }) {
     const stage = hold ? Number(tags.stage) : 0;
     if (hold && (stage >= Math.ceil(maxVus / STAGE_VUS) || time - st.t0 - stage * STAGE_MS < RAMP_MS)) return;
     st.tEnd = Math.max(st.tEnd ?? time, time); // last kept point
+    if (hold) {
+        const c = st.cover.get(stage) ?? { first: time, last: time };
+        st.cover.set(stage, { first: Math.min(c.first, time), last: Math.max(c.last, time) });
+    }
     const base = { stage, cls: tags.class, endpoint: tags.endpoint };
     const cap = hold ? maxVus : undefined;
     if (metric === "http_req_duration") addPoint(st.stages, { ...base, ms: data.value, outcome: null }, cap);
@@ -131,6 +145,7 @@ export function finishFold(st) {
     for (const [k, v0] of st.zeroPoints) {
         const i = k.indexOf("|");
         const s = st.stages.get(Number(k.slice(0, i)));
+        if (!s) continue; // a stage that only has value-0 points has no latency or errors to report
         s.total += Math.max(0, v0 - (s.limitedBy.get(k.slice(i + 1)) ?? 0));
     }
     return st;

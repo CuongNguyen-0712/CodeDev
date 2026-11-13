@@ -6,6 +6,7 @@ Run `20261114-0115-loadtest-stress`, commit `f8379d48`, 2026-11-13T18:15:39.225Z
 
 **N = none**: the first stage already broke a threshold.
 First break at stage 0 (50 VUs): read p95 10016 ms > 800.
+Partial stages (under 90% of the hold window measured, marked "partial" in the table; the run ended inside them) never set N: stage 1 (50 of 110 s).
 
 Thresholds: read p95 < 800 ms, write p95 < 1500 ms, error rate < 1% (HTTP 429 is not an error). A stage passes only strictly below each limit; N is the highest stage where every stage up to it passes. Requests after the scheduled end (VUs finishing their last iteration) are dropped.
 Only the hold window is measured: points in the first 10 s of each 120 s stage (the ramp) are ignored, so N is read at a steady VU level. Stage start = first tagged k6 point + stage x 120 s.
@@ -13,7 +14,7 @@ Only the hold window is measured: points in the first 10 s of each 120 s stage (
 | stage | VUs | reads | read p95 ms | writes | write p95 ms | requests | error % | 429 |
 |---|---|---|---|---|---|---|---|---|
 | 0 | 50 | 983 | 10016 | 125 | 1407 | 1108 | 20.49 | 0 |
-| 1 | 100 | 703 | 10432 | 78 | 799 | 781 | 25.48 | 0 |
+| 1 (partial, 50 of 110 s) | 100 | 703 | 10432 | 78 | 799 | 781 | 25.48 | 0 |
 
 Bottleneck endpoints at the break stage (50 VUs) (p95 over 2x the class threshold): /api/ranking (read, 30051 ms), /api/user/me (read, 10077 ms), /api/course/learning (read, 10069 ms), /api/friends (read, 10028 ms), /api/user/course-progress (read, 10024 ms), /api/ranking/me (read, 10017 ms), /api/friends/counts (read, 10016 ms), /api/user/learning-progress (read, 10015 ms), /api/course/rating (read, 10012 ms), /api/challenges/:id/quiz (read, 10009 ms), /api/chat/conversations (read, 10009 ms), /api/challenges/:id/workspace (read, 10008 ms), /api/course/comments (read, 10007 ms), /api/friends/invitations (read, 10005 ms), queueCodeRunAction (write, 4218 ms), sendMessageAction (write, 3993 ms).
 

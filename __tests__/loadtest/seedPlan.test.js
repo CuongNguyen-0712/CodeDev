@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { expect, it } from "vitest";
 import { seedPlan } from "@/scripts/loadtest/seedPlan.mjs";
 import { assertSafeTarget, isLocalLoadtest } from "@/scripts/loadtest/target.mjs";
@@ -21,11 +24,22 @@ it("makes each friendship once per pair", () => {
     expect(new Set(pairs).size).toBe(pairs.length);
 });
 
-it("refuses dev and production databases", () => {
-    const root = process.cwd();
-    expect(() => assertSafeTarget("postgres://x@localhost:5432/codedev", { root, confirmed: true })).toThrow(/loadtest/);
-    expect(() => assertSafeTarget("postgres://u:p@ep-x.neon.tech/neondb", { root, confirmed: false })).toThrow(/--yes/);
-    expect(() => assertSafeTarget("postgres://u:p@localhost:5433/loadtest_base", { root, confirmed: false })).not.toThrow();
+it("refuses dev and production databases, each for its own reason", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "loadtest-target-"));
+    try {
+        fs.writeFileSync(path.join(root, ".env.production"), "DATABASE_URL=postgres://u:p@ep-prod-1.neon.tech/neondb\n");
+        fs.writeFileSync(path.join(root, ".env.local"), "DATABASE_URL=postgres://u:p@localhost:5432/codedev\n");
+        const refuse = (url, confirmed, re) => expect(() => assertSafeTarget(url, { root, confirmed })).toThrow(re);
+        refuse("postgres://x:y@ep-prod-1.neon.tech/neondb", true, /DATABASE_URL of \.env\.production/);
+        refuse("postgres://x:y@ep-prod-1-pooler.neon.tech/neondb", true, /DATABASE_URL of \.env\.production/);
+        refuse("postgres://x:y@localhost:5432/codedev", true, /DATABASE_URL of \.env\.local/);
+        refuse("postgres://x@localhost:5434/codedev2", true, /does not start with loadtest/);
+        refuse("postgres://u:p@ep-other.neon.tech/neondb", false, /--yes/);
+        expect(() => assertSafeTarget("postgres://u:p@ep-other.neon.tech/neondb", { root, confirmed: true })).not.toThrow();
+        expect(() => assertSafeTarget("postgres://u:p@localhost:5433/loadtest_base", { root })).not.toThrow();
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });
 
 it("bootstraps data only on a local loadtest database", () => {
