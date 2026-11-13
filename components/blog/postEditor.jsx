@@ -20,6 +20,7 @@ import { ErrorReload } from "@/components/ui/error";
 import { announceRewards } from "@/components/ui/level";
 import { useApp } from "@/contexts/appContext";
 import { addTags } from "@/lib/blog/tags.mjs";
+import { applyMarkdown } from "@/lib/blog/markdownInsert.mjs";
 import { retryTransient } from "@/lib/queryTimes";
 import { useCreatePost, useUpdatePost, useUploadBlogImage } from "@/mutations/blog.mutation";
 import { blogQueries } from "@/queries/blog.query";
@@ -38,7 +39,17 @@ const placeholder = (n) => `![Uploading… ${n}]()`;
 const errorText = (error) => (error?.message || "The post was not saved").replace(/^(title|tags|body|submit|appealReason)(\.\d+)?: /, "");
 
 // The help line under the body: one chip per piece of syntax.
-const MARKDOWN_HINTS = ["## Heading", "**bold**", "`code`", "```js", "- list", "[text](url)"];
+// The composer's Markdown buttons (lib/blog/markdownInsert.mjs): what the chip shows and what it is called.
+const MARKDOWN_BUTTONS = [
+    { action: "h2", label: "H2", name: "Heading 2" },
+    { action: "h3", label: "H3", name: "Heading 3" },
+    { action: "h4", label: "H4", name: "Heading 4" },
+    { action: "bold", label: "**bold**", name: "Bold" },
+    { action: "code", label: "`code`", name: "Inline code" },
+    { action: "codeblock", label: "```js app.js", name: "Code block with a file name" },
+    { action: "list", label: "- list", name: "List" },
+    { action: "link", label: "[text](url)", name: "Link" },
+];
 
 function Form({ post, trusted }) {
     const router = useRouter();
@@ -116,6 +127,18 @@ function Form({ post, trusted }) {
         } finally {
             setUploading((n) => n - 1);
         }
+    };
+
+    // A Markdown button: rewrite the body, then give the writer back the caret or the placeholder to type over.
+    const format = (action) => {
+        const area = textareaRef.current;
+        if (!area || locked) return;
+        const next = applyMarkdown(action, body, area.selectionStart, area.selectionEnd);
+        setBody(next.text);
+        requestAnimationFrame(() => {
+            area.focus();
+            area.setSelectionRange(next.start, next.end);
+        });
     };
 
     const onPaste = (event) => {
@@ -296,10 +319,21 @@ function Form({ post, trusted }) {
                     </div>
                 </TabsContent>
                 <div id="post-body-help" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                    <span className="flex flex-wrap items-center gap-1.5">
-                        <span className="mr-0.5">Markdown</span>
-                        {MARKDOWN_HINTS.map((hint) => (
-                            <code key={hint} className="rounded border bg-background px-1.5 py-0.5 font-mono text-[0.6875rem] leading-none text-foreground">{hint}</code>
+                    {/* The hints are buttons: each inserts its syntax at the caret, or wraps the selected text. */}
+                    <span role="toolbar" aria-label="Markdown" className="flex flex-wrap items-center gap-1.5">
+                        <span className="mr-0.5" aria-hidden="true">Markdown</span>
+                        {MARKDOWN_BUTTONS.map(({ action, label, name }) => (
+                            <button
+                                key={action}
+                                type="button"
+                                aria-label={name}
+                                title={name}
+                                disabled={locked || tab !== "write"}
+                                onClick={() => format(action)}
+                                className="cursor-pointer rounded border bg-background px-1.5 py-0.5 font-mono text-[0.6875rem] leading-none text-foreground transition-colors hover:border-primary/40 hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                            >
+                                {label}
+                            </button>
                         ))}
                     </span>
                     <span className="tabular-nums">{wordCount} {wordCount === 1 ? "word" : "words"} · {Math.max(1, Math.ceil(wordCount / 200))} min read</span>

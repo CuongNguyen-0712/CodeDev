@@ -60,6 +60,31 @@ describe("missing fields", () => {
     });
 });
 
+describe("Markdown buttons", () => {
+    it("insert at the caret and wrap a selection", async () => {
+        render(<PostEditor />);
+        const body = screen.getByLabelText("Post body in Markdown");
+        fireEvent.change(body, { target: { value: "Intro" } });
+        body.setSelectionRange(0, 5);
+        fireEvent.click(screen.getByRole("button", { name: "Bold" }));
+        expect(body.value).toBe("**Intro**");
+
+        body.setSelectionRange(0, 0);
+        fireEvent.click(screen.getByRole("button", { name: "Heading 3" }));
+        expect(body.value).toBe("### **Intro**");
+
+        body.setSelectionRange(body.value.length, body.value.length);
+        fireEvent.click(screen.getByRole("button", { name: "Code block with a file name" }));
+        expect(body.value).toBe("### **Intro**\n```js app.js\ncode\n```");
+    });
+
+    it("are off on the Preview tab", () => {
+        render(<PostEditor />);
+        fireEvent.mouseDown(screen.getByRole("tab", { name: "Preview" }), { button: 0 });
+        expect(screen.getByRole("button", { name: "Bold" }).disabled).toBe(true);
+    });
+});
+
 describe.each([
     ["create", undefined, () => fill()],
     ["update", "pst_1", () => {}],
