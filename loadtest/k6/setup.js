@@ -1,13 +1,13 @@
 // Shared by main.js and coderun.js: course/lesson/challenge ids are read once from the app's own
 // APIs in setup(); the per-VU clients are created lazily because a client owns its cookie jar.
 import http from "k6/http";
-import { SharedArray } from "k6/data";
 import { BASE_URL, ORIGIN, actions, sessions } from "./lib/config.js";
 import { createClient } from "./lib/client.js";
 import { cookieHeader, sessionIndex } from "./lib/pure.js";
 import { json } from "./journeys/util.js";
 
-const users = new SharedArray("users", () => JSON.parse(open("/data/users.json")).map((u) => u.publicId));
+// Peers for friend requests: the minted sessions, so a receiver has a VU that can respond.
+const users = sessions.map((s) => s.publicId);
 
 // Only the first unlocked lesson of each course is workable for every seeded user, so the quiz and
 // the coding challenge are looked for there. Courses come from the public list; lessons from the
