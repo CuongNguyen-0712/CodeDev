@@ -7,24 +7,34 @@ import { parseOrThrow } from "@/lib/validation/premium";
 import { socialService } from "@/services/social.service";
 
 // userId always comes from the session via runAction; the client sends only the other person's public id.
-const run = (context, handler) =>
-    runAction(async ({ userId }) => {
-        const { friendship, user } = await handler(userId);
-        return { friendship, user };
-    }, { limiter: rateLimiters.friend, context });
-
 // Each action takes the other person's public id (respond: { userId, accept }) -> { friendship, user }.
-export const sendFriendRequestAction = async (input) =>
-    run("sendFriendRequestAction", (userId) => socialService.sendRequest({ userId, targetId: parseOrThrow(friendTargetSchema, { userId: input }).userId }));
+const targetOf = (input) => parseOrThrow(friendTargetSchema, { userId: input }).userId;
 
-export const respondFriendRequestAction = async (input) =>
-    run("respondFriendRequestAction", (userId) => {
+export async function sendFriendRequestAction(input) {
+    return runAction(async ({ userId }) => {
+        const { friendship, user } = await socialService.sendRequest({ userId, targetId: targetOf(input) });
+        return { friendship, user };
+    }, { limiter: rateLimiters.friend, context: "sendFriendRequestAction" });
+}
+
+export async function respondFriendRequestAction(input) {
+    return runAction(async ({ userId }) => {
         const { userId: targetId, accept } = parseOrThrow(respondSchema, input);
-        return socialService.respond({ userId, targetId, accept });
-    });
+        const { friendship, user } = await socialService.respond({ userId, targetId, accept });
+        return { friendship, user };
+    }, { limiter: rateLimiters.friend, context: "respondFriendRequestAction" });
+}
 
-export const cancelFriendRequestAction = async (input) =>
-    run("cancelFriendRequestAction", (userId) => socialService.cancel({ userId, targetId: parseOrThrow(friendTargetSchema, { userId: input }).userId }));
+export async function cancelFriendRequestAction(input) {
+    return runAction(async ({ userId }) => {
+        const { friendship, user } = await socialService.cancel({ userId, targetId: targetOf(input) });
+        return { friendship, user };
+    }, { limiter: rateLimiters.friend, context: "cancelFriendRequestAction" });
+}
 
-export const removeFriendAction = async (input) =>
-    run("removeFriendAction", (userId) => socialService.remove({ userId, targetId: parseOrThrow(friendTargetSchema, { userId: input }).userId }));
+export async function removeFriendAction(input) {
+    return runAction(async ({ userId }) => {
+        const { friendship, user } = await socialService.remove({ userId, targetId: targetOf(input) });
+        return { friendship, user };
+    }, { limiter: rateLimiters.friend, context: "removeFriendAction" });
+}
