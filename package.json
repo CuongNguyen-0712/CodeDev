@@ -11,6 +11,7 @@
     "load:seed": "node scripts/loadtest/seed.mjs",
     "load:sessions": "node scripts/loadtest/sessions.mjs",
     "load:actions": "node scripts/loadtest/actions.mjs",
+    "load:run": "node scripts/loadtest/run.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rmdir /s /q .next && rmdir /s /q node_modules && del package-lock.json",
