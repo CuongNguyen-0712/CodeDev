@@ -47,7 +47,7 @@ Quyết định của người viết spec: phần bạn bè nằm trong **`serv
 
 ## 4. Dữ liệu
 
-Giữ nguyên bảng `community.friend`. Migration `20261113_027_friend_sender_index.sql`: `CREATE INDEX IF NOT EXISTS idx_friend_sender ON community.friend (sender_id)` (danh sách lời mời đã gửi). Không đổi enum.
+Giữ nguyên bảng `community.friend`, không đổi enum. Migration `20261113_027_friend_indexes.sql` thay index theo mục 7.1 (Query): hai index ghép theo người gửi / người nhận, bỏ `idx_friend_receiver` vì thành tiền tố thừa.
 
 Ý nghĩa của một dòng (cặp A–B):
 
@@ -90,10 +90,10 @@ Theo `docs/superpowers/specs/2026-11-10-api-vs-action-boundary-design.md`: đọ
 
 | Action | Trả về |
 |---|---|
-| `sendFriendRequestAction(userId)` | `{ friendship }` |
-| `respondFriendRequestAction({ userId, accept })` | `{ friendship }` |
-| `cancelFriendRequestAction(userId)` | `{ friendship }` |
-| `removeFriendAction(userId)` | `{ friendship: null }` |
+| `sendFriendRequestAction(userId)` | `{ friendship, user }` |
+| `respondFriendRequestAction({ userId, accept })` | `{ friendship, user }` |
+| `cancelFriendRequestAction(userId)` | `{ friendship, user }` |
+| `removeFriendAction(userId)` | `{ friendship: null, user }` |
 
 `friendship` (từ góc nhìn người gọi): `null | "sent" | "received" | "friends"`.
 
@@ -106,7 +106,7 @@ Theo `docs/superpowers/specs/2026-11-10-api-vs-action-boundary-design.md`: đọ
 | `GET /api/friends/invitations?direction=received\|sent&cursor=` | lời mời `pending`, mới nhất trước, keyset `(updated_at, id)` |
 | `GET /api/friends/counts` | `{ friends, received }` cho số trên tab |
 
-**Realtime**: event mới `friend-updated` trên `private-user-{publicId}` của **cả hai** người sau mỗi thay đổi, payload `{ userId: <publicId người kia>, friendship }` (góc nhìn người nhận event). `UserRealtimeBridge` invalidate các query bạn bè, counts và `/api/users`.
+**Realtime**: event mới `friend-updated` trên `private-user-{publicId}` của **cả hai** người sau mỗi thay đổi, payload `{ user, friendship, previous }` (góc nhìn người nhận event, `user` là người kia theo shape dòng của `/api/users`). `UserRealtimeBridge` vá cache theo mục 7.1, chỉ invalidate khi không vá được.
 
 **Thông báo** (`notificationService.notify`):
 
@@ -140,6 +140,44 @@ Tab dùng `Tabs` của shadcn như `components/chat/inbox.jsx`; tab hiện tại
 
 Trước task UI đầu tiên của plan: chạy `ui-consistency:finding-patterns` cho trang `/contact`.
 
+## 7.1 Hiệu năng: rendering, cache, query
+
+Đi theo những gì chat (Revision 3) và trang course đã làm, không thêm thư viện.
+
+**Rendering**
+
+- `app/(shell)/contact/page.jsx` prefetch phía server trang đầu của tab đang mở (theo `?tab=`) và `counts`, rồi bọc client bằng `HydrationBoundary`, như `app/(shell)/course/page.jsx`. Dữ liệu theo user nên phần prefetch nằm trong `Suspense` có sẵn (`cacheComponents: true`); prefetch lỗi chỉ ghi log, client tự tải lại. Kết quả: mở `/contact` thấy danh sách ngay, không chờ một vòng fetch phía client.
+- Chỉ tab đang mở mới fetch (`enabled` theo tab); `TabsContent` của Radix không mount tab ẩn. `counts` là một query cho cả hai số trên tab.
+- Ô tìm dùng `SearchBar` có sẵn (đã debounce) và `placeholderData: keepPreviousData` như `/api/users` hiện tại: gõ không nháy danh sách.
+- Không ảo hóa danh sách: trang 10–20 dòng, cuộn vô hạn bằng `useInfiniteScroll` có sẵn. Ghi chú `shortcut:` nếu có người dùng có trên ~1.000 bạn.
+
+**Cache (React Query)**
+
+- Key gom dưới một gốc `keys/friend.keys.js`: `friendKeys.all`, `.list(search)`, `.invitations(direction)`, `.counts()`; Find people giữ `userKeys.users(search)`.
+- Payload `friend-updated` mang **đủ dữ liệu** để vá cache tại chỗ, như chat Revision 3: `{ user: <shape dòng như /api/users>, friendship, previous }`. Hàm vá thuần trong `lib/social/friendCache.js` (có test unit, như `lib/chat/inboxCache.js`): chuyển dòng giữa Friends / Received / Sent, đổi `friendship` của dòng trong mọi trang `userKeys.users(*)`, cộng trừ `counts`. Chỉ invalidate khi không vá được (danh sách chưa tải, hoặc dòng thuộc trang chưa tải).
+- Mutation optimistic dùng chính các hàm vá đó; lỗi thì hoàn tác **chỉ thay đổi của chính nó** (bài học R56 của chat), rồi invalidate `friendKeys.all`.
+- Thời gian: `QUERY_TIMES.personal` (stale 30 s). Realtime giữ cache đúng nên không cần poll; mất kết nối Pusher thì focus lại cửa sổ sẽ refetch (mặc định của React Query).
+- Kết bạn xong thì cập nhật dòng hội thoại trong cache chat qua `chat-conversation-updated` có sẵn (luật 6), không refetch cả inbox.
+
+**Query (PostgreSQL)**
+
+- Migration 027:
+  - `idx_friend_receiver_state ON community.friend (receiver_id, status, updated_at DESC, id)`
+  - `idx_friend_sender_state ON community.friend (sender_id, status, updated_at DESC, id)`
+  - `DROP INDEX community.idx_friend_receiver` (tiền tố của index đầu).
+  - Invitations theo keyset `(updated_at, id)` chạy bằng index scan, không sort.
+- Tìm cặp (`uq_friend_pair` trên `LEAST/GREATEST`) đã có index; mọi điều kiện cặp viết đúng biểu thức đó để dùng được index.
+- Friends: `UNION ALL` hai nhánh (`sender_id = me` / `receiver_id = me`, `status = 'accepted'`) rồi join `identity.users` + `profile.info`, keyset `(username, id)`. Nhánh dùng hai index trên; sort theo username trên tập bạn của một người (nhỏ). `shortcut:` sort trong bộ nhớ, cần index khác nếu một người có hàng nghìn bạn.
+- `/api/users`: `friendship` tính bằng `CASE` trên `LEFT JOIN community.friend` sẵn có (không thêm query); loại người có chặn bằng hai `NOT EXISTS` trên `community.user_block` (khóa chính `(blocker_id, blocked_id)` và `idx_user_block_blocked` phủ cả hai chiều).
+- `counts`: một câu SQL, hai `count(*)` dùng hai index ghép (chỉ đọc index khi có thể).
+- Không N+1: hạng (`tier`) vẫn lấy một query cho cả trang như `searchUsers` đang làm.
+- Mỗi query mới chạy `EXPLAIN (ANALYZE, BUFFERS)` trên DB local đã seed ~10.000 user, kỳ vọng index scan trên `community.friend` và `community.user_block`; kết quả ghi vào plan.
+
+**Realtime và mạng**
+
+- Mỗi thao tác phát tối đa 2 event `friend-updated` (một cho mỗi người), cộng `chat-conversation-updated` khi luật 6 áp dụng. Không event nào cho người thứ ba.
+- Server action trả `{ friendship, user }` để người gọi vá cache mà không cần GET lại.
+
 ## 8. Lỗi
 
 | Trường hợp | Trả | UI |
@@ -153,12 +191,13 @@ Trước task UI đầu tiên của plan: chạy `ui-consistency:finding-pattern
 ## 9. Test
 
 - `__tests__/social/friends.integration.test.js` (DB thật): mọi nhánh luật 1–4; hai người mời nhau thành bạn; chặn xóa quan hệ và chặn gửi lại; thành bạn chuyển hội thoại `pending`/`declined` thành `accepted`; người ẩn hồ sơ trả 404; `/api/users` không ẩn người đã mời và có đúng `friendship`, ẩn người bị chặn; keyset của `/api/friends` và invitations; bấm gửi lại khi `pending` không tạo thông báo thứ hai, nhưng gửi lại sau khi bị từ chối thì có; người bị khóa biến khỏi Friends và trả lời họ trả 404; hủy kết bạn giữ hội thoại `accepted`.
+- Test unit cho `lib/social/friendCache.js` (mọi chuyển trạng thái, counts không âm, trang chưa tải thì báo cần invalidate).
 - Test unit UI cho 3 tab: nút theo `friendship`, `?tab=` mở đúng tab, xác nhận Unfriend.
 - E2E tay hai tài khoản local: A mời B → B thấy chuông + tab Invitations, Accept → A thấy B ở Friends không reload → A bấm Message, tin vào thẳng hộp thư của B.
 
 ## 10. Việc ngoài code
 
-- Chạy migration 027 trên production (`npm run db:migrate:prod -- --yes`) trước khi deploy.
+- Chạy migration 027 trên production (`npm run db:migrate:prod -- --yes`) trước khi deploy. Migration tạo index trên bảng `community.friend` gần như rỗng nên không khóa lâu.
 - Không có biến môi trường mới.
 
 ## 11. Để người làm tự quyết
