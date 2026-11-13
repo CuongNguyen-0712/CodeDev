@@ -85,16 +85,14 @@ export default function EmailBrandBadge({ badge = null, baseUrl = null }) {
 }
 
 /**
- * Standard footer for CodeDev emails with subtle copyright notice and reassurance.
+ * Standard footer for CodeDev emails. No "you can ignore this" here: security notices ask the
+ * reader to act, so each email says it itself only where ignoring is safe.
  */
 export function EmailFooter() {
     return (
         <Section style={{ marginTop: "32px", borderTop: "1px solid #e5e7eb", paddingTop: "20px" }}>
-            <Text style={{ color: "#6b7280", fontSize: "12px", lineHeight: "18px", margin: "0 0 4px" }}>
-                CodeDev — Interactive developer learning platform.
-            </Text>
             <Text style={{ color: "#6b7280", fontSize: "12px", lineHeight: "18px", margin: 0 }}>
-                © {new Date().getFullYear()} CodeDev. If you did not expect this message, you can safely ignore it.
+                © {new Date().getFullYear()} CodeDev, interactive developer courses.
             </Text>
         </Section>
     );

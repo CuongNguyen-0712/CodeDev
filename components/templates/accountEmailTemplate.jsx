@@ -6,13 +6,15 @@ const BRAND = "#7C3AED";
 
 /**
  * Account messages (docs/email-verification-plan.md 10.8): the link confirmation (with a button)
- * and the "connected" / "disconnected" notices (no button). `lines` are plain paragraphs.
+ * and the "connected" / "disconnected" notices (no button). `lines` are plain paragraphs;
+ * `noteAction` ({ label, url }) is a link after the note, e.g. "Not you?" to Settings.
  */
-export default function AccountEmailTemplate({ preview, heading, lines = [], action = null, note = null, baseUrl = null }) {
+export default function AccountEmailTemplate({ preview, heading, lines = [], action = null, note = null, noteAction = null, baseUrl = null }) {
     let resolvedBaseUrl = baseUrl;
-    if (!resolvedBaseUrl && action?.url) {
+    const linkUrl = action?.url || noteAction?.url;
+    if (!resolvedBaseUrl && linkUrl) {
         try {
-            resolvedBaseUrl = new URL(action.url).origin;
+            resolvedBaseUrl = new URL(linkUrl).origin;
         } catch {
             // keep fallback
         }
@@ -29,8 +31,8 @@ export default function AccountEmailTemplate({ preview, heading, lines = [], act
                         {heading}
                     </Heading>
 
-                    {lines.map((line) => (
-                        <Text key={line} style={{ color: "#374151", fontSize: 15, lineHeight: "24px", margin: "0 0 12px" }}>
+                    {lines.map((line, i) => (
+                        <Text key={i} style={{ color: "#374151", fontSize: 15, lineHeight: "24px", margin: "0 0 12px" }}>
                             {line}
                         </Text>
                     ))}
@@ -65,12 +67,19 @@ export default function AccountEmailTemplate({ preview, heading, lines = [], act
                         </>
                     )}
 
+                    {/* Body-weight ink, no box: on a notice this is the only thing the reader can do. */}
                     {note && (
-                        <Section style={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "12px 14px", margin: "20px 0 0" }}>
-                            <Text style={{ color: "#64748b", fontSize: 13, lineHeight: "20px", margin: 0 }}>
-                                {note}
-                            </Text>
-                        </Section>
+                        <Text style={{ color: "#111827", fontSize: 15, lineHeight: "24px", fontWeight: 600, margin: "20px 0 0" }}>
+                            {note}
+                            {noteAction && (
+                                <>
+                                    {" "}
+                                    <Link href={noteAction.url} style={{ color: BRAND, textDecoration: "underline" }}>
+                                        {noteAction.label}
+                                    </Link>
+                                </>
+                            )}
+                        </Text>
                     )}
 
                     <EmailFooter />

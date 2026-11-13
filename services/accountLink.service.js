@@ -27,6 +27,9 @@ import AccountEmailTemplate from "@/components/templates/accountEmailTemplate";
 export const PROVIDER_LABEL = { github: "GitHub", google: "Google" };
 const LINK_TTL_SEC = 30 * 60;
 const hashToken = (token) => hashRefreshToken(`link-account|${token}`);
+// Mail has no viewer time zone: "13 Nov 2026, 10:00 UTC".
+const formatWhen = (value) =>
+    `${new Date(value).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC`;
 
 /** Queues an outbox event and processes it right away. Never throws. */
 async function queue(eventType, payload) {
@@ -146,9 +149,9 @@ export const accountLinkService = {
             preview: `Someone signed in with ${label} using ${issued.email}.`,
             heading: `Link ${label} to your account`,
             lines: [
-                `Hi ${issued.name || "there"}, someone signed in with a ${label} account that uses ${issued.email} and asked to link it to your CodeDev account.`,
+                `Hi ${issued.name?.trim() || "there"}, someone signed in with a ${label} account that uses ${issued.email} and asked to link it to your CodeDev account.`,
                 claim
-                    ? "If this was you, confirm below and choose a new password. For your security this signs you out on every device and replaces every previous way to sign in."
+                    ? "If this was you, confirm below and choose a new password. Confirming signs you out on every device and removes your other sign-in methods, including your current password."
                     : `If this was you, confirm below. You can then sign in with ${label} or your current sign-in method.`,
             ],
             action: { label: claim ? `Link ${label} and set a password` : `Link ${label}`, url },
@@ -199,18 +202,23 @@ export const accountLinkService = {
 
         const label = PROVIDER_LABEL[provider] || provider;
         const connected = action === "connected";
-        const when = new Date(at).toUTCString();
+        const when = formatWhen(at);
         await mail(to.email, `${label} was ${connected ? "connected to" : "disconnected from"} your CodeDev account`, {
-            preview: `${label} ${connected ? "can now sign in to" : "no longer signs in to"} your CodeDev account.`,
+            preview: `You can ${connected ? "now" : "no longer"} sign in to CodeDev with ${label}.`,
             heading: `${label} ${connected ? "connected" : "disconnected"}`,
             lines: [
-                `Hi ${to.name || "there"}, a ${label} account was ${connected ? "connected to" : "disconnected from"} your CodeDev account on ${when}${ip ? ` from IP ${ip}` : ""}.`,
+                `Hi ${to.name?.trim() || "there"}, a ${label} account was ${connected ? "connected to" : "disconnected from"} your CodeDev account on ${when}${ip ? ` from IP ${ip}` : ""}.`,
+                // The biggest change goes first.
+                ...(passwordChanged ? ["We changed your password, removed your other sign-in methods and signed out every device."] : []),
                 connected ? `You can now sign in with ${label}.` : `You can no longer sign in with that ${label} account.`,
-                ...(passwordChanged ? ["Your password was changed and every device was signed out. Any other sign-in method on the account was removed."] : []),
             ],
             note: connected
-                ? "Not you? Sign in, disconnect it under Settings > Sign-in methods, then sign out your other devices."
-                : "Not you? Sign in and check Settings > Sign-in methods and Active sessions.",
+                ? "Not you? Sign in, disconnect it under Sign-in methods, then sign out your other devices."
+                : "Not you? Sign in and check your sign-in methods and active sessions.",
+            noteAction: {
+                label: "Open Settings",
+                url: `${process.env.NEXTAUTH_URL}/settings#${connected ? "settings-signin" : "settings-sessions"}`,
+            },
         });
     },
 
