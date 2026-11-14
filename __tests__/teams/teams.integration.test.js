@@ -333,4 +333,50 @@ describe.skipIf(!hasDb)("teams (PostgreSQL)", () => {
         expect(await memberRows(soloTeam.id)).toEqual({});
         expect((await sql(`SELECT count(*)::int AS n FROM community.conversation WHERE public_id = $1`, [soloTeam.conversationId])).rows[0].n).toBe(0);
     });
+
+    describe("reads", () => {
+        it("members: join order, roles, invited only for the host, outsiders get 404", async () => {
+            const [host, a, b, c] = await hostWithFriends(3);
+            const outsider = await newUser();
+            const { team } = await create(host, [a, b, c]);
+            await respond(b, team.id);
+            await respond(a, team.id);
+            const asHost = await teamService.members({ userId: host, teamId: team.id });
+            expect(asHost.team).toEqual({ id: team.id, name: "Study group" });
+            expect(asHost.items.map((m) => [m.id, m.role])).toEqual([[host, "host"], [b, "member"], [a, "member"], [c, "invited"]]);
+            expect(Object.keys(asHost.items[0]).sort()).toEqual(["id", "image", "level", "levelTitle", "nickname", "role", "username"]);
+            const asMember = await teamService.members({ userId: a, teamId: team.id });
+            expect(asMember.items.map((m) => m.id)).toEqual([host, b, a]);
+            for (const who of [c, outsider]) await expect(teamService.members({ userId: who, teamId: team.id })).rejects.toMatchObject({ status: 404 });
+            await expect(teamService.members({ userId: host, teamId: `team_${"0".repeat(26)}` })).rejects.toMatchObject({ status: 404 });
+            await expect(teamService.members({ userId: host, teamId: "nope" })).rejects.toMatchObject({ status: 400 });
+        });
+
+        it("invitations: 25 pending, newest first, 20 + 5 without repeats; counts add teamInvitations; ended teams drop out", async () => {
+            const { socialService } = await import("@/services/social.service");
+            const me = await newUser();
+            const teams = [];
+            for (let i = 0; i < 25; i++) {
+                const host = await newUser();
+                await befriend(host, me);
+                teams.push((await create(host, [me], `T${i}`)).team.id);
+            }
+            const first = await teamService.listInvitations({ userId: me });
+            expect(first.items).toHaveLength(20);
+            expect(first.nextCursor).toEqual(expect.any(String));
+            const second = await teamService.listInvitations({ userId: me, cursor: first.nextCursor });
+            expect(second.items).toHaveLength(5);
+            expect(second.nextCursor).toBeNull();
+            const seen = [...first.items, ...second.items].map((x) => x.team.id);
+            expect(new Set(seen).size).toBe(25);
+            expect(seen).toEqual([...teams].reverse());
+            expect(first.items[0]).toMatchObject({ team: { id: teams[24], name: "T24" }, invitedAt: expect.any(Date) });
+            expect(Object.keys(first.items[0].invitedBy).sort()).toEqual(["id", "image", "level", "levelTitle", "nickname", "username"]);
+            await expect(teamService.listInvitations({ userId: me, cursor: "garbage" })).rejects.toMatchObject({ status: 400 });
+            expect(await socialService.counts({ userId: me })).toEqual({ friends: 25, received: 0, teamInvitations: 25 });
+            await respond(me, teams[0], false);
+            await sql(`DELETE FROM community.team WHERE id = $1`, [teams[1]]);
+            expect((await socialService.counts({ userId: me })).teamInvitations).toBe(23);
+        });
+    });
 });

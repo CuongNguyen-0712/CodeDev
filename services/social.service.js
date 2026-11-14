@@ -142,7 +142,7 @@ export const socialService = {
         return pageOf(rows, limit, (last) => encodeCursor(last.cursor_at, last.cursor_id));
     },
 
-    /** `{ friends, received }` for the tab numbers on /contact. */
+    /** `{ friends, received, teamInvitations }` for the tab numbers on /contact. */
     counts: async ({ userId }) => socialDb.counts(userId),
 
     /** Rule 1: invite; a request crossing the other person's pending one accepts it. */

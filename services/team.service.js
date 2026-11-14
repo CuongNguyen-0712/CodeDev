@@ -3,6 +3,7 @@ import { z } from "zod";
 import { chatDb } from "@/db/chat.db";
 import { teamDb } from "@/db/team.db";
 import { dbPool } from "@/lib/db";
+import { decodeCursor, encodeCursor, pageOf } from "@/lib/keysetCursor";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
 import { publishToUser } from "@/lib/pusher";
@@ -121,9 +122,31 @@ async function lockForMember(client, teamId, userId, { hostOnly = false } = {}) 
     return { team, me };
 }
 
+const TEAM_MEMBER_ROW_ID = /^\d{1,19}$/;
+
 const dedupe = (list) => [...new Set(list)];
 
 export const teamService = {
+    /** Rule 9: approved members only (404 otherwise); only the host also sees the invited. */
+    members: async ({ userId, teamId }) => {
+        parseOrThrow(teamIdSchema, teamId);
+        const team = await teamDb.teamFor(teamId, userId);
+        if (team?.member_status !== "approved") throw teamNotFound();
+        const all = await teamDb.members(teamId);
+        const isHost = all.some((m) => m.role === "host" && m.id === userId);
+        return { team: { id: team.id, name: team.name }, items: isHost ? all : all.filter((m) => m.role !== "invited") };
+    },
+
+    /** The caller's pending team invitations, newest first, keyset on (updated_at, id). */
+    listInvitations: async ({ userId, cursor = null, limit = 20 }) => {
+        const rows = await teamDb.listInvitations({ userId, cursor: decodeCursor(cursor, TEAM_MEMBER_ROW_ID), limit: limit + 1 });
+        const page = pageOf(rows, limit, (last) => encodeCursor(last.cursor_at, last.cursor_id));
+        const items = page.items.map(({ team_id, team_name, invited_at, ...invitedBy }) => ({
+            team: { id: team_id, name: team_name }, invitedBy, invitedAt: invited_at,
+        }));
+        return { items, nextCursor: page.nextCursor };
+    },
+
     /** Rule 1: the caller hosts a new team of 5 seats with 1–4 friends invited; one invalid invitee fails it all. */
     create: async ({ userId, name, memberIds }) => {
         const input = parseOrThrow(createTeamSchema, { name, memberIds });

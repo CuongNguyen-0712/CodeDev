@@ -285,12 +285,12 @@ describe.skipIf(!hasDb)("friend requests (PostgreSQL)", () => {
         await link(received, v, "pending");
         await link(v, sent, "pending");
         expect(await allFriends(v)).toEqual([friend]);
-        expect(await socialService.counts({ userId: v })).toEqual({ friends: 1, received: 1 });
+        expect(await socialService.counts({ userId: v })).toEqual({ friends: 1, received: 1, teamInvitations: 0 });
         await sql(`UPDATE identity.users SET status = 'inactive' WHERE id = ANY($1::bigint[])`, [[ids[friend], ids[received], ids[sent]]]);
         expect(await allFriends(v)).toEqual([]);
         expect(await allInvitations(v, "received")).toEqual([]);
         expect(await allInvitations(v, "sent")).toEqual([]);
-        expect(await socialService.counts({ userId: v })).toEqual({ friends: 0, received: 0 });
+        expect(await socialService.counts({ userId: v })).toEqual({ friends: 0, received: 0, teamInvitations: 0 });
     });
 
     it("listFriends pages by (username, id) without gaps or repeats", async () => {
@@ -355,8 +355,8 @@ describe.skipIf(!hasDb)("friend requests (PostgreSQL)", () => {
         await link(others[4], v, "pending");
         await link(v, others[5], "pending");
         await link(others[6], v, "rejected");
-        expect(await socialService.counts({ userId: v })).toEqual({ friends: 2, received: 3 });
-        expect(await socialService.counts({ userId: others[5] })).toEqual({ friends: 0, received: 1 });
+        expect(await socialService.counts({ userId: v })).toEqual({ friends: 2, received: 3, teamInvitations: 0 });
+        expect(await socialService.counts({ userId: others[5] })).toEqual({ friends: 0, received: 1, teamInvitations: 0 });
     });
 
     it("400 for a malformed id or yourself", async () => {

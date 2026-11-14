@@ -1,5 +1,10 @@
 import { sql } from "@/lib/db";
 
+// Same user row as /api/friends (nickname raw: 'None' means unset).
+const USER_COLUMNS = `u.public_id AS id, u.username, i.image, i.nickname, i.exp_level AS level, lvl.title AS "levelTitle"`;
+const USER_JOINS = `LEFT JOIN profile.info i ON i.user_id = u.id
+            LEFT JOIN profile.exp_level lvl ON lvl.level = i.exp_level`;
+
 // Team writes take a transaction `client`; user ids in and out are DB ids (text), team ids are the public `team_…` ids.
 export const teamDb = {
     /** The team row locked (rule 5: before any read or write of its members), or null. */
@@ -85,4 +90,39 @@ export const teamDb = {
          JOIN identity.users h ON h.id = t.host_id
          LEFT JOIN community.conversation c ON c.team_id = t.id
          WHERE t.id = $1`, [teamId])).rows[0] || null,
+
+    /** Team name and the caller's member status in it, or null when the team does not exist. */
+    teamFor: async (teamId, userId) => (await sql(
+        `SELECT t.id, t.name, m.status AS member_status
+         FROM community.team t
+         LEFT JOIN community.team_members m ON m.team_id = t.id AND m.user_id = (SELECT id FROM identity.users WHERE public_id = $2)
+         WHERE t.id = $1`, [teamId, userId])).rows[0] || null,
+
+    /** Approved members by join order, then pending (a team has at most 5 rows); `role` is host | member | invited. */
+    members: async (teamId) => (await sql(
+        `SELECT ${USER_COLUMNS},
+                CASE WHEN m.status = 'pending' THEN 'invited' WHEN m.user_id = t.host_id THEN 'host' ELSE 'member' END AS role
+         FROM community.team t
+         JOIN community.team_members m ON m.team_id = t.id AND m.status IN ('approved', 'pending')
+         JOIN identity.users u ON u.id = m.user_id
+         ${USER_JOINS}
+         WHERE t.id = $1
+         ORDER BY (m.status = 'pending'), m.joined_at, m.id`, [teamId])).rows,
+
+    /**
+     * Pending invitations of the caller for teams that still exist, newest first, keyset (updated_at DESC, id);
+     * the inviter is the team's host (only hosts invite). Served by idx_team_members_user + a sort of the person's pending rows.
+     */
+    listInvitations: async ({ userId, cursor, limit }) => (await sql(
+        `SELECT t.id AS team_id, t.name AS team_name, m.updated_at AS invited_at, m.updated_at::text AS cursor_at, m.id::text AS cursor_id,
+                ${USER_COLUMNS}
+         FROM community.team_members m
+         JOIN community.team t ON t.id = m.team_id
+         JOIN identity.users u ON u.id = t.host_id
+         ${USER_JOINS}
+         WHERE m.user_id = (SELECT id FROM identity.users WHERE public_id = $1)
+           AND m.status = 'pending'
+           AND ($2::timestamp IS NULL OR (m.updated_at <= $2::timestamp AND (m.updated_at < $2::timestamp OR m.id > $3::bigint)))
+         ORDER BY m.updated_at DESC, m.id
+         LIMIT $4`, [userId, cursor?.createdAt ?? null, cursor?.id ?? null, limit])).rows,
 };
