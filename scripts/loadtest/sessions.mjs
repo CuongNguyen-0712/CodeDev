@@ -4,15 +4,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
-import { cookieHeader, parseSetCookies } from "./http.mjs";
+import { cookieHeader, parseSetCookies, sessionCookies } from "./http.mjs";
 import { loadEnvFile } from "./target.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const { values: a } = parseArgs({
-    options: { env: { type: "string" }, base: { type: "string" }, count: { type: "string" }, concurrency: { type: "string", default: "8" } },
+    options: {
+        env: { type: "string" }, base: { type: "string" }, count: { type: "string" }, concurrency: { type: "string", default: "8" },
+        // Deployed targets trust only the platform's IP header, so every login shares one IP: stay under the 10/min sign-in limit.
+        "per-minute": { type: "string" },
+    },
 });
 if (!a.env || !a.base || !a.count) {
-    console.error("usage: sessions.mjs --env <file> --base <url> --count <k> [--concurrency 8]");
+    console.error("usage: sessions.mjs --env <file> --base <url> --count <k> [--concurrency 8] [--per-minute 9]");
     process.exit(1);
 }
 const password = loadEnvFile(a.env).LOADTEST_PASSWORD;
@@ -36,20 +40,20 @@ async function login(user, i) {
         body: new URLSearchParams({ csrfToken, username: user.username, password, json: "true" }),
     });
     Object.assign(jar, parseSetCookies(setCookies(res)));
-    delete jar["next-auth.csrf-token"];
-    if (!Object.keys(jar).some((k) => k.startsWith("next-auth.session-token")) || !jar.cd_refresh) {
-        throw new Error(`${user.username}: login gave no session/refresh cookie (HTTP ${res.status})`);
-    }
-    return { ...user, ip, cookies: jar };
+    const cookies = sessionCookies(jar);
+    if (!cookies) throw new Error(`${user.username}: login gave no session/refresh cookie (HTTP ${res.status})`);
+    return { ...user, ip, cookies };
 }
 
 const out = new Array(users.length);
 let next = 0;
 let failed = null;
+const gapMs = a["per-minute"] ? 60_000 / Number(a["per-minute"]) : 0;
 await Promise.all(
-    Array.from({ length: Number(a.concurrency) }, async () => {
+    Array.from({ length: gapMs ? 1 : Number(a.concurrency) }, async () => {
         while (!failed && next < users.length) {
             const i = next++;
+            if (gapMs && i) await new Promise((r) => setTimeout(r, gapMs));
             try {
                 out[i] = await login(users[i], i + 1);
             } catch (e) {
