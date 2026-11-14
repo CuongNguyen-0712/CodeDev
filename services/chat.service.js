@@ -317,7 +317,7 @@ export const chatService = {
         const me = live.find((m) => m.public_id === userId);
         const other = conversation.kind === "direct" ? members.find((m) => m !== me) : null;
         return {
-            id: conversation.public_id, kind: conversation.kind,
+            id: conversation.public_id, kind: conversation.kind, teamId: conversation.team_id ?? null,
             title: other ? (other.nickname || other.username) : conversation.team_name ?? null,
             image: other ? other.image : conversation.team_image ?? null,
             state: conversation.state,

@@ -173,7 +173,7 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
         expect((await chatService.listConversations({ userId: b, tab: "requests" })).items).toHaveLength(0);
         expect(await send(a, r.conversation.id, "again")).toMatchObject({ created: true, acceptedByReply: false });
         const detail = await chatService.getConversation({ userId: b, conversationId: r.conversation.id });
-        expect(detail).toMatchObject({ kind: "direct", title: a, state: "accepted", canSend: true });
+        expect(detail).toMatchObject({ kind: "direct", teamId: null, title: a, state: "accepted", canSend: true });
         expect(detail.members.find((m) => m.id === b).lastReadSeq).toBe(reply.message.seq);
         expect((await send(b, r.conversation.id, "and again")).acceptedByReply).toBe(false);
     });
@@ -434,6 +434,7 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
                 await setStatus("approved");
                 await chatService.syncTeamMember(team, a, "joined");
                 expect((await send(a, first.id, "team hello")).created).toBe(true);
+                expect(await chatService.getConversation({ userId: a, conversationId: first.id })).toMatchObject({ kind: "team", teamId: team, title: "Chat team" });
                 expect((await chatService.listMessages({ userId: a, conversationId: first.id })).items).toHaveLength(1);
                 await setStatus("left");
                 await chatService.syncTeamMember(team, a, "left");

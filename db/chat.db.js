@@ -217,7 +217,7 @@ export const chatDb = {
 
     /** The caller's live membership (not left) with the conversation's title source; null when not a member. */
     membership: (client, { conversationId, userId }) => one(client,
-        `SELECT c.id::text AS id, c.public_id, c.kind, cm.state, t.name AS team_name, t.image_url AS team_image
+        `SELECT c.id::text AS id, c.public_id, c.kind, c.team_id, cm.state, t.name AS team_name, t.image_url AS team_image
          FROM community.conversation c
          JOIN identity.users me ON me.public_id = $2
          JOIN community.conversation_member cm ON cm.conversation_id = c.id AND cm.user_id = me.id AND cm.left_at IS NULL
