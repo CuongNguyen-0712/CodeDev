@@ -22,6 +22,10 @@ vi.mock("@pusher/push-notifications-web", () => ({
 }));
 const setWebPushStop = vi.fn();
 vi.mock("@/lib/authNavigation", () => ({ setWebPushStop: (...a) => setWebPushStop(...a) }));
+// The Beams token goes through the expired-access retry (docs/superpowers/specs/2026-11-14-realtime-auth-retry-design.md).
+const fetchWithAuthRetry = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/authRefresh", () => ({ fetchWithAuthRetry: (...a) => fetchWithAuthRetry(...a) }));
+const withTokenProvider = expect.objectContaining({ fetchToken: expect.any(Function) });
 
 let client;
 let permission;
@@ -29,6 +33,8 @@ const subscription = { unsubscribe: vi.fn(async () => true) };
 
 beforeEach(async () => {
     vi.clearAllMocks();
+    // clearAllMocks keeps implementations: tests that drive the token provider set their own.
+    sdk.setUserId.mockImplementation(async () => {});
     sdk.getUserId.mockResolvedValue(null);
     sdk._deviceId = "d1";
     localStorage.clear();
@@ -79,8 +85,7 @@ describe("enableWebPush", () => {
         expect(await client.enableWebPush("P1")).toBe("on");
         expect(Notification.requestPermission).toHaveBeenCalled();
         expect(sdk.start).toHaveBeenCalled();
-        expect(TokenProvider).toHaveBeenCalledWith({ url: "/api/pusher/beams-auth" });
-        expect(sdk.setUserId).toHaveBeenCalledWith("P1", expect.any(TokenProvider));
+        expect(sdk.setUserId).toHaveBeenCalledWith("P1", withTokenProvider);
         expect(localStorage.getItem("webpush:P1")).toBe("1");
         expect(client.webPushState("P1")).toBe("on");
         expect(setWebPushStop).toHaveBeenCalledWith(client.stopWebPush);
@@ -90,6 +95,23 @@ describe("enableWebPush", () => {
         permission = "denied";
         expect(await client.enableWebPush("P1")).toBe("blocked");
         expect(sdk.start).not.toHaveBeenCalled();
+        expect(localStorage.getItem("webpush:P1")).toBeNull();
+    });
+
+    it("fetches the Beams token through the auth retry helper", async () => {
+        permission = "granted";
+        fetchWithAuthRetry.mockResolvedValue({ ok: true, status: 200, json: async () => ({ token: "t" }) });
+        sdk.setUserId.mockImplementation(async (id, provider) => provider.fetchToken(id));
+        expect(await client.enableWebPush("P 1")).toBe("on");
+        expect(fetchWithAuthRetry).toHaveBeenCalledWith("/api/pusher/beams-auth?user_id=P%201", expect.objectContaining({ method: "GET" }));
+        expect(await sdk.setUserId.mock.results[0].value).toEqual({ token: "t" });
+    });
+
+    it("a token request that still fails throws with its status", async () => {
+        permission = "granted";
+        fetchWithAuthRetry.mockResolvedValue({ ok: false, status: 401, json: async () => ({ code: "UNAUTHENTICATED" }) });
+        sdk.setUserId.mockImplementation(async (id, provider) => provider.fetchToken(id));
+        await expect(client.enableWebPush("P1")).rejects.toMatchObject({ status: 401 });
         expect(localStorage.getItem("webpush:P1")).toBeNull();
     });
 
@@ -123,7 +145,7 @@ describe("a device Beams already deleted (remote revoke)", () => {
         await client.resumeWebPush("P1");
         expect(subscription.unsubscribe).toHaveBeenCalled();
         expect(sdk.start).toHaveBeenCalledTimes(2);
-        expect(sdk.setUserId).toHaveBeenCalledWith("P1", expect.any(TokenProvider));
+        expect(sdk.setUserId).toHaveBeenCalledWith("P1", withTokenProvider);
     });
 
     it("resume re-registers when setUserId gets a 404", async () => {
@@ -176,7 +198,18 @@ describe("resumeWebPush", () => {
         localStorage.setItem("webpush:P1", "1");
         await client.resumeWebPush("P1");
         expect(sdk.start).toHaveBeenCalled();
-        expect(sdk.setUserId).toHaveBeenCalledWith("P1", expect.any(TokenProvider));
+        expect(sdk.setUserId).toHaveBeenCalledWith("P1", withTokenProvider);
+    });
+
+    it("resumeWebPush rebinds after an expired access state", async () => {
+        permission = "granted";
+        localStorage.setItem("webpush:P1", "1");
+        // fetchWithAuthRetry already refreshed and retried: the provider sees the final 200.
+        fetchWithAuthRetry.mockResolvedValue({ ok: true, status: 200, json: async () => ({ token: "t" }) });
+        sdk.setUserId.mockImplementation(async (id, provider) => provider.fetchToken(id));
+        await client.resumeWebPush("P1");
+        expect(fetchWithAuthRetry).toHaveBeenCalledTimes(1);
+        expect(console.error).not.toHaveBeenCalled();
     });
 
     it("for another user stops the old binding and does not opt in", async () => {
