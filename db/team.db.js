@@ -43,9 +43,10 @@ export const teamDb = {
         `SELECT user_id::text AS user_id FROM community.team_members
          WHERE team_id = $1 AND status = 'approved' ORDER BY joined_at, id LIMIT 1`, [teamId])).rows[0]?.user_id ?? null,
 
-    pendingIds: async (client, teamId) => (await client.query(
+    /** Public ids of the team's members with `status`. */
+    memberIds: async (client, teamId, status) => (await client.query(
         `SELECT u.public_id FROM community.team_members m JOIN identity.users u ON u.id = m.user_id
-         WHERE m.team_id = $1 AND m.status = 'pending'`, [teamId])).rows.map((r) => r.public_id),
+         WHERE m.team_id = $1 AND m.status = $2::text::public.join_team_status`, [teamId, status])).rows.map((r) => r.public_id),
 
     setHost: (client, teamId, hostDbId) => client.query(
         `UPDATE community.team SET host_id = $2, updated_at = now() WHERE id = $1`, [teamId, hostDbId]),

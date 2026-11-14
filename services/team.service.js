@@ -21,10 +21,12 @@ const removeSchema = z.object({ teamId: teamIdSchema, targetId: z.string().min(1
 const renameSchema = z.object({ teamId: teamIdSchema, name: teamNameSchema });
 
 /**
- * The single post-commit seam (rule 10). `changes`: `{ teamId, change, joined?, left?, ended?, ... }`: `joined` / `left`
- * are public ids whose team conversation membership follows; once `ended` the conversation is gone, so `left` is not synced.
+ * The single post-commit seam (rule 10). `changes`: `{ teamId, change, userId?, joined?, left?, ended?, ... }`: `userId` is
+ * the person an accept is about; `joined` / `left` are public ids whose team conversation membership is synced (to their
+ * committed team status); once `ended` the conversation is gone, so `left` is not synced.
  * Joining is awaited here, not deferred, so the caller gets the conversation id (the UI opens the team chat from it);
- * a failure is logged, the committed change stays, and the id is null (accept re-ensures it, rule 4).
+ * a failure of either call is logged, the committed change stays, and the id is null even if the conversation exists
+ * (accept re-ensures it and re-syncs every approved member, rule 4).
  * Everything else goes through runAfter. Task 3 adds notifications and `team-updated` here from the same object
  * (`invited` rows, `hostChanged`, `pendingIds`). Returns the conversation id, or null when nobody joined or the chat failed.
  */
@@ -113,19 +115,21 @@ export const teamService = {
     /** Rule 4: the invitee of a pending row; accept → approved and into the team conversation, decline → rejected. */
     respond: async ({ userId, teamId, accept }) => {
         parseOrThrow(respondSchema, { teamId, accept });
-        await withTransaction(async (client) => {
+        const approvedIds = await withTransaction(async (client) => {
             if (!await teamDb.lockTeam(client, teamId)) throw teamNotFound();
             const [me] = await teamDb.people(client, { teamId, friendOfDbId: null, publicIds: [userId] });
             if (!me?.member_status) throw teamNotFound();
             if (me.member_status !== "pending") throw new ApiError("This invitation is no longer pending", 409);
             if (accept && (await teamDb.capacity(client, teamId)).approved >= TEAM_SIZE) throw teamFull();
             await teamDb.upsertMember(client, { teamId, userDbId: me.id, status: accept ? "approved" : "rejected" });
+            return accept ? teamDb.memberIds(client, teamId, "approved") : [];
         });
         if (!accept) {
             await afterTeamChange({ teamId, change: "declined" });
             return { team: null, conversationId: null };
         }
-        const conversationId = await afterTeamChange({ teamId, change: "joined", joined: [userId] });
+        // Every approved member, not only the accepter: repairs a join an earlier chat failure lost (syncs are idempotent).
+        const conversationId = await afterTeamChange({ teamId, change: "joined", userId, joined: approvedIds });
         const team = await teamDb.summary(teamId);
         return { team: team && { ...team, conversationId }, conversationId };
     },
@@ -168,7 +172,7 @@ export const teamService = {
             const next = await teamDb.nextHost(client, teamId);
             if (!next) {
                 // Read before the cascade removes them: the people whose invite ends with the team.
-                const pendingIds = await teamDb.pendingIds(client, teamId);
+                const pendingIds = await teamDb.memberIds(client, teamId, "pending");
                 await teamDb.deleteTeam(client, teamId);
                 return { ended: true, pendingIds };
             }

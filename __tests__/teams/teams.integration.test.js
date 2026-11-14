@@ -192,6 +192,22 @@ describe.skipIf(!hasDb)("teams (PostgreSQL)", () => {
         await expect(teamService.removeMember({ userId: host, teamId: team.id, targetId: b })).rejects.toMatchObject({ status: 404 });
     });
 
+    it("a late \"joined\" sync for someone kicked meanwhile leaves them out of the conversation", async () => {
+        const [host, b] = await hostWithFriends(1);
+        const { team } = await create(host, [b]);
+        await respond(b, team.id);
+        await teamService.removeMember({ userId: host, teamId: team.id, targetId: b });
+        // The accept's join landing after the kick's leave (rule 10 runs both after their commits).
+        await chatService.syncTeamMember(team.id, b, "joined");
+        expect((await conversationMembers(team.id))[b]).toEqual(expect.any(Date));
+        await expect(chatService.listMessages({ userId: b, conversationId: team.conversationId })).rejects.toMatchObject({ status: 404 });
+        // A pending invitee is not let in either.
+        const [host2, c] = await hostWithFriends(1);
+        const second = await create(host2, [c]);
+        await chatService.syncTeamMember(second.team.id, c, "joined");
+        expect(await conversationMembers(second.team.id)).toEqual({ [host2]: null });
+    });
+
     it("removing a pending invitee withdraws the invite", async () => {
         const [host, b] = await hostWithFriends(1);
         const { team } = await create(host, [b]);
@@ -282,8 +298,8 @@ describe.skipIf(!hasDb)("teams (PostgreSQL)", () => {
 
             const accepted = await respond(b, team.id);
             expect(accepted.conversationId).toMatch(/^cnv_[0-9a-z]{26}$/);
-            // The host's own join was lost with the failed call; b's accept created the conversation and joined it.
-            expect(await conversationMembers(team.id)).toEqual({ [b]: null });
+            // The host's join was lost with the failed call; b's accept creates the conversation and syncs every approved member.
+            expect(await conversationMembers(team.id)).toEqual({ [host]: null, [b]: null });
         } finally {
             ensure.mockRestore();
             logged.mockRestore();

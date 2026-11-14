@@ -78,6 +78,10 @@ export const chatDb = {
         return (await one(client, `SELECT public_id FROM community.conversation WHERE team_id = $1`, [teamId])).public_id;
     },
 
+    /** The user's status in the team (`approved`, `pending`, …), or null without a row. */
+    teamMemberStatus: async (client, { teamId, userDbId }) => (await one(client,
+        `SELECT status FROM community.team_members WHERE team_id = $1 AND user_id = $2`, [teamId, userDbId]))?.status ?? null,
+
     joinTeam: (client, { conversationDbId, userDbId }) => client.query(
         `INSERT INTO community.conversation_member (conversation_id, user_id, state) VALUES ($1, $2, 'accepted')
          ON CONFLICT (conversation_id, user_id) DO UPDATE SET left_at = NULL, state = 'accepted'`, [conversationDbId, userDbId]),

@@ -479,15 +479,18 @@ export const chatService = {
 
     syncTeamMember: async (teamId, userPublicId, event) => {
         if (event !== "joined" && event !== "left") throw badRequest("Invalid membership event");
-        const conversationId = await withTransaction(async (client) => {
+        const { conversationId, effective } = await withTransaction(async (client) => {
             const user = await chatDb.userByPublicId(client, userPublicId);
             const conversation = await chatDb.lockByTeamId(client, teamId);
             if (!user || !conversation) throw new ApiError("Team conversation not found", 404);
+            // The team row decides, not `event`: syncs run after their commits in any order (an accept's join can land
+            // after a kick's leave), and each reads the status committed by then, under the conversation lock.
+            const approved = await chatDb.teamMemberStatus(client, { teamId, userDbId: user.id }) === "approved";
             const change = { conversationDbId: conversation.id, userDbId: user.id };
-            await (event === "joined" ? chatDb.joinTeam(client, change) : chatDb.leaveTeam(client, change));
-            return conversation.public_id;
+            await (approved ? chatDb.joinTeam(client, change) : chatDb.leaveTeam(client, change));
+            return { conversationId: conversation.public_id, effective: approved ? "joined" : "left" };
         });
-        await after("afterMembership", { conversationId, userId: userPublicId, event });
+        await after("afterMembership", { conversationId, userId: userPublicId, event: effective });
     },
 };
 
