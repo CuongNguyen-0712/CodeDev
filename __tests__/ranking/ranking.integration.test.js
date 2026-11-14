@@ -102,6 +102,18 @@ describe.skipIf(!hasDb)("ranking and public profiles (PostgreSQL)", () => {
         expect(Number((await standing("points", a)).score)).toBe(500);
     });
 
+    it("returns no standing for an unknown learner", async () => {
+        const res = await rankingDb.getStanding({ board: "overall", userKey: `${TAG}_nobody` });
+        expect(res.rows).toHaveLength(0);
+    });
+
+    it("gives a learner without ledger entries a zero score and no position", async () => {
+        const fresh = await makeUser("fresh");
+        const s = await standing("overall", fresh);
+        expect(Number(s.score)).toBe(0);
+        expect(s.position).toBeNull();
+    });
+
     it("scores the 30-day board from recent ledger entries only", async () => {
         const future = new Date(Date.now() + 60_000).toISOString();
         const s = (await rankingDb.getStanding({ board: "exp", since: future, userKey: a.publicId })).rows[0];

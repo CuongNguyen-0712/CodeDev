@@ -90,6 +90,10 @@ export const rankingDb = {
      */
     getStanding: async ({ board, since = null, userKey }) => {
         const col = BOARD_COLUMNS[board];
+        const viewer = await sql(`SELECT id FROM identity.users WHERE public_id = $1`, [userKey]);
+        if (!viewer.rows.length) return viewer;
+        // The viewer's id goes in as a bound value, not u.id: only then can PostgreSQL drop
+        // ranking_scores' `_user_id IS NULL OR` branch and read the ledgers through their user indexes.
         return sql(
             `WITH me AS (
                       SELECT u.id, u.public_id, u.username, i.nickname, i.image, i.show_on_leaderboard,
@@ -98,9 +102,9 @@ export const rankingDb = {
                              COALESCE(a.${col}, 0) AS all_score
                       FROM identity.users u
                       JOIN profile.info i ON i.user_id = u.id
-                      LEFT JOIN LATERAL public.ranking_scores($2::timestamptz, u.id) s ON true
-                      LEFT JOIN LATERAL public.ranking_scores(NULL, u.id) a ON true
-                      WHERE u.public_id = $3
+                      LEFT JOIN LATERAL public.ranking_scores($2::timestamptz, $3::bigint) s ON true
+                      LEFT JOIN LATERAL public.ranking_scores(NULL, $3::bigint) a ON true
+                      WHERE u.id = $3::bigint
                   )
              SELECT
                  me.score, me.visible, NOT me.show_on_leaderboard AS opted_out,
@@ -122,7 +126,7 @@ export const rankingDb = {
              ${TIER("me.all_score")}
              LEFT JOIN profile.rank_tier cur ON cur.kind = $1 AND cur.tier = tier.tier
              LEFT JOIN profile.rank_tier nxt ON nxt.kind = $1 AND nxt.tier = tier.tier + 1`,
-            [board, since, userKey, snapshotPeriod(since)]
+            [board, since, viewer.rows[0].id, snapshotPeriod(since)]
         );
     },
 };

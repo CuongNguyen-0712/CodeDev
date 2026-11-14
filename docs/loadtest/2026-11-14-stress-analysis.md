@@ -41,3 +41,13 @@ Quét toàn bảng trong `getStanding` giữ kết nối lâu → pool cạn →
 
 1. **Vòng 1**: `getStanding` truyền id người xem dưới dạng tham số bind cho `ranking_scores` (giữ điểm live).
 2. Ứng viên sau (chỉ khi báo cáo chỉ ra): `learning_progress()`, `/api/user/me`, `refresh_ranking_snapshot()` (người đọc đầu tiên trả 2,4 s).
+
+## Vòng 1 — thay đổi: ranking standing dùng index
+
+`rankingDb.getStanding` (`db/ranking.db.js`) lấy `id` người xem bằng một câu riêng (`SELECT id FROM identity.users WHERE public_id = $1`), rồi truyền id đó vào `ranking_scores($2, $3::bigint)` / `ranking_scores(NULL, $3::bigint)` dưới dạng tham số bind thay cho `u.id`. Điểm người xem vẫn live; vị trí, tier, điều kiện hiển thị giữ nguyên. User không tồn tại vẫn trả 0 dòng.
+
+Kiểm chứng:
+
+- `EXPLAIN (ANALYZE)` câu dạng standing qua `PREPARE … EXECUTE` với id bind (`loadtest_run`, `lt_00042`): **2,5 ms**, Index Scan `idx_exp_transaction_user_created` và `idx_point_transaction_earned` cho cả hai lần gọi (trước: 58–145 ms, Seq Scan).
+- Driver: `lib/db.js` gọi `pool.query(text, params)` (pg) và `neonSql.query(text, params)` (Neon) không đặt tên câu, nên mỗi lần PostgreSQL lập plan với giá trị thật; không có plan generic.
+- Smoke (`20261114-1022-loadtest-smoke`, 5 VU, 1 phút): câu `WITH me AS …` trung bình **21–22 ms** (29 lần), so với 25 000–28 000 ms ở vòng 0. Phần còn lại là bước đếm vị trí trên `profile.ranking_snapshot` (không đổi trong vòng này), không còn quét bảng giao dịch.
