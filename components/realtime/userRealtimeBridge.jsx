@@ -18,6 +18,7 @@ import { chatKeys } from "@/keys/chat.keys";
 import { friendKeys } from "@/keys/friend.keys";
 import { createChatHandlers } from "@/lib/chat/realtimeHandlers";
 import { applyFriendChange } from "@/lib/social/friendCache";
+import { createTeamHandler } from "@/lib/team/realtimeHandler";
 
 /**
  * Listens on the signed-in user's private channel and keeps every open tab / device in sync:
@@ -44,6 +45,7 @@ export function UserRealtimeBridge() {
     }, [queryClient]);
 
     const chatHandlers = useMemo(() => createChatHandlers(queryClient, userId), [queryClient, userId]);
+    const teamHandler = useMemo(() => createTeamHandler(queryClient, userId), [queryClient, userId]);
 
     // Only what learning progress feeds (not sessions, sign-in methods, privacy). An in-flight
     // refetch, e.g. from the tab that made the change, is reused instead of restarted.
@@ -125,6 +127,9 @@ export function UserRealtimeBridge() {
 
             // { user, friendship, previous } from my side: patch friends, invitations, counts and people search.
             [events.FRIEND_UPDATED]: (change) => applyFriendChange(queryClient, change),
+
+            // { teamId, change }: invalidate teams, counts and the inbox; an ended team's chat leaves the inbox at once.
+            [events.TEAM_UPDATED]: teamHandler,
         },
         { onReconnect: refreshUserData }
     );

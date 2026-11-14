@@ -28,7 +28,7 @@ const social = vi.hoisted(() => ({
     searchUsers: vi.fn(async () => ({ items: [], nextCursor: null })),
     listFriends: vi.fn(async () => ({ items: [], nextCursor: null })),
     listInvitations: vi.fn(async () => ({ items: [], nextCursor: null })),
-    counts: vi.fn(async () => ({ friends: 1, received: 0 })),
+    counts: vi.fn(async () => ({ friends: 1, received: 0, teamInvitations: 0 })),
 }));
 vi.mock("@/services/social.service", () => ({ socialService: social }));
 vi.mock("@/lib/session", () => ({ getAuthSession: async () => ({ user: { id: "me" } }) }));
@@ -49,7 +49,7 @@ beforeEach(() => {
     window.matchMedia ??= () => ({ matches: false, addEventListener() { }, removeEventListener() { } });
     vi.clearAllMocks();
     params = new URLSearchParams();
-    data = { users: empty, friends: empty, received: empty, sent: empty, counts: { friends: 0, received: 0 } };
+    data = { users: empty, friends: empty, received: empty, sent: empty, counts: { friends: 0, received: 0, teamInvitations: 0 } };
 });
 afterEach(cleanup);
 
@@ -74,7 +74,7 @@ describe("ContactPage tabs", () => {
     });
 
     it("tab labels show counts: Friends 12, Invitations 2", async () => {
-        data.counts = { friends: 12, received: 2 };
+        data.counts = { friends: 12, received: 2, teamInvitations: 0 };
         renderWith(<ContactPage />);
         await screen.findByRole("tab", { name: /Friends\s*12/ });
         expect(screen.getByRole("tab", { name: /Invitations\s*2/ })).toBeTruthy();
@@ -82,7 +82,7 @@ describe("ContactPage tabs", () => {
     });
 
     it("hides a count of 0", async () => {
-        data.counts = { friends: 0, received: 3 };
+        data.counts = { friends: 0, received: 3, teamInvitations: 0 };
         renderWith(<ContactPage />);
         await screen.findByRole("tab", { name: /Invitations\s*3/ });
         expect(screen.getByRole("tab", { name: /Friends/ }).textContent).toBe("Friends");

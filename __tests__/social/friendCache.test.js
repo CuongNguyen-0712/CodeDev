@@ -50,6 +50,11 @@ describe("cache helpers", () => {
         expect(patchCounts({ friends: 2, received: 3 }, accept)).toEqual({ friends: 3, received: 2 });
     });
 
+    it("counts leave teamInvitations untouched", () => {
+        expect(patchCounts({ friends: 2, received: 3, teamInvitations: 4 }, change("bob", "friends", "received")))
+            .toEqual({ friends: 3, received: 2, teamInvitations: 4 });
+    });
+
     it("send adds to sent, cancel removes from sent, remove drops from friends", () => {
         const sent = pagesOf([person("old")], [person("older")]);
         const afterSend = patchInvitations(sent, "sent", change("bob", "sent", null));
