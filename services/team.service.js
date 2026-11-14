@@ -21,20 +21,26 @@ const removeSchema = z.object({ teamId: teamIdSchema, targetId: z.string().min(1
 const renameSchema = z.object({ teamId: teamIdSchema, name: teamNameSchema });
 
 /**
- * The single post-commit seam (rule 10); every effect goes through runAfter, so a failure is only logged.
- * `changes`: `{ teamId, change, joined?, left?, ended?, ... }`: `joined` / `left` are public ids whose team
- * conversation membership follows; once `ended` the conversation is gone, so `left` is not synced.
- * Task 3 adds notifications and `team-updated` here from the same object (`invited` rows, `hostChanged`, `pendingIds`).
+ * The single post-commit seam (rule 10). `changes`: `{ teamId, change, joined?, left?, ended?, ... }`: `joined` / `left`
+ * are public ids whose team conversation membership follows; once `ended` the conversation is gone, so `left` is not synced.
+ * Joining is awaited here, not deferred, so the caller gets the conversation id (the UI opens the team chat from it);
+ * a failure is logged, the committed change stays, and the id is null (accept re-ensures it, rule 4).
+ * Everything else goes through runAfter. Task 3 adds notifications and `team-updated` here from the same object
+ * (`invited` rows, `hostChanged`, `pendingIds`). Returns the conversation id, or null when nobody joined or the chat failed.
  */
 async function afterTeamChange({ teamId, joined = [], left = [], ended = false }) {
-    // One closure so the conversation exists before anyone joins it; ensure is idempotent (rule 4).
+    let conversationId = null;
     if (joined.length) {
-        await runAfter(async () => {
-            await chatService.ensureTeamConversation(teamId);
+        try {
+            conversationId = (await chatService.ensureTeamConversation(teamId)).id;
             for (const id of joined) await chatService.syncTeamMember(teamId, id, "joined");
-        });
+        } catch (error) {
+            console.error("[team] joining the team conversation", error);
+            conversationId = null;
+        }
     }
     if (!ended) for (const id of left) await runAfter(() => chatService.syncTeamMember(teamId, id, "left"));
+    return conversationId;
 }
 
 /** Rule 3 for each new invitee: an existing, active, accepted friend of the host, with no block either way. */
@@ -81,8 +87,9 @@ export const teamService = {
             await teamDb.upsertMember(client, { teamId, userDbId: me.id, status: "approved" });
             return invitePending(client, teamId, people);
         });
-        await afterTeamChange({ teamId, change: "created", joined: [userId], invited });
-        return { team: await teamDb.summary(teamId) };
+        const conversationId = await afterTeamChange({ teamId, change: "created", joined: [userId], invited });
+        const team = await teamDb.summary(teamId);
+        return { team: team && { ...team, conversationId } };
     },
 
     /** Rule 2: host only; approved / pending people are skipped; approved + pending stays ≤ 5. */
@@ -118,9 +125,9 @@ export const teamService = {
             await afterTeamChange({ teamId, change: "declined" });
             return { team: null, conversationId: null };
         }
-        await afterTeamChange({ teamId, change: "joined", joined: [userId] });
+        const conversationId = await afterTeamChange({ teamId, change: "joined", joined: [userId] });
         const team = await teamDb.summary(teamId);
-        return { team, conversationId: team?.conversationId ?? null };
+        return { team: team && { ...team, conversationId }, conversationId };
     },
 
     /** Rule 5: host only, never themselves; approved → kicked (out of the conversation), pending → kicked (invite withdrawn). */

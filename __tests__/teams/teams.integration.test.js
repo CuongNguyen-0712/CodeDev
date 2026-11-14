@@ -3,8 +3,10 @@ import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/chatMedia", () => ({ remove: vi.fn(async () => { }) }));
-// Outside a request the real `after` throws, so post-commit chat calls run inline.
-vi.mock("next/server", () => ({ after: () => { throw new Error("outside a request scope"); } }));
+// Outside a request the real `after` throws, so runAfter runs inline; a test may swap in a deferring `after` that never runs.
+const inline = () => { throw new Error("outside a request scope"); };
+let afterImpl = inline;
+vi.mock("next/server", () => ({ after: (fn) => afterImpl(fn) }));
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 const TAG = `tm${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")}`;
@@ -251,5 +253,40 @@ describe.skipIf(!hasDb)("teams (PostgreSQL)", () => {
         // b sees the team's whole history again on re-joining.
         await respond(b, team.id);
         expect((await conversationMembers(team.id))[b]).toBeNull();
+    });
+
+    it("create and accept return the conversation id even when runAfter is deferred (as inside a request)", async () => {
+        const [host, b] = await hostWithFriends(1);
+        afterImpl = () => { };
+        try {
+            const { team } = await create(host, [b]);
+            expect(team.conversationId).toMatch(/^cnv_[0-9a-z]{26}$/);
+            expect(await conversationMembers(team.id)).toEqual({ [host]: null });
+            const accepted = await respond(b, team.id);
+            expect(accepted).toMatchObject({ conversationId: team.conversationId, team: { conversationId: team.conversationId, memberCount: 2 } });
+            expect(await conversationMembers(team.id)).toEqual({ [host]: null, [b]: null });
+        } finally {
+            afterImpl = inline;
+        }
+    });
+
+    it("a failed chat call keeps the committed team and returns a null conversation id; accept ensures it again", async () => {
+        const [host, b] = await hostWithFriends(1);
+        const ensure = vi.spyOn(chatService, "ensureTeamConversation").mockRejectedValueOnce(new Error("chat down"));
+        const logged = vi.spyOn(console, "error").mockImplementation(() => { });
+        try {
+            const { team } = await create(host, [b]);
+            expect(team).toMatchObject({ hostId: host, memberCount: 1, pendingCount: 1, conversationId: null });
+            expect(await teamRow(team.id)).toMatchObject({ host });
+            expect(logged).toHaveBeenCalledWith("[team] joining the team conversation", expect.objectContaining({ message: "chat down" }));
+
+            const accepted = await respond(b, team.id);
+            expect(accepted.conversationId).toMatch(/^cnv_[0-9a-z]{26}$/);
+            // The host's own join was lost with the failed call; b's accept created the conversation and joined it.
+            expect(await conversationMembers(team.id)).toEqual({ [b]: null });
+        } finally {
+            ensure.mockRestore();
+            logged.mockRestore();
+        }
     });
 });
