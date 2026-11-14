@@ -43,8 +43,9 @@ describe.skipIf(!hasDb)("team side effects", () => {
     const byTo = (a, b) => a.to.localeCompare(b.to);
     const teamEvents = () => publishToUser.mock.calls.filter(([, event]) => event === "team-updated")
         .map(([to, , data]) => ({ to, ...data })).sort(byTo);
-    const expectEvents = (teamId, list) => {
-        expect(teamEvents()).toEqual(list.map(([to, change]) => ({ to, teamId, change })).sort(byTo));
+    // [to, change, userId the change is about]; every event carries the team conversation's id.
+    const expectEvents = (teamId, list, conversationId) => {
+        expect(teamEvents()).toEqual(list.map(([to, change, userId]) => ({ to, teamId, change, conversationId, userId })).sort(byTo));
         publishToUser.mockClear();
     };
 
@@ -133,29 +134,31 @@ describe.skipIf(!hasDb)("team side effects", () => {
         await befriend(b, d);
 
         const { team } = await create(host, [b, c]);
-        expectEvents(team.id, [[host, "invited"], [b, "invited"], [c, "invited"]]);
+        const cnv = team.conversationId;
+        const expectTeam = (list) => expectEvents(team.id, list, cnv);
+        expectTeam([[host, "invited", b], [b, "invited", b], [c, "invited", b]]);
         await respond(b, team.id);
-        expectEvents(team.id, [[host, "joined"], [b, "joined"], [c, "joined"]]);
+        expectTeam([[host, "joined", b], [b, "joined", b], [c, "joined", b]]);
         await respond(c, team.id, false); // not a team-updated change
-        expectEvents(team.id, []);
+        expectTeam([]);
         await teamService.invite({ userId: host, teamId: team.id, userIds: [c] });
-        expectEvents(team.id, [[host, "invited"], [b, "invited"], [c, "invited"]]);
+        expectTeam([[host, "invited", c], [b, "invited", c], [c, "invited", c]]);
         await teamService.rename({ userId: host, teamId: team.id, name: "Renamed" });
-        expectEvents(team.id, [[host, "renamed"], [b, "renamed"], [c, "renamed"]]);
+        expectTeam([[host, "renamed", host], [b, "renamed", host], [c, "renamed", host]]);
         await teamService.removeMember({ userId: host, teamId: team.id, targetId: c }); // pending: invite withdrawn
-        expectEvents(team.id, [[host, "kicked"], [b, "kicked"], [c, "kicked"]]);
+        expectTeam([[host, "kicked", c], [b, "kicked", c], [c, "kicked", c]]);
         await teamService.invite({ userId: host, teamId: team.id, userIds: [c] });
         await respond(c, team.id);
         publishToUser.mockClear();
 
         await teamService.leave({ userId: host, teamId: team.id }); // b joined first and becomes host
-        expectEvents(team.id, [[host, "left"], [b, "host"], [c, "host"]]);
+        expectTeam([[host, "left", host], [b, "host", b], [c, "host", b]]);
         await teamService.removeMember({ userId: b, teamId: team.id, targetId: c });
-        expectEvents(team.id, [[b, "kicked"], [c, "kicked"]]);
+        expectTeam([[b, "kicked", c], [c, "kicked", c]]);
         await teamService.invite({ userId: b, teamId: team.id, userIds: [d] });
-        expectEvents(team.id, [[b, "invited"], [d, "invited"]]);
+        expectTeam([[b, "invited", d], [d, "invited", d]]);
         await teamService.leave({ userId: b, teamId: team.id }); // nobody approved is left: the team ends for b and the invitee
-        expectEvents(team.id, [[b, "ended"], [d, "ended"]]);
+        expectTeam([[b, "ended", b], [d, "ended", b]]); // the conversation id was read before the team was deleted
     });
 
     it("rename publishes chat-conversation-updated to approved members", async () => {

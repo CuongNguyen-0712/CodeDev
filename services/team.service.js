@@ -45,10 +45,12 @@ async function committedMemberIds(teamId, status) {
  * Joining is awaited here, not deferred, so the caller gets the conversation id (the UI opens the team chat from it);
  * a failure of either call is logged, the committed change stays, and the id is null even if the conversation exists
  * (accept re-ensures it and re-syncs every approved member, rule 4).
+ * `about` is the public id the change is about (the event's `userId`; recipients of a host handover get the new host);
+ * `chatId` is the team conversation's public id when the team row is already gone (ended), else it is read here.
  * Everything else goes through runAfter. Returns the conversation id, or null when nobody joined or the chat failed.
  */
 async function afterTeamChange({
-    teamId, change, joined = [], left = [], target = null, ended = false, pendingIds = [], invited = [], teamName, actor, newHost = null,
+    teamId, change, joined = [], left = [], target = null, ended = false, pendingIds = [], invited = [], teamName, actor, newHost = null, about = null, chatId = null,
 }) {
     let conversationId = null;
     if (joined.length) {
@@ -88,9 +90,18 @@ async function afterTeamChange({
         });
     }
     const subjects = [...left, ...pendingIds, ...(target ? [target] : [])];
+    let conversationRef = chatId;
+    if (!conversationRef && !ended) {
+        try {
+            conversationRef = (await teamDb.summary(teamId))?.conversationId ?? null;
+        } catch (error) {
+            console.error("[team] reading the team conversation after commit", error);
+        }
+    }
     for (const id of dedupe([...approved, ...pending, ...joined, ...subjects])) {
-        const theirs = newHost && !subjects.includes(id) ? "host" : change;
-        await runAfter(() => publishToUser(id, events.TEAM_UPDATED, { teamId, change: theirs }));
+        const isHost = Boolean(newHost) && !subjects.includes(id);
+        const payload = { teamId, change: isHost ? "host" : change, conversationId: conversationRef ?? null, userId: isHost ? newHost.public_id : about };
+        await runAfter(() => publishToUser(id, events.TEAM_UPDATED, payload));
     }
     return conversationId;
 }
@@ -161,7 +172,7 @@ export const teamService = {
             await teamDb.upsertMember(client, { teamId, userDbId: me.id, status: "approved" });
             return { invited: await invitePending(client, teamId, people), actor: me.username };
         });
-        const conversationId = await afterTeamChange({ teamId, change: "invited", joined: [userId], invited, teamName: input.name, actor });
+        const conversationId = await afterTeamChange({ teamId, change: "invited", joined: [userId], invited, teamName: input.name, actor, about: invited[0]?.id ?? userId });
         const team = await teamDb.summary(teamId);
         return { team: team && { ...team, conversationId } };
     },
@@ -180,7 +191,7 @@ export const teamService = {
             await checkInvitees(client, me.id, fresh, fresh.map((p) => p.public_id));
             return { invited: await invitePending(client, teamId, fresh), teamName: team.name, actor: me.username };
         });
-        if (invited.length) await afterTeamChange({ teamId, change: "invited", invited, ...names });
+        if (invited.length) await afterTeamChange({ teamId, change: "invited", invited, about: invited[0].id, ...names });
         return { team: await teamDb.summary(teamId) };
     },
 
@@ -199,7 +210,7 @@ export const teamService = {
         // A decline is not a team-updated change (spec section 6) and notifies nobody.
         if (!accept) return { team: null, conversationId: null };
         // Every approved member, not only the accepter: repairs a join an earlier chat failure lost (syncs are idempotent).
-        const conversationId = await afterTeamChange({ teamId, change: "joined", joined: approvedIds });
+        const conversationId = await afterTeamChange({ teamId, change: "joined", joined: approvedIds, about: userId });
         const team = await teamDb.summary(teamId);
         return { team: team && { ...team, conversationId }, conversationId };
     },
@@ -215,7 +226,7 @@ export const teamService = {
             await teamDb.upsertMember(client, { teamId, userDbId: target.id, status: "kicked" });
             return target.member_status === "approved";
         });
-        await afterTeamChange({ teamId, change: "kicked", target: targetId, left: wasApproved ? [targetId] : [] });
+        await afterTeamChange({ teamId, change: "kicked", target: targetId, left: wasApproved ? [targetId] : [], about: targetId });
         return { team: await teamDb.summary(teamId) };
     },
 
@@ -226,7 +237,7 @@ export const teamService = {
             await lockForMember(client, teamId, userId, { hostOnly: true });
             await teamDb.rename(client, teamId, input.name);
         });
-        await afterTeamChange({ teamId, change: "renamed" });
+        await afterTeamChange({ teamId, change: "renamed", about: userId });
         return { team: await teamDb.summary(teamId) };
     },
 
@@ -243,14 +254,15 @@ export const teamService = {
             if (!next) {
                 // Read before the cascade removes them: the people whose invite ends with the team.
                 const pendingIds = await teamDb.memberIds(client, teamId, "pending");
+                const chatId = (await teamDb.summary(teamId))?.conversationId ?? null;
                 await teamDb.deleteTeam(client, teamId);
-                return { ended: true, pendingIds };
+                return { ended: true, pendingIds, chatId };
             }
             if (team.host_id !== me.id) return { ended: false };
             await teamDb.setHost(client, teamId, next.user_id);
             return { ended: false, newHost: next, teamName: team.name, actor: me.username };
         });
-        await afterTeamChange({ teamId, change: result.ended ? "ended" : "left", left: [userId], ...result });
+        await afterTeamChange({ teamId, change: result.ended ? "ended" : "left", left: [userId], about: userId, ...result });
         return { team: null };
     },
 };
