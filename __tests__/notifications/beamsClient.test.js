@@ -15,10 +15,8 @@ const sdk = {
     _deviceId: "d1",
 };
 const gone = () => new Error("Unexpected status code 404: Not Found, device not found");
-const TokenProvider = vi.fn(function TokenProvider(opts) { this.opts = opts; });
 vi.mock("@pusher/push-notifications-web", () => ({
     Client: vi.fn(function Client() { return sdk; }),
-    TokenProvider,
 }));
 const setWebPushStop = vi.fn();
 vi.mock("@/lib/authNavigation", () => ({ setWebPushStop: (...a) => setWebPushStop(...a) }));
@@ -201,15 +199,27 @@ describe("resumeWebPush", () => {
         expect(sdk.setUserId).toHaveBeenCalledWith("P1", withTokenProvider);
     });
 
-    it("resumeWebPush rebinds after an expired access state", async () => {
+    it("resumeWebPush fetches the token through the auth retry helper", async () => {
+        // The expired-access refresh and retry themselves are covered in fetchWithAuthRetry.test.js.
         permission = "granted";
         localStorage.setItem("webpush:P1", "1");
-        // fetchWithAuthRetry already refreshed and retried: the provider sees the final 200.
         fetchWithAuthRetry.mockResolvedValue({ ok: true, status: 200, json: async () => ({ token: "t" }) });
         sdk.setUserId.mockImplementation(async (id, provider) => provider.fetchToken(id));
         await client.resumeWebPush("P1");
         expect(fetchWithAuthRetry).toHaveBeenCalledTimes(1);
         expect(console.error).not.toHaveBeenCalled();
+    });
+
+    it("a 404 from the token endpoint does not forget the device", async () => {
+        // Only Beams saying the device is gone resets it; our own route answering 404 does not.
+        permission = "granted";
+        localStorage.setItem("webpush:P1", "1");
+        fetchWithAuthRetry.mockResolvedValue({ ok: false, status: 404, json: async () => ({}) });
+        sdk.setUserId.mockImplementation(async (id, provider) => provider.fetchToken(id));
+        await client.resumeWebPush("P1");
+        expect(sdk._deviceStateStore.clear).not.toHaveBeenCalled();
+        expect(subscription.unsubscribe).not.toHaveBeenCalled();
+        expect(console.error).toHaveBeenCalledWith("[Beams Client] resume failed:", "Beams token request failed (404)");
     });
 
     it("for another user stops the old binding and does not opt in", async () => {

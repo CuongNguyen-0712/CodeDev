@@ -57,20 +57,30 @@ every channel with the expired cookie (hidden tabs do not refresh proactively).
    401 whose JSON body `code` is `ACCESS_TOKEN_EXPIRED`, awaits
    `refreshSession({ ifOlderThan: startedAt })` and fetches once more. Returns the final
    `Response`. A failed refresh returns the original 401 (a terminal failure already broadcasts
-   `signed-out`, which `SessionWatcher` handles).
+   `signed-out`, which `SessionWatcher` handles). Each attempt gets its own 10 s timeout
+   (`AbortSignal.timeout`) unless the caller passes a signal, so a hung request cannot leave a
+   channel pending for good.
 2. **Pusher** (`lib/pusherClient.js`): replace `{ endpoint, transport }` with
    `customHandler({ socketId, channelName }, callback)` that POSTs form data
    (`socket_id`, `channel_name`) to `/api/pusher/auth` through the helper; `callback(null, json)`
-   on 2xx, else `callback(error)` with `.status` set so `usePusherChannel`'s
-   `subscription_error` log keeps showing it.
-3. **Safety net** (`lib/pusherClient.js`): `acquireChannel` resubscribes a channel that exists
-   but is neither subscribed nor pending (`pusher.subscribe(name)` does that). On an auth
-   `refreshed` event (`onAuthEvent`), every held channel in that failed state is resubscribed
-   — covers a subscribe that failed before any retry could help.
+   on 2xx, else `callback(error)`. The callback runs once, outside the `try`. pusher-js copies
+   `status` into `subscription_error` only for its own `HTTPAuthError`, so the status reaches
+   the dev log inside the message ("Channel authorization failed (403)"), not as a field.
+3. **Safety net** (`lib/pusherClient.js`):
+   - `acquireChannel` always returns `pusher.subscribe(name)`: idempotent for a subscribed or
+     pending channel, resends for a failed one, reinstates one whose unsubscribe is pending.
+   - On an auth `refreshed` event (`onAuthEvent`), every held channel that is neither subscribed
+     nor pending is resubscribed, at most once a minute per channel (two tabs whose refreshed
+     session still answered `ACCESS_TOKEN_EXPIRED` would otherwise drive each other).
+   - A 408, 429, 5xx or network error on channel auth schedules one resubscribe for that channel:
+     `Retry-After` when given, else 10 s doubling up to 5 min, reset on success; dropped on
+     release and on sign out. 401 and 403 are never retried this way.
+   - `releaseChannel` uses the existing client only, so an unmount after sign out opens nothing.
 4. **Beams** (`lib/beamsClient.js`): `bind()` passes
    `{ fetchToken: (userId) => fetch-with-retry GET /api/pusher/beams-auth?user_id=… -> json }`
-   instead of `new sdk.TokenProvider(...)`; throws with `.status` on non-2xx so `isGone`
-   and the existing error paths behave as before.
+   instead of `new sdk.TokenProvider(...)`; throws `Beams token request failed (<status>)` with
+   `.status` on non-2xx. That message does not match `isGone`, so a 404 from our own route no
+   longer resets the device (only Beams reporting the device gone does).
 5. **Tests** (vitest): helper — 401 expired -> refresh -> retry ok; second 401 not retried;
    other 401/403/429 not retried; refresh failure returns original. Pusher handler — callback
    success / error. Safety net — failed channel resubscribed on acquire and on `refreshed`.

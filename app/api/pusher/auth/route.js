@@ -7,7 +7,8 @@ import { rateLimiters } from "@/lib/rateLimit";
 import { apiRoute } from "@/lib/routeHandler";
 
 /**
- * Pusher private channel authorization (pusher-js posts form data: socket_id, channel_name).
+ * Pusher private channel authorization (form data: socket_id, channel_name), posted by
+ * authorizeChannel in lib/pusherClient.js, which refreshes an expired access state and retries.
  * A user may only subscribe to their own `private-user-{id}` channel. The body is Pusher's own
  * format, not the `{ success, data }` envelope.
  */

@@ -7,7 +7,8 @@ import { apiRoute } from "@/lib/routeHandler";
 
 /**
  * Beams Token for web push (docs/superpowers/specs/2026-11-07-beams-web-push-design.md 5.3).
- * The browser's TokenProvider sends a GET with `user_id` and the same-origin cookies; a user may
+ * The token provider in lib/beamsClient.js sends a GET with `user_id` and the same-origin cookies
+ * (refreshing an expired access state and retrying once); a user may
  * only bind a device to their own public id. The body is Beams' own `{ token }`, not the
  * `{ success, data }` envelope.
  */
