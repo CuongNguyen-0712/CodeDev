@@ -8,6 +8,7 @@ import { friendQueries } from "@/queries/friend.query";
 
 import UserAvatar from "@/components/chat/userAvatar";
 import { PeopleEmpty, PersonList } from "@/components/contact/personRow";
+import { ErrorReload } from "@/components/ui/error";
 
 import { Button } from "@/components/shadcn/button";
 import { Checkbox } from "@/components/shadcn/checkbox";
@@ -23,10 +24,19 @@ export default function FriendPicker({ value, onChange, max, exclude = [], disab
     const hidden = new Set(exclude);
     const query = useInfiniteQuery({
         ...friendQueries.list(status, ''),
-        select: (data) => ({ ...data, pages: data.pages.map((page) => ({ ...page, items: (page?.items || []).filter((f) => !hidden.has(f.id)) })) }),
+        select: (data) => ({
+            ...data,
+            hasFriends: data.pages.some((page) => page?.items?.length),
+            pages: data.pages.map((page) => ({ ...page, items: (page?.items || []).filter((f) => !hidden.has(f.id)) })),
+        }),
     });
     const full = value.length >= max;
     const toggle = (id, on) => onChange(on ? [...value, id] : value.filter((picked) => picked !== id));
+
+    // Compact like the other dialog errors; PersonList's own first-load error is the full-page one.
+    if (query.isError && !query.data) {
+        return <ErrorReload data={query.error} refetch={() => query.refetch()} compact title="Could not load your friends" />;
+    }
 
     return (
         <div className="flex flex-col gap-2">
@@ -35,7 +45,9 @@ export default function FriendPicker({ value, onChange, max, exclude = [], disab
                     query={query}
                     noun="friends"
                     errorTitle="Could not load your friends"
-                    empty={(
+                    empty={query.data?.hasFriends ? (
+                        <PeopleEmpty icon={LuUsers} title="All your friends are already in this team" description="Friends who are members or invited are not listed." />
+                    ) : (
                         <PeopleEmpty icon={LuUsers} title="No friends to add" description="Teams are made of friends. Add friends on Contact first.">
                             <Button asChild variant="outline" size="sm"><Link href="/contact">Find people</Link></Button>
                         </PeopleEmpty>

@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { useApp } from "@/contexts/appContext";
+import { chatKeys } from "@/keys/chat.keys";
 import { teamNameSchema } from "@/lib/validation/team";
 import { useTeamAction } from "@/mutations/team.mutation";
 
@@ -12,7 +14,8 @@ import TeamNameField from "@/components/chat/teamNameField";
 
 import { Dialog } from "@/components/shadcn/dialog";
 
-function RenameForm({ teamId, currentName, onOpenChange }) {
+function RenameForm({ teamId, conversationId, currentName, onOpenChange }) {
+    const queryClient = useQueryClient();
     const { showAlert } = useApp();
     const { rename } = useTeamAction();
     const [name, setName] = useState(currentName);
@@ -22,7 +25,12 @@ function RenameForm({ teamId, currentName, onOpenChange }) {
     const submit = () => {
         if (!parsed.success) return setError(parsed.error.issues[0]?.message);
         rename.mutate({ teamId, name: parsed.data }, {
-            onSuccess: () => onOpenChange(false),
+            onSuccess: () => {
+                // The header reads the conversation; the realtime update is best effort.
+                queryClient.invalidateQueries({ queryKey: chatKeys.conversation(conversationId) });
+                showAlert(200, "Team renamed");
+                onOpenChange(false);
+            },
             onError: failAlert(showAlert),
         });
     };
@@ -44,10 +52,10 @@ function RenameForm({ teamId, currentName, onOpenChange }) {
 }
 
 /** Host only: rename the team (1-20 characters, the create rule). */
-export default function RenameTeamDialog({ open, onOpenChange, teamId, currentName }) {
+export default function RenameTeamDialog({ open, onOpenChange, teamId, conversationId, currentName }) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            {open && <RenameForm teamId={teamId} currentName={currentName} onOpenChange={onOpenChange} />}
+            {open && <RenameForm teamId={teamId} conversationId={conversationId} currentName={currentName} onOpenChange={onOpenChange} />}
         </Dialog>
     );
 }

@@ -11,11 +11,11 @@ import { teamQueries } from "@/queries/team.query";
 import FriendPicker from "@/components/chat/friendPicker";
 import { TEAM_SIZE, TeamFormContent } from "@/components/chat/newTeamDialog";
 import { failAlert } from "@/components/chat/requestBanner";
+import { MembersSkeleton } from "@/components/chat/teamMembersDialog";
 import { PeopleEmpty } from "@/components/contact/personRow";
 import { ErrorReload } from "@/components/ui/error";
 
 import { Dialog } from "@/components/shadcn/dialog";
-import { Skeleton } from "@/components/shadcn/skeleton";
 
 import { LuUsers } from "react-icons/lu";
 
@@ -31,22 +31,15 @@ function InviteForm({ teamId, onOpenChange }) {
     const free = Math.max(0, TEAM_SIZE - taken.length);
 
     const submit = () => invite.mutate({ teamId, userIds }, {
-        onSuccess: () => onOpenChange(false),
+        onSuccess: () => { showAlert(200, userIds.length === 1 ? "Invitation sent" : "Invitations sent"); onOpenChange(false); },
         onError: failAlert(showAlert),
     });
 
     let body;
-    if (members.isPending) body = <Skeleton className="h-24 w-full" aria-busy="true" />;
-    else if (members.isError) body = <ErrorReload data={members.error} refetch={() => members.refetch()} compact title="Could not load the team" />;
+    if (members.isPending) body = <MembersSkeleton />;
+    else if (members.isError) body = <ErrorReload data={members.error} refetch={() => members.refetch()} compact title="Could not load the members" />;
     else if (free === 0) body = <PeopleEmpty icon={LuUsers} title="The team is full" description={`A team has ${TEAM_SIZE} places, invitations included.`} />;
-    else {
-        body = (
-            <div className="flex flex-col gap-2">
-                <p className="text-xs text-muted-foreground tabular-nums">{free} free {free === 1 ? 'slot' : 'slots'}</p>
-                <FriendPicker value={userIds} onChange={setUserIds} max={free} exclude={taken.map((m) => m.id)} disabled={invite.isPending} />
-            </div>
-        );
-    }
+    else body = <FriendPicker value={userIds} onChange={setUserIds} max={free} exclude={taken.map((m) => m.id)} disabled={invite.isPending} />;
 
     return (
         <TeamFormContent

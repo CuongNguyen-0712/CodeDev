@@ -9,6 +9,8 @@ const replace = vi.fn();
 let friends;
 let members;
 let detail;
+const showAlert = vi.hoisted(() => vi.fn());
+const getConversation = vi.hoisted(() => vi.fn());
 const userApi = vi.hoisted(() => ({ getFriends: vi.fn(), getTeamMembers: vi.fn() }));
 const team = vi.hoisted(() => ({
     createTeamAction: vi.fn(), inviteToTeamAction: vi.fn(), respondTeamInviteAction: vi.fn(),
@@ -22,7 +24,7 @@ vi.mock("@/clients/chat.client", () => ({
     chatClient: {
         getInbox: async () => ({ items: [], nextCursor: null }),
         getUnread: async () => ({ unread: 0, requests: 0 }),
-        getConversation: async () => detail,
+        getConversation: (...a) => getConversation(...a),
         getMessages: async () => ({ items: [], nextCursor: null }),
     },
 }));
@@ -35,7 +37,7 @@ vi.mock("@/actions/chat.actions", () => ({
 vi.mock("@/lib/pusherClient", () => ({ getPusherClient: () => null, isPusherConnected: () => true }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { id: "P1" } }, status: "authenticated" }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace }), useSearchParams: () => new URLSearchParams() }));
-vi.mock("@/contexts/appContext", () => ({ useApp: () => ({ showAlert: vi.fn() }) }));
+vi.mock("@/contexts/appContext", () => ({ useApp: () => ({ showAlert }) }));
 vi.mock("@/components/ui/codeBlock", () => ({ default: () => null }));
 
 const { default: Inbox } = await import("@/components/chat/inbox");
@@ -63,6 +65,7 @@ beforeEach(() => {
     detail = { id: "cnv_t", kind: "team", teamId: "team_x", title: "Squad", image: null, state: "accepted", canSend: true, members: [chatMember("P1"), chatMember("P2")] };
     userApi.getFriends.mockImplementation(async () => friends);
     userApi.getTeamMembers.mockImplementation(async () => members);
+    getConversation.mockImplementation(async () => detail);
 });
 afterEach(cleanup);
 
@@ -113,10 +116,11 @@ describe("Team conversation menu", () => {
         const first = renderWith(<ConversationView conversationId="cnv_t" />);
         const menu = await openMenu();
         await within(menu).findByRole("menuitem", { name: "Invite friends" });
+        // Invitations take places too, so the host sees them counted (ruling R18).
         expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent))
-            .toEqual(["Members (2/5)", "Invite friends", "Rename team", "Leave team"]);
-        fireEvent.click(within(menu).getByRole("menuitem", { name: "Members (2/5)" }));
-        const dialog = await screen.findByRole("dialog", { name: "Members (2/5)" });
+            .toEqual(["Members (2/5 · 1 invited)", "Invite friends", "Rename team", "Leave team"]);
+        fireEvent.click(within(menu).getByRole("menuitem", { name: "Members (2/5 · 1 invited)" }));
+        const dialog = await screen.findByRole("dialog", { name: "Members (2/5 · 1 invited)" });
         expect(within(dialog).getAllByRole("button", { name: /^Remove / })).toHaveLength(2);
         first.unmount();
 
@@ -135,8 +139,8 @@ describe("Team conversation menu", () => {
     it("Members lists Host, members and Invited (host only), Remove asks for confirmation", async () => {
         team.removeTeamMemberAction.mockResolvedValue({ team: {} });
         renderWith(<ConversationView conversationId="cnv_t" />);
-        await choose("Members (2/5)");
-        const dialog = await screen.findByRole("dialog", { name: "Members (2/5)" });
+        await choose("Members (2/5 · 1 invited)");
+        const dialog = await screen.findByRole("dialog", { name: "Members (2/5 · 1 invited)" });
         const rows = await within(dialog).findAllByRole("listitem");
         expect(rows.map((row) => row.textContent)).toEqual([
             expect.stringContaining("Host"), expect.not.stringMatching(/Host|Invited/), expect.stringContaining("Invited"),
@@ -148,6 +152,7 @@ describe("Team conversation menu", () => {
         expect(team.removeTeamMemberAction).not.toHaveBeenCalled();
         fireEvent.click(within(confirm).getByRole("button", { name: "Remove" }));
         await waitFor(() => expect(team.removeTeamMemberAction).toHaveBeenCalledWith({ teamId: "team_x", userId: "P2" }));
+        await waitFor(() => expect(showAlert).toHaveBeenCalledWith(200, "p2 was removed from the team"));
     });
 
     it("Invite friends hides people already in the team or invited and stops at the free slots", async () => {
@@ -160,7 +165,8 @@ describe("Team conversation menu", () => {
         expect(boxes.map((box) => box.closest("label").textContent)).toEqual([
             expect.stringContaining("f1"), expect.stringContaining("f2"), expect.stringContaining("f3"),
         ]);
-        expect(within(dialog).getByText("2 free slots")).toBeTruthy();
+        expect(within(dialog).getByText("0/2 selected")).toBeTruthy();
+        expect(within(dialog).queryByText(/free slot/)).toBeNull();
         const invite = within(dialog).getByRole("button", { name: "Invite" });
         expect(invite.disabled).toBe(true);
         fireEvent.click(boxes[0]);
@@ -168,6 +174,26 @@ describe("Team conversation menu", () => {
         expect(boxes[2].disabled).toBe(true);
         fireEvent.click(invite);
         await waitFor(() => expect(team.inviteToTeamAction).toHaveBeenCalledWith({ teamId: "team_x", userIds: ["F1", "F2"] }));
+        await waitFor(() => expect(showAlert).toHaveBeenCalledWith(200, "Invitations sent"));
+    });
+
+    it("Invite friends says all friends are in the team when every friend is a member or invited", async () => {
+        friends = { items: ["P2", "P3"].map((id) => person(id)), nextCursor: null };
+        renderWith(<ConversationView conversationId="cnv_t" />);
+        await choose("Invite friends");
+        const dialog = await screen.findByRole("dialog", { name: "Invite friends" });
+        expect(await within(dialog).findByText("All your friends are already in this team")).toBeTruthy();
+        expect(within(dialog).queryByText("No friends to add")).toBeNull();
+        expect(within(dialog).queryByRole("link", { name: "Find people" })).toBeNull();
+    });
+
+    it("New team with no friends at all links to Contact", async () => {
+        friends = { items: [], nextCursor: null };
+        renderWith(<Inbox />);
+        fireEvent.click(screen.getByRole("button", { name: "New team" }));
+        const dialog = await screen.findByRole("dialog", { name: "New team" });
+        expect(await within(dialog).findByText("No friends to add")).toBeTruthy();
+        expect(within(dialog).getByRole("link", { name: "Find people" }).getAttribute("href")).toBe("/contact");
     });
 
     it("Invite friends on a full team says so and cannot submit", async () => {
@@ -179,7 +205,7 @@ describe("Team conversation menu", () => {
         expect(within(dialog).getByRole("button", { name: "Invite" }).disabled).toBe(true);
     });
 
-    it("Rename submits the cleaned name only once it changed", async () => {
+    it("Rename submits the cleaned name only once it changed, then refreshes the header and confirms", async () => {
         team.renameTeamAction.mockResolvedValue({ team: {} });
         renderWith(<ConversationView conversationId="cnv_t" />);
         await choose("Rename team");
@@ -190,8 +216,14 @@ describe("Team conversation menu", () => {
         expect(save.disabled).toBe(true);
         fireEvent.change(field, { target: { value: "Night owls " } });
         expect(within(dialog).getByText("11/20")).toBeTruthy();
+        const loads = getConversation.mock.calls.length;
+        detail = { ...detail, title: "Night owls" };
         fireEvent.click(save);
         await waitFor(() => expect(team.renameTeamAction).toHaveBeenCalledWith({ teamId: "team_x", name: "Night owls" }));
+        await waitFor(() => expect(showAlert).toHaveBeenCalledWith(200, "Team renamed"));
+        // No realtime in this test: the header is refreshed by the rename itself.
+        expect(await screen.findByRole("heading", { name: "Night owls" })).toBeTruthy();
+        expect(getConversation.mock.calls.length).toBeGreaterThan(loads);
     });
 
     it("Leave as host names the next host; as the last member says the team will end", async () => {
@@ -204,6 +236,7 @@ describe("Team conversation menu", () => {
         fireEvent.click(within(confirm).getByRole("button", { name: "Leave" }));
         await waitFor(() => expect(team.leaveTeamAction).toHaveBeenCalledWith("team_x"));
         await waitFor(() => expect(replace).toHaveBeenCalledWith("/messages"));
+        expect(showAlert).toHaveBeenCalledWith(200, "You left Squad");
         first.unmount();
 
         members.items = [role("P1", "host"), role("P3", "invited")];

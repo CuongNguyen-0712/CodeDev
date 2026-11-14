@@ -101,7 +101,7 @@ function LeaveTeamDialog({ open, onOpenChange, name, teamId, members, isHost }) 
     const { leave } = useTeamAction();
     const busy = leave.isPending;
     const next = members?.find((m) => m.role === "member");
-    const confirm = () => leave.mutateAsync(teamId).then(() => router.replace("/messages"), failAlert(showAlert));
+    const confirm = () => leave.mutateAsync(teamId).then(() => { showAlert(200, `You left ${name}`); router.replace("/messages"); }, failAlert(showAlert));
 
     return (
         <AlertDialog open={open} onOpenChange={(value) => !busy && onOpenChange(value)}>
@@ -125,12 +125,15 @@ function LeaveTeamDialog({ open, onOpenChange, name, teamId, members, isHost }) 
 }
 
 /** The team conversation's menu: Members and Leave for everyone; Invite friends and Rename team only for the host. */
-function TeamMenu({ name, teamId, meId, fallbackCount }) {
+function TeamMenu({ name, teamId, conversationId, meId, fallbackCount }) {
     const { status } = useSession();
     const members = useQuery(teamQueries.members(status, teamId)).data?.items;
     const [dialog, setDialog] = useState(null);   // "members" | "invite" | "rename" | "leave"
     const isHost = Boolean(members?.some((m) => m.role === "host" && m.id === meId));
     const count = members ? members.filter((m) => m.role !== "invited").length : fallbackCount;
+    // Invitations hold places too (rule 2); only the host is sent them.
+    const invited = members ? members.length - count : 0;
+    const membersLabel = `Members (${count}/${TEAM_SIZE}${invited ? ` · ${invited} invited` : ""})`;
     const dialogProps = (key) => ({ open: dialog === key, onOpenChange: (open) => setDialog(open ? key : null), teamId });
 
     return (
@@ -142,16 +145,16 @@ function TeamMenu({ name, teamId, meId, fallbackCount }) {
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem onSelect={() => setDialog("members")}><LuUsers />Members ({count}/{TEAM_SIZE})</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setDialog("members")}><LuUsers />{membersLabel}</DropdownMenuItem>
                     {isHost && <DropdownMenuItem onSelect={() => setDialog("invite")}><LuUserPlus />Invite friends</DropdownMenuItem>}
                     {isHost && <DropdownMenuItem onSelect={() => setDialog("rename")}><LuPencil />Rename team</DropdownMenuItem>}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onSelect={() => setDialog("leave")}><LuLogOut />Leave team</DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-            <TeamMembersDialog {...dialogProps("members")} count={count} />
+            <TeamMembersDialog {...dialogProps("members")} title={membersLabel} />
             {isHost && <InviteFriendsDialog {...dialogProps("invite")} />}
-            {isHost && <RenameTeamDialog {...dialogProps("rename")} currentName={name} />}
+            {isHost && <RenameTeamDialog {...dialogProps("rename")} currentName={name} conversationId={conversationId} />}
             <LeaveTeamDialog {...dialogProps("leave")} name={name} members={members} isHost={isHost} />
         </>
     );
@@ -234,7 +237,7 @@ export default function ConversationView({ conversationId }) {
             <ThreadHeader name={name} image={conversation.image} subtitle={conversation.kind === "direct" ? undefined : `${conversation.members.length} members`}>
                 {other && <HeaderMenu name={name} other={other} />}
                 {conversation.kind === "team" && conversation.teamId && (
-                    <TeamMenu name={name} teamId={conversation.teamId} meId={meId} fallbackCount={conversation.members.length} />
+                    <TeamMenu name={name} teamId={conversation.teamId} conversationId={conversationId} meId={meId} fallbackCount={conversation.members.length} />
                 )}
             </ThreadHeader>
             {me?.state === "pending" && (

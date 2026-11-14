@@ -8,7 +8,6 @@ import { useApp } from "@/contexts/appContext";
 import { useTeamAction } from "@/mutations/team.mutation";
 import { teamQueries } from "@/queries/team.query";
 
-import { TEAM_SIZE } from "@/components/chat/newTeamDialog";
 import { failAlert } from "@/components/chat/requestBanner";
 import UserAvatar from "@/components/chat/userAvatar";
 import { ErrorReload } from "@/components/ui/error";
@@ -32,7 +31,10 @@ function RemoveDialog({ open, target, onOpenChange, teamId }) {
     const { remove } = useTeamAction();
     const busy = remove.isPending;
     const name = target?.username;
-    const confirm = () => remove.mutateAsync({ teamId, userId: target.id }).catch(failAlert(showAlert));
+    const confirm = () => remove.mutateAsync({ teamId, userId: target.id }).then(
+        () => showAlert(200, target.role === "invited" ? `${name}'s invitation was withdrawn` : `${name} was removed from the team`),
+        failAlert(showAlert),
+    );
 
     return (
         <AlertDialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
@@ -57,6 +59,20 @@ function RemoveDialog({ open, target, onOpenChange, teamId }) {
     );
 }
 
+/** Loading rows of the team dialogs (Members, Invite friends). */
+export function MembersSkeleton() {
+    return (
+        <ul className={LIST} aria-busy="true">
+            {Array.from({ length: 3 }, (_, index) => (
+                <li key={index} className="flex items-center gap-3 px-4 py-3" aria-hidden="true">
+                    <Skeleton className="size-9 rounded-full" />
+                    <Skeleton className="h-4 w-32" />
+                </li>
+            ))}
+        </ul>
+    );
+}
+
 function MemberRows({ teamId }) {
     const { data: session, status } = useSession();
     const query = useQuery(teamQueries.members(status, teamId));
@@ -64,18 +80,7 @@ function MemberRows({ teamId }) {
     const [removing, setRemoving] = useState(null);
     const [confirming, setConfirming] = useState(false);
 
-    if (query.isPending) {
-        return (
-            <ul className={LIST} aria-busy="true">
-                {Array.from({ length: 3 }, (_, index) => (
-                    <li key={index} className="flex items-center gap-3 px-4 py-3" aria-hidden="true">
-                        <Skeleton className="size-9 rounded-full" />
-                        <Skeleton className="h-4 w-32" />
-                    </li>
-                ))}
-            </ul>
-        );
-    }
+    if (query.isPending) return <MembersSkeleton />;
     if (query.isError) return <ErrorReload data={query.error} refetch={() => query.refetch()} compact title="Could not load the members" />;
 
     const items = query.data.items;
@@ -108,13 +113,13 @@ function MemberRows({ teamId }) {
     );
 }
 
-/** Members (n/5) in join order: the host and invited are labelled; the host can remove anyone else, after a confirmation. */
-export default function TeamMembersDialog({ open, onOpenChange, teamId, count }) {
+/** Members in join order (`title` is the menu's "Members (n/5)" label): the host and invited are labelled; the host can remove anyone else, after a confirmation. */
+export default function TeamMembersDialog({ open, onOpenChange, teamId, title }) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Members ({count}/{TEAM_SIZE})</DialogTitle>
+                    <DialogTitle>{title}</DialogTitle>
                     <DialogDescription>In the order they joined.</DialogDescription>
                 </DialogHeader>
                 {open && <MemberRows teamId={teamId} />}
