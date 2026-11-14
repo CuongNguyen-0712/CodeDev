@@ -2,12 +2,17 @@ import { ulid } from "ulid";
 import { z } from "zod";
 import { chatDb } from "@/db/chat.db";
 import { teamDb } from "@/db/team.db";
+import { dbPool } from "@/lib/db";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
+import { publishToUser } from "@/lib/pusher";
+import { events } from "@/lib/realtime";
 import { runAfter } from "@/lib/runAfter";
 import { createTeamSchema, inviteSchema, teamIdSchema, teamNameSchema } from "@/lib/validation/team";
 import { parseOrThrow } from "@/lib/validation/premium";
 import { chatService } from "@/services/chat.service";
+import { chatRealtime } from "@/services/chatRealtime.service";
+import { notificationService } from "@/services/notification.service";
 
 const TEAM_SIZE = 5;
 
@@ -20,17 +25,30 @@ const respondSchema = z.object({ teamId: teamIdSchema, accept: z.boolean() });
 const removeSchema = z.object({ teamId: teamIdSchema, targetId: z.string().min(1, "Invalid user id").max(64, "Invalid user id") });
 const renameSchema = z.object({ teamId: teamIdSchema, name: teamNameSchema });
 
+/** Public ids of the team's members with `status`, read after commit; [] (logged) when the read fails. */
+async function committedMemberIds(teamId, status) {
+    try {
+        return await teamDb.memberIds(dbPool, teamId, status);
+    } catch (error) {
+        console.error("[team] reading members after commit", error);
+        return [];
+    }
+}
+
 /**
- * The single post-commit seam (rule 10). `changes`: `{ teamId, change, userId?, joined?, left?, ended?, ... }`: `userId` is
- * the person an accept is about; `joined` / `left` are public ids whose team conversation membership is synced (to their
- * committed team status); once `ended` the conversation is gone, so `left` is not synced.
+ * The single post-commit seam (rule 10). `{ teamId, change, joined?, left?, target?, ended?, pendingIds?, invited?,
+ * teamName?, actor?, newHost? }`: `change` is the `team-updated` change; `joined` / `left` are public ids whose team
+ * conversation membership is synced (to their committed team status); once `ended` the conversation is gone, so `left`
+ * is not synced. `invited` (`{ id, invitedAt }`) get a team_invite from `actor`; `newHost` (`{ public_id, joined_at }`)
+ * gets a team_host after `actor` left.
  * Joining is awaited here, not deferred, so the caller gets the conversation id (the UI opens the team chat from it);
  * a failure of either call is logged, the committed change stays, and the id is null even if the conversation exists
  * (accept re-ensures it and re-syncs every approved member, rule 4).
- * Everything else goes through runAfter. Task 3 adds notifications and `team-updated` here from the same object
- * (`invited` rows, `hostChanged`, `pendingIds`). Returns the conversation id, or null when nobody joined or the chat failed.
+ * Everything else goes through runAfter. Returns the conversation id, or null when nobody joined or the chat failed.
  */
-async function afterTeamChange({ teamId, joined = [], left = [], ended = false }) {
+async function afterTeamChange({
+    teamId, change, joined = [], left = [], target = null, ended = false, pendingIds = [], invited = [], teamName, actor, newHost = null,
+}) {
     let conversationId = null;
     if (joined.length) {
         try {
@@ -42,6 +60,37 @@ async function afterTeamChange({ teamId, joined = [], left = [], ended = false }
         }
     }
     if (!ended) for (const id of left) await runAfter(() => chatService.syncTeamMember(teamId, id, "left"));
+
+    for (const { id, invitedAt } of invited) {
+        await runAfter(() => notificationService.notify(id, {
+            kind: "team_invite", title: "New team invitation", message: `${actor} invited you to join ${teamName}.`,
+            link: "/contact?tab=invitations", dedupeKey: `${teamId}:${invitedAt.getTime()}`,
+        }));
+    }
+    if (newHost) {
+        await runAfter(async () => {
+            const chatId = (await teamDb.summary(teamId))?.conversationId;
+            await notificationService.notify(newHost.public_id, {
+                kind: "team_host", title: "You're the team host now", message: `${actor} left ${teamName}, so you now host the team.`,
+                link: chatId ? `/messages/${chatId}` : "/messages", dedupeKey: `${teamId}:${newHost.joined_at.getTime()}`,
+            });
+        });
+    }
+
+    // Once ended nobody is a member any more: only the people named here hear about it.
+    const approved = ended ? [] : await committedMemberIds(teamId, "approved");
+    const pending = ended ? [] : await committedMemberIds(teamId, "pending");
+    if (change === "renamed") {
+        await runAfter(async () => {
+            const chatId = (await teamDb.summary(teamId))?.conversationId;
+            if (chatId) await chatRealtime.conversationUpdated({ conversationId: chatId, members: approved });
+        });
+    }
+    const subjects = [...left, ...pendingIds, ...(target ? [target] : [])];
+    for (const id of dedupe([...approved, ...pending, ...joined, ...subjects])) {
+        const theirs = newHost && !subjects.includes(id) ? "host" : change;
+        await runAfter(() => publishToUser(id, events.TEAM_UPDATED, { teamId, change: theirs }));
+    }
     return conversationId;
 }
 
@@ -80,16 +129,16 @@ export const teamService = {
         const input = parseOrThrow(createTeamSchema, { name, memberIds });
         const ids = dedupe(input.memberIds);
         const teamId = `team_${ulid().toLowerCase()}`;
-        const invited = await withTransaction(async (client) => {
+        const { invited, actor } = await withTransaction(async (client) => {
             const [me] = await teamDb.people(client, { teamId: null, friendOfDbId: null, publicIds: [userId] });
             if (!me) throw userNotFound();
             const people = await teamDb.people(client, { teamId: null, friendOfDbId: me.id, publicIds: ids });
             await checkInvitees(client, me.id, people, ids);
             await teamDb.insertTeam(client, { id: teamId, name: input.name, hostDbId: me.id });
             await teamDb.upsertMember(client, { teamId, userDbId: me.id, status: "approved" });
-            return invitePending(client, teamId, people);
+            return { invited: await invitePending(client, teamId, people), actor: me.username };
         });
-        const conversationId = await afterTeamChange({ teamId, change: "created", joined: [userId], invited });
+        const conversationId = await afterTeamChange({ teamId, change: "invited", joined: [userId], invited, teamName: input.name, actor });
         const team = await teamDb.summary(teamId);
         return { team: team && { ...team, conversationId } };
     },
@@ -98,17 +147,17 @@ export const teamService = {
     invite: async ({ userId, teamId, userIds }) => {
         const input = parseOrThrow(inviteSchema, { teamId, userIds });
         const ids = dedupe(input.userIds);
-        const invited = await withTransaction(async (client) => {
-            const { me } = await lockForMember(client, teamId, userId, { hostOnly: true });
+        const { invited, ...names } = await withTransaction(async (client) => {
+            const { team, me } = await lockForMember(client, teamId, userId, { hostOnly: true });
             const people = await teamDb.people(client, { teamId, friendOfDbId: me.id, publicIds: ids });
             const fresh = people.filter((p) => p.member_status !== "approved" && p.member_status !== "pending");
             if (people.length !== ids.length) throw userNotFound();
             const { approved, pending } = await teamDb.capacity(client, teamId);
             if (approved + pending + fresh.length > TEAM_SIZE) throw teamFull();
             await checkInvitees(client, me.id, fresh, fresh.map((p) => p.public_id));
-            return invitePending(client, teamId, fresh);
+            return { invited: await invitePending(client, teamId, fresh), teamName: team.name, actor: me.username };
         });
-        if (invited.length) await afterTeamChange({ teamId, change: "invited", invited });
+        if (invited.length) await afterTeamChange({ teamId, change: "invited", invited, ...names });
         return { team: await teamDb.summary(teamId) };
     },
 
@@ -124,12 +173,10 @@ export const teamService = {
             await teamDb.upsertMember(client, { teamId, userDbId: me.id, status: accept ? "approved" : "rejected" });
             return accept ? teamDb.memberIds(client, teamId, "approved") : [];
         });
-        if (!accept) {
-            await afterTeamChange({ teamId, change: "declined" });
-            return { team: null, conversationId: null };
-        }
+        // A decline is not a team-updated change (spec section 6) and notifies nobody.
+        if (!accept) return { team: null, conversationId: null };
         // Every approved member, not only the accepter: repairs a join an earlier chat failure lost (syncs are idempotent).
-        const conversationId = await afterTeamChange({ teamId, change: "joined", userId, joined: approvedIds });
+        const conversationId = await afterTeamChange({ teamId, change: "joined", joined: approvedIds });
         const team = await teamDb.summary(teamId);
         return { team: team && { ...team, conversationId }, conversationId };
     },
@@ -177,8 +224,8 @@ export const teamService = {
                 return { ended: true, pendingIds };
             }
             if (team.host_id !== me.id) return { ended: false };
-            await teamDb.setHost(client, teamId, next);
-            return { ended: false, hostChanged: true };
+            await teamDb.setHost(client, teamId, next.user_id);
+            return { ended: false, newHost: next, teamName: team.name, actor: me.username };
         });
         await afterTeamChange({ teamId, change: result.ended ? "ended" : "left", left: [userId], ...result });
         return { team: null };

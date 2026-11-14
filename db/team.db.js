@@ -10,11 +10,11 @@ export const teamDb = {
         `INSERT INTO community.team (id, name, size, host_id) VALUES ($1, $2, 5, $3)`, [id, name, hostDbId]),
 
     /**
-     * People by public id: user status, whether they are an accepted friend of `friendOfDbId` (may be null),
+     * People by public id: username, user status, whether they are an accepted friend of `friendOfDbId` (may be null),
      * and their member status in `teamId` (may be null).
      */
     people: async (client, { teamId, friendOfDbId, publicIds }) => (await client.query(
-        `SELECT u.id::text AS id, u.public_id, u.status, m.status AS member_status,
+        `SELECT u.id::text AS id, u.public_id, u.username, u.status, m.status AS member_status,
                 EXISTS (SELECT 1 FROM community.friend f
                         WHERE LEAST(f.sender_id, f.receiver_id) = LEAST($2::bigint, u.id)
                           AND GREATEST(f.sender_id, f.receiver_id) = GREATEST($2::bigint, u.id) AND f.status = 'accepted') AS friend
@@ -38,10 +38,10 @@ export const teamDb = {
         `SELECT count(*) FILTER (WHERE status = 'approved')::int AS approved, count(*) FILTER (WHERE status = 'pending')::int AS pending
          FROM community.team_members WHERE team_id = $1`, [teamId])).rows[0],
 
-    /** The approved member who joined first (ties: lower row id), or null; served by idx_team_members_team_joined. */
+    /** `{ user_id, public_id, joined_at }` of the approved member who joined first (ties: lower row id), or null; served by idx_team_members_team_joined. */
     nextHost: async (client, teamId) => (await client.query(
-        `SELECT user_id::text AS user_id FROM community.team_members
-         WHERE team_id = $1 AND status = 'approved' ORDER BY joined_at, id LIMIT 1`, [teamId])).rows[0]?.user_id ?? null,
+        `SELECT m.user_id::text AS user_id, u.public_id, m.joined_at FROM community.team_members m JOIN identity.users u ON u.id = m.user_id
+         WHERE m.team_id = $1 AND m.status = 'approved' ORDER BY m.joined_at, m.id LIMIT 1`, [teamId])).rows[0] || null,
 
     /** Public ids of the team's members with `status`. */
     memberIds: async (client, teamId, status) => (await client.query(
@@ -56,6 +56,24 @@ export const teamDb = {
 
     /** Members and the team conversation go with it (ON DELETE CASCADE). */
     deleteTeam: (client, teamId) => client.query(`DELETE FROM community.team WHERE id = $1`, [teamId]),
+
+    /**
+     * Rule 7 for an account being purged, inside the purge transaction (fk_team_host would otherwise delete the teams it
+     * hosts): in each team the person is approved in, the earliest-joined other member becomes host, or the team is deleted
+     * when nobody else is approved. No chat sync or event: their conversation membership goes with their user row.
+     */
+    handOverAll: async (client, userDbId) => {
+        const { rows } = await client.query(
+            `SELECT team_id FROM community.team_members WHERE user_id = $1 AND status = 'approved' ORDER BY team_id`, [userDbId]);
+        for (const { team_id: teamId } of rows) {
+            const team = await teamDb.lockTeam(client, teamId);
+            if (!team) continue;
+            await teamDb.upsertMember(client, { teamId, userDbId, status: "left" });
+            const next = await teamDb.nextHost(client, teamId);
+            if (!next) await teamDb.deleteTeam(client, teamId);
+            else if (team.host_id === String(userDbId)) await teamDb.setHost(client, teamId, next.user_id);
+        }
+    },
 
     /** Read after commit, on the pool: `{ id, name, hostId, memberCount, pendingCount, conversationId }` or null; conversationId is null until the conversation exists. */
     summary: async (teamId) => (await sql(

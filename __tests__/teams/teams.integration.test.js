@@ -14,10 +14,10 @@ const TAG = `tm${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")
 describe.skipIf(!hasDb)("teams (PostgreSQL)", () => {
     let sql, teamService, chatService, n = 0;
     const ids = {};
-    const newUser = async ({ status = "active" } = {}) => {
+    const newUser = async ({ status = "active", verified = true } = {}) => {
         const publicId = `${TAG}_${n++}`;
         const id = String(977000000000000 + Math.floor(Math.random() * 1e9));
-        await sql(`INSERT INTO identity.users (id, public_id, username, email, email_verified, status) VALUES ($1, $2, $2, $3, true, $4)`, [id, publicId, `${publicId}@test.invalid`, status]);
+        await sql(`INSERT INTO identity.users (id, public_id, username, email, email_verified, status) VALUES ($1, $2, $2, $3, $5, $4)`, [id, publicId, `${publicId}@test.invalid`, status, verified]);
         await sql(`INSERT INTO profile.info (user_id, surname, name, show_profile) VALUES ($1, 'T', 'T', true)`, [id]);
         ids[publicId] = id;
         return publicId;
@@ -56,6 +56,7 @@ describe.skipIf(!hasDb)("teams (PostgreSQL)", () => {
         // Teams cascade from their host and conversations from their team; direct conversations do not.
         const run = (text) => sql(text, [`${TAG}%`]).catch((error) => console.error("[team test cleanup]", error));
         await run(`DELETE FROM community.conversation c WHERE EXISTS (SELECT 1 FROM community.conversation_member m JOIN identity.users u ON u.id = m.user_id WHERE m.conversation_id = c.id AND u.public_id LIKE $1)`);
+        await run(`DELETE FROM identity.auth_outbox WHERE payload->>'userId' LIKE $1`);
         await run(`DELETE FROM identity.users WHERE public_id LIKE $1`);
     });
 
@@ -304,5 +305,32 @@ describe.skipIf(!hasDb)("teams (PostgreSQL)", () => {
             ensure.mockRestore();
             logged.mockRestore();
         }
+    });
+
+    it("purging a host hands the team to the earliest member; purging the only member ends the team", async () => {
+        const { accountPurgeDb } = await import("@/db/accountPurge.db");
+        const host = await newUser({ verified: false });
+        const [b, c] = [await newUser(), await newUser()];
+        await befriend(host, b);
+        await befriend(host, c);
+        const { team } = await create(host, [b, c]);
+        await respond(c, team.id);
+        await respond(b, team.id);
+
+        expect((await accountPurgeDb.purgeUser({ userPublicId: host, requested: true })).status).toBe("purged");
+        // c accepted before b; without the hand-over fk_team_host would have deleted the team with its host.
+        expect(await teamRow(team.id)).toMatchObject({ host: c });
+        expect(Object.keys(await memberRows(team.id)).sort()).toEqual([b, c].sort());
+        // The purged host's conversation membership went with their user row (FK cascade).
+        expect(await conversationMembers(team.id)).toEqual({ [b]: null, [c]: null });
+
+        const solo = await newUser({ verified: false });
+        const d = await newUser();
+        await befriend(solo, d);
+        const { team: soloTeam } = await create(solo, [d]);
+        expect((await accountPurgeDb.purgeUser({ userPublicId: solo, requested: true })).status).toBe("purged");
+        expect(await teamRow(soloTeam.id)).toBeNull();
+        expect(await memberRows(soloTeam.id)).toEqual({});
+        expect((await sql(`SELECT count(*)::int AS n FROM community.conversation WHERE public_id = $1`, [soloTeam.conversationId])).rows[0].n).toBe(0);
     });
 });

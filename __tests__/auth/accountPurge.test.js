@@ -168,4 +168,23 @@ describe.skipIf(!hasDb)("never-verified account purge (PostgreSQL)", () => {
         await sql(`INSERT INTO commerce.orders (public_id, user_id) VALUES ($1, $2)`, [`${buyer.publicId}-order`, buyer.id]);
         expect(await purgeDb.purgeUser({ userPublicId: buyer.publicId })).toEqual({ status: "skipped", reason: "orders" });
     });
+
+    it("hands a purged host's team to its other member and keeps its pending invite", async () => {
+        const host = await makeUser();
+        const member = await makeUser({ verified: true });
+        const invitee = await makeUser({ verified: true });
+        const teamId = `team_${Date.now().toString(36).padStart(26, "0")}`;
+        await sql(`INSERT INTO community.team (id, name, size, host_id) VALUES ($1, 'Purge team', 5, $2)`, [teamId, host.id]);
+        await sql(
+            `INSERT INTO community.team_members (team_id, user_id, status, joined_at)
+             VALUES ($1, $2, 'approved', now() - interval '1 hour'), ($1, $3, 'approved', now()), ($1, $4, 'pending', NULL)`,
+            [teamId, host.id, member.id, invitee.id]
+        );
+
+        expect((await purgeDb.purgeUser({ userPublicId: host.publicId, requested: true })).status).toBe("purged");
+        expect((await sql(`SELECT host_id::text FROM community.team WHERE id = $1`, [teamId])).rows[0]).toEqual({ host_id: member.id });
+        expect((await sql(`SELECT user_id::text, status FROM community.team_members WHERE team_id = $1 ORDER BY status`, [teamId])).rows)
+            .toEqual([{ user_id: invitee.id, status: "pending" }, { user_id: member.id, status: "approved" }]);
+        await sql(`DELETE FROM community.team WHERE id = $1`, [teamId]);
+    });
 });

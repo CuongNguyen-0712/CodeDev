@@ -1,6 +1,7 @@
 import { sql } from "@/lib/db";
 import { withTransaction } from "@/lib/dbTransaction";
 import { sessionDb } from "@/db/session.db";
+import { teamDb } from "@/db/team.db";
 
 /**
  * Never-verified accounts (docs/email-verification-plan.md 11.2): identity.users.purge_after is
@@ -126,6 +127,7 @@ export const accountPurgeDb = {
                 outboxIds.push(queued.rows[0].id);
             }
 
+            await teamDb.handOverAll(client, id);
             await client.query(`DELETE FROM identity.users WHERE id = $1;`, [id]);
             return { status: "purged", files: files.length, outboxIds: outboxIds.filter(Boolean) };
         });
