@@ -51,3 +51,20 @@ Kiểm chứng:
 - `EXPLAIN (ANALYZE)` câu dạng standing qua `PREPARE … EXECUTE` với id bind (`loadtest_run`, `lt_00042`): **2,5 ms**, Index Scan `idx_exp_transaction_user_created` và `idx_point_transaction_earned` cho cả hai lần gọi (trước: 58–145 ms, Seq Scan).
 - Driver: `lib/db.js` gọi `pool.query(text, params)` (pg) và `neonSql.query(text, params)` (Neon) không đặt tên câu, nên mỗi lần PostgreSQL lập plan với giá trị thật; không có plan generic.
 - Smoke (`20261114-1022-loadtest-smoke`, 5 VU, 1 phút): câu `WITH me AS …` trung bình **21–22 ms** (29 lần), so với 25 000–28 000 ms ở vòng 0. Phần còn lại là bước đếm vị trí trên `profile.ranking_snapshot` (không đổi trong vòng này), không còn quét bảng giao dịch.
+
+## Vòng 1 — kết quả: **Đạt**
+
+Hai lượt stress liên tiếp, commit `e85576e6`, `--max-vus 200 --sessions 200`, cùng môi trường và seed như vòng 0:
+
+| Lượt | Báo cáo | N | Hợp lệ (CPU máy tải, cửa sổ đo) | Bậc 200: p95 đọc / ghi, lỗi |
+|---|---|---|---|---|
+| 1 (`20261114-1025`) | `2026-11-14-loadtest-stress-2.md` | **200** (không bậc nào gãy) | Có, 50,6% | 146 ms / 348 ms, 0,01% |
+| 2 (`20261114-1034`) | `2026-11-14-loadtest-stress-3.md` | **200** (không bậc nào gãy) | Có, 25,4% | 89 ms / 210 ms, 0,00% |
+
+So với vòng 0 (gãy ở 50 VU: p95 đọc 10 016 ms, lỗi 20,5%): mọi endpoint ~10 s đã hết, không còn 500/503, giả thuyết pool cạn do câu ranking được xác nhận.
+
+- Endpoint p95 cao nhất (toàn lượt): lượt 1 `/roadmap` 929 ms, `sendFriendRequestAction` 861 ms, `/contact` 820 ms; lượt 2 `/roadmap` 586 ms, `respondFriendRequestAction` 419 ms, `sendMessageAction` 372 ms. p95 theo lớp ở mọi bậc vẫn dưới ngưỡng.
+- Query nặng nhất (tổng thời gian): câu standing `WITH me AS …` 2 380–2 448 lần, trung bình 8–12 ms; `learning_progress` 1 121 lần, 13,6 ms.
+- Tài nguyên đỉnh: CPU app 96–101% (trần 1 vCPU), RAM app ~1 022 MB / 2 GB, CPU DB 97–103% (trần 1 vCPU), kết nối DB 21, không khoá chờ, outbox 0.
+
+Kết luận: mục tiêu N ≥ 100 đạt ở cả hai lượt; dừng vòng lặp. Lượt chạy chưa đo được giới hạn thật (dừng ở bậc cuối 200 mà chưa gãy), nhưng CPU app và DB đều đã ở trần 1 vCPU tại 200 VU, nên giới hạn có lẽ không xa 200 trên cấu hình này. Muốn biết chính xác: chạy lại với `--max-vus` lớn hơn (ngoài phạm vi mốc 100).
