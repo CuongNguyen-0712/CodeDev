@@ -1,0 +1,62 @@
+# Load-test overlay (docs/superpowers/specs/2026-11-13-load-capacity-design.md, section 5.3).
+#   npm run load:compose -- --profile app --profile loadtest --profile monitoring up -d
+# Never edit compose.yml for load runs; everything here is merged over it.
+services:
+  # Own PostgreSQL for load runs, capped so the database is a known, repeatable limit.
+  postgres-load:
+    profiles: [loadtest]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "max_connections=225"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_LOAD_PASSWORD:?set POSTGRES_LOAD_PASSWORD in .env.loadtest}
+    cpus: 1
+    mem_limit: 4g
+    ports:
+      - "127.0.0.1:${POSTGRES_LOAD_PORT:-5433}:5432"
+    volumes:
+      - postgres-load-data:/var/lib/postgresql/data
+      - ./tests/loadtest:/dumps
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  k6:
+    profiles: [loadtest]
+    image: grafana/k6:0.54.0
+    environment:
+      BASE_URL: http://app:3000
+      K6_PROMETHEUS_RW_SERVER_URL: http://prometheus:9090/api/v1/write
+      K6_PROMETHEUS_RW_TREND_STATS: p(95),p(99),avg
+    volumes:
+      - ./loadtest:/scripts:ro
+      - ./tests/loadtest:/data
+    networks: [backend, monitoring]
+
+  # The app under test: fixed size. Its env file is .env.loadtest, selected by
+  # CODEDEV_ENV_FILE inside .env.loadtest itself (compose reads it from --env-file).
+  app:
+    # Own tag: a load build must not replace the codedev_app image of the normal compose app.
+    image: codedev_app_loadtest
+    build:
+      # `next build` prerenders roadmap pages from the database: give it the seeded base DB through the host port.
+      args:
+        BUILD_DATABASE_URL: postgres://postgres:${POSTGRES_LOAD_PASSWORD}@host.docker.internal:${POSTGRES_LOAD_PORT:-5433}/loadtest_base
+    cpus: 1
+    mem_limit: 2g
+    environment:
+      # development, not staging: lib/envCheck.mjs makes staging fatal with MinIO storage and an http NEXTAUTH_URL.
+      APP_ENV: development
+      LESSON_CONTENT_SOURCE: sanity
+
+  # k6 pushes its metrics here (docs/docker.md monitoring stack).
+  prometheus:
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d", "--web.enable-remote-write-receiver"]
+
+volumes:
+  postgres-load-data:
+    name: codedev_postgres-load-data

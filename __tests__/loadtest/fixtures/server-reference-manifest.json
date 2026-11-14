@@ -1,0 +1,537 @@
+{
+  "node": {
+    "40e7bb1940fe5fcdcd65e95cd314844bd415454bfe": {
+      "workers": {
+        "app/(shell)/about/page": {
+          "moduleId": 845463,
+          "async": true
+        },
+        "app/(shell)/blog/[slug]/page": {
+          "moduleId": 464903,
+          "async": true
+        },
+        "app/(shell)/blog/edit/[id]/page": {
+          "moduleId": 467416,
+          "async": true
+        },
+        "app/(shell)/blog/me/page": {
+          "moduleId": 978309,
+          "async": true
+        },
+        "app/(shell)/blog/new/page": {
+          "moduleId": 599476,
+          "async": true
+        },
+        "app/(shell)/blog/page": {
+          "moduleId": 564807,
+          "async": true
+        },
+        "app/(shell)/contact/page": {
+          "moduleId": 158777,
+          "async": true
+        },
+        "app/(shell)/course/page": {
+          "moduleId": 226565,
+          "async": true
+        },
+        "app/(shell)/help/page": {
+          "moduleId": 540661,
+          "async": true
+        },
+        "app/(shell)/home/page": {
+          "moduleId": 634605,
+          "async": true
+        },
+        "app/(shell)/learning/page": {
+          "moduleId": 621339,
+          "async": true
+        },
+        "app/(shell)/messages/[id]/page": {
+          "moduleId": 650398,
+          "async": true
+        },
+        "app/(shell)/messages/new/page": {
+          "moduleId": 722936,
+          "async": true
+        },
+        "app/(shell)/messages/page": {
+          "moduleId": 7853,
+          "async": true
+        },
+        "app/(shell)/notifications/page": {
+          "moduleId": 931486,
+          "async": true
+        },
+        "app/(shell)/orders/[id]/page": {
+          "moduleId": 607797,
+          "async": true
+        },
+        "app/(shell)/orders/page": {
+          "moduleId": 458985,
+          "async": true
+        },
+        "app/(shell)/page": {
+          "moduleId": 111126,
+          "async": true
+        },
+        "app/(shell)/profile/[id]/page": {
+          "moduleId": 78176,
+          "async": true
+        },
+        "app/(shell)/profile/page": {
+          "moduleId": 231486,
+          "async": true
+        },
+        "app/(shell)/ranking/page": {
+          "moduleId": 854221,
+          "async": true
+        },
+        "app/(shell)/roadmap/page": {
+          "moduleId": 622064,
+          "async": true
+        },
+        "app/(shell)/settings/page": {
+          "moduleId": 733444,
+          "async": true
+        },
+        "app/403/page": {
+          "moduleId": 686627,
+          "async": true
+        },
+        "app/admin/access/page": {
+          "moduleId": 503371,
+          "async": true
+        },
+        "app/admin/announcements/new/page": {
+          "moduleId": 830921,
+          "async": true
+        },
+        "app/admin/announcements/page": {
+          "moduleId": 611053,
+          "async": true
+        },
+        "app/admin/audit/page": {
+          "moduleId": 337775,
+          "async": true
+        },
+        "app/admin/blog/page": {
+          "moduleId": 823430,
+          "async": true
+        },
+        "app/admin/catalog/page": {
+          "moduleId": 817799,
+          "async": true
+        },
+        "app/admin/challenges/page": {
+          "moduleId": 170388,
+          "async": true
+        },
+        "app/admin/chat-reports/page": {
+          "moduleId": 267163,
+          "async": true
+        },
+        "app/admin/courses/[id]/page": {
+          "moduleId": 490204,
+          "async": true
+        },
+        "app/admin/courses/page": {
+          "moduleId": 553170,
+          "async": true
+        },
+        "app/admin/feedback/page": {
+          "moduleId": 441523,
+          "async": true
+        },
+        "app/admin/orders/page": {
+          "moduleId": 228809,
+          "async": true
+        },
+        "app/admin/page": {
+          "moduleId": 364688,
+          "async": true
+        },
+        "app/admin/runs/[id]/page": {
+          "moduleId": 477184,
+          "async": true
+        },
+        "app/admin/runs/page": {
+          "moduleId": 553187,
+          "async": true
+        },
+        "app/admin/settings/[section]/page": {
+          "moduleId": 81040,
+          "async": true
+        },
+        "app/admin/settings/page": {
+          "moduleId": 29187,
+          "async": true
+        },
+        "app/admin/system/page": {
+          "moduleId": 786458,
+          "async": true
+        },
+        "app/admin/users/[id]/page": {
+          "moduleId": 942338,
+          "async": true
+        },
+        "app/admin/users/page": {
+          "moduleId": 953249,
+          "async": true
+        },
+        "app/auth/error/page": {
+          "moduleId": 167306,
+          "async": true
+        },
+        "app/auth/link/confirm/page": {
+          "moduleId": 129708,
+          "async": true
+        },
+        "app/auth/link/page": {
+          "moduleId": 421463,
+          "async": true
+        },
+        "app/auth/page": {
+          "moduleId": 139656,
+          "async": true
+        },
+        "app/auth/verify-email/page": {
+          "moduleId": 252888,
+          "async": true
+        },
+        "app/auth/verify-required/page": {
+          "moduleId": 290247,
+          "async": true
+        },
+        "app/checkout/mock/[orderId]/page": {
+          "moduleId": 478930,
+          "async": true
+        },
+        "app/course/[id]/page": {
+          "moduleId": 343696,
+          "async": true
+        },
+        "app/learning/[id]/page": {
+          "moduleId": 557630,
+          "async": true
+        },
+        "app/onboarding/page": {
+          "moduleId": 733379,
+          "async": true
+        },
+        "app/roadmap/[id]/page": {
+          "moduleId": 275574,
+          "async": true
+        },
+        "app/studio/[[...tool]]/page": {
+          "moduleId": 261036,
+          "async": true
+        }
+      },
+      "filename": "actions/course.actions.js",
+      "exportedName": "registerCourseAction"
+    },
+    "40c2e50d436dd088a2c97291a897ed6073b37c88fe": {
+      "workers": {
+        "app/(shell)/about/page": {
+          "moduleId": 845463,
+          "async": true
+        },
+        "app/(shell)/blog/[slug]/page": {
+          "moduleId": 464903,
+          "async": true
+        },
+        "app/(shell)/blog/edit/[id]/page": {
+          "moduleId": 467416,
+          "async": true
+        },
+        "app/(shell)/blog/me/page": {
+          "moduleId": 978309,
+          "async": true
+        },
+        "app/(shell)/blog/new/page": {
+          "moduleId": 599476,
+          "async": true
+        },
+        "app/(shell)/blog/page": {
+          "moduleId": 564807,
+          "async": true
+        },
+        "app/(shell)/contact/page": {
+          "moduleId": 158777,
+          "async": true
+        },
+        "app/(shell)/course/page": {
+          "moduleId": 226565,
+          "async": true
+        },
+        "app/(shell)/help/page": {
+          "moduleId": 540661,
+          "async": true
+        },
+        "app/(shell)/home/page": {
+          "moduleId": 634605,
+          "async": true
+        },
+        "app/(shell)/learning/page": {
+          "moduleId": 621339,
+          "async": true
+        },
+        "app/(shell)/messages/[id]/page": {
+          "moduleId": 650398,
+          "async": true
+        },
+        "app/(shell)/messages/new/page": {
+          "moduleId": 722936,
+          "async": true
+        },
+        "app/(shell)/messages/page": {
+          "moduleId": 7853,
+          "async": true
+        },
+        "app/(shell)/notifications/page": {
+          "moduleId": 931486,
+          "async": true
+        },
+        "app/(shell)/orders/[id]/page": {
+          "moduleId": 607797,
+          "async": true
+        },
+        "app/(shell)/orders/page": {
+          "moduleId": 458985,
+          "async": true
+        },
+        "app/(shell)/page": {
+          "moduleId": 111126,
+          "async": true
+        },
+        "app/(shell)/profile/[id]/page": {
+          "moduleId": 78176,
+          "async": true
+        },
+        "app/(shell)/profile/page": {
+          "moduleId": 231486,
+          "async": true
+        },
+        "app/(shell)/ranking/page": {
+          "moduleId": 854221,
+          "async": true
+        },
+        "app/(shell)/roadmap/page": {
+          "moduleId": 622064,
+          "async": true
+        },
+        "app/(shell)/settings/page": {
+          "moduleId": 733444,
+          "async": true
+        },
+        "app/403/page": {
+          "moduleId": 686627,
+          "async": true
+        },
+        "app/admin/access/page": {
+          "moduleId": 503371,
+          "async": true
+        },
+        "app/admin/announcements/new/page": {
+          "moduleId": 830921,
+          "async": true
+        },
+        "app/admin/announcements/page": {
+          "moduleId": 611053,
+          "async": true
+        },
+        "app/admin/audit/page": {
+          "moduleId": 337775,
+          "async": true
+        },
+        "app/admin/blog/page": {
+          "moduleId": 823430,
+          "async": true
+        },
+        "app/admin/catalog/page": {
+          "moduleId": 817799,
+          "async": true
+        },
+        "app/admin/challenges/page": {
+          "moduleId": 170388,
+          "async": true
+        },
+        "app/admin/chat-reports/page": {
+          "moduleId": 267163,
+          "async": true
+        },
+        "app/admin/courses/[id]/page": {
+          "moduleId": 490204,
+          "async": true
+        },
+        "app/admin/courses/page": {
+          "moduleId": 553170,
+          "async": true
+        },
+        "app/admin/feedback/page": {
+          "moduleId": 441523,
+          "async": true
+        },
+        "app/admin/orders/page": {
+          "moduleId": 228809,
+          "async": true
+        },
+        "app/admin/page": {
+          "moduleId": 364688,
+          "async": true
+        },
+        "app/admin/runs/[id]/page": {
+          "moduleId": 477184,
+          "async": true
+        },
+        "app/admin/runs/page": {
+          "moduleId": 553187,
+          "async": true
+        },
+        "app/admin/settings/[section]/page": {
+          "moduleId": 81040,
+          "async": true
+        },
+        "app/admin/settings/page": {
+          "moduleId": 29187,
+          "async": true
+        },
+        "app/admin/system/page": {
+          "moduleId": 786458,
+          "async": true
+        },
+        "app/admin/users/[id]/page": {
+          "moduleId": 942338,
+          "async": true
+        },
+        "app/admin/users/page": {
+          "moduleId": 953249,
+          "async": true
+        },
+        "app/auth/error/page": {
+          "moduleId": 167306,
+          "async": true
+        },
+        "app/auth/link/confirm/page": {
+          "moduleId": 129708,
+          "async": true
+        },
+        "app/auth/link/page": {
+          "moduleId": 421463,
+          "async": true
+        },
+        "app/auth/page": {
+          "moduleId": 139656,
+          "async": true
+        },
+        "app/auth/verify-email/page": {
+          "moduleId": 252888,
+          "async": true
+        },
+        "app/auth/verify-required/page": {
+          "moduleId": 290247,
+          "async": true
+        },
+        "app/checkout/mock/[orderId]/page": {
+          "moduleId": 478930,
+          "async": true
+        },
+        "app/course/[id]/page": {
+          "moduleId": 343696,
+          "async": true
+        },
+        "app/learning/[id]/page": {
+          "moduleId": 557630,
+          "async": true
+        },
+        "app/onboarding/page": {
+          "moduleId": 733379,
+          "async": true
+        },
+        "app/roadmap/[id]/page": {
+          "moduleId": 275574,
+          "async": true
+        },
+        "app/studio/[[...tool]]/page": {
+          "moduleId": 261036,
+          "async": true
+        }
+      },
+      "filename": "actions/course.actions.js",
+      "exportedName": "submitLessonAction"
+    },
+    "408be040b9a02756a3adcdd1c9dc437481ec197cbf": {
+      "workers": {
+        "app/(shell)/contact/page": {
+          "moduleId": 158777,
+          "async": true
+        }
+      },
+      "filename": "actions/social.actions.js",
+      "exportedName": "respondFriendRequestAction"
+    },
+    "405e0b4f0b607e766592bd6c41af044bba1bde9714": {
+      "workers": {
+        "app/(shell)/contact/page": {
+          "moduleId": 158777,
+          "async": true
+        }
+      },
+      "filename": "actions/social.actions.js",
+      "exportedName": "sendFriendRequestAction"
+    },
+    "4055d9e3b261b9d3e7ad94c295ffd79810f30bfcc6": {
+      "workers": {
+        "app/(shell)/contact/page": {
+          "moduleId": 158777,
+          "async": true
+        },
+        "app/(shell)/messages/[id]/page": {
+          "moduleId": 650398,
+          "async": true
+        },
+        "app/(shell)/messages/new/page": {
+          "moduleId": 722936,
+          "async": true
+        },
+        "app/(shell)/settings/page": {
+          "moduleId": 733444,
+          "async": true
+        }
+      },
+      "filename": "actions/chat.actions.js",
+      "exportedName": "sendMessageAction"
+    },
+    "40a504a0798ef4f281af0899c56da945885119b51b": {
+      "workers": {
+        "app/learning/[id]/page": {
+          "moduleId": 557630,
+          "async": true
+        }
+      },
+      "filename": "actions/course.actions.js",
+      "exportedName": "recordLessonVisitAction"
+    },
+    "40fa774c0ee38a626e1faeb7d6703a55238e215266": {
+      "workers": {
+        "app/learning/[id]/page": {
+          "moduleId": 557630,
+          "async": true
+        }
+      },
+      "filename": "actions/challenge.actions.js",
+      "exportedName": "submitQuizAction"
+    },
+    "404bc7832d6d10fc196043111670b0120c3da4ae64": {
+      "workers": {
+        "app/learning/[id]/page": {
+          "moduleId": 557630,
+          "async": true
+        }
+      },
+      "filename": "actions/challenge.actions.js",
+      "exportedName": "queueCodeRunAction"
+    }
+  },
+  "edge": {}
+}

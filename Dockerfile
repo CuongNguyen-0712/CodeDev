@@ -38,7 +38,10 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN npm run build
+# Optional: pages that read the database while `next build` prerenders (roadmap generateStaticParams) need a
+# reachable one. Empty by default (production builds unchanged); only this RUN sees it, never the runner image.
+ARG BUILD_DATABASE_URL
+RUN DATABASE_URL="$BUILD_DATABASE_URL" npm run build
 
 # 4. Runner stage (Production image): standalone server only, no dev dependencies.
 FROM node:24-alpine AS runner

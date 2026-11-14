@@ -17,6 +17,20 @@ describe("BlogMarkdown layout", () => {
         expect(html).not.toMatch(/<p[^>]*>(?:(?!<\/p>).)*<figure/s);
     });
 
+    it("captions an image with its name, never with the editor's placeholder", () => {
+        const html = render("![query plan](https://res.cloudinary.com/a.png)\n\n![image](https://res.cloudinary.com/b.png)\n\n![](https://res.cloudinary.com/c.png)");
+        expect(html.match(/<figcaption/g)).toHaveLength(1);
+        expect(html).toContain(">query plan</figcaption>");
+        // No grey frame around the picture any more.
+        expect(html).not.toContain("bg-muted");
+    });
+
+    it("styles h5 and h6 like the smallest heading", () => {
+        const html = render("##### Five\n\n###### Six");
+        expect(html).toContain('<h5 class="lesson_h4">Five</h5>');
+        expect(html).toContain('<h6 class="lesson_h4">Six</h6>');
+    });
+
     it("gives h2/h3 the same ids the table of contents uses", () => {
         const body = "## Đánh index\n\ntext\n\n### `EXPLAIN` **plan**\n\n## Đánh index\n\n#### Not listed";
         const headings = extractHeadings(body);
