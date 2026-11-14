@@ -96,13 +96,19 @@ describe("resubscribing failed channels", () => {
         expect(pusher.subscribe).toHaveBeenCalledWith("private-user-u1");
     });
 
-    it("acquireChannel leaves a pending or subscribed channel alone", () => {
+    it("acquireChannel reinstates a channel whose unsubscribe is still pending", () => {
+        // Released then acquired again while its auth (now possibly a refresh round trip) is in
+        // flight: pusher.subscribe reinstates it, otherwise pusher-js unsubscribes it on success.
         mod.getPusherClient();
-        channels["private-user-u1"] = channel({ subscriptionPending: true });
-        channels.broadcast = channel({ subscribed: true });
+        channels["private-user-u1"] = channel({ subscriptionPending: true, subscriptionCancelled: true });
         mod.acquireChannel("private-user-u1");
-        mod.acquireChannel("broadcast");
-        expect(pusher.subscribe).not.toHaveBeenCalled();
+        expect(pusher.subscribe).toHaveBeenCalledWith("private-user-u1");
+    });
+
+    it("acquireChannel returns what pusher.subscribe returns", () => {
+        mod.getPusherClient();
+        channels.broadcast = channel({ subscribed: true });
+        expect(mod.acquireChannel("broadcast")).toBe(channels.broadcast);
     });
 
     it("resubscribes held failed channels on refreshed", () => {
@@ -120,6 +126,30 @@ describe("resubscribing failed channels", () => {
         pusher.subscribe.mockClear();
         auth.listener({ type: "logged-out" });
         expect(pusher.subscribe).not.toHaveBeenCalled();
+    });
+
+    it("resubscribes a channel at most once a minute on refreshed", () => {
+        // Two tabs whose refreshed session still answers ACCESS_TOKEN_EXPIRED would otherwise
+        // trigger each other's refresh + resubscribe without end.
+        vi.useFakeTimers();
+        try {
+            mod.acquireChannel("private-user-u1");
+            channels["private-user-u1"] = channel();
+            pusher.subscribe.mockClear();
+
+            auth.listener({ type: "refreshed" });
+            channels["private-user-u1"] = channel();
+            vi.advanceTimersByTime(59_000);
+            auth.listener({ type: "refreshed" });
+            expect(pusher.subscribe).toHaveBeenCalledTimes(1);
+
+            channels["private-user-u1"] = channel();
+            vi.advanceTimersByTime(1_000);
+            auth.listener({ type: "refreshed" });
+            expect(pusher.subscribe).toHaveBeenCalledTimes(2);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("stops listening for refreshed after disconnectPusher", () => {
