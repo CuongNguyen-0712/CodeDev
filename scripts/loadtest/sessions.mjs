@@ -54,10 +54,19 @@ await Promise.all(
         while (!failed && next < users.length) {
             const i = next++;
             if (gapMs && i) await new Promise((r) => setTimeout(r, gapMs));
-            try {
-                out[i] = await login(users[i], i + 1);
-            } catch (e) {
-                failed ??= e;
+            // A remote target over the internet drops the odd request ("fetch failed"): retry those, never a login that answered.
+            for (let attempt = 1; ; attempt++) {
+                try {
+                    out[i] = await login(users[i], i + 1);
+                    break;
+                } catch (e) {
+                    if (e instanceof TypeError && attempt < 4) {
+                        await new Promise((r) => setTimeout(r, 2000 * attempt));
+                        continue;
+                    }
+                    failed ??= e;
+                    break;
+                }
             }
         }
     }),
