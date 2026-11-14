@@ -115,7 +115,7 @@ Mọi thao tác ghi: một transaction, `SELECT … FOR UPDATE` dòng `community
 
 | Khi | Gửi cho | `kind` | `link` | `dedupeKey` |
 |---|---|---|---|---|
-| Được mời (tạo team hoặc mời thêm) | người được mời | `team_invite` | `/contact?tab=invitations` | `<teamId>:<created_at của dòng mời, ms>` |
+| Được mời (tạo team hoặc mời thêm) | người được mời | `team_invite` | `/contact?tab=invitations` | `<teamId>:<updated_at của dòng mời lúc mời, ms>` (mời lại sau khi từ chối / rời / bị đuổi là lời mời mới, báo lại một lần) |
 | Thành chủ do chủ cũ rời | chủ mới | `team_host` | `/messages/<conversationId>` | `<teamId>:<joined_at của chủ mới, ms>` |
 
 Không thông báo khi từ chối, rời, bị đuổi, đổi tên.
