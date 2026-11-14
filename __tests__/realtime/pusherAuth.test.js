@@ -78,6 +78,14 @@ describe("channel authorization", () => {
         expect(callback.mock.calls[0][0]).toBeInstanceOf(Error);
     });
 
+    it("calls the callback once even when a listener behind it throws", async () => {
+        const customHandler = handler();
+        auth.fetchWithAuthRetry.mockResolvedValue({ ok: true, status: 200, json: async () => ({ auth: "k:sig" }) });
+        const callback = vi.fn(() => { throw new Error("listener bug"); });
+        await expect(customHandler({ socketId: "1.2", channelName: "private-user-u1" }, callback)).rejects.toThrow("listener bug");
+        expect(callback).toHaveBeenCalledTimes(1);
+    });
+
     it("passes a network error to the callback", async () => {
         const customHandler = handler();
         const offline = new TypeError("Failed to fetch");
@@ -163,5 +171,92 @@ describe("resubscribing failed channels", () => {
         listener({ type: "refreshed" });
         expect(ctor).not.toHaveBeenCalled();
         expect(pusher.subscribe).not.toHaveBeenCalled();
+    });
+});
+
+describe("retrying after a transient auth failure", () => {
+    // The `refreshed` net never fires while access is still valid: a 429, a 5xx or a network
+    // error on the first auth would otherwise leave the channel failed until the next refresh.
+    const authorize = () => ctor.mock.calls[0][1].channelAuthorization.customHandler(
+        { socketId: "1.2", channelName: "private-user-u1" }, vi.fn());
+    const failOnce = (answer) => {
+        mod.acquireChannel("private-user-u1");
+        auth.fetchWithAuthRetry.mockImplementationOnce(answer);
+        channels["private-user-u1"] = channel();
+        pusher.subscribe.mockClear();
+        return authorize();
+    };
+
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it("resubscribes 10 s after a network error, then backs off", async () => {
+        await failOnce(() => Promise.reject(new TypeError("Failed to fetch")));
+        vi.advanceTimersByTime(9_999);
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(pusher.subscribe).toHaveBeenCalledWith("private-user-u1");
+
+        pusher.subscribe.mockClear();
+        channels["private-user-u1"] = channel();
+        auth.fetchWithAuthRetry.mockResolvedValueOnce({ ok: false, status: 503, headers: new Headers() });
+        await authorize();
+        vi.advanceTimersByTime(19_999);
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(pusher.subscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it("starts again from 10 s after a success", async () => {
+        await failOnce(() => Promise.reject(new TypeError("Failed to fetch")));
+        vi.advanceTimersByTime(10_000);
+        auth.fetchWithAuthRetry.mockResolvedValueOnce({ ok: true, status: 200, headers: new Headers(), json: async () => ({ auth: "k:sig" }) });
+        await authorize();
+
+        pusher.subscribe.mockClear();
+        channels["private-user-u1"] = channel();
+        auth.fetchWithAuthRetry.mockResolvedValueOnce({ ok: false, status: 502, headers: new Headers() });
+        await authorize();
+        vi.advanceTimersByTime(10_000);
+        expect(pusher.subscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it("waits for Retry-After on a 429", async () => {
+        await failOnce(async () => ({ ok: false, status: 429, headers: new Headers({ "Retry-After": "30" }) }));
+        vi.advanceTimersByTime(29_999);
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(pusher.subscribe).toHaveBeenCalledWith("private-user-u1");
+    });
+
+    it.each([401, 403])("never retries a %i", async (status) => {
+        await failOnce(async () => ({ ok: false, status, headers: new Headers() }));
+        vi.advanceTimersByTime(600_000);
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+    });
+
+    it("drops the retry when the channel is released", async () => {
+        await failOnce(() => Promise.reject(new TypeError("Failed to fetch")));
+        mod.releaseChannel("private-user-u1");
+        channels["private-user-u1"] = channel();
+        vi.advanceTimersByTime(600_000);
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+    });
+
+    it("drops the retry on disconnectPusher", async () => {
+        await failOnce(() => Promise.reject(new TypeError("Failed to fetch")));
+        mod.disconnectPusher();
+        vi.advanceTimersByTime(600_000);
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+        expect(ctor).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe("after sign out", () => {
+    it("releaseChannel does not open a new client", () => {
+        mod.acquireChannel("private-user-u1");
+        mod.disconnectPusher();
+        mod.releaseChannel("private-user-u1");
+        expect(ctor).toHaveBeenCalledTimes(1);
     });
 });
