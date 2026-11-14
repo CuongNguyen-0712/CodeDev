@@ -1,0 +1,262 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+/**
+ * Channel auth in lib/pusherClient (docs/superpowers/specs/2026-11-14-realtime-auth-retry-design.md):
+ * pusher-js authorizes through fetchWithAuthRetry, so a tab reopened after idle refreshes its
+ * expired access state instead of losing the channel; a channel that failed anyway subscribes
+ * again on the next acquire and on the next `refreshed` auth event.
+ */
+const ctor = vi.hoisted(() => vi.fn());
+const auth = vi.hoisted(() => ({ fetchWithAuthRetry: vi.fn(), onAuthEvent: vi.fn(), stop: vi.fn(), listener: null }));
+
+vi.mock("pusher-js", () => ({ default: ctor }));
+vi.mock("@/lib/authNavigation", () => ({ setRealtimeDisconnect: vi.fn() }));
+vi.mock("@/lib/authRefresh", () => ({
+    fetchWithAuthRetry: (...a) => auth.fetchWithAuthRetry(...a),
+    onAuthEvent: (...a) => auth.onAuthEvent(...a),
+}));
+
+let mod;
+let pusher;
+let channels;
+
+const channel = (state = {}) => ({ subscribed: false, subscriptionPending: false, ...state });
+
+beforeEach(async () => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    vi.stubGlobal("window", {});
+    vi.stubEnv("NEXT_PUBLIC_PUSHER_KEY", "k");
+    channels = {};
+    pusher = {
+        connection: { state: "connected", bind: vi.fn() },
+        channel: vi.fn((name) => channels[name]),
+        subscribe: vi.fn((name) => {
+            channels[name] = channels[name] || channel({ subscriptionPending: true });
+            return channels[name];
+        }),
+        unsubscribe: vi.fn((name) => { delete channels[name]; }),
+        disconnect: vi.fn(),
+    };
+    ctor.mockImplementation(function Pusher() { return pusher; });
+    auth.onAuthEvent.mockImplementation((listener) => {
+        auth.listener = listener;
+        return auth.stop;
+    });
+    mod = await import("@/lib/pusherClient");
+});
+
+afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+});
+
+const handler = () => {
+    mod.getPusherClient();
+    return ctor.mock.calls[0][1].channelAuthorization.customHandler;
+};
+
+describe("channel authorization", () => {
+    it("authorizes channels with a custom handler posting form data", async () => {
+        const customHandler = handler();
+        auth.fetchWithAuthRetry.mockResolvedValue({ ok: true, status: 200, json: async () => ({ auth: "k:sig" }) });
+        const callback = vi.fn();
+        await customHandler({ socketId: "1.2", channelName: "private-user-u1" }, callback);
+        const [url, init] = auth.fetchWithAuthRetry.mock.calls[0];
+        expect(url).toBe("/api/pusher/auth");
+        expect(init.method).toBe("POST");
+        expect(String(init.body)).toBe("socket_id=1.2&channel_name=private-user-u1");
+        expect(callback).toHaveBeenCalledWith(null, { auth: "k:sig" });
+    });
+
+    it("passes a non-2xx status to the callback as an error", async () => {
+        const customHandler = handler();
+        auth.fetchWithAuthRetry.mockResolvedValue({ ok: false, status: 403, json: async () => ({}) });
+        const callback = vi.fn();
+        await customHandler({ socketId: "1.2", channelName: "private-user-u2" }, callback);
+        expect(callback).toHaveBeenCalledWith(expect.objectContaining({ status: 403 }), null);
+        expect(callback.mock.calls[0][0]).toBeInstanceOf(Error);
+    });
+
+    it("calls the callback once even when a listener behind it throws", async () => {
+        const customHandler = handler();
+        auth.fetchWithAuthRetry.mockResolvedValue({ ok: true, status: 200, json: async () => ({ auth: "k:sig" }) });
+        const callback = vi.fn(() => { throw new Error("listener bug"); });
+        await expect(customHandler({ socketId: "1.2", channelName: "private-user-u1" }, callback)).rejects.toThrow("listener bug");
+        expect(callback).toHaveBeenCalledTimes(1);
+    });
+
+    it("passes a network error to the callback", async () => {
+        const customHandler = handler();
+        const offline = new TypeError("Failed to fetch");
+        auth.fetchWithAuthRetry.mockRejectedValue(offline);
+        const callback = vi.fn();
+        await expect(customHandler({ socketId: "1.2", channelName: "private-user-u1" }, callback)).resolves.toBeUndefined();
+        expect(callback).toHaveBeenCalledWith(offline, null);
+    });
+});
+
+describe("resubscribing failed channels", () => {
+    it("acquireChannel resubscribes a channel that failed", () => {
+        mod.getPusherClient();
+        channels["private-user-u1"] = channel();
+        mod.acquireChannel("private-user-u1");
+        expect(pusher.subscribe).toHaveBeenCalledWith("private-user-u1");
+    });
+
+    it("acquireChannel reinstates a channel whose unsubscribe is still pending", () => {
+        // Released then acquired again while its auth (now possibly a refresh round trip) is in
+        // flight: pusher.subscribe reinstates it, otherwise pusher-js unsubscribes it on success.
+        mod.getPusherClient();
+        channels["private-user-u1"] = channel({ subscriptionPending: true, subscriptionCancelled: true });
+        mod.acquireChannel("private-user-u1");
+        expect(pusher.subscribe).toHaveBeenCalledWith("private-user-u1");
+    });
+
+    it("acquireChannel returns what pusher.subscribe returns", () => {
+        mod.getPusherClient();
+        channels.broadcast = channel({ subscribed: true });
+        expect(mod.acquireChannel("broadcast")).toBe(channels.broadcast);
+    });
+
+    it("resubscribes held failed channels on refreshed", () => {
+        mod.acquireChannel("private-user-u1");
+        mod.acquireChannel("broadcast");
+        mod.releaseChannel("broadcast");
+        channels["private-user-u1"] = channel();
+        channels.broadcast = channel();
+        pusher.subscribe.mockClear();
+
+        auth.listener({ type: "refreshed" });
+        expect(pusher.subscribe).toHaveBeenCalledTimes(1);
+        expect(pusher.subscribe).toHaveBeenCalledWith("private-user-u1");
+
+        pusher.subscribe.mockClear();
+        auth.listener({ type: "logged-out" });
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+    });
+
+    it("resubscribes a channel at most once a minute on refreshed", () => {
+        // Two tabs whose refreshed session still answers ACCESS_TOKEN_EXPIRED would otherwise
+        // trigger each other's refresh + resubscribe without end.
+        vi.useFakeTimers();
+        try {
+            mod.acquireChannel("private-user-u1");
+            channels["private-user-u1"] = channel();
+            pusher.subscribe.mockClear();
+
+            auth.listener({ type: "refreshed" });
+            channels["private-user-u1"] = channel();
+            vi.advanceTimersByTime(59_000);
+            auth.listener({ type: "refreshed" });
+            expect(pusher.subscribe).toHaveBeenCalledTimes(1);
+
+            channels["private-user-u1"] = channel();
+            vi.advanceTimersByTime(1_000);
+            auth.listener({ type: "refreshed" });
+            expect(pusher.subscribe).toHaveBeenCalledTimes(2);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("stops listening for refreshed after disconnectPusher", () => {
+        mod.acquireChannel("private-user-u1");
+        const listener = auth.listener;
+        mod.disconnectPusher();
+        expect(auth.stop).toHaveBeenCalled();
+
+        ctor.mockClear();
+        pusher.subscribe.mockClear();
+        listener({ type: "refreshed" });
+        expect(ctor).not.toHaveBeenCalled();
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+    });
+});
+
+describe("retrying after a transient auth failure", () => {
+    // The `refreshed` net never fires while access is still valid: a 429, a 5xx or a network
+    // error on the first auth would otherwise leave the channel failed until the next refresh.
+    const authorize = () => ctor.mock.calls[0][1].channelAuthorization.customHandler(
+        { socketId: "1.2", channelName: "private-user-u1" }, vi.fn());
+    const failOnce = (answer) => {
+        mod.acquireChannel("private-user-u1");
+        auth.fetchWithAuthRetry.mockImplementationOnce(answer);
+        channels["private-user-u1"] = channel();
+        pusher.subscribe.mockClear();
+        return authorize();
+    };
+
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it("resubscribes 10 s after a network error, then backs off", async () => {
+        await failOnce(() => Promise.reject(new TypeError("Failed to fetch")));
+        vi.advanceTimersByTime(9_999);
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(pusher.subscribe).toHaveBeenCalledWith("private-user-u1");
+
+        pusher.subscribe.mockClear();
+        channels["private-user-u1"] = channel();
+        auth.fetchWithAuthRetry.mockResolvedValueOnce({ ok: false, status: 503, headers: new Headers() });
+        await authorize();
+        vi.advanceTimersByTime(19_999);
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(pusher.subscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it("starts again from 10 s after a success", async () => {
+        await failOnce(() => Promise.reject(new TypeError("Failed to fetch")));
+        vi.advanceTimersByTime(10_000);
+        auth.fetchWithAuthRetry.mockResolvedValueOnce({ ok: true, status: 200, headers: new Headers(), json: async () => ({ auth: "k:sig" }) });
+        await authorize();
+
+        pusher.subscribe.mockClear();
+        channels["private-user-u1"] = channel();
+        auth.fetchWithAuthRetry.mockResolvedValueOnce({ ok: false, status: 502, headers: new Headers() });
+        await authorize();
+        vi.advanceTimersByTime(10_000);
+        expect(pusher.subscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it("waits for Retry-After on a 429", async () => {
+        await failOnce(async () => ({ ok: false, status: 429, headers: new Headers({ "Retry-After": "30" }) }));
+        vi.advanceTimersByTime(29_999);
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(pusher.subscribe).toHaveBeenCalledWith("private-user-u1");
+    });
+
+    it.each([401, 403])("never retries a %i", async (status) => {
+        await failOnce(async () => ({ ok: false, status, headers: new Headers() }));
+        vi.advanceTimersByTime(600_000);
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+    });
+
+    it("drops the retry when the channel is released", async () => {
+        await failOnce(() => Promise.reject(new TypeError("Failed to fetch")));
+        mod.releaseChannel("private-user-u1");
+        channels["private-user-u1"] = channel();
+        vi.advanceTimersByTime(600_000);
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+    });
+
+    it("drops the retry on disconnectPusher", async () => {
+        await failOnce(() => Promise.reject(new TypeError("Failed to fetch")));
+        mod.disconnectPusher();
+        vi.advanceTimersByTime(600_000);
+        expect(pusher.subscribe).not.toHaveBeenCalled();
+        expect(ctor).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe("after sign out", () => {
+    it("releaseChannel does not open a new client", () => {
+        mod.acquireChannel("private-user-u1");
+        mod.disconnectPusher();
+        mod.releaseChannel("private-user-u1");
+        expect(ctor).toHaveBeenCalledTimes(1);
+    });
+});
