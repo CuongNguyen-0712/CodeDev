@@ -1,6 +1,6 @@
 # Team — thiết kế
 
-Date: 2026-11-14. Status: draft. Sub-project 3/3 của "message chat" (spec lõi: `2026-11-11-chat-core-design.md` §1; sub-project 2: `2026-11-13-friends-design.md`).
+Date: 2026-11-14. Status: approved 2026-11-14. Sub-project 3/3 của "message chat" (spec lõi: `2026-11-11-chat-core-design.md` §1; sub-project 2: `2026-11-13-friends-design.md`).
 
 ## 1. Mục đích
 
