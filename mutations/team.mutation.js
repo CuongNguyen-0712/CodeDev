@@ -15,7 +15,7 @@ export function useTeamAction() {
         mutationFn: (input) => callAction(() => action(input)),
         // Settled, not success: a 409/404 means the cached team or invitation is stale.
         onSettled: () => {
-            for (const queryKey of [teamKeys.all, friendKeys.counts(), chatKeys.inbox("all"), chatKeys.inbox("requests")]) {
+            for (const queryKey of [teamKeys.all, friendKeys.counts(), chatKeys.inbox("all"), chatKeys.inbox("requests"), chatKeys.unread()]) {
                 queryClient.invalidateQueries({ queryKey });
             }
         },

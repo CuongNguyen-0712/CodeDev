@@ -16,6 +16,7 @@ import { courseKeys } from "@/keys/course.keys";
 import { roadmapKeys } from "@/keys/roadmap.keys";
 import { chatKeys } from "@/keys/chat.keys";
 import { friendKeys } from "@/keys/friend.keys";
+import { teamKeys } from "@/keys/team.keys";
 import { createChatHandlers } from "@/lib/chat/realtimeHandlers";
 import { applyFriendChange } from "@/lib/social/friendCache";
 import { createTeamHandler } from "@/lib/team/realtimeHandler";
@@ -42,6 +43,7 @@ export function UserRealtimeBridge() {
         queryClient.invalidateQueries({ queryKey: userKeys.all });
         queryClient.invalidateQueries({ queryKey: chatKeys.all });
         queryClient.invalidateQueries({ queryKey: friendKeys.all });
+        queryClient.invalidateQueries({ queryKey: teamKeys.all });
     }, [queryClient]);
 
     const chatHandlers = useMemo(() => createChatHandlers(queryClient, userId), [queryClient, userId]);

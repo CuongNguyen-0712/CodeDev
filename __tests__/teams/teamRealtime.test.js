@@ -17,13 +17,14 @@ beforeEach(() => {
     qc.setQueryData(chatKeys.inbox("requests"), inbox());
     qc.setQueryData(friendKeys.counts(), { friends: 1, received: 0, teamInvitations: 1 });
     qc.setQueryData(teamKeys.invitations(), { pages: [] });
+    qc.setQueryData(chatKeys.unread(), { unread: 1, requests: 0 });
 });
 
 describe("team-updated", () => {
     it("ended drops the team conversation from the inbox and invalidates teams, counts, inbox", () => {
         createTeamHandler(qc, "me")({ teamId: "t", change: "ended", conversationId: "cnv_team" });
         expect(rows("all")).toEqual(["cnv_dm"]);
-        for (const key of [teamKeys.invitations(), friendKeys.counts(), chatKeys.inbox("all")]) expect(stale(key)).toBe(true);
+        for (const key of [teamKeys.invitations(), friendKeys.counts(), chatKeys.inbox("all"), chatKeys.unread()]) expect(stale(key)).toBe(true);
     });
 
     it("kicked / left drop the row only when the event is about me", () => {
