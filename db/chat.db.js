@@ -78,6 +78,10 @@ export const chatDb = {
         return (await one(client, `SELECT public_id FROM community.conversation WHERE team_id = $1`, [teamId])).public_id;
     },
 
+    /** The user's status in the team (`approved`, `pending`, …), or null without a row. */
+    teamMemberStatus: async (client, { teamId, userDbId }) => (await one(client,
+        `SELECT status FROM community.team_members WHERE team_id = $1 AND user_id = $2`, [teamId, userDbId]))?.status ?? null,
+
     joinTeam: (client, { conversationDbId, userDbId }) => client.query(
         `INSERT INTO community.conversation_member (conversation_id, user_id, state) VALUES ($1, $2, 'accepted')
          ON CONFLICT (conversation_id, user_id) DO UPDATE SET left_at = NULL, state = 'accepted'`, [conversationDbId, userDbId]),
@@ -213,7 +217,7 @@ export const chatDb = {
 
     /** The caller's live membership (not left) with the conversation's title source; null when not a member. */
     membership: (client, { conversationId, userId }) => one(client,
-        `SELECT c.id::text AS id, c.public_id, c.kind, cm.state, t.name AS team_name, t.image_url AS team_image
+        `SELECT c.id::text AS id, c.public_id, c.kind, c.team_id, cm.state, t.name AS team_name, t.image_url AS team_image
          FROM community.conversation c
          JOIN identity.users me ON me.public_id = $2
          JOIN community.conversation_member cm ON cm.conversation_id = c.id AND cm.user_id = me.id AND cm.left_at IS NULL

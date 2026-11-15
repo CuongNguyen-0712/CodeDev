@@ -173,7 +173,7 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
         expect((await chatService.listConversations({ userId: b, tab: "requests" })).items).toHaveLength(0);
         expect(await send(a, r.conversation.id, "again")).toMatchObject({ created: true, acceptedByReply: false });
         const detail = await chatService.getConversation({ userId: b, conversationId: r.conversation.id });
-        expect(detail).toMatchObject({ kind: "direct", title: a, state: "accepted", canSend: true });
+        expect(detail).toMatchObject({ kind: "direct", teamId: null, title: a, state: "accepted", canSend: true });
         expect(detail.members.find((m) => m.id === b).lastReadSeq).toBe(reply.message.seq);
         expect((await send(b, r.conversation.id, "and again")).acceptedByReply).toBe(false);
     });
@@ -420,6 +420,9 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
             const a = await newUser();
             const team = `${TAG}tm`;
             await sql(`INSERT INTO community.team (id, name, size, host_id) VALUES ($1, 'Chat team', 2, $2)`, [team, ids[a]]);
+            // syncTeamMember follows the team row, whatever event it is given.
+            const setStatus = (status) => sql(`INSERT INTO community.team_members (team_id, user_id, status) VALUES ($1, $2, $3)
+                ON CONFLICT (team_id, user_id) DO UPDATE SET status = EXCLUDED.status`, [team, ids[a], status]);
             const first = await chatService.ensureTeamConversation(team);
             expect(first.id).toMatch(/^cnv_[0-9a-z]{26}$/);
             expect(await chatService.ensureTeamConversation(team)).toEqual(first);
@@ -428,12 +431,16 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
             const original = chatService.afterMembership;
             chatService.afterMembership = async (e) => { events.push(e); };
             try {
+                await setStatus("approved");
                 await chatService.syncTeamMember(team, a, "joined");
                 expect((await send(a, first.id, "team hello")).created).toBe(true);
+                expect(await chatService.getConversation({ userId: a, conversationId: first.id })).toMatchObject({ kind: "team", teamId: team, title: "Chat team" });
                 expect((await chatService.listMessages({ userId: a, conversationId: first.id })).items).toHaveLength(1);
+                await setStatus("left");
                 await chatService.syncTeamMember(team, a, "left");
                 await expect(chatService.listMessages({ userId: a, conversationId: first.id })).rejects.toMatchObject({ status: 404 });
                 await expect(send(a, first.id)).rejects.toMatchObject({ status: 404 });
+                await setStatus("approved");
                 await chatService.syncTeamMember(team, a, "joined");
                 expect((await chatService.listMessages({ userId: a, conversationId: first.id })).items).toHaveLength(1);
             } finally {

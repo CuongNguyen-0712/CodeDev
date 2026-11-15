@@ -114,9 +114,20 @@ export const userClient = {
         return res.data;
     },
 
-    // { friends, received }
+    // { friends, received, teamInvitations }
     getFriendCounts: async () => {
         const res = await apiClient.get('/friends/counts');
+        return res.data;
+    },
+
+    // { items, nextCursor }; ?cursor=
+    getTeamInvitations: async (params) => {
+        const res = await apiClient.get('/teams/invitations', { params });
+        return res.data;
+    },
+
+    getTeamMembers: async (teamId) => {
+        const res = await apiClient.get(`/teams/${teamId}/members`);
         return res.data;
     },
 };

@@ -1,5 +1,5 @@
 import {
-    LuAward, LuBell, LuCircleAlert, LuCircleCheck, LuCoins, LuEyeOff, LuLockOpen, LuMegaphone, LuMessageSquare, LuShieldCheck, LuTrophy, LuUserCheck, LuUserPlus,
+    LuAward, LuBell, LuCircleAlert, LuCircleCheck, LuCoins, LuCrown, LuEyeOff, LuLockOpen, LuMegaphone, LuMessageSquare, LuShieldCheck, LuTrophy, LuUserCheck, LuUserPlus, LuUsers,
 } from "react-icons/lu";
 
 /**
@@ -16,6 +16,8 @@ export const NOTIFICATION_KINDS = {
     course_completed: { icon: LuCircleCheck, className: "text-info" },
     friend_request: { icon: LuUserPlus, className: "text-info" },
     friend_accepted: { icon: LuUserCheck, className: "text-success" },
+    team_invite: { icon: LuUsers, className: "text-info" },
+    team_host: { icon: LuCrown, className: "text-success" },
     announcement: { icon: LuMegaphone, className: "text-primary-ink", team: true },
     feedback_handled: { icon: LuMessageSquare, className: "text-info", team: true },
     content_hidden: { icon: LuEyeOff, className: "text-warning", team: true },

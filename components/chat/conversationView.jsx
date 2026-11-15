@@ -10,23 +10,34 @@ import { useApp } from "@/contexts/appContext";
 import { getOpenConversation, setOpenConversation } from "@/lib/chat/openConversation";
 import { retryTransient } from "@/lib/queryTimes";
 import { useEditMessage, useRecallMessage, useReportMessage, useSendMessage } from "@/mutations/chat.mutation";
+import { useTeamAction } from "@/mutations/team.mutation";
 import { chatQueries } from "@/queries/chat.query";
+import { teamQueries } from "@/queries/team.query";
 import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 
 import Composer from "@/components/chat/composer";
+import InviteFriendsDialog from "@/components/chat/inviteFriendsDialog";
 import MessageList, { EmptyThread, useLeaveWhenGone } from "@/components/chat/messageList";
+import { TEAM_SIZE } from "@/components/chat/newTeamDialog";
+import RenameTeamDialog from "@/components/chat/renameTeamDialog";
 import RequestBanner, { BlockDialog, failAlert } from "@/components/chat/requestBanner";
+import TeamMembersDialog from "@/components/chat/teamMembersDialog";
 import UserAvatar from "@/components/chat/userAvatar";
 import { ErrorReload } from "@/components/ui/error";
 
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+    AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/shadcn/alert-dialog";
 import { Button } from "@/components/shadcn/button";
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Spinner } from "@/components/shadcn/spinner";
 
-import { LuArrowLeft, LuBan, LuEllipsis, LuUserRound, LuUsers } from "react-icons/lu";
+import { LuArrowLeft, LuBan, LuEllipsis, LuLogOut, LuPencil, LuUserPlus, LuUserRound, LuUsers } from "react-icons/lu";
 
 // The layout grid only sets a min height, so the pane is sized to the viewport (navbar h-12 + the
 // layout's padding) and the thread scrolls inside it, keeping the composer in view.
@@ -79,6 +90,72 @@ function HeaderMenu({ name, other }) {
                 </DropdownMenuContent>
             </DropdownMenu>
             <BlockDialog open={blocking} onOpenChange={setBlocking} name={name} userId={other.id} />
+        </>
+    );
+}
+
+/** Confirms leaving; a host is told who takes over (the earliest joined member, spec rule 7) or that the team ends. */
+function LeaveTeamDialog({ open, onOpenChange, name, teamId, members, isHost }) {
+    const router = useRouter();
+    const { showAlert } = useApp();
+    const { leave } = useTeamAction();
+    const busy = leave.isPending;
+    const next = members?.find((m) => m.role === "member");
+    const confirm = () => leave.mutateAsync(teamId).then(() => { showAlert(200, `You left ${name}`); router.replace("/messages"); }, failAlert(showAlert));
+
+    return (
+        <AlertDialog open={open} onOpenChange={(value) => !busy && onOpenChange(value)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Leave {name}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {!isHost ? "You will stop receiving messages from this team." : next ? `${next.username} becomes the host.` : "The team will end."}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction variant="destructive" disabled={busy} onClick={confirm}>
+                        {busy && <Spinner />}
+                        Leave
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
+/** The team conversation's menu: Members and Leave for everyone; Invite friends and Rename team only for the host. */
+function TeamMenu({ name, teamId, conversationId, meId, fallbackCount }) {
+    const { status } = useSession();
+    const members = useQuery(teamQueries.members(status, teamId)).data?.items;
+    const [dialog, setDialog] = useState(null);   // "members" | "invite" | "rename" | "leave"
+    const isHost = Boolean(members?.some((m) => m.role === "host" && m.id === meId));
+    const count = members ? members.filter((m) => m.role !== "invited").length : fallbackCount;
+    // Invitations hold places too (rule 2); only the host is sent them.
+    const invited = members ? members.length - count : 0;
+    const membersLabel = `Members (${count}/${TEAM_SIZE}${invited ? ` · ${invited} invited` : ""})`;
+    const dialogProps = (key) => ({ open: dialog === key, onOpenChange: (open) => setDialog(open ? key : null), teamId });
+
+    return (
+        <>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button size="icon-sm" variant="ghost" className="text-muted-foreground data-[state=open]:bg-accent" aria-label={`More actions for ${name}`}>
+                        <LuEllipsis />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onSelect={() => setDialog("members")}><LuUsers />{membersLabel}</DropdownMenuItem>
+                    {isHost && <DropdownMenuItem onSelect={() => setDialog("invite")}><LuUserPlus />Invite friends</DropdownMenuItem>}
+                    {isHost && <DropdownMenuItem onSelect={() => setDialog("rename")}><LuPencil />Rename team</DropdownMenuItem>}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onSelect={() => setDialog("leave")}><LuLogOut />Leave team</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <TeamMembersDialog {...dialogProps("members")} title={membersLabel} />
+            {isHost && <InviteFriendsDialog {...dialogProps("invite")} />}
+            {isHost && <RenameTeamDialog {...dialogProps("rename")} currentName={name} conversationId={conversationId} />}
+            <LeaveTeamDialog {...dialogProps("leave")} name={name} members={members} isHost={isHost} />
         </>
     );
 }
@@ -157,8 +234,11 @@ export default function ConversationView({ conversationId }) {
 
     return (
         <div className={PANE}>
-            <ThreadHeader name={name} image={conversation.image} subtitle={conversation.kind === "direct" ? undefined : `${conversation.members.length} members`}>
+            <ThreadHeader name={name} image={conversation.image} subtitle={conversation.kind === "direct" ? undefined : `${conversation.members.length} ${conversation.members.length === 1 ? "member" : "members"}`}>
                 {other && <HeaderMenu name={name} other={other} />}
+                {conversation.kind === "team" && conversation.teamId && (
+                    <TeamMenu name={name} teamId={conversation.teamId} conversationId={conversationId} meId={meId} fallbackCount={conversation.members.length} />
+                )}
             </ThreadHeader>
             {me?.state === "pending" && (
                 <div className="px-3 pt-3">

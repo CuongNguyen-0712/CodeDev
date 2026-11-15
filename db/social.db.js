@@ -118,7 +118,7 @@ export const socialDb = {
             LIMIT $4`, [userId, cursor?.createdAt ?? null, cursor?.id ?? null, limit])).rows;
     },
 
-    /** Tab numbers in one statement: active friends, and pending invitations received from active people. */
+    /** Tab numbers in one statement: active friends, pending invitations received from active people, pending team invitations. */
     counts: async (userId) => (await sql(`
         WITH me AS (SELECT id FROM identity.users WHERE public_id = $1),
         edges AS (
@@ -127,7 +127,9 @@ export const socialDb = {
             SELECT f.sender_id, f.status FROM me JOIN community.friend f ON f.receiver_id = me.id AND f.status IN ('accepted', 'pending')
         )
         SELECT count(*) FILTER (WHERE e.status = 'accepted')::int AS friends,
-               count(*) FILTER (WHERE e.status = 'pending')::int AS received
+               count(*) FILTER (WHERE e.status = 'pending')::int AS received,
+               (SELECT count(*) FROM me JOIN community.team_members m ON m.user_id = me.id AND m.status = 'pending'
+                JOIN community.team t ON t.id = m.team_id)::int AS "teamInvitations"
         FROM edges e JOIN identity.users u ON u.id = e.other_id AND u.status = 'active'`, [userId])).rows[0],
 
     // Friend writes below take a transaction `client`; ids in and out are DB ids (text).

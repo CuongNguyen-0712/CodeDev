@@ -1,6 +1,7 @@
 import { accountPurgeDb } from "@/db/accountPurge.db";
 import { auditAuth } from "@/lib/authAudit";
 import { dispatchAuthOutbox } from "@/services/authOutbox.service";
+import { queueAttachmentDelete } from "@/services/chatJobs.service";
 import { emailVerificationService } from "@/services/emailVerification.service";
 
 /**
@@ -34,6 +35,7 @@ export async function runAccountMaintenance({ dryRun = false, limit = 50 } = {})
                     report.purged += 1;
                     auditAuth("account.purged", { userId, reason: "never_verified", count: result.files });
                     await dispatchAuthOutbox(result.outboxIds);
+                    await queueAttachmentDelete(result.chatFiles); // files of team chats that ended with the account
                 }
             } catch (error) {
                 report.failed += 1;

@@ -9,13 +9,14 @@ import { chatQueries } from "@/queries/chat.query";
 
 import { ErrorReload } from "@/components/ui/error";
 import { ConversationRow, ConversationSkeleton } from "@/components/chat/conversationRow";
+import NewTeamDialog from "@/components/chat/newTeamDialog";
 
 import { Button } from "@/components/shadcn/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/shadcn/input-group";
 import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 
-import { LuInbox, LuLoaderCircle, LuMessageSquare, LuSearch } from "react-icons/lu";
+import { LuInbox, LuLoaderCircle, LuMessageSquare, LuSearch, LuUsers } from "react-icons/lu";
 
 const TABS = ['all', 'requests'];
 
@@ -102,10 +103,15 @@ export default function Inbox({ activeId }) {
     const requested = searchParams?.get('tab');
     const [tab, setTab] = useState(TABS.includes(requested) ? requested : 'all');
     const [filter, setFilter] = useState('');
+    const [creating, setCreating] = useState(false);
     const requests = useQuery({ ...chatQueries.unread(), enabled: status === 'authenticated' }).data?.requests ?? 0;
 
     return (
         <div className="flex min-w-0 flex-col gap-4">
+            <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => setCreating(true)}>
+                <LuUsers aria-hidden="true" />New team
+            </Button>
+            <NewTeamDialog open={creating} onOpenChange={setCreating} />
             <InputGroup>
                 <InputGroupAddon aria-hidden="true"><LuSearch /></InputGroupAddon>
                 <InputGroupInput

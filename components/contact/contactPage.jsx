@@ -120,7 +120,7 @@ export default function Contact({ state, setState }) {
                 <TabsList>
                     <TabsTrigger value="find"><LuUserSearch aria-hidden="true" />Find people</TabsTrigger>
                     <TabsTrigger value="friends"><LuUsers aria-hidden="true" />Friends{count(counts?.friends)}</TabsTrigger>
-                    <TabsTrigger value="invitations"><LuUserPlus aria-hidden="true" />Invitations{count(counts?.received)}</TabsTrigger>
+                    <TabsTrigger value="invitations"><LuUserPlus aria-hidden="true" />Invitations{count((counts?.received ?? 0) + (counts?.teamInvitations ?? 0))}</TabsTrigger>
                 </TabsList>
             </Tabs>
 

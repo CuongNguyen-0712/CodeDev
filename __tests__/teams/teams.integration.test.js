@@ -1,0 +1,447 @@
+// Team write rules (create, invite, respond, remove, rename, leave) and the team conversation sync against real PostgreSQL; test users, their teams and conversations are deleted afterwards.
+import crypto from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/chatMedia", () => ({ remove: vi.fn(async () => { }) }));
+const queueAttachmentDelete = vi.fn(async () => { });
+vi.mock("@/services/chatJobs.service", () => ({ installChatJobs: () => { }, queueAttachmentDelete: (...a) => queueAttachmentDelete(...a) }));
+// Outside a request the real `after` throws, so runAfter runs inline; a test may swap in a deferring `after` that never runs.
+const inline = () => { throw new Error("outside a request scope"); };
+let afterImpl = inline;
+vi.mock("next/server", () => ({ after: (fn) => afterImpl(fn) }));
+
+const hasDb = Boolean(process.env.DATABASE_URL);
+const TAG = `tm${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")}`;
+
+describe.skipIf(!hasDb)("teams (PostgreSQL)", () => {
+    let sql, teamService, chatService, n = 0;
+    const ids = {};
+    const newUser = async ({ status = "active", verified = true } = {}) => {
+        const publicId = `${TAG}_${n++}`;
+        const id = String(977000000000000 + Math.floor(Math.random() * 1e9));
+        await sql(`INSERT INTO identity.users (id, public_id, username, email, email_verified, status) VALUES ($1, $2, $2, $3, $5, $4)`, [id, publicId, `${publicId}@test.invalid`, status, verified]);
+        await sql(`INSERT INTO profile.info (user_id, surname, name, show_profile) VALUES ($1, 'T', 'T', true)`, [id]);
+        ids[publicId] = id;
+        return publicId;
+    };
+    const befriend = (a, b) => sql(`INSERT INTO community.friend (sender_id, receiver_id, status) VALUES ($1, $2, 'accepted')`, [ids[a], ids[b]]);
+    /** A host and `count` active friends of theirs. */
+    const hostWithFriends = async (count) => {
+        const host = await newUser();
+        const friends = [];
+        for (let i = 0; i < count; i++) {
+            const f = await newUser();
+            await befriend(host, f);
+            friends.push(f);
+        }
+        return [host, ...friends];
+    };
+    const memberRows = async (teamId) => Object.fromEntries((await sql(
+        `SELECT u.public_id, m.status, m.joined_at, m.updated_at FROM community.team_members m JOIN identity.users u ON u.id = m.user_id WHERE m.team_id = $1`,
+        [teamId])).rows.map((r) => [r.public_id, r]));
+    const conversationMembers = async (teamId) => Object.fromEntries((await sql(
+        `SELECT u.public_id, cm.left_at FROM community.conversation c
+         JOIN community.conversation_member cm ON cm.conversation_id = c.id JOIN identity.users u ON u.id = cm.user_id
+         WHERE c.team_id = $1`, [teamId])).rows.map((r) => [r.public_id, r.left_at]));
+    const teamRow = async (teamId) => (await sql(`SELECT t.name, u.public_id AS host FROM community.team t JOIN identity.users u ON u.id = t.host_id WHERE t.id = $1`, [teamId])).rows[0] || null;
+    const create = (userId, memberIds, name = "Study group") => teamService.create({ userId, name, memberIds });
+    const respond = (userId, teamId, accept = true) => teamService.respond({ userId, teamId, accept });
+    /** Stores one image row in the conversation (as an upload would); returns what the delete job gets for it. */
+    const addFile = async (conversationId, uploader) => {
+        const storageKey = `${TAG}/file-${n++}`;
+        await sql(`INSERT INTO community.chat_attachment (public_id, conversation_id, uploader_id, kind, provider, storage_key, content_type, size_bytes)
+                   SELECT $1, c.id, $2, 'image', 'cloudinary', $3, 'image/png', 10 FROM community.conversation c WHERE c.public_id = $4`,
+        [`att_${TAG}_${n++}`, ids[uploader], storageKey, conversationId]);
+        return { kind: "image", provider: "cloudinary", storageKey };
+    };
+
+    beforeAll(async () => {
+        ({ sql } = await import("@/lib/db"));
+        ({ teamService } = await import("@/services/team.service"));
+        ({ chatService } = await import("@/services/chat.service"));
+    });
+
+    afterAll(async () => {
+        if (!sql) return;
+        // Teams cascade from their host and conversations from their team; direct conversations do not.
+        const run = (text) => sql(text, [`${TAG}%`]).catch((error) => console.error("[team test cleanup]", error));
+        await run(`DELETE FROM community.conversation c WHERE EXISTS (SELECT 1 FROM community.conversation_member m JOIN identity.users u ON u.id = m.user_id WHERE m.conversation_id = c.id AND u.public_id LIKE $1)`);
+        await run(`DELETE FROM identity.auth_outbox WHERE payload->>'userId' LIKE $1`);
+        await run(`DELETE FROM identity.users WHERE public_id LIKE $1`);
+    });
+
+    it("create makes the host approved, invites pending, and a team conversation with the host", async () => {
+        const [host, b, c] = await hostWithFriends(2);
+        const { team } = await create(host, [b, c, b]);
+        expect(team).toEqual({
+            id: expect.stringMatching(/^team_[0-9a-z]{26}$/), name: "Study group", hostId: host,
+            memberCount: 1, pendingCount: 2, conversationId: expect.stringMatching(/^cnv_[0-9a-z]{26}$/),
+        });
+        const rows = await memberRows(team.id);
+        expect(rows[host]).toMatchObject({ status: "approved", joined_at: expect.any(Date) });
+        expect(rows[b]).toMatchObject({ status: "pending", joined_at: null, updated_at: expect.any(Date) });
+        expect(rows[c]).toMatchObject({ status: "pending", joined_at: null });
+        expect((await sql(`SELECT size FROM community.team WHERE id = $1`, [team.id])).rows[0].size).toBe(5);
+        expect(await conversationMembers(team.id)).toEqual({ [host]: null });
+        expect((await chatService.listMessages({ userId: host, conversationId: team.conversationId })).items).toEqual([]);
+        await expect(chatService.listMessages({ userId: b, conversationId: team.conversationId })).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("create fails whole when one invitee is not a friend, blocked, or inactive", async () => {
+        const [host, ok, blocked] = await hostWithFriends(2);
+        const stranger = await newUser();
+        const inactive = await newUser({ status: "inactive" });
+        await befriend(host, inactive);
+        await sql(`INSERT INTO community.user_block (blocker_id, blocked_id) VALUES ($1, $2)`, [ids[blocked], ids[host]]);
+
+        await expect(create(host, [ok, stranger])).rejects.toMatchObject({ status: 403, message: "Can't invite this person" });
+        await expect(create(host, [ok, blocked])).rejects.toMatchObject({ status: 403, message: "Can't invite this person" });
+        await expect(create(host, [ok, inactive])).rejects.toMatchObject({ status: 404 });
+        await expect(create(host, [ok, `${TAG}_nobody`])).rejects.toMatchObject({ status: 404 });
+        await expect(create(host, [host])).rejects.toMatchObject({ status: 403 });
+        expect((await sql(`SELECT count(*)::int AS n FROM community.team WHERE host_id = $1`, [ids[host]])).rows[0].n).toBe(0);
+        expect((await sql(`SELECT count(*)::int AS n FROM community.team_members WHERE user_id = $1`, [ids[ok]])).rows[0].n).toBe(0);
+    });
+
+    it("names of spaces or only bidi controls are 400; 21 characters is 400; 20 is ok", async () => {
+        const [host, b, c, d, e, f] = await hostWithFriends(5);
+        for (const name of ["   ", "‮⁦‏", " \u0007 \u0085 ", "a".repeat(21), "", 42]) {
+            await expect(create(host, [b], name)).rejects.toMatchObject({ status: 400 });
+        }
+        await expect(create(host, [])).rejects.toMatchObject({ status: 400 });
+        await expect(create(host, [b, c, d, e, f])).rejects.toMatchObject({ status: 400 });
+
+        const { team } = await create(host, [b], ` ${"a".repeat(20)} `);
+        expect(team.name).toBe("a".repeat(20));
+        // Emoji count as one character each, as in varchar(20).
+        expect((await teamService.rename({ userId: host, teamId: team.id, name: "😀".repeat(20) })).team.name).toBe("😀".repeat(20));
+        expect((await teamService.rename({ userId: host, teamId: team.id, name: "Ma‮ths⁦ " })).team.name).toBe("Maths");
+        await expect(teamService.rename({ userId: host, teamId: team.id, name: "‮ " })).rejects.toMatchObject({ status: 400 });
+        await expect(teamService.rename({ userId: host, teamId: "team_nope", name: "Ok" })).rejects.toMatchObject({ status: 400 });
+        expect((await teamRow(team.id)).name).toBe("Maths");
+    });
+
+    it("capacity counts pending: 4/5 plus two parallel single invites ends at 5 and one 409", async () => {
+        for (let round = 0; round < 5; round++) {
+            const [host, b, c, d, e, f] = await hostWithFriends(5);
+            const { team } = await create(host, [b, c, d]);
+            const results = await Promise.allSettled([
+                teamService.invite({ userId: host, teamId: team.id, userIds: [e] }),
+                teamService.invite({ userId: host, teamId: team.id, userIds: [f] }),
+            ]);
+            expect(results.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
+            const failed = results.find((r) => r.status === "rejected").reason;
+            expect(failed).toMatchObject({ status: 409, message: "This team is full" });
+            expect(results.find((r) => r.status === "fulfilled").value.team).toMatchObject({ memberCount: 1, pendingCount: 4 });
+            expect(Object.values(await memberRows(team.id)).filter((r) => ["approved", "pending"].includes(r.status))).toHaveLength(5);
+        }
+    });
+
+    it("invite skips people already approved or pending, and is refused when it would pass 5", async () => {
+        const [host, b, c, d, e, f] = await hostWithFriends(5);
+        const { team } = await create(host, [b, c]);
+        await respond(b, team.id);
+        expect((await teamService.invite({ userId: host, teamId: team.id, userIds: [b, c, d] })).team).toMatchObject({ memberCount: 2, pendingCount: 2 });
+        await expect(teamService.invite({ userId: host, teamId: team.id, userIds: [e, f] })).rejects.toMatchObject({ status: 409, message: "This team is full" });
+        expect((await teamService.invite({ userId: host, teamId: team.id, userIds: [e] })).team).toMatchObject({ memberCount: 2, pendingCount: 3 });
+        // Full: re-inviting someone already in is still fine.
+        expect((await teamService.invite({ userId: host, teamId: team.id, userIds: [c] })).team).toMatchObject({ pendingCount: 3 });
+        await expect(teamService.invite({ userId: host, teamId: team.id, userIds: [] })).rejects.toMatchObject({ status: 400 });
+    });
+
+    it("accept joins the conversation; decline is rejected; 409 when no longer pending", async () => {
+        const [host, b, c] = await hostWithFriends(2);
+        const outsider = await newUser();
+        const { team } = await create(host, [b, c]);
+
+        const accepted = await respond(b, team.id, true);
+        expect(accepted).toEqual({ team: expect.objectContaining({ id: team.id, memberCount: 2, pendingCount: 1 }), conversationId: team.conversationId });
+        expect((await memberRows(team.id))[b]).toMatchObject({ status: "approved", joined_at: expect.any(Date) });
+        expect(await conversationMembers(team.id)).toEqual({ [host]: null, [b]: null });
+        expect((await chatService.listMessages({ userId: b, conversationId: team.conversationId })).items).toEqual([]);
+
+        expect(await respond(c, team.id, false)).toEqual({ team: null, conversationId: null });
+        expect((await memberRows(team.id))[c]).toMatchObject({ status: "rejected", joined_at: null });
+        expect(await conversationMembers(team.id)).not.toHaveProperty(c);
+
+        await expect(respond(b, team.id, true)).rejects.toMatchObject({ status: 409 });
+        await expect(respond(c, team.id, true)).rejects.toMatchObject({ status: 409 });
+        await expect(respond(host, team.id, false)).rejects.toMatchObject({ status: 409 });
+        await expect(respond(outsider, team.id, true)).rejects.toMatchObject({ status: 404 });
+        await expect(respond(b, `team_${"0".repeat(26)}`, true)).rejects.toMatchObject({ status: 404 });
+        await expect(teamService.respond({ userId: b, teamId: team.id, accept: "yes" })).rejects.toMatchObject({ status: 400 });
+    });
+
+    it("only the host invites, removes and renames (403 otherwise)", async () => {
+        const [host, b, c, d] = await hostWithFriends(3);
+        await befriend(b, d);
+        const outsider = await newUser();
+        const { team } = await create(host, [b, c]);
+        await respond(b, team.id);
+
+        await expect(teamService.invite({ userId: b, teamId: team.id, userIds: [d] })).rejects.toMatchObject({ status: 403 });
+        await expect(teamService.removeMember({ userId: b, teamId: team.id, targetId: c })).rejects.toMatchObject({ status: 403 });
+        await expect(teamService.rename({ userId: b, teamId: team.id, name: "Mine" })).rejects.toMatchObject({ status: 403 });
+        // A pending invitee or an outsider is not a member: 404.
+        await expect(teamService.rename({ userId: c, teamId: team.id, name: "Mine" })).rejects.toMatchObject({ status: 404 });
+        await expect(teamService.invite({ userId: outsider, teamId: team.id, userIds: [d] })).rejects.toMatchObject({ status: 404 });
+        await expect(teamService.removeMember({ userId: host, teamId: team.id, targetId: host })).rejects.toMatchObject({ status: 400 });
+        await expect(teamService.removeMember({ userId: host, teamId: team.id, targetId: outsider })).rejects.toMatchObject({ status: 404 });
+
+        expect((await teamService.rename({ userId: host, teamId: team.id, name: "Renamed" })).team).toMatchObject({ name: "Renamed", hostId: host });
+        expect((await teamRow(team.id)).name).toBe("Renamed");
+    });
+
+    it("removing an approved member removes them from the conversation; their listMessages is 404", async () => {
+        const [host, b] = await hostWithFriends(1);
+        const { team } = await create(host, [b]);
+        await respond(b, team.id);
+        expect((await teamService.removeMember({ userId: host, teamId: team.id, targetId: b })).team).toMatchObject({ memberCount: 1, pendingCount: 0 });
+        expect((await memberRows(team.id))[b]).toMatchObject({ status: "kicked" });
+        expect((await conversationMembers(team.id))[b]).toEqual(expect.any(Date));
+        await expect(chatService.listMessages({ userId: b, conversationId: team.conversationId })).rejects.toMatchObject({ status: 404 });
+        await expect(teamService.removeMember({ userId: host, teamId: team.id, targetId: b })).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("a kick or a leave takes the person out of the conversation even when the post-commit step never runs", async () => {
+        const [host, b, c] = await hostWithFriends(2);
+        const { team } = await create(host, [b, c]);
+        await respond(b, team.id);
+        await respond(c, team.id);
+        afterImpl = () => { }; // deferred past a response that never ends: no runAfter function runs
+        try {
+            await teamService.removeMember({ userId: host, teamId: team.id, targetId: b });
+            await teamService.leave({ userId: c, teamId: team.id });
+        } finally {
+            afterImpl = inline;
+        }
+        for (const who of [b, c]) {
+            await expect(chatService.listMessages({ userId: who, conversationId: team.conversationId })).rejects.toMatchObject({ status: 404 });
+        }
+        expect((await conversationMembers(team.id))[host]).toBeNull();
+    });
+
+    it("accept is 403 once the host and the invitee block each other (either way); the invite stays pending", async () => {
+        const [host, b, c] = await hostWithFriends(2);
+        const { team } = await create(host, [b, c]);
+        await chatService.block({ userId: host, targetId: b });
+        await chatService.block({ userId: c, targetId: host });
+        for (const who of [b, c]) {
+            await expect(respond(who, team.id)).rejects.toMatchObject({ status: 403, message: "Can't invite this person" });
+            expect((await memberRows(team.id))[who]).toMatchObject({ status: "pending" });
+        }
+        expect(await conversationMembers(team.id)).toEqual({ [host]: null });
+    });
+
+    it("ending a team queues the deletion of its conversation's files", async () => {
+        const [host, b] = await hostWithFriends(1);
+        const { team } = await create(host, [b]);
+        const file = await addFile(team.conversationId, host);
+        queueAttachmentDelete.mockClear();
+        await teamService.leave({ userId: host, teamId: team.id });
+        expect(queueAttachmentDelete).toHaveBeenCalledTimes(1);
+        expect(queueAttachmentDelete).toHaveBeenCalledWith([file]);
+        // A leave that keeps the team queues nothing.
+        const [host2, c] = await hostWithFriends(1);
+        const kept = await create(host2, [c]);
+        await respond(c, kept.team.id);
+        await addFile(kept.team.conversationId, c);
+        queueAttachmentDelete.mockClear();
+        await teamService.leave({ userId: c, teamId: kept.team.id });
+        expect(queueAttachmentDelete).not.toHaveBeenCalled();
+    });
+
+    it("a late \"joined\" sync for someone kicked meanwhile leaves them out of the conversation", async () => {
+        const [host, b] = await hostWithFriends(1);
+        const { team } = await create(host, [b]);
+        await respond(b, team.id);
+        await teamService.removeMember({ userId: host, teamId: team.id, targetId: b });
+        // The accept's join landing after the kick's leave (rule 10 runs both after their commits).
+        await chatService.syncTeamMember(team.id, b, "joined");
+        expect((await conversationMembers(team.id))[b]).toEqual(expect.any(Date));
+        await expect(chatService.listMessages({ userId: b, conversationId: team.conversationId })).rejects.toMatchObject({ status: 404 });
+        // A pending invitee is not let in either.
+        const [host2, c] = await hostWithFriends(1);
+        const second = await create(host2, [c]);
+        await chatService.syncTeamMember(second.team.id, c, "joined");
+        expect(await conversationMembers(second.team.id)).toEqual({ [host2]: null });
+    });
+
+    it("removing a pending invitee withdraws the invite", async () => {
+        const [host, b] = await hostWithFriends(1);
+        const { team } = await create(host, [b]);
+        expect((await teamService.removeMember({ userId: host, teamId: team.id, targetId: b })).team).toMatchObject({ memberCount: 1, pendingCount: 0 });
+        expect((await memberRows(team.id))[b]).toMatchObject({ status: "kicked" });
+        await expect(respond(b, team.id)).rejects.toMatchObject({ status: 409 });
+        expect(await conversationMembers(team.id)).toEqual({ [host]: null });
+    });
+
+    it("a member leaving keeps the team; the host leaving makes the earliest-joined member host", async () => {
+        const [host, b, c, d] = await hostWithFriends(3);
+        const { team } = await create(host, [b, c, d]);
+        await respond(c, team.id);
+        await respond(b, team.id);
+        await respond(d, team.id);
+
+        expect(await teamService.leave({ userId: d, teamId: team.id })).toEqual({ team: null });
+        const afterD = await memberRows(team.id);
+        expect(afterD[d]).toMatchObject({ status: "left", joined_at: expect.any(Date) });
+        expect((await conversationMembers(team.id))[d]).toEqual(expect.any(Date));
+        await expect(teamService.leave({ userId: d, teamId: team.id })).rejects.toMatchObject({ status: 404 });
+
+        expect(await teamService.leave({ userId: host, teamId: team.id })).toEqual({ team: null });
+        // c accepted before b.
+        expect(await teamRow(team.id)).toMatchObject({ host: c });
+        expect((await memberRows(team.id))[host]).toMatchObject({ status: "left" });
+        const chat = await conversationMembers(team.id);
+        expect(chat[host]).toEqual(expect.any(Date));
+        expect(chat[b]).toBeNull();
+        expect(chat[c]).toBeNull();
+        expect((await teamService.rename({ userId: c, teamId: team.id, name: "New host" })).team).toMatchObject({ hostId: c, memberCount: 2 });
+    });
+
+    it("the last member leaving deletes the team and its conversation; a pending invitee's accept is then 404", async () => {
+        const [host, b] = await hostWithFriends(1);
+        const { team } = await create(host, [b]);
+        expect(await teamService.leave({ userId: host, teamId: team.id })).toEqual({ team: null });
+        expect(await teamRow(team.id)).toBeNull();
+        expect((await sql(`SELECT count(*)::int AS n FROM community.conversation WHERE public_id = $1`, [team.conversationId])).rows[0].n).toBe(0);
+        expect((await sql(`SELECT count(*)::int AS n FROM community.team_members WHERE team_id = $1`, [team.id])).rows[0].n).toBe(0);
+        await expect(respond(b, team.id)).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("re-inviting someone who left, declined or was removed resets them to pending", async () => {
+        const [host, b, c, d] = await hostWithFriends(3);
+        const { team } = await create(host, [b, c, d]);
+        await respond(b, team.id);
+        await teamService.leave({ userId: b, teamId: team.id });
+        await respond(c, team.id, false);
+        await teamService.removeMember({ userId: host, teamId: team.id, targetId: d });
+        const before = await memberRows(team.id);
+
+        expect((await teamService.invite({ userId: host, teamId: team.id, userIds: [b, c, d] })).team).toMatchObject({ memberCount: 1, pendingCount: 3 });
+        const rows = await memberRows(team.id);
+        for (const who of [b, c, d]) {
+            expect(rows[who].status).toBe("pending");
+            expect(rows[who].updated_at.getTime()).toBeGreaterThan(before[who].updated_at.getTime());
+        }
+        // b sees the team's whole history again on re-joining.
+        await respond(b, team.id);
+        expect((await conversationMembers(team.id))[b]).toBeNull();
+    });
+
+    it("create and accept return the conversation id even when runAfter is deferred (as inside a request)", async () => {
+        const [host, b] = await hostWithFriends(1);
+        afterImpl = () => { };
+        try {
+            const { team } = await create(host, [b]);
+            expect(team.conversationId).toMatch(/^cnv_[0-9a-z]{26}$/);
+            expect(await conversationMembers(team.id)).toEqual({ [host]: null });
+            const accepted = await respond(b, team.id);
+            expect(accepted).toMatchObject({ conversationId: team.conversationId, team: { conversationId: team.conversationId, memberCount: 2 } });
+            expect(await conversationMembers(team.id)).toEqual({ [host]: null, [b]: null });
+        } finally {
+            afterImpl = inline;
+        }
+    });
+
+    it("a failed chat call keeps the committed team and returns a null conversation id; accept ensures it again", async () => {
+        const [host, b] = await hostWithFriends(1);
+        const ensure = vi.spyOn(chatService, "ensureTeamConversation").mockRejectedValueOnce(new Error("chat down"));
+        const logged = vi.spyOn(console, "error").mockImplementation(() => { });
+        try {
+            const { team } = await create(host, [b]);
+            expect(team).toMatchObject({ hostId: host, memberCount: 1, pendingCount: 1, conversationId: null });
+            expect(await teamRow(team.id)).toMatchObject({ host });
+            expect(logged).toHaveBeenCalledWith("[team] joining the team conversation", expect.objectContaining({ message: "chat down" }));
+
+            const accepted = await respond(b, team.id);
+            expect(accepted.conversationId).toMatch(/^cnv_[0-9a-z]{26}$/);
+            // The host's join was lost with the failed call; b's accept creates the conversation and syncs every approved member.
+            expect(await conversationMembers(team.id)).toEqual({ [host]: null, [b]: null });
+        } finally {
+            ensure.mockRestore();
+            logged.mockRestore();
+        }
+    });
+
+    it("purging a host hands the team to the earliest member; purging the only member ends the team", async () => {
+        const { accountPurgeDb } = await import("@/db/accountPurge.db");
+        const host = await newUser({ verified: false });
+        const [b, c] = [await newUser(), await newUser()];
+        await befriend(host, b);
+        await befriend(host, c);
+        const { team } = await create(host, [b, c]);
+        await respond(c, team.id);
+        await respond(b, team.id);
+
+        expect((await accountPurgeDb.purgeUser({ userPublicId: host, requested: true })).status).toBe("purged");
+        // c accepted before b; without the hand-over fk_team_host would have deleted the team with its host.
+        expect(await teamRow(team.id)).toMatchObject({ host: c });
+        expect(Object.keys(await memberRows(team.id)).sort()).toEqual([b, c].sort());
+        // The purged host's conversation membership went with their user row (FK cascade).
+        expect(await conversationMembers(team.id)).toEqual({ [b]: null, [c]: null });
+
+        const solo = await newUser({ verified: false });
+        const d = await newUser();
+        await befriend(solo, d);
+        const { team: soloTeam } = await create(solo, [d]);
+        const file = await addFile(soloTeam.conversationId, d);
+        // The ended team's files come back for the caller to queue (the cascade drops their rows).
+        expect(await accountPurgeDb.purgeUser({ userPublicId: solo, requested: true })).toMatchObject({ status: "purged", chatFiles: [file] });
+        expect(await teamRow(soloTeam.id)).toBeNull();
+        expect(await memberRows(soloTeam.id)).toEqual({});
+        expect((await sql(`SELECT count(*)::int AS n FROM community.conversation WHERE public_id = $1`, [soloTeam.conversationId])).rows[0].n).toBe(0);
+    });
+
+    describe("reads", () => {
+        it("members: join order, roles, invited only for the host, outsiders get 404", async () => {
+            const [host, a, b, c] = await hostWithFriends(3);
+            const outsider = await newUser();
+            const { team } = await create(host, [a, b, c]);
+            await respond(b, team.id);
+            await respond(a, team.id);
+            const asHost = await teamService.members({ userId: host, teamId: team.id });
+            expect(asHost.team).toEqual({ id: team.id, name: "Study group" });
+            expect(asHost.items.map((m) => [m.id, m.role])).toEqual([[host, "host"], [b, "member"], [a, "member"], [c, "invited"]]);
+            expect(Object.keys(asHost.items[0]).sort()).toEqual(["id", "image", "level", "levelTitle", "nickname", "role", "username"]);
+            const asMember = await teamService.members({ userId: a, teamId: team.id });
+            expect(asMember.items.map((m) => m.id)).toEqual([host, b, a]);
+            for (const who of [c, outsider]) await expect(teamService.members({ userId: who, teamId: team.id })).rejects.toMatchObject({ status: 404 });
+            await expect(teamService.members({ userId: host, teamId: `team_${"0".repeat(26)}` })).rejects.toMatchObject({ status: 404 });
+            await expect(teamService.members({ userId: host, teamId: "nope" })).rejects.toMatchObject({ status: 400 });
+        });
+
+        it("invitations: 25 pending, newest first, 20 + 5 without repeats; counts add teamInvitations; ended teams drop out", async () => {
+            const { socialService } = await import("@/services/social.service");
+            const me = await newUser();
+            const teams = [];
+            for (let i = 0; i < 25; i++) {
+                const host = await newUser();
+                await befriend(host, me);
+                teams.push((await create(host, [me], `T${i}`)).team.id);
+            }
+            const first = await teamService.listInvitations({ userId: me });
+            expect(first.items).toHaveLength(20);
+            expect(first.nextCursor).toEqual(expect.any(String));
+            const second = await teamService.listInvitations({ userId: me, cursor: first.nextCursor });
+            expect(second.items).toHaveLength(5);
+            expect(second.nextCursor).toBeNull();
+            const seen = [...first.items, ...second.items].map((x) => x.team.id);
+            expect(new Set(seen).size).toBe(25);
+            expect(seen).toEqual([...teams].reverse());
+            expect(first.items[0]).toMatchObject({ team: { id: teams[24], name: "T24" }, invitedAt: expect.any(Date) });
+            expect(Object.keys(first.items[0].invitedBy).sort()).toEqual(["id", "image", "level", "levelTitle", "nickname", "username"]);
+            await expect(teamService.listInvitations({ userId: me, cursor: "garbage" })).rejects.toMatchObject({ status: 400 });
+            // An id must fit a bigint: 19 digits can pass its max, so only up to 18 are accepted.
+            const { encodeCursor } = await import("@/lib/keysetCursor");
+            const at = "2026-11-14 10:00:00.000";
+            await expect(teamService.listInvitations({ userId: me, cursor: encodeCursor(at, "9".repeat(19)) })).rejects.toMatchObject({ status: 400 });
+            expect((await teamService.listInvitations({ userId: me, cursor: encodeCursor(at, "9".repeat(18)) })).items).toEqual([]);
+            expect(await socialService.counts({ userId: me })).toEqual({ friends: 25, received: 0, teamInvitations: 25 });
+            await respond(me, teams[0], false);
+            await sql(`DELETE FROM community.team WHERE id = $1`, [teams[1]]);
+            expect((await socialService.counts({ userId: me })).teamInvitations).toBe(23);
+        });
+    });
+});
