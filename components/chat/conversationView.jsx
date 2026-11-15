@@ -234,7 +234,7 @@ export default function ConversationView({ conversationId }) {
 
     return (
         <div className={PANE}>
-            <ThreadHeader name={name} image={conversation.image} subtitle={conversation.kind === "direct" ? undefined : `${conversation.members.length} members`}>
+            <ThreadHeader name={name} image={conversation.image} subtitle={conversation.kind === "direct" ? undefined : `${conversation.members.length} ${conversation.members.length === 1 ? "member" : "members"}`}>
                 {other && <HeaderMenu name={name} other={other} />}
                 {conversation.kind === "team" && conversation.teamId && (
                     <TeamMenu name={name} teamId={conversation.teamId} conversationId={conversationId} meId={meId} fallbackCount={conversation.members.length} />

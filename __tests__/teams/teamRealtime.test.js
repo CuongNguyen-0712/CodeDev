@@ -18,6 +18,7 @@ beforeEach(() => {
     qc.setQueryData(friendKeys.counts(), { friends: 1, received: 0, teamInvitations: 1 });
     qc.setQueryData(teamKeys.invitations(), { pages: [] });
     qc.setQueryData(chatKeys.unread(), { unread: 1, requests: 0 });
+    qc.setQueryData(chatKeys.conversation("cnv_team"), { id: "cnv_team" });
 });
 
 describe("team-updated", () => {
@@ -38,6 +39,23 @@ describe("team-updated", () => {
         createTeamHandler(qc, "me")({ teamId: "t", change: "ended" });
         expect(rows("all")).toEqual(["cnv_team", "cnv_dm"]);
         expect(stale(chatKeys.inbox("all"))).toBe(true);
+    });
+
+    it("over for me also refetches the open conversation (another tab leaves it); otherwise it stays", () => {
+        createTeamHandler(qc, "me")({ teamId: "t", change: "kicked", conversationId: "cnv_team", userId: "other" });
+        expect(stale(chatKeys.conversation("cnv_team"))).toBe(false);
+        createTeamHandler(qc, "me")({ teamId: "t", change: "ended", conversationId: "cnv_team", userId: "other" });
+        expect(stale(chatKeys.conversation("cnv_team"))).toBe(true);
+        qc.setQueryData(chatKeys.conversation("cnv_team"), { id: "cnv_team" });
+        createTeamHandler(qc, "me")({ teamId: "t", change: "left", conversationId: "cnv_team", userId: "me" });
+        expect(stale(chatKeys.conversation("cnv_team"))).toBe(true);
+    });
+
+    it("declined (host only) invalidates the team queries", () => {
+        createTeamHandler(qc, "me")({ teamId: "t", change: "declined", conversationId: "cnv_team", userId: "other" });
+        expect(stale(teamKeys.invitations())).toBe(true);
+        expect(rows("all")).toEqual(["cnv_team", "cnv_dm"]);
+        expect(stale(chatKeys.conversation("cnv_team"))).toBe(false);
     });
 
     it("other changes never touch rows", () => {

@@ -72,7 +72,8 @@ export const accountPurgeDb = {
      * The email is free again afterwards. Files outside the database are queued for deletion
      * (outbox "storage.purge") and sessions for cache invalidation ("session.revoked").
      * @returns {Promise<{ status: "purged" | "would_purge" | "skipped" | "gone", reason?: string,
-     *                     files?: number, outboxIds?: string[] }>}
+     *                     files?: number, outboxIds?: string[], chatFiles?: object[] }>}
+     * `chatFiles`: files of the team conversations that ended with the account, for `queueAttachmentDelete` after commit.
      */
     purgeUser: async ({ userPublicId, dryRun = false, requested = false }) => {
         return withTransaction(async (client) => {
@@ -127,9 +128,9 @@ export const accountPurgeDb = {
                 outboxIds.push(queued.rows[0].id);
             }
 
-            await teamDb.handOverAll(client, id);
+            const chatFiles = await teamDb.handOverAll(client, id);
             await client.query(`DELETE FROM identity.users WHERE id = $1;`, [id]);
-            return { status: "purged", files: files.length, outboxIds: outboxIds.filter(Boolean) };
+            return { status: "purged", files: files.length, outboxIds: outboxIds.filter(Boolean), chatFiles };
         });
     },
 };

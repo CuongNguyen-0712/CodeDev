@@ -14,6 +14,7 @@ import { sendMail } from "@/lib/mail";
 import { failureGuards, rateLimiters } from "@/lib/rateLimit";
 import { authService } from "@/services/auth.service";
 import { dispatchAuthOutbox } from "@/services/authOutbox.service";
+import { queueAttachmentDelete } from "@/services/chatJobs.service";
 
 import AccountEmailTemplate from "@/components/templates/accountEmailTemplate";
 
@@ -236,8 +237,9 @@ export const accountLinkService = {
         }
 
         auditAuth("account.purged", { userId, sessionId, ip, reason: "user_requested", count: result.files });
-        // As the maintenance job does: sessions to Redis, files to storage.
+        // As the maintenance job does: sessions to Redis, files to storage, ended team chats' files to the chat job.
         await dispatchAuthOutbox(result.outboxIds);
+        await queueAttachmentDelete(result.chatFiles);
     },
 
     /** Settings > Sign-in methods. */

@@ -112,6 +112,15 @@ describe("New team", () => {
 });
 
 describe("Team conversation menu", () => {
+    it("the header counts members: 2 members, 1 member", async () => {
+        const first = renderWith(<ConversationView conversationId="cnv_t" />);
+        expect(await screen.findByText("2 members")).toBeTruthy();
+        first.unmount();
+        detail = { ...detail, members: [chatMember("P1")] };
+        renderWith(<ConversationView conversationId="cnv_t" />);
+        expect(await screen.findByText("1 member")).toBeTruthy();
+    });
+
     it("team menu shows Invite / Rename / Remove for the host and only Members / Leave for a member", async () => {
         const first = renderWith(<ConversationView conversationId="cnv_t" />);
         const menu = await openMenu();

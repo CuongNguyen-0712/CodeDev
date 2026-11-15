@@ -12,6 +12,7 @@ import { runAfter } from "@/lib/runAfter";
 import { createTeamSchema, inviteSchema, teamIdSchema, teamNameSchema } from "@/lib/validation/team";
 import { parseOrThrow } from "@/lib/validation/premium";
 import { chatService } from "@/services/chat.service";
+import { queueAttachmentDelete } from "@/services/chatJobs.service";
 import { chatRealtime } from "@/services/chatRealtime.service";
 import { notificationService } from "@/services/notification.service";
 
@@ -38,10 +39,10 @@ async function committedMemberIds(teamId, status) {
 
 /**
  * The single post-commit seam (rule 10). `{ teamId, change, joined?, left?, target?, ended?, pendingIds?, invited?,
- * teamName?, actor?, newHost? }`: `change` is the `team-updated` change; `joined` / `left` are public ids whose team
- * conversation membership is synced (to their committed team status); once `ended` the conversation is gone, so `left`
- * is not synced. `invited` (`{ id, invitedAt }`) get a team_invite from `actor`; `newHost` (`{ public_id, joined_at }`)
- * gets a team_host after `actor` left.
+ * teamName?, actor?, newHost? }`: `change` is the `team-updated` change; `joined` are public ids synced into the team
+ * conversation (to their committed team status); `left` already left it in the team transaction, their post-commit sync
+ * only fires the chat event; once `ended` the conversation is gone, so `left` is not synced. `invited` (`{ id, invitedAt }`)
+ * get a team_invite from `actor`; `newHost` (`{ public_id, joined_at }`) gets a team_host after `actor` left.
  * Joining is awaited here, not deferred, so the caller gets the conversation id (the UI opens the team chat from it);
  * a failure of either call is logged, the committed change stays, and the id is null even if the conversation exists
  * (accept re-ensures it and re-syncs every approved member, rule 4).
@@ -133,7 +134,8 @@ async function lockForMember(client, teamId, userId, { hostOnly = false } = {}) 
     return { team, me };
 }
 
-const TEAM_MEMBER_ROW_ID = /^\d{1,19}$/;
+// 18 digits: every value fits a bigint (19 could pass its max and 500).
+const TEAM_MEMBER_ROW_ID = /^\d{1,18}$/;
 
 const dedupe = (list) => [...new Set(list)];
 
@@ -199,16 +201,25 @@ export const teamService = {
     respond: async ({ userId, teamId, accept }) => {
         parseOrThrow(respondSchema, { teamId, accept });
         const approvedIds = await withTransaction(async (client) => {
-            if (!await teamDb.lockTeam(client, teamId)) throw teamNotFound();
+            const team = await teamDb.lockTeam(client, teamId);
+            if (!team) throw teamNotFound();
             const [me] = await teamDb.people(client, { teamId, friendOfDbId: null, publicIds: [userId] });
             if (!me?.member_status) throw teamNotFound();
             if (me.member_status !== "pending") throw new ApiError("This invitation is no longer pending", 409);
+            // A block since the invite (either way, with the current host) ends it; the row stays pending.
+            if (accept && await chatDb.isBlocked(client, team.host_id, me.id)) throw cantInvite();
             if (accept && (await teamDb.capacity(client, teamId)).approved >= TEAM_SIZE) throw teamFull();
             await teamDb.upsertMember(client, { teamId, userDbId: me.id, status: accept ? "approved" : "rejected" });
             return accept ? teamDb.memberIds(client, teamId, "approved") : [];
         });
-        // A decline is not a team-updated change (spec section 6) and notifies nobody.
-        if (!accept) return { team: null, conversationId: null };
+        if (!accept) {
+            // Only the host hears of a decline (no notification): their open Members / Invite dialogs refetch.
+            await runAfter(async () => {
+                const team = await teamDb.summary(teamId);
+                if (team) await publishToUser(team.hostId, events.TEAM_UPDATED, { teamId, change: "declined", conversationId: team.conversationId, userId });
+            });
+            return { team: null, conversationId: null };
+        }
         // Every approved member, not only the accepter: repairs a join an earlier chat failure lost (syncs are idempotent).
         const conversationId = await afterTeamChange({ teamId, change: "joined", joined: approvedIds, about: userId });
         const team = await teamDb.summary(teamId);
@@ -224,7 +235,11 @@ export const teamService = {
             const [target] = await teamDb.people(client, { teamId, friendOfDbId: null, publicIds: [targetId] });
             if (target?.member_status !== "approved" && target?.member_status !== "pending") throw new ApiError("Member not found", 404);
             await teamDb.upsertMember(client, { teamId, userDbId: target.id, status: "kicked" });
-            return target.member_status === "approved";
+            if (target.member_status !== "approved") return false;
+            // Out of the conversation in this transaction (team, then conversation lock); the post-commit sync only fires the event.
+            const conversation = await chatDb.lockByTeamId(client, teamId);
+            if (conversation) await chatDb.leaveTeam(client, { conversationDbId: conversation.id, userDbId: target.id });
+            return true;
         });
         await afterTeamChange({ teamId, change: "kicked", target: targetId, left: wasApproved ? [targetId] : [], about: targetId });
         return { team: await teamDb.summary(teamId) };
@@ -251,18 +266,24 @@ export const teamService = {
             const { team, me } = await lockForMember(client, teamId, userId);
             await teamDb.upsertMember(client, { teamId, userDbId: me.id, status: "left" });
             const next = await teamDb.nextHost(client, teamId);
+            const conversation = await chatDb.lockByTeamId(client, teamId);
             if (!next) {
-                // Read before the cascade removes them: the people whose invite ends with the team.
+                // Read before the cascade removes them: the people whose invite ends with the team, and the stored files
+                // (the conversation is locked, so no upload slips in between this read and the delete).
                 const pendingIds = await teamDb.memberIds(client, teamId, "pending");
-                const chatId = (await teamDb.summary(teamId))?.conversationId ?? null;
+                const files = conversation ? await teamDb.conversationFiles(client, conversation.id) : [];
                 await teamDb.deleteTeam(client, teamId);
-                return { ended: true, pendingIds, chatId };
+                return { ended: true, pendingIds, chatId: conversation?.public_id ?? null, files };
             }
+            if (conversation) await chatDb.leaveTeam(client, { conversationDbId: conversation.id, userDbId: me.id });
             if (team.host_id !== me.id) return { ended: false };
             await teamDb.setHost(client, teamId, next.user_id);
             return { ended: false, newHost: next, teamName: team.name, actor: me.username };
         });
-        await afterTeamChange({ teamId, change: result.ended ? "ended" : "left", left: [userId], about: userId, ...result });
+        const { files = [], ...rest } = result;
+        // The cascade dropped the rows, the only path to these files: the chat job deletes them from storage.
+        if (files.length) await runAfter(() => queueAttachmentDelete(files));
+        await afterTeamChange({ teamId, change: result.ended ? "ended" : "left", left: [userId], about: userId, ...rest });
         return { team: null };
     },
 };

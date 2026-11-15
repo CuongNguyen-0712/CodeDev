@@ -3,6 +3,8 @@ import crypto from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/chatMedia", () => ({ remove: vi.fn(async () => { }) }));
+const queueAttachmentDelete = vi.fn(async () => { });
+vi.mock("@/services/chatJobs.service", () => ({ installChatJobs: () => { }, queueAttachmentDelete: (...a) => queueAttachmentDelete(...a) }));
 // Outside a request the real `after` throws, so runAfter runs inline; a test may swap in a deferring `after` that never runs.
 const inline = () => { throw new Error("outside a request scope"); };
 let afterImpl = inline;
@@ -44,6 +46,14 @@ describe.skipIf(!hasDb)("teams (PostgreSQL)", () => {
     const teamRow = async (teamId) => (await sql(`SELECT t.name, u.public_id AS host FROM community.team t JOIN identity.users u ON u.id = t.host_id WHERE t.id = $1`, [teamId])).rows[0] || null;
     const create = (userId, memberIds, name = "Study group") => teamService.create({ userId, name, memberIds });
     const respond = (userId, teamId, accept = true) => teamService.respond({ userId, teamId, accept });
+    /** Stores one image row in the conversation (as an upload would); returns what the delete job gets for it. */
+    const addFile = async (conversationId, uploader) => {
+        const storageKey = `${TAG}/file-${n++}`;
+        await sql(`INSERT INTO community.chat_attachment (public_id, conversation_id, uploader_id, kind, provider, storage_key, content_type, size_bytes)
+                   SELECT $1, c.id, $2, 'image', 'cloudinary', $3, 'image/png', 10 FROM community.conversation c WHERE c.public_id = $4`,
+        [`att_${TAG}_${n++}`, ids[uploader], storageKey, conversationId]);
+        return { kind: "image", provider: "cloudinary", storageKey };
+    };
 
     beforeAll(async () => {
         ({ sql } = await import("@/lib/db"));
@@ -193,6 +203,54 @@ describe.skipIf(!hasDb)("teams (PostgreSQL)", () => {
         await expect(teamService.removeMember({ userId: host, teamId: team.id, targetId: b })).rejects.toMatchObject({ status: 404 });
     });
 
+    it("a kick or a leave takes the person out of the conversation even when the post-commit step never runs", async () => {
+        const [host, b, c] = await hostWithFriends(2);
+        const { team } = await create(host, [b, c]);
+        await respond(b, team.id);
+        await respond(c, team.id);
+        afterImpl = () => { }; // deferred past a response that never ends: no runAfter function runs
+        try {
+            await teamService.removeMember({ userId: host, teamId: team.id, targetId: b });
+            await teamService.leave({ userId: c, teamId: team.id });
+        } finally {
+            afterImpl = inline;
+        }
+        for (const who of [b, c]) {
+            await expect(chatService.listMessages({ userId: who, conversationId: team.conversationId })).rejects.toMatchObject({ status: 404 });
+        }
+        expect((await conversationMembers(team.id))[host]).toBeNull();
+    });
+
+    it("accept is 403 once the host and the invitee block each other (either way); the invite stays pending", async () => {
+        const [host, b, c] = await hostWithFriends(2);
+        const { team } = await create(host, [b, c]);
+        await chatService.block({ userId: host, targetId: b });
+        await chatService.block({ userId: c, targetId: host });
+        for (const who of [b, c]) {
+            await expect(respond(who, team.id)).rejects.toMatchObject({ status: 403, message: "Can't invite this person" });
+            expect((await memberRows(team.id))[who]).toMatchObject({ status: "pending" });
+        }
+        expect(await conversationMembers(team.id)).toEqual({ [host]: null });
+    });
+
+    it("ending a team queues the deletion of its conversation's files", async () => {
+        const [host, b] = await hostWithFriends(1);
+        const { team } = await create(host, [b]);
+        const file = await addFile(team.conversationId, host);
+        queueAttachmentDelete.mockClear();
+        await teamService.leave({ userId: host, teamId: team.id });
+        expect(queueAttachmentDelete).toHaveBeenCalledTimes(1);
+        expect(queueAttachmentDelete).toHaveBeenCalledWith([file]);
+        // A leave that keeps the team queues nothing.
+        const [host2, c] = await hostWithFriends(1);
+        const kept = await create(host2, [c]);
+        await respond(c, kept.team.id);
+        await addFile(kept.team.conversationId, c);
+        queueAttachmentDelete.mockClear();
+        await teamService.leave({ userId: c, teamId: kept.team.id });
+        expect(queueAttachmentDelete).not.toHaveBeenCalled();
+    });
+
     it("a late \"joined\" sync for someone kicked meanwhile leaves them out of the conversation", async () => {
         const [host, b] = await hostWithFriends(1);
         const { team } = await create(host, [b]);
@@ -328,7 +386,9 @@ describe.skipIf(!hasDb)("teams (PostgreSQL)", () => {
         const d = await newUser();
         await befriend(solo, d);
         const { team: soloTeam } = await create(solo, [d]);
-        expect((await accountPurgeDb.purgeUser({ userPublicId: solo, requested: true })).status).toBe("purged");
+        const file = await addFile(soloTeam.conversationId, d);
+        // The ended team's files come back for the caller to queue (the cascade drops their rows).
+        expect(await accountPurgeDb.purgeUser({ userPublicId: solo, requested: true })).toMatchObject({ status: "purged", chatFiles: [file] });
         expect(await teamRow(soloTeam.id)).toBeNull();
         expect(await memberRows(soloTeam.id)).toEqual({});
         expect((await sql(`SELECT count(*)::int AS n FROM community.conversation WHERE public_id = $1`, [soloTeam.conversationId])).rows[0].n).toBe(0);
@@ -373,6 +433,11 @@ describe.skipIf(!hasDb)("teams (PostgreSQL)", () => {
             expect(first.items[0]).toMatchObject({ team: { id: teams[24], name: "T24" }, invitedAt: expect.any(Date) });
             expect(Object.keys(first.items[0].invitedBy).sort()).toEqual(["id", "image", "level", "levelTitle", "nickname", "username"]);
             await expect(teamService.listInvitations({ userId: me, cursor: "garbage" })).rejects.toMatchObject({ status: 400 });
+            // An id must fit a bigint: 19 digits can pass its max, so only up to 18 are accepted.
+            const { encodeCursor } = await import("@/lib/keysetCursor");
+            const at = "2026-11-14 10:00:00.000";
+            await expect(teamService.listInvitations({ userId: me, cursor: encodeCursor(at, "9".repeat(19)) })).rejects.toMatchObject({ status: 400 });
+            expect((await teamService.listInvitations({ userId: me, cursor: encodeCursor(at, "9".repeat(18)) })).items).toEqual([]);
             expect(await socialService.counts({ userId: me })).toEqual({ friends: 25, received: 0, teamInvitations: 25 });
             await respond(me, teams[0], false);
             await sql(`DELETE FROM community.team WHERE id = $1`, [teams[1]]);

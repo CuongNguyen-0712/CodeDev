@@ -1,3 +1,4 @@
+import { chatDb } from "@/db/chat.db";
 import { sql } from "@/lib/db";
 
 // Same user row as /api/friends (nickname raw: 'None' means unset).
@@ -59,6 +60,10 @@ export const teamDb = {
     rename: (client, teamId, name) => client.query(
         `UPDATE community.team SET name = $2, updated_at = now() WHERE id = $1`, [teamId, name]),
 
+    /** `{ kind, provider, storageKey }` of every file stored for the conversation (sent or only uploaded): what chat's attachment delete job takes. */
+    conversationFiles: async (client, conversationDbId) => (await client.query(
+        `SELECT kind, provider, storage_key AS "storageKey" FROM community.chat_attachment WHERE conversation_id = $1`, [conversationDbId])).rows,
+
     /** Members and the team conversation go with it (ON DELETE CASCADE). */
     deleteTeam: (client, teamId) => client.query(`DELETE FROM community.team WHERE id = $1`, [teamId]),
 
@@ -66,18 +71,26 @@ export const teamDb = {
      * Rule 7 for an account being purged, inside the purge transaction (fk_team_host would otherwise delete the teams it
      * hosts): in each team the person is approved in, the earliest-joined other member becomes host, or the team is deleted
      * when nobody else is approved. No chat sync or event: their conversation membership goes with their user row.
+     * Returns the files of the ended teams' conversations (`conversationFiles`), for the caller to queue after commit.
      */
     handOverAll: async (client, userDbId) => {
         const { rows } = await client.query(
             `SELECT team_id FROM community.team_members WHERE user_id = $1 AND status = 'approved' ORDER BY team_id`, [userDbId]);
+        const files = [];
         for (const { team_id: teamId } of rows) {
             const team = await teamDb.lockTeam(client, teamId);
             if (!team) continue;
             await teamDb.upsertMember(client, { teamId, userDbId, status: "left" });
             const next = await teamDb.nextHost(client, teamId);
-            if (!next) await teamDb.deleteTeam(client, teamId);
-            else if (team.host_id === String(userDbId)) await teamDb.setHost(client, teamId, next.user_id);
+            if (next) {
+                if (team.host_id === String(userDbId)) await teamDb.setHost(client, teamId, next.user_id);
+                continue;
+            }
+            const conversation = await chatDb.lockByTeamId(client, teamId);
+            if (conversation) files.push(...await teamDb.conversationFiles(client, conversation.id));
+            await teamDb.deleteTeam(client, teamId);
         }
+        return files;
     },
 
     /** Read after commit, on the pool: `{ id, name, hostId, memberCount, pendingCount, conversationId }` or null; conversationId is null until the conversation exists. */

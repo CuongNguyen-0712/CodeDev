@@ -139,8 +139,8 @@ describe.skipIf(!hasDb)("team side effects", () => {
         expectTeam([[host, "invited", b], [b, "invited", b], [c, "invited", b]]);
         await respond(b, team.id);
         expectTeam([[host, "joined", b], [b, "joined", b], [c, "joined", b]]);
-        await respond(c, team.id, false); // not a team-updated change
-        expectTeam([]);
+        await respond(c, team.id, false); // only the host hears of a decline
+        expectTeam([[host, "declined", c]]);
         await teamService.invite({ userId: host, teamId: team.id, userIds: [c] });
         expectTeam([[host, "invited", c], [b, "invited", c], [c, "invited", c]]);
         await teamService.rename({ userId: host, teamId: team.id, name: "Renamed" });
