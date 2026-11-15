@@ -11,6 +11,8 @@ import FileIcon from "@/components/chat/fileIcon";
 import MessageBody from "@/components/chat/messageBody";
 import ReportDialog from "@/components/chat/reportDialog";
 import UserAvatar from "@/components/chat/userAvatar";
+import { showAlert } from "@/components/ui/alert";
+import ImageLightbox from "@/components/ui/imageLightbox";
 
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -22,7 +24,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Textarea } from "@/components/shadcn/textarea";
 
-import { LuCheck, LuCheckCheck, LuDownload, LuEllipsis, LuFlag, LuPencil, LuUndo2 } from "react-icons/lu";
+import { LuCheck, LuCheckCheck, LuCopy, LuDownload, LuEllipsis, LuFlag, LuPencil, LuUndo2 } from "react-icons/lu";
 
 /** True when every other member has read up to `seq` (seqs are bigint strings, so never compared as text). */
 export function seenByAll(seq, others) {
@@ -105,6 +107,15 @@ export default function MessageBubble({ message, mine = false, others, showSende
     // A message without `kind` on an attachment is an image.
     const images = (message.attachments || []).filter((a) => a.kind !== "file");
     const files = (message.attachments || []).filter((a) => a.kind === "file");
+    // An unsent image shows its local blob preview; a sent one opens through the attachment route (also its original).
+    const gallery = images.map((a, index) => {
+        const alt = images.length > 1 ? `Attached image ${index + 1} of ${images.length}` : "Attached image";
+        return unsent ? { src: a.previewUrl, alt } : { src: `/api/chat/attachments/${a.id}`, alt, original: `/api/chat/attachments/${a.id}` };
+    });
+    const copy = () => navigator.clipboard.writeText(message.body).then(
+        () => showAlert(200, "Copied"),
+        () => showAlert(500, "Could not copy the message."),
+    );
 
     return (
         <li className={cn("flex items-end gap-2", mine && "flex-row-reverse")}>
@@ -126,18 +137,18 @@ export default function MessageBubble({ message, mine = false, others, showSende
                                         const img = (
                                             // eslint-disable-next-line @next/next/no-img-element -- the route 302s to a short-lived signed URL; previewUrl is a local blob while sending
                                             <img
-                                                src={unsent ? a.previewUrl : `/api/chat/attachments/${a.id}`}
-                                                alt={images.length > 1 ? `Attached image ${index + 1} of ${images.length}` : "Attached image"}
+                                                src={gallery[index].src}
+                                                alt={gallery[index].alt}
                                                 width={a.width || undefined}
                                                 height={a.height || undefined}
                                                 loading="lazy"
                                                 className={images.length > 1 ? "size-full bg-muted object-cover" : "h-auto max-h-72 w-auto max-w-full bg-muted object-cover"}
                                             />
                                         );
-                                        // The route answers 404 until the send claims the attachment, so an unsent image is a preview, not a link.
-                                        return unsent
-                                            ? <span key={a.id} className={cn("block", tile)}>{img}</span>
-                                            : <a key={a.id} href={`/api/chat/attachments/${a.id}`} target="_blank" rel="noopener noreferrer" className={cn("block focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring", tile)}>{img}</a>;
+                                        // Unsent images open their blob preview; the original link is only offered once the send claimed the attachment.
+                                        return (
+                                            <ImageLightbox key={a.id} images={gallery} index={index} label="View image" className={cn("block focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring", tile)}>{img}</ImageLightbox>
+                                        );
                                     })}
                                 </div>
                             )}
@@ -181,6 +192,8 @@ export default function MessageBubble({ message, mine = false, others, showSende
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align={mine ? "end" : "start"} className="w-48">
+                                {message.body && <DropdownMenuItem onSelect={copy}><LuCopy />Copy</DropdownMenuItem>}
+                                {message.body && <DropdownMenuSeparator />}
                                 {mine ? (
                                     <>
                                         {canEdit && <DropdownMenuItem onSelect={() => setEditing(true)}><LuPencil />Edit</DropdownMenuItem>}
