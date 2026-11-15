@@ -53,12 +53,36 @@ Chưa làm: `EXPLAIN ANALYZE` trên dữ liệu thật, `pg_stat_user_indexes`, 
 
 | Phase | Commit | Đã làm | Chưa làm / lý do |
 |---|---|---|---|
-| 0 | | | Chưa đo baseline: cần `pg_stat_statements` trên Neon production |
+| 0 | `2d64e11d`, `191cf2b8`, `b673a566` | Baseline dưới tải bằng bộ load test k6 (`docs/loadtest/README.md`), `pg_stat_statements` bật trên DB đo: local và Vercel Preview + nhánh Neon. Xem mục "Đo tải và cải thiện (2026-11-14)" | Chưa đo trên Neon production (chỉ trên nhánh copy) |
 | 1 | `e03b6fb` | Migration `001`: index, throttle `last_seen`. Sửa query `codeRun`, comments, `getPermissions`, `course-details`, quiz key | |
 | 2 | `0c8d950` | Migration `002`: `profile.ranking_snapshot` (materialized view, refresh concurrently ≤ 5 phút một lần khi có người đọc). Điểm của chính viewer vẫn tính live | |
 | 3 | `bb29c5c` | Migration `003`: bỏ câu hỏi quiz khỏi `learning_progress_content`, thêm trigram cho search user. Cache course details (public + viewer), cache recommendation candidates. Invalidate realtime theo đúng key. Webhook Sanity | Không tách version key "My learning": `last_seen` đã throttle, phần lợi còn lại nhỏ hơn chi phí thêm 1 lần đọc Redis mỗi request |
 | 4 | `75edb8b` | Migration `004`: `code_runs` sang `timestamptz`, drop index thừa. Retention hằng ngày cho sessions/tokens và code runs. Timeout và `max` của pool lấy từ env | Không gộp `post_points → award_exp → award_achievements` vào một function (mục này vốn là tuỳ chọn) |
 | 5 | `d47f015`, `91b27f0` | Tách rõ API (đọc) và server action (ghi), xem [api-conventions.md](api-conventions.md). Mọi route app đi qua `apiRoute`. Keyset cho comments và `/api/users`. Xoá route chết, logout chuyển sang `POST /api/auth/logout`, tách health. Logic link tài khoản chuyển vào service. Tách `lib/challenges/quiz.js` và `grading.js` | Các list `courses`, `orders`, `experience`, `course-progress` vẫn dùng cursor cũ (ghi trong api-conventions §4). Không bỏ flow nộp code chấm trên trình duyệt (dev cần khi không có runner) |
+
+## Đo tải và cải thiện (2026-11-14)
+
+Đo bằng bộ load test k6 (spec `docs/superpowers/specs/2026-11-13-load-capacity-design.md`, runbook `docs/loadtest/README.md`). N = số người dùng ảo đồng thời cao nhất mà mọi bậc tới đó còn đạt p95 đọc < 800 ms, p95 ghi < 1 500 ms, lỗi < 1%. Phân tích đầy đủ: `docs/loadtest/2026-11-14-stress-analysis.md`.
+
+| Lần đo | Môi trường | N | Bậc 200 VU: p95 đọc / ghi, lỗi | Báo cáo |
+|---|---|---|---|---|
+| Trước khi sửa | Local: app 1 vCPU, Postgres 16 1 vCPU, 5 000 user seed | **< 50** (bậc 50: p95 đọc 10 016 ms, lỗi 20,5%) | — (dừng ở bậc 100) | `2026-11-14-loadtest-stress.md` |
+| Sau khi sửa (2 lượt) | Local, như trên | **200** (chưa gãy ở bậc cuối) | 146 / 348 ms, 0,01% và 89 / 210 ms, 0% | `2026-11-14-loadtest-stress-2.md`, `-3.md` |
+| Sau khi sửa | Vercel Preview (`iad1`) + Neon 0.5–2 CU, máy tải ở Bangkok | none theo luật; p95 không tăng theo tải | 875 / 1 041 ms, 0,77% (p95 ~900 ms ở mọi bậc = độ trễ mạng + SSR) | `2026-11-15-preview-stress.md` |
+
+**Nút thắt tìm ra: `rankingDb.getStanding` quét toàn bảng giao dịch.** Câu standing gọi `ranking_scores` qua `LEFT JOIN LATERAL public.ranking_scores(..., u.id)`. Hàm SQL được inline và điều kiện `(_user_id IS NULL OR t.user_id = _user_id)` không gập được với `u.id` là cột, nên mỗi lần gọi Seq Scan cả `profile.exp_transaction` và `profile.point_transaction` (58–145 ms khi rảnh trên 100k + 50k dòng). `/api/ranking/me` gọi 6 lần. Dưới tải, câu này lên 25–28 s và giữ kết nối, pool 10 cạn, 13 endpoint khác chờ kết nối tới `DB_CONNECT_TIMEOUT_MS` (10 s) và trả 500/503. Mục A1/Phase 2 (snapshot) đã bỏ quét cho người khác nhưng phần điểm live của chính người xem vẫn còn quét.
+
+**Đã sửa (`e85576e6`):** `getStanding` lấy `id` người xem trước rồi truyền vào `ranking_scores($2, $3::bigint)` như tham số bind; driver (`lib/db.js`) gửi câu không tên nên PostgreSQL lập plan với giá trị thật, gập nhánh `IS NULL` và dùng `idx_exp_transaction_user_created` / `idx_point_transaction_earned`. Câu standing: 58–145 ms → 2,5 ms khi rảnh; dưới tải 25–28 s → 8–15 ms. Điểm người xem vẫn live, cách tính vị trí/tier không đổi; test `__tests__/ranking/ranking.integration.test.js` khoá hành vi cũ (user không tồn tại → 0 dòng; user chưa có giao dịch → score 0, position null).
+
+**Còn lại, chưa phải nút thắt ở 200 VU:**
+
+- Ở 200 VU local, CPU app và DB đều ~100% của 1 vCPU: giới hạn của cấu hình này không xa 200. Trên Neon, DB nhàn (standing 6–10 ms, `learning_progress` ~9,5 ms).
+- `learning_progress()`: 13–15 ms trung bình dưới tải, nặng thứ hai theo tổng thời gian; ứng viên đầu tiên nếu cần đẩy N lên nữa.
+- `refresh_ranking_snapshot()`: ~1,3 s, chạy 3–4 lần trong ~9 phút (TTL 5 phút); chỉ một request trả giá nhờ `redis.remember` + advisory lock.
+- Trang SSR là phần chậm nhất khi đo từ xa (`/roadmap`, `/course` p95 ~1,3 s từ Bangkok tới `iad1`).
+- Số kết nối DB `active + idle` lên tới 21 trong khi pool 10, chưa giải thích.
+- `/api/challenges/:id/workspace` trả 500 trên bản preview cả khi không tải (lỗi cấu hình/dữ liệu, đang điều tra riêng).
+- Chưa đo với máy tải gần `iad1`, nên chưa có N đúng ngưỡng cho môi trường Vercel + Neon.
 
 ## Rà lại mục chưa làm và rủi ro (2026-11-01)
 
