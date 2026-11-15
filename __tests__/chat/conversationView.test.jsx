@@ -30,7 +30,7 @@ vi.mock("@/contexts/appContext", () => ({ useApp: () => ({ showAlert: vi.fn() })
 vi.mock("@/components/ui/codeBlock", () => ({ default: () => null }));
 
 const { default: ConversationView, NewConversationView } = await import("@/components/chat/conversationView");
-const { CHAT_HEIGHT } = await import("@/components/chat/chatHeight");
+const { CHAT_HEIGHT, CHAT_LAYOUT_PADDING } = await import("@/components/chat/chatHeight");
 const { useChatTypingStore } = await import("@/stores/chatTypingStore");
 
 const member = (id, over = {}) => ({ id, username: id.toLowerCase(), nickname: null, image: null, state: "accepted", lastReadSeq: "0", ...over });
@@ -61,7 +61,12 @@ describe("ConversationView", () => {
         const pane = container.firstElementChild;
         CHAT_HEIGHT.split(" ").forEach((c) => expect(pane.classList.contains(c)).toBe(true));
         expect(pane.classList.contains("min-h-96")).toBe(true);
+        expect(CHAT_HEIGHT).toContain("h-[calc(100dvh-4.5rem)]");
+        expect(CHAT_HEIGHT).toContain("md:h-[calc(100dvh-5.5rem)]");
+        expect(CHAT_HEIGHT).toContain("lg:h-[calc(100dvh-6.5rem)]");
+        expect(CHAT_LAYOUT_PADDING.split(" ")).toEqual(["pt-6", "md:px-6", "md:pb-4", "lg:pt-10"]);
         expect(pane.className).not.toMatch(/svh/);
+        expect(pane.classList.contains("max-md:rounded-none")).toBe(true);
     });
 
     it("renders the thread oldest first with the composer and attach button", async () => {
