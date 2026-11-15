@@ -70,3 +70,25 @@ So với vòng 0 (gãy ở 50 VU: p95 đọc 10 016 ms, lỗi 20,5%): mọi endp
 - `refresh_ranking_snapshot()`: lượt 1 chạy 4 lần × 1,35 s, lượt 2 3 lần × 1,28 s trong ~9 phút (TTL 5 phút). Chỉ một request trả giá mỗi lần làm mới: `redis.remember` gom các lời gọi đồng thời trong cùng tiến trình (`lib/cache.js`) và `refresh_ranking_snapshot` giữ `pg_try_advisory_xact_lock`.
 
 Kết luận: mục tiêu N ≥ 100 đạt ở cả hai lượt; dừng vòng lặp. Lượt chạy chưa đo được giới hạn thật (dừng ở bậc cuối 200 mà chưa gãy), nhưng CPU app và DB đều đã ở trần 1 vCPU tại 200 VU, nên giới hạn có lẽ không xa 200 trên cấu hình này. Muốn biết chính xác: chạy lại với `--max-vus` lớn hơn (ngoài phạm vi mốc 100).
+
+## Vòng 2 — Vercel Preview + Neon 0.5–2 CU
+
+Môi trường: bản preview `codedev-git-perf-load-100-codedevteam.vercel.app` (Vercel, `iad1`), nhánh Neon `preview/perf/load-100` (copy production do tích hợp Neon–Vercel tạo, đặt 0.5–2 CU, `max_connections` 901, migration tới 028), 5 000 user `lt_*` seed thêm, cùng 3 khoá như local. Máy tải ở Bangkok. Session lấy bằng đăng nhập thật vào preview (9/phút vì giới hạn 10/phút/IP); preview đặt `AUTH_ACCESS_TOKEN_TTL_SECONDS=3600` để không có đợt refresh vượt giới hạn 30/phút/IP; k6 gửi `x-vercel-protection-bypass` để qua Bot protection của Vercel. Báo cáo: `2026-11-15-preview-stress.md` (run `20261115-1019-preview-stress`, commit `280f60e2`, `--max-vus 200`).
+
+| bậc | VU | p95 đọc | p95 ghi | lỗi | 429 |
+|---|---|---|---|---|---|
+| 0 | 50 | 957 ms | 1 111 ms | 0,68% | 0 |
+| 1 | 100 | 902 ms | 1 052 ms | 0,81% | 0 |
+| 2 | 150 | 884 ms | 1 032 ms | 0,89% | 0 |
+| 3 | 200 | 875 ms | 1 041 ms | 0,77% | 23 |
+
+Theo đúng luật đo, **N = none** (bậc 50 đã vượt p95 đọc 800 ms). Nhưng con số này đo độ trễ mạng, không phải sức chịu:
+
+- **p95 không tăng theo tải**: 957 → 875 ms từ 50 lên 200 VU, lỗi đứng yên ~0,8%. Hệ thống chưa bão hoà ở 200 VU.
+- **Mức nền khi không tải** từ máy này (curl): API có cache ~200 ms (`/api/course/filters`), trang SSR `/course` ~680 ms. Trong bảng endpoint, các trang SSR đứng đầu p95 (`/roadmap` 1 362 ms, `/course` 1 329 ms, `/learning/:id` 1 014 ms); các API dùng DB nhanh hơn (`/api/user/learning-progress` p50 313 ms).
+- **DB nhàn**: câu standing 6–10 ms trung bình (2 044 + 1 022 + 1 022 lần), `learning_progress` 9,5 ms × 941. Không thấy dấu hiệu nghẽn kết nối hay CPU từ phía query.
+- **Lỗi 500 (87 lần) đều ở `/api/challenges/:id/workspace`** và xảy ra cả khi gọi một lần không tải (cả 3 khoá đều trả 500): lỗi cấu hình/dữ liệu của bản preview (nhiều khả năng file starter của challenge trên storage), không do tải. Bỏ endpoint này ra thì lỗi còn ~0,4%.
+- 429 (23 ở bậc 200) ở `/api/course/comments` và `/api/course/rating`: giới hạn theo IP, vì mọi khách vãng lai đi từ một IP; đúng thiết kế, không tính là lỗi.
+- Không có số CPU của Vercel/Neon trong lượt này (sampler chỉ chạy ở local); dòng "Valid … 0%" của báo cáo không có ý nghĩa cho lượt này.
+
+Kết luận: ở cấu hình Vercel + Neon 0.5–2 CU, **200 người dùng đồng thời không làm hệ thống chậm đi hay lỗi thêm**; ngưỡng p95 800 ms vượt vì khoảng cách Bangkok → `iad1` cộng thời gian render SSR, có cả khi không tải. Muốn có con số N theo đúng ngưỡng cho môi trường này, cần chạy máy tải ở gần `iad1` (ví dụ một VM ở us-east) hoặc đặt ngưỡng riêng có trừ mức nền mạng. Việc tồn đọng: sửa lỗi 500 của `/api/challenges/:id/workspace` trên preview.
