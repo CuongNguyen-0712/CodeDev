@@ -21,6 +21,7 @@ vi.mock("@/components/shadcn/tooltip", () => ({
 
 const { default: MessagesNavButton } = await import("@/components/chat/messagesNavButton");
 const { default: Inbox } = await import("@/components/chat/inbox");
+const { CHAT_HEIGHT } = await import("@/components/chat/chatHeight");
 
 const row = (over = {}) => ({
     id: "cnv_a", kind: "direct", title: "Ada Lovelace", image: null, state: "accepted",
@@ -62,6 +63,12 @@ describe("MessagesNavButton", () => {
 });
 
 describe("Inbox", () => {
+    it("uses the shared full-height class and scrolls its list inside", () => {
+        const { container } = renderWith(<Inbox />);
+        CHAT_HEIGHT.split(" ").forEach((c) => expect(container.firstElementChild.classList.contains(c)).toBe(true));
+        expect(container.querySelector(".overflow-y-auto")).toBeTruthy();
+    });
+
     it("shows the Requests count only when above 0", async () => {
         unread = { unread: 0, requests: 2 };
         renderWith(<Inbox />);

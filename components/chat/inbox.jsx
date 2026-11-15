@@ -8,6 +8,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { chatQueries } from "@/queries/chat.query";
 
 import { ErrorReload } from "@/components/ui/error";
+import { CHAT_HEIGHT } from "@/components/chat/chatHeight";
 import { ConversationRow, ConversationSkeleton } from "@/components/chat/conversationRow";
 import NewTeamDialog from "@/components/chat/newTeamDialog";
 
@@ -107,8 +108,8 @@ export default function Inbox({ activeId }) {
     const requests = useQuery({ ...chatQueries.unread(), enabled: status === 'authenticated' }).data?.requests ?? 0;
 
     return (
-        <div className="flex min-w-0 flex-col gap-4">
-            <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => setCreating(true)}>
+        <div className={`flex min-w-0 flex-col gap-4 ${CHAT_HEIGHT}`}>
+            <Button type="button" variant="outline" size="sm" className="shrink-0 self-start" onClick={() => setCreating(true)}>
                 <LuUsers aria-hidden="true" />New team
             </Button>
             <NewTeamDialog open={creating} onOpenChange={setCreating} />
@@ -132,7 +133,9 @@ export default function Inbox({ activeId }) {
                     </TabsTrigger>
                 </TabsList>
             </Tabs>
-            <InboxList key={tab} tab={tab} filter={filter} activeId={activeId} />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+                <InboxList key={tab} tab={tab} filter={filter} activeId={activeId} />
+            </div>
         </div>
     );
 }

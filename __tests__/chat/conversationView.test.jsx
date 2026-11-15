@@ -30,6 +30,7 @@ vi.mock("@/contexts/appContext", () => ({ useApp: () => ({ showAlert: vi.fn() })
 vi.mock("@/components/ui/codeBlock", () => ({ default: () => null }));
 
 const { default: ConversationView, NewConversationView } = await import("@/components/chat/conversationView");
+const { CHAT_HEIGHT } = await import("@/components/chat/chatHeight");
 const { useChatTypingStore } = await import("@/stores/chatTypingStore");
 
 const member = (id, over = {}) => ({ id, username: id.toLowerCase(), nickname: null, image: null, state: "accepted", lastReadSeq: "0", ...over });
@@ -54,6 +55,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("ConversationView", () => {
+    it("the conversation pane and the inbox use the shared full-height class", async () => {
+        const { container } = renderWith(<ConversationView conversationId="cnv_a" />);
+        await screen.findByText("hello 2");
+        const pane = container.firstElementChild;
+        CHAT_HEIGHT.split(" ").forEach((c) => expect(pane.classList.contains(c)).toBe(true));
+        expect(pane.classList.contains("min-h-96")).toBe(true);
+        expect(pane.className).not.toMatch(/svh/);
+    });
+
     it("renders the thread oldest first with the composer and attach button", async () => {
         renderWith(<ConversationView conversationId="cnv_a" />);
         await screen.findByText("hello 2");

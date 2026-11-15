@@ -15,6 +15,7 @@ import { chatQueries } from "@/queries/chat.query";
 import { teamQueries } from "@/queries/team.query";
 import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 
+import { CHAT_HEIGHT } from "@/components/chat/chatHeight";
 import Composer from "@/components/chat/composer";
 import InviteFriendsDialog from "@/components/chat/inviteFriendsDialog";
 import MessageList, { EmptyThread, useLeaveWhenGone } from "@/components/chat/messageList";
@@ -39,9 +40,8 @@ import { Spinner } from "@/components/shadcn/spinner";
 
 import { LuArrowLeft, LuBan, LuEllipsis, LuLogOut, LuPencil, LuUserPlus, LuUserRound, LuUsers } from "react-icons/lu";
 
-// The layout grid only sets a min height, so the pane is sized to the viewport (navbar h-12 + the
-// layout's padding) and the thread scrolls inside it, keeping the composer in view.
-const PANE = "flex h-[calc(100svh-3rem-6rem)] min-h-96 flex-col overflow-hidden rounded-lg border bg-card";
+// The pane is sized to the viewport (CHAT_HEIGHT) and the thread scrolls inside it, keeping the composer in view.
+const PANE = `flex ${CHAT_HEIGHT} flex-col overflow-hidden rounded-lg border bg-card`;
 const CANT_SEND = "You can't send messages in this conversation";
 
 function ThreadHeader({ name, image, subtitle, children }) {
