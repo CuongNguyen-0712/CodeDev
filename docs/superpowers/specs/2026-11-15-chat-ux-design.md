@@ -1,6 +1,6 @@
 # Chat UX: giao diện, trả lời, cảm xúc — thiết kế
 
-Date: 2026-11-15. Status: draft. Nối tiếp lõi chat (`2026-11-11-chat-core-design.md`), bạn bè (`2026-11-13-friends-design.md`) và team (`2026-11-14-teams-design.md`).
+Date: 2026-11-15. Status: approved 2026-11-15. Nối tiếp lõi chat (`2026-11-11-chat-core-design.md`), bạn bè (`2026-11-13-friends-design.md`) và team (`2026-11-14-teams-design.md`).
 
 ## 1. Mục đích
 
