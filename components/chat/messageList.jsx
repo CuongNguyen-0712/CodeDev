@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -21,7 +21,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Spinner } from "@/components/shadcn/spinner";
 
-import { LuMessageSquare } from "react-icons/lu";
+import { LuArrowDown, LuMessageSquare } from "react-icons/lu";
 
 const BOTTOM_SLACK = 48;   // px from the end that still counts as "at the bottom"
 
@@ -80,6 +80,8 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
 
     const scroller = useRef(null);
     const atBottom = useRef(true);
+    const [scrolledUp, setScrolledUp] = useState(false);   // atBottom mirrored into state, to show the jump button
+    const [seenSeq, setSeenSeq] = useState(null);          // newest server seq when the reader left the bottom
     const marked = useRef(null);
     const fromBottom = useRef(null);   // distance from the end, saved while an older page loads
     const pageCount = query.data?.pages.length ?? 0;
@@ -89,6 +91,12 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
         marked.current = newestSeq;
         markRead(id, newestSeq);
     }, [id, newestSeq, markRead]);
+
+    // Others' messages newer than what the reader last saw at the bottom.
+    const newSinceScroll = useMemo(() => {
+        if (!scrolledUp || seenSeq === null) return 0;
+        return serverItems.filter((m) => m.sender?.id !== meId && BigInt(m.seq) > BigInt(seenSeq)).length;
+    }, [scrolledUp, seenSeq, serverItems, meId]);
 
     useLayoutEffect(() => {
         const el = scroller.current;
@@ -110,7 +118,15 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     const onScroll = () => {
         const el = scroller.current;
         atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_SLACK;
+        if (!atBottom.current && !scrolledUp) setSeenSeq(newestSeq);   // leaving the bottom: everything up to here was seen
+        setScrolledUp(!atBottom.current);
         if (atBottom.current) markIfSeen();
+    };
+
+    const jumpToLatest = () => {
+        const el = scroller.current;
+        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        el.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" });
     };
 
     // The typing bubble grows the thread: a reader at the bottom stays there.
@@ -133,6 +149,8 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     }
 
     return (
+        // The jump button and the floating typing bar are absolute siblings of the scroller, so they do not scroll away.
+        <div className="relative flex min-h-0 flex-1 flex-col">
         <div ref={scroller} onScroll={onScroll} role="log" aria-label="Messages" tabIndex={0} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pt-4 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset sm:px-4">
             {query.hasNextPage && (
                 <div className="flex justify-center pb-3">
@@ -157,7 +175,20 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
                     ))}
                 </ul>
             )}
-            <TypingLine conversationId={id} members={conversation.members} meId={meId} onShow={keepAtBottom} />
+            <TypingLine conversationId={id} members={conversation.members} meId={meId} onShow={keepAtBottom} bubble={!scrolledUp} />
+        </div>
+        {scrolledUp && <TypingLine conversationId={id} members={conversation.members} meId={meId} floating />}
+        {scrolledUp && (
+            <Button type="button" size="icon" variant="secondary" onClick={jumpToLatest} className="absolute right-3 bottom-3 z-10 rounded-full shadow-md"
+                aria-label={newSinceScroll > 0 ? `Jump to latest messages, ${newSinceScroll} new` : "Jump to latest messages"}>
+                <LuArrowDown aria-hidden="true" />
+                {newSinceScroll > 0 && (
+                    <span aria-hidden="true" className="absolute -top-1 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-semibold leading-none text-primary-foreground tabular ring-2 ring-background">
+                        {newSinceScroll > 99 ? "99+" : newSinceScroll}
+                    </span>
+                )}
+            </Button>
+        )}
         </div>
     );
 }

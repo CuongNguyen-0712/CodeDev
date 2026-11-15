@@ -204,6 +204,88 @@ describe("ConversationView", () => {
             vi.useRealTimers();
         }
     });
+
+    describe("scrolled up", () => {
+        const scrollTo = vi.fn();
+        // jsdom has no layout: fake a 1000px thread in a 400px box, and a scroll position.
+        const scrollTo_ = async (top) => {
+            const log = await screen.findByRole("log");
+            Object.defineProperty(log, "scrollHeight", { configurable: true, value: 1000 });
+            Object.defineProperty(log, "clientHeight", { configurable: true, value: 400 });
+            log.scrollTo = scrollTo;
+            log.scrollTop = top;
+            fireEvent.scroll(log);
+            return log;
+        };
+        const arrive = (seq, senderId) => act(() => queryClient.setQueryData(["chat", "messages", "cnv_a"], (data) => ({
+            ...data, pages: [{ ...data.pages[0], items: [message(seq, senderId), ...data.pages[0].items] }, ...data.pages.slice(1)],
+        })));
+        beforeEach(() => { scrollTo.mockClear(); });
+
+        it("a jump-to-latest button appears and scrolls to the bottom", async () => {
+            renderWith(<ConversationView conversationId="cnv_a" />);
+            await screen.findByText("hello 2");
+            expect(screen.queryByRole("button", { name: /Jump to latest messages/ })).toBeNull();
+            await scrollTo_(100);
+            fireEvent.click(await screen.findByRole("button", { name: "Jump to latest messages" }));
+            expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: "smooth" });
+            // Back at the bottom: the button goes.
+            const log = screen.getByRole("log");
+            log.scrollTop = 600;
+            fireEvent.scroll(log);
+            await waitFor(() => expect(screen.queryByRole("button", { name: /Jump to latest messages/ })).toBeNull());
+        });
+
+        it("jumps instantly under prefers-reduced-motion", async () => {
+            const original = window.matchMedia;
+            window.matchMedia = () => ({ matches: true });
+            try {
+                renderWith(<ConversationView conversationId="cnv_a" />);
+                await screen.findByText("hello 2");
+                await scrollTo_(100);
+                fireEvent.click(await screen.findByRole("button", { name: "Jump to latest messages" }));
+                expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: "auto" });
+            } finally {
+                window.matchMedia = original;
+            }
+        });
+
+        it("messages that arrive while scrolled up do not move the scroll and are counted on the button", async () => {
+            renderWith(<ConversationView conversationId="cnv_a" />);
+            await screen.findByText("hello 2");
+            const log = await scrollTo_(100);
+            await screen.findByRole("button", { name: "Jump to latest messages" });
+            arrive(3, "P2");
+            arrive(4, "P1");   // mine: not counted
+            arrive(5, "P2");
+            expect(await screen.findByRole("button", { name: "Jump to latest messages, 2 new" })).toBeTruthy();
+            expect(log.scrollTop).toBe(100);
+        });
+
+        it("at the bottom new messages still scroll into view", async () => {
+            renderWith(<ConversationView conversationId="cnv_a" />);
+            await screen.findByText("hello 2");
+            const log = await scrollTo_(600);   // within BOTTOM_SLACK of the end
+            log.scrollTop = 600;
+            arrive(3, "P2");
+            await screen.findByText("hello 3");
+            expect(log.scrollTop).toBe(1000);
+            expect(screen.queryByRole("button", { name: /Jump to latest messages/ })).toBeNull();
+        });
+
+        it("the typing indicator floats above the composer, with one live region", async () => {
+            renderWith(<ConversationView conversationId="cnv_a" />);
+            await screen.findByText("hello 2");
+            const log = await scrollTo_(100);
+            act(() => useChatTypingStore.getState().setTyping("cnv_a", "P2"));
+            expect(log.querySelectorAll(".animate-typing-dot")).toHaveLength(0);
+            const bar = screen.getByText("p2 is typing", { selector: "span" }).parentElement;
+            expect(log.contains(bar)).toBe(false);
+            expect(bar.getAttribute("aria-hidden")).toBe("true");
+            expect(bar.querySelectorAll(".animate-typing-dot")).toHaveLength(3);
+            expect(screen.getAllByRole("status")).toHaveLength(1);
+        });
+    });
 });
 
 describe("NewConversationView", () => {
