@@ -39,6 +39,30 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("Composer", () => {
+    it("attach, message box and send sit on one row", () => {
+        render(<Composer conversationId="cnv_a" imagesAllowed onSubmit={vi.fn()} />);
+        const row = box().parentElement;
+        expect(row.className).toContain("flex");
+        expect(row.className).not.toContain("flex-col");
+        expect(row.contains(screen.getByRole("button", { name: "Attach files" }))).toBe(true);
+        expect(row.contains(screen.getByRole("button", { name: "Send" }))).toBe(true);
+    });
+
+    it("the box starts at one row and is capped at six rows", () => {
+        render(<Composer onSubmit={vi.fn()} />);
+        expect(box().getAttribute("rows")).toBe("1");
+        expect(box().className).toContain("field-sizing-content");
+        expect(box().className).not.toContain("field-sizing-fixed");
+        expect(box().className).toContain("max-h-36");
+    });
+
+    it("the send button is icon-only with an accessible name Send", () => {
+        render(<Composer onSubmit={vi.fn()} />);
+        const send = screen.getByRole("button", { name: "Send" });
+        expect(send.getAttribute("aria-label")).toBe("Send");
+        expect(send.textContent).toBe("");
+    });
+
     it("Enter sends and Shift+Enter adds a newline", async () => {
         const onSubmit = vi.fn(async () => {});
         render(<Composer conversationId="cnv_a" optimistic onSubmit={onSubmit} />);

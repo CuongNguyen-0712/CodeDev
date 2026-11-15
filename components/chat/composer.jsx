@@ -135,6 +135,7 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
         setImages((list) => list.filter((i) => i.key !== image.key));
     };
 
+    const showCounter = body.length > COUNTER_FROM;
     const ready = images.every((image) => image.status === "done");
     const canSend = (body.trim().length > 0 || images.length > 0) && ready && !pending;
 
@@ -208,52 +209,54 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
                     )))}
                 </ul>
             )}
-            <Textarea
-                value={body}
-                onChange={(event) => {
-                    setBody(event.target.value);
-                    if (conversationId) ping();
-                }}
-                onKeyDown={(event) => {
-                    // isComposing: Enter that confirms an IME candidate is not a send.
-                    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
-                    event.preventDefault();
-                    event.currentTarget.form.requestSubmit();
-                }}
-                maxLength={MAX_BODY}
-                rows={2}
-                placeholder="Write a message"
-                aria-label="Message"
-                aria-describedby={error ? `${inputId}-error` : undefined}
-                className="h-20 resize-none border-0 bg-transparent px-1 shadow-none field-sizing-fixed focus-visible:ring-0 dark:bg-transparent"
-            />
-            {error && <p id={`${inputId}-error`} role="alert" className="text-xs text-destructive">{error}</p>}
-            <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                    {imagesAllowed && (
-                        <>
-                            <input ref={fileRef} type="file" accept={ATTACHMENT_ACCEPT} multiple hidden onChange={pick} />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                className="text-muted-foreground"
-                                onClick={() => fileRef.current?.click()}
-                                disabled={images.length >= MAX_ATTACHMENTS}
-                                aria-label="Attach files"
-                            >
-                                <LuPaperclip aria-hidden="true" />
-                            </Button>
-                        </>
-                    )}
-                    {/* The counter only matters near the limit. */}
-                    <span className="text-xs text-muted-foreground tabular-nums">{body.length > COUNTER_FROM && `${body.length}/${MAX_BODY}`}</span>
-                </div>
-                <Button type="submit" disabled={!canSend}>
+            <div className="flex items-end gap-2">
+                {imagesAllowed && (
+                    <>
+                        <input ref={fileRef} type="file" accept={ATTACHMENT_ACCEPT} multiple hidden onChange={pick} />
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-muted-foreground"
+                            onClick={() => fileRef.current?.click()}
+                            disabled={images.length >= MAX_ATTACHMENTS}
+                            aria-label="Attach files"
+                        >
+                            <LuPaperclip aria-hidden="true" />
+                        </Button>
+                    </>
+                )}
+                <Textarea
+                    value={body}
+                    onChange={(event) => {
+                        setBody(event.target.value);
+                        if (conversationId) ping();
+                    }}
+                    onKeyDown={(event) => {
+                        // isComposing: Enter that confirms an IME candidate is not a send.
+                        if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+                        event.preventDefault();
+                        event.currentTarget.form.requestSubmit();
+                    }}
+                    maxLength={MAX_BODY}
+                    rows={1}
+                    placeholder="Write a message"
+                    aria-label="Message"
+                    aria-describedby={error ? `${inputId}-error` : undefined}
+                    // Grows with the text from one line; max-h-36 is about six lines of text-sm, then it scrolls.
+                    className="min-h-0 max-h-36 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 shadow-none focus-visible:ring-0 dark:bg-transparent"
+                />
+                <Button type="submit" size="icon" disabled={!canSend} aria-label="Send">
                     {pending ? <Spinner /> : <LuSendHorizontal aria-hidden="true" />}
-                    Send
                 </Button>
             </div>
+            {(error || showCounter) && (
+                <div className="flex items-start justify-between gap-3">
+                    {error ? <p id={`${inputId}-error`} role="alert" className="text-xs text-destructive">{error}</p> : <span />}
+                    {/* The counter only matters near the limit. */}
+                    {showCounter && <span className="text-xs text-muted-foreground tabular-nums">{`${body.length}/${MAX_BODY}`}</span>}
+                </div>
+            )}
         </form>
     );
 }
