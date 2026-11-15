@@ -15,17 +15,18 @@ import { userMessage } from "@/lib/userMessage";
  *
  * @param {number} status   200/201 success, 0 info, 500 error, anything else warning
  * @param {string} message
- * @param {{ callback?: Function, id?: string|number }} [options]
+ * @param {{ callback?: Function, id?: string|number, actionLabel?: string }} [options]
  *   `id`: a stable id for one event (e.g. a challenge or event id). Showing the same id again
  *   updates the toast in place instead of stacking a duplicate.
+ *   `actionLabel`: the callback button's text (default "Continue").
  */
-export function notify(status, message, { callback, id } = {}) {
+export function notify(status, message, { callback, id, actionLabel = 'Continue' } = {}) {
     if (typeof message !== 'string' || message.trim() === '') return undefined;
     // Last net for errors: a technical message (network, driver, framework) never reaches a toast.
     if (status !== 200 && status !== 201 && status !== 0) message = userMessage(message);
 
     const options = typeof callback === 'function'
-        ? { action: { label: 'Continue', onClick: callback }, duration: 8000 }
+        ? { action: { label: actionLabel, onClick: callback }, duration: 8000 }
         : { duration: 4000 };
     if (id !== undefined && id !== null) options.id = id;
 
@@ -35,7 +36,7 @@ export function notify(status, message, { callback, id } = {}) {
     return toast.warning(message, options);
 }
 
-/** `useApp().showAlert` signature: a callback adds a "Continue" action to the toast. */
+/** `useApp().showAlert` signature: a callback adds a "Continue" action to the toast (`options.actionLabel` renames it). */
 export const showAlert = (status, message, callback, options) => notify(status, message, { callback, ...options });
 
 export default function AppToaster() {

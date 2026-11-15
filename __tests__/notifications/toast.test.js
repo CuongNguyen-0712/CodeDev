@@ -39,6 +39,13 @@ describe("notify (useApp().showAlert)", () => {
         expect(toast.getToasts().map((t) => t.id)).toEqual(["challenge-passed:42", "challenge-passed:43"]);
     });
 
+    it("labels a callback action Continue by default, or with actionLabel", () => {
+        const go = () => { };
+        notify(0, "a", { callback: go });
+        notify(0, "b", { callback: go, actionLabel: "Open" });
+        expect(toast.getToasts().map((t) => t.action?.label)).toEqual(["Continue", "Open"]);
+    });
+
     it("keeps separate events with the same text apart when they have no id", () => {
         notify(200, "Saved");
         notify(200, "Saved");

@@ -38,12 +38,23 @@ async function typingAudience(userId, conversationId) {
 }
 
 export const chatRealtime = {
-    messageCreated: ({ message, preview, recipients, senderId, socketId }) => {
+    messageCreated: async ({ message, preview, recipients, senderId, socketId, conversation }) => {
         const conversationId = message.conversationId;
-        const inline = { conversationId, message, preview };
+        const conversationKind = conversation?.kind;
+        // What the new-message toast names: the team, or the sender.
+        const title = conversationKind === "team" ? conversation.teamName : message.sender.nickname || message.sender.username;
+        const inline = { conversationId, conversationKind, title, message, preview };
         const payload = fits(inline)
-            ? inline : { conversationId, messageId: message.id, preview, seq: message.seq, senderId: message.sender.id, createdAt: message.createdAt };
-        return send([...recipients.map((r) => r.publicId), senderId], events.CHAT_MESSAGE, payload, socketId);
+            ? inline : { conversationId, conversationKind, title, messageId: message.id, preview, seq: message.seq, senderId: message.sender.id, createdAt: message.createdAt };
+        const pending = recipients.filter((r) => r.state === "pending").map((r) => r.publicId);
+        const accepted = recipients.filter((r) => r.state !== "pending").map((r) => r.publicId);
+        const sends = [send([...accepted, senderId], events.CHAT_MESSAGE, payload, socketId)];
+        // A pending recipient (a stranger's request) is told only that a request moved: no name, preview, message or sender.
+        if (pending.length) {
+            const request = { conversationId, messageId: message.id, seq: message.seq, createdAt: message.createdAt, toRequest: true };
+            sends.push(send(pending, events.CHAT_MESSAGE, request, socketId));
+        }
+        return (await Promise.all(sends)).every(Boolean);
     },
 
     messageUpdated: ({ message, preview, recipients, senderId, socketId }) => {
@@ -79,8 +90,8 @@ export const chatRealtime = {
 /** Called once by chat.service (which this module must not import, to avoid a cycle). */
 export function installChatRealtime(chatService) {
     // A reply that accepted a request also refreshes the other members' detail (composer, canSend), as an accept does.
-    chatService.afterSend = async ({ message, preview, recipients, acceptedByReply }, { socketId } = {}) => {
-        const sent = await chatRealtime.messageCreated({ message, preview, recipients, senderId: message.sender.id, socketId });
+    chatService.afterSend = async ({ message, preview, recipients, acceptedByReply, conversation }, { socketId } = {}) => {
+        const sent = await chatRealtime.messageCreated({ message, preview, recipients, senderId: message.sender.id, socketId, conversation });
         if (acceptedByReply) await chatRealtime.conversationUpdated({ conversationId: message.conversationId, members: recipients.map((r) => r.publicId) });
         return sent;
     };

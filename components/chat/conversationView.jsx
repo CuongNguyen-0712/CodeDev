@@ -22,6 +22,7 @@ import MessageList, { EmptyThread, useLeaveWhenGone } from "@/components/chat/me
 import { TEAM_SIZE } from "@/components/chat/newTeamDialog";
 import RenameTeamDialog from "@/components/chat/renameTeamDialog";
 import RequestBanner, { BlockDialog, failAlert } from "@/components/chat/requestBanner";
+import TeamAvatar from "@/components/chat/teamAvatar";
 import TeamMembersDialog from "@/components/chat/teamMembersDialog";
 import UserAvatar from "@/components/chat/userAvatar";
 import { ErrorReload } from "@/components/ui/error";
@@ -30,6 +31,7 @@ import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
     AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/shadcn/alert-dialog";
+import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -44,15 +46,18 @@ import { LuArrowLeft, LuBan, LuEllipsis, LuLogOut, LuPencil, LuUserPlus, LuUserR
 const PANE = `flex ${CHAT_HEIGHT} flex-col overflow-hidden rounded-lg border bg-card max-md:rounded-none max-md:border-x-0 max-md:border-b-0`;
 const CANT_SEND = "You can't send messages in this conversation";
 
-function ThreadHeader({ name, image, subtitle, children }) {
+function ThreadHeader({ name, image, subtitle, team = false, children }) {
     return (
         <header className="flex items-center gap-3 border-b px-3 py-2.5">
             <Button asChild variant="ghost" size="icon-sm" className="md:hidden">
                 <Link href="/messages" aria-label="Back to conversations"><LuArrowLeft aria-hidden="true" /></Link>
             </Button>
-            <UserAvatar name={name} image={image} />
+            {team ? <TeamAvatar /> : <UserAvatar name={name} image={image} />}
             <div className="min-w-0 flex-1">
-                <h2 className="truncate text-base font-semibold text-foreground">{name}</h2>
+                <div className="flex min-w-0 items-center gap-2">
+                    <h2 className="truncate text-base font-semibold text-foreground">{name}</h2>
+                    {team && <Badge variant="secondary" className="shrink-0">Team</Badge>}
+                </div>
                 {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
             </div>
             {children}
@@ -234,7 +239,7 @@ export default function ConversationView({ conversationId }) {
 
     return (
         <div className={PANE}>
-            <ThreadHeader name={name} image={conversation.image} subtitle={conversation.kind === "direct" ? undefined : `${conversation.members.length} ${conversation.members.length === 1 ? "member" : "members"}`}>
+            <ThreadHeader name={name} image={conversation.image} team={conversation.kind === "team"} subtitle={conversation.kind === "direct" ? undefined : `${conversation.members.length} ${conversation.members.length === 1 ? "member" : "members"}`}>
                 {other && <HeaderMenu name={name} other={other} />}
                 {conversation.kind === "team" && conversation.teamId && (
                     <TeamMenu name={name} teamId={conversation.teamId} conversationId={conversationId} meId={meId} fallbackCount={conversation.members.length} />

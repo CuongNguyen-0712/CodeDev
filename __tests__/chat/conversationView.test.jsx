@@ -129,6 +129,20 @@ describe("ConversationView", () => {
         expect(replace).not.toHaveBeenCalled();
     });
 
+    it("a team conversation's header shows a Team tag and the group icon; a direct one does not", async () => {
+        const { container } = renderWith(<ConversationView conversationId="cnv_a" />);
+        await screen.findByRole("heading", { name: "Ada" });
+        expect(container.querySelector("header [data-slot=badge]")).toBeNull();
+        cleanup();
+        detail = { ...detail, kind: "team", title: "Night owls", teamId: null };
+        const team = renderWith(<ConversationView conversationId="cnv_a" />);
+        await screen.findByRole("heading", { name: "Night owls" });
+        const header = team.container.querySelector("header");
+        expect(header.querySelector("[data-slot=badge]")?.textContent).toBe("Team");
+        expect(header.querySelector("[data-slot=avatar]")).toBeNull();
+        expect(header.textContent).toContain("2 members");
+    });
+
     it("shows the request banner to a pending member and hides images", async () => {
         detail.members = [member("P1", { state: "pending" }), member("P2")];
         renderWith(<ConversationView conversationId="cnv_a" />);

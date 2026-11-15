@@ -179,6 +179,20 @@ describe("inbox and unread follow events without refetching", () => {
         expect(qc.getQueryData(chatKeys.inbox("requests")).pages[0].items[0].lastMessage.seq).toBe("2");
         expect(spy).not.toHaveBeenCalled();
     });
+    it("a request payload (toRequest) refetches the lists and the open thread instead of patching the row", async () => {
+        seedInbox("requests", row(CID));
+        seedUnread(0, 1);
+        const spy = vi.spyOn(qc, "invalidateQueries");
+        await me["chat-message"]({ conversationId: CID, messageId: "msg_2", seq: "2", createdAt: "t1", toRequest: true });
+        expect(invalidated(spy)).toEqual(expect.arrayContaining([chatKeys.inbox("all"), chatKeys.inbox("requests"), chatKeys.unread()]));
+        expect(qc.getQueryData(chatKeys.inbox("requests")).pages[0].items[0].lastMessage).toMatchObject({ seq: "1", preview: "old" });
+        expect(chatClient.getMessage).not.toHaveBeenCalled();
+        // An open request thread still shows the new message, fetched by id.
+        seedMessages();
+        chatClient.getMessage.mockResolvedValueOnce(msg(2));
+        await me["chat-message"]({ conversationId: CID, messageId: "msg_2", seq: "2", createdAt: "t1", toRequest: true });
+        expect(qc.getQueryData(chatKeys.messages(CID)).pages[0].items[0].seq).toBe("2");
+    });
     it("invalidates inbox and unread only for an unknown conversation", () => {
         seedInbox("all", row("other"));
         const spy = vi.spyOn(qc, "invalidateQueries");

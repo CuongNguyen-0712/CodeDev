@@ -8,6 +8,7 @@ import { friendQueries } from "@/queries/friend.query";
 import { teamQueries } from "@/queries/team.query";
 import { useTeamAction } from "@/mutations/team.mutation";
 import { failAlert } from "@/components/chat/requestBanner";
+import TeamAvatar from "@/components/chat/teamAvatar";
 import FriendButton from "./friendButton";
 import { PeopleEmpty, PersonList, PersonRow } from "./personRow";
 
@@ -67,9 +68,7 @@ function TeamInvitationRow({ item }) {
 
     return (
         <li className="flex items-center gap-3 px-4 py-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                <LuUsers className="size-4" aria-hidden="true" />
-            </span>
+            <TeamAvatar />
             <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{team.name}</p>
                 <p className="truncate text-xs text-muted-foreground">Invited by {invitedBy.username}</p>

@@ -229,7 +229,7 @@ export const chatService = {
                 const message = messageDto(await chatDb.messageForMember(client, { messageId, userId }));
                 return {
                     message, preview: messagePreview(message), created,
-                    conversation: { id: conversation.public_id, kind: conversation.kind },
+                    conversation: { id: conversation.public_id, kind: conversation.kind, teamName: conversation.team_name ?? null },
                     recipients: members.filter((m) => m.user_id !== me.id && !m.left_at && m.state !== "declined").map((m) => ({ publicId: m.public_id, state: m.state })),
                 };
             };

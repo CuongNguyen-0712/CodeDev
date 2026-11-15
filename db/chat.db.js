@@ -64,8 +64,11 @@ export const chatDb = {
     directPublicId: async (client, directKey) => (await one(client,
         `SELECT public_id FROM community.conversation WHERE direct_key = $1`, [directKey]))?.public_id ?? null,
 
+    // team_name: what the new-message toast calls a team conversation. Only the conversation row is locked.
     lockByPublicId: (client, publicId) => one(client,
-        `SELECT id::text AS id, public_id, kind FROM community.conversation WHERE public_id = $1 FOR UPDATE`, [publicId]),
+        `SELECT c.id::text AS id, c.public_id, c.kind, t.name AS team_name
+         FROM community.conversation c LEFT JOIN community.team t ON t.id = c.team_id
+         WHERE c.public_id = $1 FOR UPDATE OF c`, [publicId]),
 
     lockByTeamId: (client, teamId) => one(client,
         `SELECT id::text AS id, public_id, kind FROM community.conversation WHERE team_id = $1 FOR UPDATE`, [teamId]),

@@ -114,6 +114,19 @@ describe("Inbox", () => {
         expect(getInbox).toHaveBeenLastCalledWith({ tab: "all", cursor: "c2" });
     });
 
+    it("team conversations show a Team tag in the inbox", async () => {
+        inbox = { items: [row({ id: "cnv_t", kind: "team", title: "Night owls" }), row()], nextCursor: null };
+        renderWith(<Inbox />);
+        const team = await screen.findByRole("link", { name: /Night owls/ });
+        expect(team.querySelector("[data-slot=badge]")?.textContent).toBe("Team");
+        // The group icon replaces the initials avatar.
+        expect(team.querySelector("[data-slot=avatar]")).toBeNull();
+        expect(team.querySelector("svg")).toBeTruthy();
+        const direct = screen.getByRole("link", { name: /Ada/ });
+        expect(direct.querySelector("[data-slot=badge]")).toBeNull();
+        expect(direct.querySelector("[data-slot=avatar]")).toBeTruthy();
+    });
+
     it("marks the open conversation", async () => {
         inbox = { items: [row()], nextCursor: null };
         renderWith(<Inbox activeId="cnv_a" />);

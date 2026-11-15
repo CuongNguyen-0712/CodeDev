@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -10,6 +11,7 @@ import { isSigningOut, markSigningOut } from "@/lib/authSignal";
 import { LANDING_PATH, leaveSignedOut } from "@/lib/authNavigation";
 import { SESSION_ERROR } from "@/constants/auth";
 import { announceRewards } from "@/components/ui/level";
+import { notify } from "@/components/ui/alert";
 
 import { userKeys } from "@/keys/user.keys";
 import { courseKeys } from "@/keys/course.keys";
@@ -17,6 +19,7 @@ import { roadmapKeys } from "@/keys/roadmap.keys";
 import { chatKeys } from "@/keys/chat.keys";
 import { friendKeys } from "@/keys/friend.keys";
 import { teamKeys } from "@/keys/team.keys";
+import { messageToast } from "@/lib/chat/messageToast";
 import { createChatHandlers } from "@/lib/chat/realtimeHandlers";
 import { applyFriendChange } from "@/lib/social/friendCache";
 import { createTeamHandler } from "@/lib/team/realtimeHandler";
@@ -25,11 +28,14 @@ import { createTeamHandler } from "@/lib/team/realtimeHandler";
  * Listens on the signed-in user's private channel and keeps every open tab / device in sync:
  * - session-revoked: this device was signed out elsewhere -> sign out now
  * - progress-updated / challenge-submitted / profile-updated -> refetch the affected queries
+ * - chat-message -> the chat caches, plus a new-message toast outside /messages
  * Renders nothing.
  */
 export function UserRealtimeBridge() {
     const { data: session, status } = useSession();
     const queryClient = useQueryClient();
+    const pathname = usePathname();
+    const router = useRouter();
 
     const userId = status === "authenticated" && !session?.error ? session?.user?.id : null;
     const sessionId = session?.user?.sessionId;
@@ -121,7 +127,15 @@ export function UserRealtimeBridge() {
             },
 
             // chat-message, chat-message-updated, chat-read, chat-typing, chat-conversation-updated
-            [events.CHAT_MESSAGE]: chatHandlers["chat-message"],
+            [events.CHAT_MESSAGE]: (payload) => {
+                // Outside /messages and in a visible tab only; a later message of the same conversation replaces the toast.
+                const toast = messageToast({ pathname, visible: document.visibilityState === "visible", meId: userId, payload });
+                if (toast) {
+                    const text = toast.description ? `${toast.title}: ${toast.description}` : toast.title;
+                    notify(0, text, { id: toast.id, callback: () => router.push(toast.href), actionLabel: "Open" });
+                }
+                return chatHandlers["chat-message"](payload);
+            },
             [events.CHAT_MESSAGE_UPDATED]: chatHandlers["chat-message-updated"],
             [events.CHAT_READ]: chatHandlers["chat-read"],
             [events.CHAT_TYPING]: chatHandlers["chat-typing"],

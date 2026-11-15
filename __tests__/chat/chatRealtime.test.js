@@ -120,6 +120,37 @@ describe("chatRealtime", () => {
         expect(publish).toHaveBeenLastCalledWith(["private-user-u_b"], "chat-read", { conversationId: "cnv_1", userId: "u_b", seq: "5" }, { socketId: undefined });
     });
 
+    it("a pending recipient's chat-message payload has toRequest true and the accepted one's does not", async () => {
+        const svc = {};
+        installChatRealtime(svc);
+        const sender = { id: "u_a", username: "ada", nickname: "Ada L", image: "https://img/ada.png" };
+        const both = [{ publicId: "u_b", state: "accepted" }, { publicId: "u_c", state: "pending" }];
+        await svc.afterSend({ message: msg("secret words", { sender }), preview: "secret words", recipients: both, conversation: { id: "cnv_1", kind: "direct", teamName: null } }, { socketId: "1.2" });
+        expect(publish).toHaveBeenCalledTimes(2);
+        const [acceptedCall, pendingCall] = publish.mock.calls;
+        expect(acceptedCall[0]).toEqual(["private-user-u_b", "private-user-u_a"]);
+        expect(acceptedCall[2]).toMatchObject({ conversationId: "cnv_1", conversationKind: "direct", title: "Ada L", preview: "secret words", message: { id: "msg_1" } });
+        expect(acceptedCall[2].toRequest).toBeUndefined();
+        expect(pendingCall[0]).toEqual(["private-user-u_c"]);
+        expect(pendingCall[2]).toEqual({ conversationId: "cnv_1", messageId: "msg_1", seq: "7", createdAt: "2026-01-01T00:00:00.000Z", toRequest: true });
+        // Nothing about the stranger: no name, preview, message, sender or avatar.
+        expect(JSON.stringify(pendingCall[2])).not.toMatch(/ada|Ada|secret|u_a|img/);
+    });
+
+    it("chat-message names the team for a team conversation, inline and as a ping", async () => {
+        const svc = {};
+        installChatRealtime(svc);
+        const sender = { id: "u_a", username: "ada", nickname: null };
+        const conversation = { id: "cnv_1", kind: "team", teamName: "Night owls" };
+        await svc.afterSend({ message: msg("hi", { sender }), preview: "hi", recipients, conversation }, { socketId: null });
+        expect(publish.mock.calls[0][2]).toMatchObject({ conversationKind: "team", title: "Night owls" });
+        await svc.afterSend({ message: msg("a".repeat(9000), { sender }), preview: "aaa", recipients, conversation }, { socketId: null });
+        expect(publish.mock.calls[1][2]).toMatchObject({ conversationKind: "team", title: "Night owls", messageId: "msg_1" });
+        // A direct conversation without a nickname falls back to the username.
+        await svc.afterSend({ message: msg("hi", { sender }), preview: "hi", recipients, conversation: { id: "cnv_1", kind: "direct" } }, { socketId: null });
+        expect(publish.mock.calls[2][2]).toMatchObject({ conversationKind: "direct", title: "ada" });
+    });
+
     it("a failed publish does not throw from send", async () => {
         publish.mockRejectedValue(new Error("pusher down"));
         const svc = {};

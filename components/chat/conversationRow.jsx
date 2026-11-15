@@ -3,11 +3,14 @@ import Link from "next/link";
 import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+import TeamAvatar from "@/components/chat/teamAvatar";
 import UserAvatar from "@/components/chat/userAvatar";
+import { Badge } from "@/components/shadcn/badge";
 import { Skeleton } from "@/components/shadcn/skeleton";
 
 export function ConversationRow({ item, active = false }) {
     const title = item.title || "Conversation";
+    const team = item.kind === "team";
     // Unread is told by ink (foreground vs muted) and the dot, never by a background tint alone.
     const ink = item.unread ? "text-foreground" : "text-muted-foreground";
 
@@ -20,9 +23,12 @@ export function ConversationRow({ item, active = false }) {
                 active && "bg-muted/50"
             )}
         >
-            <UserAvatar name={title} image={item.image} />
+            {team ? <TeamAvatar /> : <UserAvatar name={title} image={item.image} />}
             <div className="min-w-0 flex-1 space-y-0.5">
-                <p className={cn("truncate text-sm", item.unread ? "font-semibold" : "font-medium", ink)}>{title}</p>
+                <p className={cn("flex min-w-0 items-center gap-2 text-sm", item.unread ? "font-semibold" : "font-medium", ink)}>
+                    <span className="truncate">{title}</span>
+                    {team && <Badge variant="secondary" className="shrink-0">Team</Badge>}
+                </p>
                 <p className={cn("line-clamp-2 text-xs", ink)}>{item.lastMessage?.preview || "No messages yet"}</p>
                 {item.lastMessageAt && (
                     <p className="text-xs text-muted-foreground">

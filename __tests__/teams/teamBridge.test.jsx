@@ -9,6 +9,7 @@ vi.mock("next-auth/react", () => ({
     useSession: () => ({ status: "authenticated", data: { user: { id: "me", sessionId: "s1" } } }),
     signOut: vi.fn(),
 }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/", useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/hooks/usePusherChannel", () => ({ usePusherChannel: (_name, _handlers, options) => { if (options) channel.options = options; } }));
 vi.mock("@/components/ui/level", () => ({ announceRewards: vi.fn() }));
 vi.mock("@/lib/authNavigation", () => ({ LANDING_PATH: "/", leaveSignedOut: vi.fn() }));
