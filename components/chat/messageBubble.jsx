@@ -147,7 +147,7 @@ export default function MessageBubble({ message, mine = false, others, showSende
                                         );
                                         // Unsent images open their blob preview; the original link is only offered once the send claimed the attachment.
                                         return (
-                                            <ImageLightbox key={a.id} images={gallery} index={index} label="View image" className={cn("block focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring", tile)}>{img}</ImageLightbox>
+                                            <ImageLightbox key={a.id} images={gallery} index={index} label="View image" className={cn("block focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring", tile)}>{img}</ImageLightbox>
                                         );
                                     })}
                                 </div>

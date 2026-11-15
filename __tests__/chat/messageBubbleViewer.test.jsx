@@ -55,6 +55,12 @@ describe("MessageBubble image viewer", () => {
         expect(screen.queryByRole("link", { name: "Open original" })).toBeNull();
     });
 
+    it("the image trigger has a visible inset focus outline", () => {
+        render(<MessageBubble message={message({ attachments: [sentImages[0]] })} mine others={[]} {...handlers} />);
+        const classes = triggerOf("Attached image").className;
+        for (const c of ["focus-visible:outline-solid", "focus-visible:outline-2", "focus-visible:-outline-offset-2", "focus-visible:outline-ring"]) expect(classes).toContain(c);
+    });
+
     it("a broken image shows the error text", async () => {
         render(<MessageBubble message={message({ attachments: [sentImages[0]] })} mine others={[]} {...handlers} />);
         fireEvent.click(triggerOf("Attached image"));
