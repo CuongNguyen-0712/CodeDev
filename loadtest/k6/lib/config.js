@@ -6,6 +6,8 @@ export const BASE_URL = __ENV.BASE_URL || "http://app:3000";
 // What the app believes its own origin is (NEXTAUTH_URL); sessions were minted against it.
 export const ORIGIN = __ENV.ORIGIN || "http://localhost:3000";
 export const PROFILE = __ENV.PROFILE || "smoke";
+// Deployed previews: Vercel's Protection Bypass for Automation secret also lets k6 past Bot protection challenges.
+export const BYPASS = __ENV.VERCEL_BYPASS ? { "x-vercel-protection-bypass": __ENV.VERCEL_BYPASS } : {};
 
 export const sessions = new SharedArray("sessions", () => JSON.parse(open("/data/sessions.json")));
 export const actions = JSON.parse(open("/data/actions.json"));

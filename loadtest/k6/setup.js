@@ -1,7 +1,7 @@
 // Shared by main.js and coderun.js: course/lesson/challenge ids are read once from the app's own
 // APIs in setup(); the per-VU clients are created lazily because a client owns its cookie jar.
 import http from "k6/http";
-import { BASE_URL, ORIGIN, actions, sessions } from "./lib/config.js";
+import { BASE_URL, BYPASS, ORIGIN, actions, sessions } from "./lib/config.js";
 import { createClient } from "./lib/client.js";
 import { cookieHeader, sessionIndex } from "./lib/pure.js";
 import { json } from "./journeys/util.js";
@@ -15,7 +15,7 @@ const users = sessions.map((s) => s.publicId);
 // first session's learning progress.
 export function buildData() {
     const s = sessions[0];
-    const headers = { "x-forwarded-for": s.ip };
+    const headers = { "x-forwarded-for": s.ip, ...BYPASS };
     // The learner's own courses, not the public list: on a real catalog the first page need not hold a course session 0 is registered in.
     const courses = json(http.get(`${BASE_URL}/api/user/course-progress`, { headers: { ...headers, Cookie: cookieHeader(s.cookies) }, jar: new http.CookieJar() }))?.data || [];
     const out = { courses: [], coding: [] };
