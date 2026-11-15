@@ -9,13 +9,15 @@ import { json } from "./journeys/util.js";
 // Peers for friend requests: the minted sessions, so a receiver has a VU that can respond.
 const users = sessions.map((s) => s.publicId);
 
+// Every seeded user studies the same courses (the local seed has only three; on a copied catalog they were aligned to session 0's three).
 // Only the first unlocked lesson of each course is workable for every seeded user, so the quiz and
 // the coding challenge are looked for there. Courses come from the public list; lessons from the
 // first session's learning progress.
 export function buildData() {
     const s = sessions[0];
     const headers = { "x-forwarded-for": s.ip };
-    const courses = json(http.get(`${BASE_URL}/api/course/courses?limit=20`, { headers }))?.data || [];
+    // The learner's own courses, not the public list: on a real catalog the first page need not hold a course session 0 is registered in.
+    const courses = json(http.get(`${BASE_URL}/api/user/course-progress`, { headers: { ...headers, Cookie: cookieHeader(s.cookies) }, jar: new http.CookieJar() }))?.data || [];
     const out = { courses: [], coding: [] };
     for (const c of courses) {
         const prog = json(http.get(`${BASE_URL}/api/user/learning-progress?courseId=${c.id}`, {
