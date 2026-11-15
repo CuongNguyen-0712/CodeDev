@@ -17,7 +17,7 @@ import { userKeys } from "@/keys/user.keys";
 import { applyFriendChange } from "@/lib/social/friendCache";
 import { useFriendAction } from "@/mutations/friend.mutation";
 
-const person = (id) => ({ id, username: id, nickname: null, image: null, level: 1, levelTitle: "Newbie" });
+const person = (id) => ({ id, username: id, nickname: null, image: null, level: 1, levelTitle: "Newbie", showProfile: true });
 const row = (id, friendship) => ({ ...person(id), friendship, rank: null, showProfile: true });
 const pagesOf = (...items) => ({ pages: [{ items, nextCursor: null }], pageParams: [null] });
 const ids = (key) => qc.getQueryData(key).pages.flatMap((p) => p.items.map((u) => u.id));

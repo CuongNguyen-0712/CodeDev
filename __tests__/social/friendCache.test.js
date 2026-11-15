@@ -7,7 +7,7 @@ import {
     applyFriendChange, patchCounts, patchFriendList, patchInvitations, patchUserPages,
 } from "@/lib/social/friendCache";
 
-const person = (id, username = id) => ({ id, username, nickname: null, image: null, level: 1, levelTitle: "Newbie" });
+const person = (id, username = id) => ({ id, username, nickname: null, image: null, level: 1, levelTitle: "Newbie", showProfile: true });
 const pagesOf = (...pages) => ({
     pages: pages.map((items, n) => ({ items, nextCursor: n < pages.length - 1 ? `c${n}` : null })),
     pageParams: pages.map((_, n) => (n ? `c${n - 1}` : null)),

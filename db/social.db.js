@@ -1,8 +1,8 @@
 import { sql } from "@/lib/db";
 import { escapeLike } from "@/lib/listFilters";
 
-// The other person of a friend row, in the row shape of /api/users (without its privacy fields).
-const USER_COLUMNS = `u.public_id AS id, u.username, i.image, i.nickname, i.exp_level AS level, lvl.title AS "levelTitle"`;
+// The other person of a friend row, in the row shape of /api/users (showProfile decides whether the row links to the profile).
+const USER_COLUMNS = `u.public_id AS id, u.username, i.image, i.nickname, i.exp_level AS level, lvl.title AS "levelTitle", i.show_profile AS "showProfile"`;
 const USER_JOINS = `LEFT JOIN profile.info i ON i.user_id = u.id
             LEFT JOIN profile.exp_level lvl ON lvl.level = i.exp_level`;
 

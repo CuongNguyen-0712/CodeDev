@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 
 import useInfiniteScroll from "@/hooks/useInfiniteScroll";
 import { ErrorReload } from "@/components/ui/error";
+import { Badge } from "@/components/shadcn/badge";
 import { LevelBadge, RankBadge } from "@/components/ui/level";
 import UserAvatar from "@/components/chat/userAvatar";
 
@@ -37,20 +38,29 @@ function PersonSkeleton() {
 export function PersonRow({ item, actions, index = 0 }) {
     const { data: session } = useSession();
     const name = item.username || 'Unknown user';
+    const profileHref = item.showProfile && item.username ? `/profile/${encodeURIComponent(item.username)}` : null;
     return (
         <li className="animate-enter flex items-center gap-3 px-4 py-3" style={{ '--enter-index': index % 20 }}>
-            <UserAvatar name={name} image={item.image} />
+            {profileHref ? (
+                // The name link is the tab stop; the avatar link repeats it for pointer users.
+                <Link href={profileHref} tabIndex={-1} aria-hidden="true" className="shrink-0">
+                    <UserAvatar name={name} image={item.image} />
+                </Link>
+            ) : <UserAvatar name={name} image={item.image} />}
             <div className="min-w-0 flex-1">
-                <p className="m-0 truncate text-sm font-medium text-foreground">
-                    {item.showProfile && item.username ? (
-                        <Link
-                            href={`/profile/${encodeURIComponent(item.username)}`}
-                            aria-label={`View profile of ${name}`}
-                            className="rounded-sm hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                        >
-                            {name}
-                        </Link>
-                    ) : name}
+                <p className="m-0 flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                    <span className="truncate">
+                        {profileHref ? (
+                            <Link
+                                href={profileHref}
+                                aria-label={`View profile of ${name}`}
+                                className="rounded-sm hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                            >
+                                {name}
+                            </Link>
+                        ) : name}
+                    </span>
+                    {item.friendship === 'friends' && <Badge variant="primary" className="shrink-0">Friend</Badge>}
                 </p>
                 <p className="m-0 truncate text-xs text-muted-foreground">
                     {item.nickname && item.nickname !== 'None' ? item.nickname : 'No nickname'}

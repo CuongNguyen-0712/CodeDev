@@ -149,6 +149,14 @@ describe("Find people", () => {
         expect(screen.queryByRole("button", { name: /Add friend cat/ })).toBeNull();
     });
 
+    it("Find people shows a Friend tag only on friends", async () => {
+        data.users = pageOf({ ...person("bob"), friendship: "sent", showProfile: true, rank: null }, { ...person("cat"), friendship: "friends", showProfile: true, rank: null });
+        renderWith(<ContactPage />);
+        await screen.findByText("bob");
+        expect(within(screen.getByText("cat").closest("li")).getByText("Friend")).toBeTruthy();
+        expect(within(screen.getByText("bob").closest("li")).queryByText("Friend")).toBeNull();
+    });
+
     it("empty state", async () => {
         renderWith(<ContactPage />);
         expect(await screen.findByText("No other learners yet")).toBeTruthy();
@@ -166,6 +174,22 @@ describe("Friends tab", () => {
         // 'None' is an unset nickname.
         expect(screen.getByText("ben").closest("li").textContent).toMatch(/No nickname/);
         expect(screen.getByRole("link", { name: "Message amy" })).toBeTruthy();
+    });
+
+    it("a friend with showProfile links name and avatar to /profile/<username>", async () => {
+        data.friends = pageOf(person("amy", { showProfile: true }));
+        renderWith(<ContactPage />);
+        await screen.findByText("amy");
+        const links = [...screen.getByText("amy").closest("li").querySelectorAll('a[href^="/profile/"]')];
+        expect(links.map((a) => a.getAttribute("href"))).toEqual(["/profile/amy", "/profile/amy"]);
+        expect(screen.queryByText("Friend")).toBeNull();
+    });
+
+    it("without showProfile there is no link", async () => {
+        data.friends = pageOf(person("ben", { showProfile: false }));
+        renderWith(<ContactPage />);
+        await screen.findByText("ben");
+        expect(screen.getByText("ben").closest("li").querySelector('a[href^="/profile/"]')).toBeNull();
     });
 
     it("Unfriend asks for confirmation before calling remove", async () => {

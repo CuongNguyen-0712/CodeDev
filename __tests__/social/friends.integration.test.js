@@ -47,7 +47,7 @@ describe.skipIf(!hasDb)("friend requests (PostgreSQL)", () => {
         const first = await send(a, b);
         expect(first).toMatchObject({ friendship: "sent", user: { id: b, username: b } });
         // Same row shape as /api/users, without its cursor or privacy fields.
-        expect(Object.keys(first.user).sort()).toEqual(["id", "image", "level", "levelTitle", "nickname", "username"]);
+        expect(Object.keys(first.user).sort()).toEqual(["id", "image", "level", "levelTitle", "nickname", "showProfile", "username"]);
         const [before] = await rowsOf(a, b);
         expect(await send(a, b)).toMatchObject({ friendship: "sent", user: { id: b } });
         const rows = await rowsOf(a, b);
@@ -305,12 +305,20 @@ describe.skipIf(!hasDb)("friend requests (PostgreSQL)", () => {
         await link(v, await newUser(), "pending");
         const first = await socialService.listFriends({ userId: v });
         expect(first.items).toHaveLength(20);
-        expect(Object.keys(first.items[0]).sort()).toEqual(["id", "image", "level", "levelTitle", "nickname", "username"]);
+        expect(Object.keys(first.items[0]).sort()).toEqual(["id", "image", "level", "levelTitle", "nickname", "showProfile", "username"]);
         const second = await socialService.listFriends({ userId: v, cursor: first.nextCursor });
         expect(second.items).toHaveLength(5);
         expect(second.nextCursor).toBeNull();
         expect([...idsOf(first), ...idsOf(second)]).toEqual([...friends].sort());
         await expect(socialService.listFriends({ userId: v, cursor: "not-a-cursor" })).rejects.toMatchObject({ status: 400 });
+    });
+
+    it("listFriends rows carry showProfile", async () => {
+        const [v, friend] = await pair();
+        await link(v, friend, "accepted");
+        expect((await socialService.listFriends({ userId: v })).items[0].showProfile).toBe(true);
+        await sql(`UPDATE profile.info SET show_profile = false WHERE user_id = $1`, [ids[friend]]);
+        expect((await socialService.listFriends({ userId: v })).items[0].showProfile).toBe(false);
     });
 
     it("listFriends search filters by username", async () => {
@@ -334,7 +342,7 @@ describe.skipIf(!hasDb)("friend requests (PostgreSQL)", () => {
         await link(v, f, "accepted");
         const first = await socialService.listInvitations({ userId: v, direction: "received", limit: 2 });
         expect(idsOf(first)).toEqual([r2, r3]);
-        expect(Object.keys(first.items[0]).sort()).toEqual(["id", "image", "level", "levelTitle", "nickname", "username"]);
+        expect(Object.keys(first.items[0]).sort()).toEqual(["id", "image", "level", "levelTitle", "nickname", "showProfile", "username"]);
         const second = await socialService.listInvitations({ userId: v, direction: "received", limit: 2, cursor: first.nextCursor });
         expect(idsOf(second)).toEqual([r1]);
         expect(second.nextCursor).toBeNull();
