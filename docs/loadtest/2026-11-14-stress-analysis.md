@@ -1,0 +1,94 @@
+# Phân tích kết quả stress local
+
+Mục tiêu (spec `docs/superpowers/specs/2026-11-14-load-capacity-improvements-design.md`): 2 lượt stress local hợp lệ liên tiếp đều có **N ≥ 100**. Môi trường đo: app 1 vCPU / 2 GB, PostgreSQL 16 1 vCPU / 4 GB, 5 000 user seed, pool `DB_POOL_MAX` = 10.
+
+## Vòng 0 — lượt stress đầu
+
+Báo cáo: `2026-11-14-loadtest-stress.md` (run `20261114-0115-loadtest-stress`, commit `f8379d48`).
+
+### Kết quả
+
+- **N = none**: gãy ngay bậc 0 (50 VU). p95 đọc 10 016 ms (ngưỡng 800), p95 ghi 1 407 ms, lỗi 20,49%.
+- Lỗi: 500 ×374, 503 ×24, k6 timeout (status 0) ×25 — 24 trong số đó ở `/api/ranking`.
+- k6 tự dừng (exit 99) sau ~3 phút đo; bậc 1 (100 VU) chỉ đo được 50/110 s.
+- Lần chạy hợp lệ: CPU máy tải cao nhất 26,7% trong cửa sổ đo.
+
+### Chuỗi nguyên nhân
+
+1. `GET /api/ranking/me` → `rankingService.getRanks` → `rankingDb.getStanding` cho 3 board; `GET /api/ranking` → 1 board. Mỗi lần `getStanding` gọi `ranking_scores` 2 lần (kỳ đang xem và toàn thời gian) qua `LEFT JOIN LATERAL public.ranking_scores(..., u.id)`.
+2. `ranking_scores` là hàm SQL được inline. Điều kiện `(_user_id IS NULL OR t.user_id = _user_id)` chỉ gập được khi `_user_id` là hằng hoặc tham số. Với `u.id` (một cột), PostgreSQL giữ cả nhánh `OR` nên **quét toàn bộ** `profile.exp_transaction` (100 001 dòng) và `profile.point_transaction` (50 001 dòng) mỗi lần gọi. `/api/ranking/me` = 6 lần quét.
+3. Trên 1 vCPU, các lần quét xếp hàng: câu `WITH me AS …` lên 25–28 s mỗi lần (`pg_stat_statements`), giữ kết nối suốt thời gian đó.
+4. Pool 10 kết nối cạn (`active` 11 = 10 + sampler; vài mẫu 12). Mọi endpoint cần DB chờ kết nối tới `DB_CONNECT_TIMEOUT_MS` = 10 000 ms → 13 endpoint đọc dừng ở p95 ~10 0xx ms và trả 500/503.
+5. `/api/ranking` 30 051 ms là timeout 30 s của k6, không phải thời gian server.
+
+CPU DB 106% và CPU app 97% (trần 1 vCPU mỗi bên) là yếu tố góp phần; số kết nối `active` + `idle` lên tới 17, nghĩa là có thể còn một pool/client khác ngoài pool 10.
+
+### Bằng chứng khi DB rảnh (`EXPLAIN (ANALYZE, TIMING OFF)` trên `loadtest_run`, user `lt_00042`)
+
+| Câu | Thời gian | Plan trên bảng giao dịch |
+|---|---|---|
+| `SELECT * FROM ranking_scores(NULL, <id hằng>)` | 5,5 ms | Index Scan `idx_exp_transaction_user_created`, `idx_point_transaction_earned` |
+| `… LEFT JOIN LATERAL ranking_scores(NULL, u.id) …` (cách `getStanding` đang gọi) | 58–145 ms | **Seq Scan** `exp_transaction`, `point_transaction` |
+| `learning_progress(<user>, <course>)` | 49–62 ms | — |
+
+`pg_stat_statements` của lượt chạy: `WITH me AS …` 28 612 ms và 25 508 ms (chỉ ghi câu chạy xong; câu bị huỷ không có trong bảng nên số lần thật cao hơn), `learning_progress` 180 ms trung bình × 73, `refresh_ranking_snapshot()` 2 361 ms × 1.
+
+### Giả thuyết và cách kiểm chứng
+
+Quét toàn bảng trong `getStanding` giữ kết nối lâu → pool cạn → mọi endpoint timeout. Kiểm chứng: sửa riêng `getStanding` (vòng 1), chạy lại stress; nếu đúng, các endpoint ~10 s phải hết và N tăng.
+
+### Việc theo thứ tự ưu tiên
+
+1. **Vòng 1**: `getStanding` truyền id người xem dưới dạng tham số bind cho `ranking_scores` (giữ điểm live).
+2. Ứng viên sau (chỉ khi báo cáo chỉ ra): `learning_progress()`, `/api/user/me`, `refresh_ranking_snapshot()` (người đọc đầu tiên trả 2,4 s).
+
+## Vòng 1 — thay đổi: ranking standing dùng index
+
+`rankingDb.getStanding` (`db/ranking.db.js`) lấy `id` người xem bằng một câu riêng (`SELECT id FROM identity.users WHERE public_id = $1`), rồi truyền id đó vào `ranking_scores($2, $3::bigint)` / `ranking_scores(NULL, $3::bigint)` dưới dạng tham số bind thay cho `u.id`. Điểm người xem vẫn live; vị trí, tier, điều kiện hiển thị giữ nguyên. User không tồn tại vẫn trả 0 dòng.
+
+Kiểm chứng:
+
+- `EXPLAIN (ANALYZE)` câu dạng standing qua `PREPARE … EXECUTE` với id bind (`loadtest_run`, `lt_00042`): **2,5 ms**, Index Scan `idx_exp_transaction_user_created` và `idx_point_transaction_earned` cho cả hai lần gọi (trước: 58–145 ms, Seq Scan).
+- Driver: `lib/db.js` gọi `pool.query(text, params)` (pg) và `neonSql.query(text, params)` (Neon) không đặt tên câu, nên mỗi lần PostgreSQL lập plan với giá trị thật; không có plan generic.
+- Smoke (`20261114-1022-loadtest-smoke`, 5 VU, 1 phút): câu `WITH me AS …` trung bình **21–22 ms** (28 lần), so với 25 000–28 000 ms ở vòng 0. Phần còn lại là bước đếm vị trí trên `profile.ranking_snapshot` (không đổi trong vòng này), không còn quét bảng giao dịch.
+
+## Vòng 1 — kết quả: **Đạt**
+
+Hai lượt stress liên tiếp, commit `e85576e6`, `--max-vus 200 --sessions 200` (vòng 0 chạy `--max-vus 3000 --sessions 3000`; cùng môi trường, giới hạn container và seed 5 000 user):
+
+| Lượt | Báo cáo | N | Hợp lệ (CPU máy tải, cửa sổ đo) | Bậc 200: p95 đọc / ghi, lỗi |
+|---|---|---|---|---|
+| 1 (`20261114-1025`) | `2026-11-14-loadtest-stress-2.md` | **200** (không bậc nào gãy) | Có, 50,6% | 146 ms / 348 ms, 0,01% |
+| 2 (`20261114-1034`) | `2026-11-14-loadtest-stress-3.md` | **200** (không bậc nào gãy) | Có, 25,4% | 89 ms / 210 ms, 0,00% |
+
+So với vòng 0 (gãy ở 50 VU: p95 đọc 10 016 ms, lỗi 20,5%): mọi endpoint ~10 s đã hết, không còn 500/503, giả thuyết pool cạn do câu ranking được xác nhận.
+
+- Endpoint p95 cao nhất ở bậc 200 VU: lượt 1 `/roadmap` 929 ms, `sendFriendRequestAction` 861 ms, `/contact` 820 ms; lượt 2 `/roadmap` 586 ms, `respondFriendRequestAction` 419 ms, `sendMessageAction` 372 ms. p95 theo lớp ở mọi bậc vẫn dưới ngưỡng.
+- Query nặng nhất (tổng thời gian): câu standing `WITH me AS …` (3 biến thể theo board) 1 190–2 448 lần mỗi biến thể, trung bình 8–15 ms; câu tra id người xem gọi đúng bằng tổng số lần standing (4 760 / 4 896); `learning_progress` 1 087 lần × 15,4 ms (lượt 1) và 1 121 lần × 13,6 ms (lượt 2).
+- Tài nguyên đỉnh: CPU app 96–101% (trần 1 vCPU), RAM app ~1 022 MB / 2 GB, CPU DB 97–103% (trần 1 vCPU), không khoá chờ, outbox 0. Kết nối `active` đỉnh: **12** ở lượt 1 (một mẫu ở bậc 100, trùng p95 đọc 185 ms của bậc đó — pool chạm trần thoáng qua) và 2 ở lượt 2; tổng `active` + `idle` 21, vẫn cao hơn pool 10 như vòng 0 (chưa giải thích, không phải nút thắt).
+- Code được đo là code mới: `statements.json` của cả hai lượt chỉ có câu standing dạng `ranking_scores($2::timestamptz, $3::bigint)`, và số lần tra id người xem bằng đúng tổng số lần standing. (`meta.commit` là HEAD lúc chạy, không phải commit build image, nên không dùng làm bằng chứng.)
+- `refresh_ranking_snapshot()`: lượt 1 chạy 4 lần × 1,35 s, lượt 2 3 lần × 1,28 s trong ~9 phút (TTL 5 phút). Chỉ một request trả giá mỗi lần làm mới: `redis.remember` gom các lời gọi đồng thời trong cùng tiến trình (`lib/cache.js`) và `refresh_ranking_snapshot` giữ `pg_try_advisory_xact_lock`.
+
+Kết luận: mục tiêu N ≥ 100 đạt ở cả hai lượt; dừng vòng lặp. Lượt chạy chưa đo được giới hạn thật (dừng ở bậc cuối 200 mà chưa gãy), nhưng CPU app và DB đều đã ở trần 1 vCPU tại 200 VU, nên giới hạn có lẽ không xa 200 trên cấu hình này. Muốn biết chính xác: chạy lại với `--max-vus` lớn hơn (ngoài phạm vi mốc 100).
+
+## Vòng 2 — Vercel Preview + Neon 0.5–2 CU
+
+Môi trường: bản preview `codedev-git-perf-load-100-codedevteam.vercel.app` (Vercel, `iad1`), nhánh Neon `preview/perf/load-100` (copy production do tích hợp Neon–Vercel tạo, đặt 0.5–2 CU, `max_connections` 901, migration tới 028), 5 000 user `lt_*` seed thêm, cùng 3 khoá như local. Máy tải ở Bangkok. Session lấy bằng đăng nhập thật vào preview (9/phút vì giới hạn 10/phút/IP); preview đặt `AUTH_ACCESS_TOKEN_TTL_SECONDS=3600` để không có đợt refresh vượt giới hạn 30/phút/IP; k6 gửi `x-vercel-protection-bypass` để qua Bot protection của Vercel. Báo cáo: `2026-11-15-preview-stress.md` (run `20261115-1019-preview-stress`, commit `280f60e2`, `--max-vus 200`).
+
+| bậc | VU | p95 đọc | p95 ghi | lỗi | 429 |
+|---|---|---|---|---|---|
+| 0 | 50 | 957 ms | 1 111 ms | 0,68% | 0 |
+| 1 | 100 | 902 ms | 1 052 ms | 0,81% | 0 |
+| 2 | 150 | 884 ms | 1 032 ms | 0,89% | 0 |
+| 3 | 200 | 875 ms | 1 041 ms | 0,77% | 23 |
+
+Theo đúng luật đo, **N = none** (bậc 50 đã vượt p95 đọc 800 ms). Nhưng con số này đo độ trễ mạng, không phải sức chịu:
+
+- **p95 không tăng theo tải**: 957 → 875 ms từ 50 lên 200 VU, lỗi đứng yên ~0,8%. Hệ thống chưa bão hoà ở 200 VU.
+- **Mức nền khi không tải** từ máy này (curl): API có cache ~200 ms (`/api/course/filters`), trang SSR `/course` ~680 ms. Trong bảng endpoint, các trang SSR đứng đầu p95 (`/roadmap` 1 362 ms, `/course` 1 329 ms, `/learning/:id` 1 014 ms); các API dùng DB nhanh hơn (`/api/user/learning-progress` p50 313 ms).
+- **DB nhàn**: câu standing 6–10 ms trung bình (2 044 + 1 022 + 1 022 lần), `learning_progress` 9,5 ms × 941. Không thấy dấu hiệu nghẽn kết nối hay CPU từ phía query.
+- **Lỗi 500 (87 lần) đều ở `/api/challenges/:id/workspace`** và xảy ra cả khi gọi một lần không tải (cả 3 khoá đều trả 500): lỗi cấu hình/dữ liệu của bản preview (nhiều khả năng file starter của challenge trên storage), không do tải. Bỏ endpoint này ra thì lỗi còn ~0,4%.
+- 429 (23 ở bậc 200) ở `/api/course/comments` và `/api/course/rating`: giới hạn theo IP, vì mọi khách vãng lai đi từ một IP; đúng thiết kế, không tính là lỗi.
+- Không có số CPU của Vercel/Neon trong lượt này (sampler chỉ chạy ở local); dòng "Valid … 0%" của báo cáo không có ý nghĩa cho lượt này.
+
+Kết luận: ở cấu hình Vercel + Neon 0.5–2 CU, **200 người dùng đồng thời không làm hệ thống chậm đi hay lỗi thêm**; ngưỡng p95 800 ms vượt vì khoảng cách Bangkok → `iad1` cộng thời gian render SSR, có cả khi không tải. Muốn có con số N theo đúng ngưỡng cho môi trường này, cần chạy máy tải ở gần `iad1` (ví dụ một VM ở us-east) hoặc đặt ngưỡng riêng có trừ mức nền mạng. Việc tồn đọng: sửa lỗi 500 của `/api/challenges/:id/workspace` trên preview.

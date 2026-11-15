@@ -2,7 +2,7 @@ import http from "k6/http";
 import exec from "k6/execution";
 import { sleep } from "k6";
 import { Counter, Rate } from "k6/metrics";
-import { ORIGIN } from "./config.js";
+import { BYPASS, ORIGIN } from "./config.js";
 import {
     STAGE_MS, THINK_MS, classifyResponse, cookieHeader, mergeCookies, needsRefresh, parseActionResponse, stageOf,
 } from "./pure.js";
@@ -26,7 +26,7 @@ export function createClient({ baseUrl, session, actions, journey = "unknown", o
             endpoint, class: cls, journey: client.journey, stage: String(stageOf(Date.now() - exec.scenario.startTime, STAGE_MS)),
         };
         const res = http.request(method, baseUrl + path, body, {
-            headers: { "x-forwarded-for": ip, Cookie: cookieHeader(jar), ...headers },
+            headers: { "x-forwarded-for": ip, Cookie: cookieHeader(jar), ...BYPASS, ...headers },
             jar: new http.CookieJar(), // empty: k6 adds nothing to the Cookie header above
             tags,
             timeout: "30s",
