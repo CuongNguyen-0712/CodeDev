@@ -14,6 +14,7 @@ import { selectUnsent, useChatOutboxStore } from "@/stores/chatOutboxStore";
 
 import MessageBubble from "@/components/chat/messageBubble";
 import TypingLine from "@/components/chat/typingLine";
+import { showAlert } from "@/components/ui/alert";
 import { ErrorReload } from "@/components/ui/error";
 
 import { Button } from "@/components/shadcn/button";
@@ -28,6 +29,7 @@ const BOTTOM_SLACK = 48;   // px from the end that still counts as "at the botto
 // typing bubble (pt-3 + 32px row = 44px), so the thread shrinks by that much: with one threshold the reader would
 // count as back at the bottom, the bubble would return and keepAtBottom would snap the thread down.
 const RETURN_SLACK = BOTTOM_SLACK - 44;
+const FLASH_MS = 1500;
 const distanceToEnd = (el) => el.scrollHeight - el.scrollTop - el.clientHeight;
 
 /** A 404 means the conversation is gone for this member (left, hidden, declined): leave it and refresh the inbox (spec section 10). */
@@ -90,6 +92,9 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     const marked = useRef(null);
     const fromBottom = useRef(null);   // distance from the end, saved while an older page loads
     const pageCount = query.data?.pages.length ?? 0;
+    const [flashId, setFlashId] = useState(null);   // the message a quote just jumped to
+    const flashTimer = useRef(null);
+    useEffect(() => () => clearTimeout(flashTimer.current), []);
 
     const markIfSeen = useCallback(() => {
         if (!newestSeq || newestSeq === marked.current || !atBottom.current || document.visibilityState !== "visible") return;
@@ -136,6 +141,18 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
         el.focus({ preventScroll: true });
     };
 
+    // A quote of a message that is not in the loaded pages cannot be scrolled to.
+    const jumpTo = ({ id: messageId }) => {
+        const target = scroller.current?.querySelector(`[data-message-id="${messageId}"]`);
+        if (!target) return showAlert(0, "Original message is not loaded");
+        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        target.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+        target.focus({ preventScroll: true });
+        setFlashId(messageId);
+        clearTimeout(flashTimer.current);
+        flashTimer.current = setTimeout(() => setFlashId(null), FLASH_MS);
+    };
+
     // The typing bubble grows the thread: a reader at the bottom stays there.
     const keepAtBottom = useCallback(() => {
         const el = scroller.current;
@@ -174,6 +191,9 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
                             key={message.clientId || message.id}
                             message={message}
                             mine={message.sender?.id === meId}
+                            meId={meId}
+                            flash={message.id === flashId}
+                            onJump={jumpTo}
                             others={others}
                             showSender={conversation.kind === "team"}
                             failure={failures[message.clientId]}

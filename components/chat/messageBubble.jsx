@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { formatFileSize } from "@/lib/chat/fileInfo";
 import { EDIT_WINDOW_MS, MAX_BODY } from "@/lib/chat/limits";
@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 
 import FileIcon from "@/components/chat/fileIcon";
 import MessageBody from "@/components/chat/messageBody";
+import ReactionPicker from "@/components/chat/reactionPicker";
+import ReplyQuote from "@/components/chat/replyQuote";
 import ReportDialog from "@/components/chat/reportDialog";
 import UserAvatar from "@/components/chat/userAvatar";
 import { showAlert } from "@/components/ui/alert";
@@ -22,9 +24,10 @@ import { Button } from "@/components/shadcn/button";
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Textarea } from "@/components/shadcn/textarea";
 
-import { LuCheck, LuCheckCheck, LuCopy, LuDownload, LuEllipsis, LuFlag, LuPencil, LuUndo2 } from "react-icons/lu";
+import { LuCheck, LuCheckCheck, LuCopy, LuDownload, LuEllipsis, LuFlag, LuPencil, LuReply, LuSmilePlus, LuUndo2 } from "react-icons/lu";
 
 /** True when every other member has read up to `seq` (seqs are bigint strings, so never compared as text). */
 export function seenByAll(seq, others) {
@@ -34,6 +37,10 @@ export function seenByAll(seq, others) {
         return false;
     }
 }
+
+// Quick actions show on hover or focus on desktop; touch uses the ⋯ menu.
+const QUICK = "shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 max-md:hidden";
+const CHIP = "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-xs font-medium tabular-nums transition-colors";
 
 const nameOf = (user) => user?.nickname || user?.username || "Someone";
 
@@ -92,13 +99,17 @@ function EditForm({ message, onSave, onCancel }) {
 
 /**
  * One message. Mine sit on the right with their send state (sending / failed / ✓ / ✓✓); `others` are the
- * other members (for ✓✓). `failure`: { message, retryable } for a failed send, when known.
+ * other members (for ✓✓). `failure`: { message, retryable } for a failed send, when known. Reply shows when
+ * `onReply` is given; React and the chips toggle only when `canReact` (an accepted member); `flash` rings
+ * the message after a jump to it.
  */
-export default function MessageBubble({ message, mine = false, others, showSender = false, failure, onRetry, onDiscard, onEdit, onUnsend, onReport }) {
+export default function MessageBubble({ message, mine = false, meId, others, showSender = false, failure, canReact = false, flash = false, onRetry, onDiscard, onEdit, onUnsend, onReport, onReply, onReact, onJump }) {
     const [editing, setEditing] = useState(false);
     const [openedAt, setOpenedAt] = useState(0);
     const [confirmUnsend, setConfirmUnsend] = useState(false);
     const [reporting, setReporting] = useState(false);
+    const [reacting, setReacting] = useState(false);
+    const afterMenu = useRef(null);   // "react" | "reply": what the chosen item does once the menu has closed, so its focus return does not undo it
 
     const sent = message.seq != null && !message.deleted;
     const canEdit = mine && sent && openedAt - Date.parse(message.createdAt) < EDIT_WINDOW_MS;
@@ -118,10 +129,12 @@ export default function MessageBubble({ message, mine = false, others, showSende
     );
 
     return (
-        <li className={cn("flex items-end gap-2", mine && "flex-row-reverse")}>
+        <li data-message-id={message.id ?? undefined} data-flash={flash || undefined} tabIndex={-1} className={cn("group flex items-end gap-2 outline-none", mine && "flex-row-reverse")}>
             {!mine && <UserAvatar name={nameOf(message.sender)} image={message.sender?.image} className="size-8" />}
-            <div className={cn("flex max-w-[85%] min-w-0 flex-col gap-1 sm:max-w-[75%]", mine ? "items-end" : "items-start")}>
+            <div className={cn("flex max-w-[85%] min-w-0 flex-col gap-1 rounded-2xl transition-shadow motion-reduce:transition-none group-data-[flash]:ring-2 group-data-[flash]:ring-ring group-data-[flash]:ring-offset-2 group-data-[flash]:ring-offset-background sm:max-w-[75%]", mine ? "items-end" : "items-start")}>
                 {showSender && !mine && <span className="px-1 text-xs text-muted-foreground">{nameOf(message.sender)}</span>}
+                <Popover open={reacting} onOpenChange={setReacting}>
+                <PopoverAnchor asChild>
                 <div className={cn("flex min-w-0 max-w-full items-center gap-1", mine && "flex-row-reverse")}>
                     {editing ? (
                         <EditForm message={message} onSave={(body) => onEdit(message, body)} onCancel={() => setEditing(false)} />
@@ -130,6 +143,7 @@ export default function MessageBubble({ message, mine = false, others, showSende
                     ) : (
                         // Images, files and text are separate pieces, like other messengers: only text sits in a coloured bubble.
                         <div className={cn("flex min-w-0 max-w-full flex-col gap-1", mine ? "items-end" : "items-start", message.status === "sending" && "opacity-70")}>
+                            <ReplyQuote replyTo={message.replyTo} onJump={onJump} />
                             {images.length > 0 && (
                                 <div className={cn("overflow-hidden rounded-2xl", images.length > 1 && "grid w-64 max-w-full grid-cols-2 gap-0.5")}>
                                     {images.map((a, index) => {
@@ -184,6 +198,14 @@ export default function MessageBubble({ message, mine = false, others, showSende
                             )}
                         </div>
                     )}
+                    {hasMenu && !editing && onReply && (
+                        <Button type="button" size="icon-sm" variant="ghost" onClick={() => onReply(message)} aria-label="Reply to message" className={QUICK}><LuReply aria-hidden="true" /></Button>
+                    )}
+                    {hasMenu && !editing && canReact && (
+                        <PopoverTrigger asChild>
+                            <Button type="button" size="icon-sm" variant="ghost" aria-label="React to message" className={QUICK}><LuSmilePlus aria-hidden="true" /></Button>
+                        </PopoverTrigger>
+                    )}
                     {hasMenu && !editing && (
                         <DropdownMenu onOpenChange={(open) => open && setOpenedAt(Date.now())}>
                             <DropdownMenuTrigger asChild>
@@ -191,9 +213,22 @@ export default function MessageBubble({ message, mine = false, others, showSende
                                     <LuEllipsis />
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align={mine ? "end" : "start"} className="w-48">
+                            <DropdownMenuContent
+                                align={mine ? "end" : "start"}
+                                className="w-48"
+                                onCloseAutoFocus={(event) => {
+                                    const chosen = afterMenu.current;
+                                    afterMenu.current = null;
+                                    if (!chosen) return;
+                                    event.preventDefault();
+                                    if (chosen === "react") setReacting(true);
+                                    else onReply(message);
+                                }}
+                            >
+                                {onReply && <DropdownMenuItem onSelect={() => { afterMenu.current = "reply"; }}><LuReply />Reply</DropdownMenuItem>}
+                                {canReact && <DropdownMenuItem onSelect={() => { afterMenu.current = "react"; }}><LuSmilePlus />React</DropdownMenuItem>}
                                 {message.body && <DropdownMenuItem onSelect={copy}><LuCopy />Copy</DropdownMenuItem>}
-                                {message.body && <DropdownMenuSeparator />}
+                                {(onReply || canReact || message.body) && <DropdownMenuSeparator />}
                                 {mine ? (
                                     <>
                                         {canEdit && <DropdownMenuItem onSelect={() => setEditing(true)}><LuPencil />Edit</DropdownMenuItem>}
@@ -207,6 +242,36 @@ export default function MessageBubble({ message, mine = false, others, showSende
                         </DropdownMenu>
                     )}
                 </div>
+                </PopoverAnchor>
+                {canReact && (
+                    <PopoverContent align={mine ? "end" : "start"} className="w-auto p-1">
+                        <ReactionPicker onPick={(emoji) => { setReacting(false); onReact(message, emoji); }} />
+                    </PopoverContent>
+                )}
+                </Popover>
+                {!message.deleted && message.reactions?.length > 0 && (
+                    <ul className={cn("m-0 flex list-none flex-wrap gap-1 p-0", mine && "justify-end")} aria-label="Reactions">
+                        {message.reactions.map(({ emoji, count, userIds }) => {
+                            const reacted = userIds.includes(meId);
+                            const inner = (<><span>{emoji}</span><span>{count}</span></>);
+                            return (
+                                <li key={emoji}>
+                                    {canReact ? (
+                                        <button
+                                            type="button"
+                                            aria-pressed={reacted}
+                                            aria-label={`${emoji} ${count}, ${reacted ? "remove your reaction" : "add your reaction"}`}
+                                            onClick={() => onReact(message, emoji)}
+                                            className={cn(CHIP, "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", reacted ? "border-primary bg-primary-soft text-primary-ink" : "border-transparent bg-muted text-foreground hover:bg-accent")}
+                                        >{inner}</button>
+                                    ) : (
+                                        <span className={cn(CHIP, "border-transparent bg-muted text-foreground")}>{inner}</span>
+                                    )}
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
                 <p className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
                     {message.createdAt && <time dateTime={message.createdAt}>{formatRelative(message.createdAt)}</time>}
                     {message.editedAt && !message.deleted && <span>edited</span>}
