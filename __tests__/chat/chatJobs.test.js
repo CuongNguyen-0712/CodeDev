@@ -4,6 +4,7 @@ const pushToUsers = vi.fn(async () => true);
 const remove = vi.fn(async () => { });
 const pushSummary = vi.fn();
 const purge = vi.fn();
+const markRequestPushed = vi.fn();
 const send = vi.fn(async () => ({}));
 let enabled = true;
 vi.mock("@/lib/beams", () => ({ pushToUsers: (...a) => pushToUsers(...a) }));
@@ -12,9 +13,9 @@ vi.mock("@/lib/inngest", async (original) => {
     const real = await original();
     return { ...real, inngestEnabled: () => enabled, inngest: Object.assign(real.inngest, { send: (...a) => send(...a) }) };
 });
-vi.mock("@/services/chat.service", () => ({ chatService: { pushSummary: (...a) => pushSummary(...a), purgeOrphanAttachments: (...a) => purge(...a) } }));
+vi.mock("@/services/chat.service", () => ({ chatService: { pushSummary: (...a) => pushSummary(...a), purgeOrphanAttachments: (...a) => purge(...a), markRequestPushed: (...a) => markRequestPushed(...a) } }));
 
-const { chatPush, chatAttachmentDelete, chatOrphanAttachments } = await import("@/jobs/chat");
+const { chatPush, chatRequestPush, chatAttachmentDelete, chatOrphanAttachments } = await import("@/jobs/chat");
 const { functions } = await import("@/jobs/index");
 const { installChatJobs, queueAttachmentDelete } = await import("@/services/chatJobs.service");
 
@@ -23,7 +24,7 @@ const handler = (f) => f.fn ?? f["fn"];
 const run = (f, event = { data: {} }) => handler(f)({ event, step });
 
 beforeEach(() => {
-    for (const m of [pushToUsers, remove, pushSummary, purge, send, step.run]) m.mockClear();
+    for (const m of [pushToUsers, remove, pushSummary, purge, markRequestPushed, send, step.run]) m.mockClear();
     enabled = true;
 });
 
@@ -42,6 +43,24 @@ describe("chat push job", () => {
         pushSummary.mockResolvedValue(summary);
         await run(chatPush, event);
         expect(pushToUsers).toHaveBeenCalledWith(["u_b"], summary);
+    });
+});
+
+describe("chat request push job", () => {
+    const event = { data: { userId: "u_b", conversationId: "cnv_1" } };
+
+    it("pushes the anonymous text when the row was claimed, with no name, text or conversation id", async () => {
+        markRequestPushed.mockResolvedValue(true);
+        await run(chatRequestPush, event);
+        expect(markRequestPushed).toHaveBeenCalledWith({ userId: "u_b", conversationId: "cnv_1" });
+        expect(pushToUsers).toHaveBeenCalledWith(["u_b"], { title: "New message request", body: "Someone wants to message you", link: "/messages?tab=requests" });
+        expect(JSON.stringify(pushToUsers.mock.calls[0])).not.toContain("cnv_1");
+    });
+
+    it("no push when the row was not claimed (already pushed, declined or blocked)", async () => {
+        markRequestPushed.mockResolvedValue(false);
+        await run(chatRequestPush, event);
+        expect(pushToUsers).not.toHaveBeenCalled();
     });
 });
 
@@ -82,8 +101,8 @@ describe("chat orphan cron", () => {
 });
 
 describe("registration", () => {
-    it("registers the three functions", () => {
-        expect(functions.map((f) => f.id())).toEqual(expect.arrayContaining(["chat-push", "chat-attachment-delete", "chat-orphan-attachments"]));
+    it("registers the chat functions", () => {
+        expect(functions.map((f) => f.id())).toEqual(expect.arrayContaining(["chat-push", "chat-request-push", "chat-attachment-delete", "chat-orphan-attachments"]));
     });
 });
 
@@ -91,7 +110,7 @@ describe("installChatJobs", () => {
     const message = { id: "msg_1", conversationId: "cnv_1", seq: "9" };
     const recipients = [{ publicId: "u_b", state: "accepted" }, { publicId: "u_c", state: "pending" }, { publicId: "u_d", state: "accepted" }];
 
-    it("keeps the realtime hook and sends one event per accepted recipient in one call", async () => {
+    it("keeps the realtime hook and sends one event per accepted or pending recipient in one call", async () => {
         const realtime = vi.fn(async () => { });
         const service = { afterSend: realtime };
         installChatJobs(service);
@@ -100,7 +119,18 @@ describe("installChatJobs", () => {
         expect(send).toHaveBeenCalledTimes(1);
         expect(send.mock.calls[0][0]).toEqual([
             { id: "chat-msg-msg_1-u_b", name: "chat/message.created", data: { userId: "u_b", conversationId: "cnv_1", seq: "9" } },
+            { id: "chat-req-cnv_1-u_c", name: "chat/request.created", data: { userId: "u_c", conversationId: "cnv_1" } },
             { id: "chat-msg-msg_1-u_d", name: "chat/message.created", data: { userId: "u_d", conversationId: "cnv_1", seq: "9" } },
+        ]);
+    });
+
+    it("a pending recipient gets chat/request.created; accepted ones get chat/message.created as before", async () => {
+        const service = { afterSend: vi.fn(async () => { }) };
+        installChatJobs(service);
+        await service.afterSend({ message, recipients: [{ publicId: "u_b", state: "accepted" }, { publicId: "u_c", state: "pending" }] });
+        expect(send.mock.calls[0][0]).toEqual([
+            { id: "chat-msg-msg_1-u_b", name: "chat/message.created", data: { userId: "u_b", conversationId: "cnv_1", seq: "9" } },
+            { id: "chat-req-cnv_1-u_c", name: "chat/request.created", data: { userId: "u_c", conversationId: "cnv_1" } },
         ]);
     });
 

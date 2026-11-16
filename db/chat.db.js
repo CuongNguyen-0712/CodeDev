@@ -330,6 +330,20 @@ export const chatDb = {
          JOIN community.conversation_member cm ON cm.user_id = me.id AND cm.left_at IS NULL
          WHERE me.public_id = $1`, [userId])).rows[0],
 
+    /**
+     * Claims the one "new request" push for a pending, live member: true only for the call that set request_pushed_at.
+     * A block either way with any other member of the conversation, or a declined/accepted state, claims nothing.
+     */
+    markRequestPushed: async ({ userId, conversationId }) => Boolean(await one(null,
+        `UPDATE community.conversation_member cm SET request_pushed_at = now()
+         FROM identity.users me, community.conversation c
+         WHERE me.public_id = $1 AND c.public_id = $2 AND cm.user_id = me.id AND cm.conversation_id = c.id
+           AND cm.state = 'pending' AND cm.left_at IS NULL AND cm.request_pushed_at IS NULL
+           AND NOT EXISTS (SELECT 1 FROM community.conversation_member o
+                           JOIN community.user_block b ON (b.blocker_id = me.id AND b.blocked_id = o.user_id) OR (b.blocker_id = o.user_id AND b.blocked_id = me.id)
+                           WHERE o.conversation_id = c.id AND o.user_id <> me.id)
+         RETURNING cm.user_id`, [userId, conversationId])),
+
     /** Unread (same definition as the inbox) in a conversation the user is an accepted, live member of; the latest unread message supplies the preview. */
     pushSummary: ({ userId, conversationId }) => one(null,
         `SELECT c.kind, t.name AS team_name, u.n AS unread, lm.body AS last_body,

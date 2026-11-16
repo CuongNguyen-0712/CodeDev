@@ -24,6 +24,19 @@ export const chatPush = inngest.createFunction(
     }
 );
 
+/** One anonymous push per request: the claim (pending, unpushed, no block) happens in the DB, so retries and extra messages push nothing more. */
+export const chatRequestPush = inngest.createFunction(
+    { id: "chat-request-push", triggers: [{ event: "chat/request.created" }], retries: 3 },
+    async ({ event, step }) => {
+        const { userId, conversationId } = event.data;
+        return step.run("push", async () => {
+            if (!(await chatService.markRequestPushed({ userId, conversationId }))) return { skipped: true };
+            await pushToUsers([userId], { title: "New message request", body: "Someone wants to message you", link: "/messages?tab=requests" });
+            return { sent: true };
+        });
+    }
+);
+
 /** Retries chat attachment deletes that failed after commit, each through its own provider. Throws when any item still fails, so Inngest runs it again. */
 export const chatAttachmentDelete = inngest.createFunction(
     { id: "chat-attachment-delete", triggers: [{ event: "chat/attachment.delete" }], retries: 5 },

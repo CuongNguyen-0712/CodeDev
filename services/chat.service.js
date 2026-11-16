@@ -381,6 +381,9 @@ export const chatService = {
         return { title: row.kind === "team" ? row.team_name : row.sender_nickname || row.sender_username, body, link: `/messages/${conversationId}` };
     },
 
+    /** True once per (conversation, pending recipient): the caller then sends the anonymous request push. */
+    markRequestPushed: ({ userId, conversationId }) => chatDb.markRequestPushed({ userId, conversationId }),
+
     markRead: async ({ userId, conversationId, seq }) => {
         if (!SEQ.test(String(seq))) throw badRequest("Invalid seq");
         const result = await withTransaction(async (client) => {
