@@ -32,6 +32,8 @@ Date: 2026-11-15. Status: approved 2026-11-15. Nối tiếp lõi chat (`2026-11-
 
 ## 4. Đợt 1 — giao diện (không đổi database)
 
+> **Trạng thái:** đợt 1 đã làm xong (nhánh `feat/chat-ux`), gồm cả 9 mục dưới đây.
+
 1. **Find people — tag bạn bè.** Dòng có `friendship = "friends"` hiện `Badge` "Friend" cạnh tên; `"sent"` / `"received"` giữ nút như hiện tại. Sắp lại hàng: avatar · tên + tag · cấp · nút (một hàng trên desktop, hai hàng trên 375 px).
 2. **Friends — link hồ sơ.** `/api/friends` (và lời mời) trả thêm `showProfile`; tên và avatar thành link `/profile/[username]` khi `showProfile` (giống `PersonRow` ở Find people). Không đổi luật bạn bè.
 3. **Ô soạn tin một dòng.** Một hàng: nút đính kèm · `Textarea` tự giãn (`field-sizing-content`, 1 dòng → tối đa ~6 dòng, rồi cuộn) · nút Gửi chỉ icon. Thumbnail / chip đính kèm hiện phía trên hàng khi có. Bộ đếm ký tự hiện khi gần giới hạn (như cũ). Enter gửi, Shift+Enter xuống dòng (như cũ).
