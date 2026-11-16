@@ -237,18 +237,28 @@ describe("ConversationView", () => {
             expect(document.activeElement).toBe(log);
         });
 
-        it("hiding the typing bubble on the way up brings a reader near the end back to the bottom", async () => {
+        it("scrolling up slowly while someone types stays scrolled up (no snap back when the bubble hides)", async () => {
             renderWith(<ConversationView conversationId="cnv_a" />);
             await screen.findByText("hello 2");
             act(() => useChatTypingStore.getState().setTyping("cnv_a", "P2"));
             const log = await screen.findByRole("log");
-            // The in-list bubble adds 60px: 60px from the end with it, at the end without it (no scroll event).
-            Object.defineProperty(log, "scrollHeight", { configurable: true, get: () => (log.querySelector(".animate-typing-dot") ? 1000 : 940) });
+            // The in-list bubble is 44px: 60px from the end with it, 16px without it.
+            const inList = () => log.querySelectorAll(".animate-typing-dot").length > 0;
+            Object.defineProperty(log, "scrollHeight", { configurable: true, get: () => (inList() ? 1000 : 956) });
             Object.defineProperty(log, "clientHeight", { configurable: true, value: 400 });
             log.scrollTop = 540;
             fireEvent.scroll(log);
+            await screen.findByRole("button", { name: "Jump to latest messages" });
+            // The shrink fires a scroll event in a browser: 16px from the end is still scrolled up.
+            fireEvent.scroll(log);
+            expect(screen.getByRole("button", { name: "Jump to latest messages" })).toBeTruthy();
+            expect(inList()).toBe(false);
+            expect(log.scrollTop).toBe(540);
+            // At the end the reader is back at the bottom and the bubble returns.
+            log.scrollTop = 556;
+            fireEvent.scroll(log);
             await waitFor(() => expect(screen.queryByRole("button", { name: /Jump to latest messages/ })).toBeNull());
-            expect(log.querySelectorAll(".animate-typing-dot")).toHaveLength(3);
+            expect(inList()).toBe(true);
         });
 
         it("a cached message without a readable seq does not break the new-message count", async () => {

@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import { useSelectedLayoutSegment } from "next/navigation";
 
-import { CHAT_GRID_HEIGHT, CHAT_LAYOUT_HEIGHT, CHAT_LAYOUT_PADDING } from "@/components/chat/chatHeight";
+import { CHAT_COLUMN, CHAT_GRID_HEIGHT, CHAT_LAYOUT_HEIGHT, CHAT_LAYOUT_PADDING } from "@/components/chat/chatHeight";
 import Inbox from "@/components/chat/inbox";
 import { cn } from "@/lib/utils";
 
@@ -20,12 +20,12 @@ export default function MessagesLayout({ children }) {
         <div className={cn("mx-auto flex w-full max-w-6xl flex-col gap-6", CHAT_LAYOUT_HEIGHT, CHAT_LAYOUT_PADDING)}>
             <h1 className="sr-only">Messages</h1>
             <div className={cn("grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] md:gap-6", CHAT_GRID_HEIGHT)}>
-                <aside className={cn("min-w-0", open && "max-md:hidden")} aria-label="Conversations">
+                <aside className={cn(CHAT_COLUMN, open && "max-md:hidden")} aria-label="Conversations">
                     <Suspense fallback={<Skeleton className="h-64 w-full" />}>
                         <Inbox activeId={segment} />
                     </Suspense>
                 </aside>
-                <section className={cn("min-w-0", !open && "max-md:hidden")}>{children}</section>
+                <section className={cn(CHAT_COLUMN, !open && "max-md:hidden")}>{children}</section>
             </div>
         </div>
     );

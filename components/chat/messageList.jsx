@@ -24,6 +24,11 @@ import { Spinner } from "@/components/shadcn/spinner";
 import { LuArrowDown, LuMessageSquare } from "react-icons/lu";
 
 const BOTTOM_SLACK = 48;   // px from the end that still counts as "at the bottom"
+// Once scrolled up, the reader is back at the bottom only this close to the end. Scrolling up hides the in-list
+// typing bubble (pt-3 + 32px row = 44px), so the thread shrinks by that much: with one threshold the reader would
+// count as back at the bottom, the bubble would return and keepAtBottom would snap the thread down.
+const RETURN_SLACK = BOTTOM_SLACK - 44;
+const distanceToEnd = (el) => el.scrollHeight - el.scrollTop - el.clientHeight;
 
 /** A 404 means the conversation is gone for this member (left, hidden, declined): leave it and refresh the inbox (spec section 10). */
 export function useLeaveWhenGone(error) {
@@ -117,22 +122,11 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
 
     const onScroll = () => {
         const el = scroller.current;
-        atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_SLACK;
+        atBottom.current = distanceToEnd(el) < (scrolledUp ? RETURN_SLACK : BOTTOM_SLACK);
         if (!atBottom.current && !scrolledUp) setSeenSeq(newestSeq);   // leaving the bottom: everything up to here was seen
         setScrolledUp(!atBottom.current);
         if (atBottom.current) markIfSeen();
     };
-
-    // Scrolling up hides the in-list typing bubble; the thread shrinks with no scroll event and the reader
-    // may be back within BOTTOM_SLACK: measure again, or the jump button stays and nothing is marked read.
-    useLayoutEffect(() => {
-        const el = scroller.current;
-        if (!scrolledUp || !el) return;
-        atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_SLACK;
-        if (!atBottom.current) return;
-        setScrolledUp(false);
-        markIfSeen();
-    }, [scrolledUp, markIfSeen]);
 
     const jumpToLatest = () => {
         const el = scroller.current;

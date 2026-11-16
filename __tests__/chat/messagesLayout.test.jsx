@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 
 /** The /messages frame sizes itself against the page scroller, not the viewport (final review, Important 2). */
 vi.mock("next/navigation", () => ({ useSelectedLayoutSegment: () => "cnv_a" }));
@@ -20,6 +20,12 @@ describe("MessagesLayout height", () => {
         expect(frame.classList.contains("flex-col")).toBe(true);
         // The grid takes the rest after the padding, never under 24rem.
         ["grow", "basis-0", "min-h-96"].forEach((c) => expect(grid.classList.contains(c)).toBe(true));
+        // One row exactly the grid's height (not an `auto` row sized by the pane's content), and columns that
+        // may shrink below their content: otherwise h-full on the pane and inbox is cyclic and they grow.
+        expect(grid.classList.contains("grid-rows-[minmax(0,1fr)]")).toBe(true);
+        const columns = [frame.querySelector("aside"), frame.querySelector("section")];
+        columns.forEach((column) => ["min-h-0", "min-w-0"].forEach((c) => expect(column.classList.contains(c)).toBe(true)));
+        expect(frame.querySelector("section").contains(screen.getByTestId("pane"))).toBe(true);
         // No viewport arithmetic anywhere in the frame: the banner's height can never be left out of it.
         expect(container.innerHTML).not.toMatch(/dvh|svh|calc\(/);
     });
