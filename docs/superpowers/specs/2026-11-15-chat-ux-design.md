@@ -48,7 +48,9 @@ Date: 2026-11-15. Status: approved 2026-11-15. Nối tiếp lõi chat (`2026-11-
 
 > **Trạng thái:** đợt 2 đã làm xong (nhánh `feat/chat-ux-2`), gồm 5.1–5.3. Khác spec:
 > - **Không có** route `GET /api/chat/messages/[id]/reactions` (quyết định R1): danh sách người thả không hiển thị; chip chỉ cho biết số lượng và `mine`.
-> - DTO gửi `reactions: [{ emoji, count, userIds }]` (public id, tối đa 5); client tự suy ra `mine` từ `userIds`.
+> - DTO gửi `reactions: [{ emoji, count, userIds }]`, `userIds` là public id của **mọi** người đã thả emoji đó (không giới hạn 5; phản ứng của thành viên đã rời nhóm vẫn được giữ); client tự suy ra `mine` từ `userIds`.
+> - Thanh trả lời khi gửi lỗi: thanh bị xoá lúc bấm gửi và chỉ được khôi phục khi server trả 422. Với lỗi khác, tin lỗi nằm lại trong outbox cùng `replyToId` và "Retry" gửi lại đúng tin trả lời đó. Lệch với §5.3 ("giữ khi gửi lỗi") vì tin lỗi đã giữ trích dẫn, giữ thêm thanh trong composer sẽ trùng lặp.
+> - Bộ chọn đầy đủ `frimousse` tải dữ liệu `emojibase-data` từ `cdn.jsdelivr.net` lúc chạy (`https://cdn.jsdelivr.net/npm/emojibase-data@<phiên bản emoji trình duyệt hỗ trợ>/<locale>/data.json`, `@latest` nếu không dò được; `frimousse` 0.4.0, không đặt `emojibaseUrl`). Đây là phụ thuộc bên thứ ba lúc chạy; nếu CDN không tới được thì chỉ bộ chọn đầy đủ trống, sáu emoji nhanh vẫn dùng bình thường.
 > - Thả cảm xúc giữa hai thành viên đã chặn nhau trong chat 1-1 bị từ chối (quyết định R3).
 > - Bộ chọn `frimousse` chỉ nằm trong chunk nạp lười, chỉ tải bởi `/messages/[id]` và `/messages/new` (đã kiểm sau `npm run build`).
 

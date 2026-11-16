@@ -90,6 +90,8 @@ describe("reaction chips", () => {
     it("chips are plain text when the viewer cannot react", () => {
         render(<MessageBubble message={message({ reactions })} {...base} canReact={false} />);
         expect(screen.queryByRole("button", { name: /remove your reaction|add your reaction/ })).toBeNull();
-        expect(screen.getByText("👍").parentElement.tagName).toBe("SPAN");
+        const chip = screen.getByRole("img", { name: "👍 2" });
+        expect(chip.tagName).toBe("SPAN");
+        expect(screen.getByText("👍").getAttribute("aria-hidden")).toBe("true");
     });
 });

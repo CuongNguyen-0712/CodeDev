@@ -29,5 +29,8 @@ describe.skipIf(!process.env.DATABASE_URL)("chat schema phase 2 (PostgreSQL)", (
         expect(fk("community.chat_reaction", "message_id")).toMatchObject({ ref: "community.chat_message", confdeltype: "c" });
         expect(fk("community.chat_reaction", "user_id")).toMatchObject({ ref: "identity.users", confdeltype: "c" });
         expect(fk("community.chat_message", "reply_to_id")).toMatchObject({ ref: "community.chat_message", confdeltype: "n" });
+
+        const { rows: idx } = await sql(`SELECT indexdef FROM pg_indexes WHERE schemaname = 'community' AND indexname = 'idx_chat_message_reply_to'`);
+        expect(idx[0].indexdef).toMatch(/\(reply_to_id\) WHERE \(reply_to_id IS NOT NULL\)/);
     });
 });

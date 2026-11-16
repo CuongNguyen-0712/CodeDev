@@ -21,6 +21,7 @@ function EmojiPicker({
       <EmojiPickerPrimitive.Search
         data-slot="emoji-picker-search"
         placeholder="Search emoji"
+        aria-label="Search emoji"
         className="z-10 mx-2 mt-2 appearance-none rounded-md bg-muted px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
       />
       <EmojiPickerPrimitive.Viewport data-slot="emoji-picker-viewport" className="relative flex-1 outline-hidden">

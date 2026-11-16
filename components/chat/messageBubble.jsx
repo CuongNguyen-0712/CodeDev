@@ -253,7 +253,7 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                     <ul className={cn("m-0 flex list-none flex-wrap gap-1 p-0", mine && "justify-end")} aria-label="Reactions">
                         {message.reactions.map(({ emoji, count, userIds }) => {
                             const reacted = userIds.includes(meId);
-                            const inner = (<><span>{emoji}</span><span>{count}</span></>);
+                            const inner = (<><span aria-hidden={!canReact || undefined}>{emoji}</span><span aria-hidden={!canReact || undefined}>{count}</span></>);
                             return (
                                 <li key={emoji}>
                                     {canReact ? (
@@ -265,7 +265,7 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                                             className={cn(CHIP, "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", reacted ? "border-primary bg-primary-soft text-primary-ink" : "border-transparent bg-muted text-foreground hover:bg-accent")}
                                         >{inner}</button>
                                     ) : (
-                                        <span className={cn(CHIP, "border-transparent bg-muted text-foreground")}>{inner}</span>
+                                        <span role="img" aria-label={`${emoji} ${count}`} className={cn(CHIP, "border-transparent bg-muted text-foreground")}>{inner}</span>
                                     )}
                                 </li>
                             );
