@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useApp } from "@/contexts/appContext";
 import { getOpenConversation, setOpenConversation } from "@/lib/chat/openConversation";
 import { retryTransient } from "@/lib/queryTimes";
-import { useEditMessage, useRecallMessage, useReportMessage, useSendMessage } from "@/mutations/chat.mutation";
+import { useEditMessage, useRecallMessage, useReportMessage, useSendMessage, useToggleReaction } from "@/mutations/chat.mutation";
 import { useTeamAction } from "@/mutations/team.mutation";
 import { chatQueries } from "@/queries/chat.query";
 import { teamQueries } from "@/queries/team.query";
@@ -46,6 +46,10 @@ import { LuArrowLeft, LuBan, LuEllipsis, LuLogOut, LuPencil, LuUserPlus, LuUserR
 // Phones: edge to edge with no border; the navbar's bottom line is the pane's top (a border here doubled it).
 const PANE = `flex ${CHAT_HEIGHT} flex-col overflow-hidden rounded-lg border bg-card max-md:rounded-none max-md:border-0`;
 const CANT_SEND = "You can't send messages in this conversation";
+
+const nameOf = (user) => user?.nickname || user?.username || "Someone";
+// The words the inbox uses for a message without text.
+const previewOf = (m) => (m.body ? (m.body.includes("```") ? "[code]" : m.body.slice(0, 80)) : m.attachments?.some((a) => a.kind === "file") ? "[file]" : "[image]");
 
 function ThreadHeader({ name, image, subtitle, team = false, children }) {
     return (
@@ -180,6 +184,8 @@ export default function ConversationView({ conversationId }) {
     const edit = useEditMessage();
     const recall = useRecallMessage();
     const report = useReportMessage();
+    const { toggle } = useToggleReaction(conversationId, meId);
+    const [reply, setReply] = useState(null);   // { conversationId, id, senderName, preview }; ignored once the open conversation changes
     const [failures, setFailures] = useState({});   // clientId -> { message, retryable }
 
     const gone = useLeaveWhenGone(query.error);
@@ -197,6 +203,7 @@ export default function ConversationView({ conversationId }) {
     if (query.isError) return <ErrorReload data={query.error} refetch={() => query.refetch()} title="Could not load this conversation" />;
 
     const conversation = query.data;
+    const replyTo = reply?.conversationId === conversationId ? reply : null;
     const name = conversation.title || "Conversation";
     const me = conversation.members.find((m) => m.id === meId);
     const other = conversation.kind === "direct" ? conversation.members.find((m) => m.id !== meId) : null;
@@ -220,16 +227,25 @@ export default function ConversationView({ conversationId }) {
     };
 
     // Resolves once the send settles; rejects only on 422 so the composer gets its text back (spec section 10).
+    // The reply clears with the text, and comes back with it on a 422.
     const onSubmit = ({ body, attachmentIds, attachments }) => {
         const clientId = crypto.randomUUID();
-        return deliver({ clientId, body, attachmentIds, attachments }).catch((error) => {
+        const quote = replyTo;
+        setReply(null);
+        const quoted = quote && { replyToId: quote.id, replyTo: { id: quote.id, senderName: quote.senderName, preview: quote.preview, deleted: false } };
+        return deliver({ clientId, body, attachmentIds, attachments, ...quoted }).catch((error) => {
             if (error?.status !== 422) return;
             discard({ clientId });
+            setReply((current) => current ?? quote);
             throw error;
         });
     };
 
     const handlers = {
+        canReact: me?.state === "accepted",
+        // A pending member can reply (sending accepts the request); only a member who can send gets Reply.
+        onReply: conversation.canSend ? (m) => setReply({ conversationId, id: m.id, senderName: nameOf(m.sender), preview: previewOf(m) }) : undefined,
+        onReact: (m, emoji) => toggle({ messageId: m.id, emoji }, { onError: fail }),
         onRetry: (m) => deliver({ clientId: m.clientId, body: m.body, attachmentIds: m.attachmentIds ?? [] }).catch(() => { }),
         onDiscard: discard,
         onEdit: (m, body) => edit.mutateAsync({ conversationId, messageId: m.id, body }).catch(fail),
@@ -254,7 +270,7 @@ export default function ConversationView({ conversationId }) {
             <MessageList conversation={conversation} meId={meId} failures={failures} {...handlers} />
             <div className="flex flex-col gap-1 px-3 pt-2 pb-3">
                 {conversation.canSend
-                    ? <Composer conversationId={conversationId} imagesAllowed={!isRequest} optimistic onSubmit={onSubmit} />
+                    ? <Composer conversationId={conversationId} imagesAllowed={!isRequest} optimistic replyTo={replyTo} onCancelReply={() => setReply(null)} onSubmit={onSubmit} />
                     : <CantSend />}
             </div>
         </div>

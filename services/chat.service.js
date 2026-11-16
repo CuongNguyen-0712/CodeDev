@@ -1,3 +1,4 @@
+import { isSingleEmoji } from "@/lib/chat/emoji";
 import { cleanFileName } from "@/lib/chat/cleanFileName";
 import { ulid } from "ulid";
 
@@ -21,8 +22,12 @@ const CONVERSATION_ID = /^cnv_[0-9a-z]{26}$/;
 const ATTACHMENT_ID = /^att_[0-9a-z]{26}$/;
 const MESSAGE_ID = /^msg_[0-9a-z]{26}$/;
 const CLIENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_REACTIONS = 20;
 const SEQ = /^[1-9]\d{0,18}$/;
 
+const checkReplyId = (id) => {
+    if (typeof id !== "string" || !MESSAGE_ID.test(id)) throw new ApiError("replyToId: Invalid message id", 422);
+};
 const badRequest = (message) => new ApiError(message, 400);
 const conversationNotFound = () => new ApiError("Conversation not found", 404);
 const refused = () => new ApiError("You can't send messages in this conversation", 403);
@@ -89,6 +94,11 @@ async function verifyUploads(userId, ids) {
 const directKey = (a, b) => (BigInt(a) < BigInt(b) ? `${a}:${b}` : `${b}:${a}`);
 
 const messageDto = (row) => ({
+    replyTo: row.reply_id ? {
+        id: row.reply_id, senderName: row.reply_sender_name, deleted: row.reply_deleted,
+        preview: row.reply_deleted ? null : preview({ last_deleted: false, last_body: row.reply_body, last_attachment_kind: row.reply_attachment_kind }),
+    } : null,
+    reactions: row.reactions,
     id: row.id, seq: row.seq, conversationId: row.conversation_id, clientId: row.client_id,
     sender: { id: row.sender_id, username: row.sender_username, nickname: row.sender_nickname, image: row.sender_image },
     body: row.body, attachments: row.attachments, createdAt: row.created_at, editedAt: row.edited_at, deleted: row.deleted,
@@ -201,12 +211,14 @@ export const chatService = {
     afterRead: async () => { },
     afterUpdate: async () => { },
     afterRespond: async () => { },
+    afterReaction: async () => { },
     afterMembership: async () => { },
 
     /** Replaced by the realtime / push tasks; called after commit for new messages only, errors are logged. */
     afterSend: async () => { },
 
-    send: async ({ userId, conversationId, toUserId, clientId, body, attachmentIds = [], socketId = null }) => {
+    send: async ({ userId, conversationId, toUserId, clientId, body, attachmentIds = [], replyToId = null, socketId = null }) => {
+        if (replyToId != null) checkReplyId(replyToId);
         if (!conversationId === !toUserId) throw badRequest("Give either a conversation or a recipient");
         if (conversationId) checkId(conversationId, CONVERSATION_ID, "conversation");
         if (typeof clientId !== "string" || !CLIENT_ID.test(clientId)) throw badRequest("Invalid client id");
@@ -246,7 +258,9 @@ export const chatService = {
             if (attachments.length && members.some((m) => !m.left_at && m.state === "pending")) throw new ApiError("Attachments can't be sent in a message request", 422);
 
             const publicId = `msg_${ulid().toLowerCase()}`;
-            const inserted = await chatDb.insertMessage(client, { publicId, conversationDbId: conversation.id, senderDbId: me.id, clientId, body });
+            const replyToDbId = replyToId ? await chatDb.replyTarget(client, { publicId: replyToId, conversationDbId: conversation.id }) : null;
+            if (replyToId && !replyToDbId) throw new ApiError("replyToId: The quoted message is not available", 422);
+            const inserted = await chatDb.insertMessage(client, { publicId, conversationDbId: conversation.id, senderDbId: me.id, clientId, body, replyToDbId });
             if (inserted && attachments.length) {
                 const claimed = await chatDb.claimAttachments(client, { ids: attachments, uploaderDbId: me.id, conversationDbId: conversation.id, messageDbId: inserted.id });
                 if (claimed !== attachments.length) throw badAttachment(); // rolls the message back too
@@ -367,6 +381,9 @@ export const chatService = {
         return { title: row.kind === "team" ? row.team_name : row.sender_nickname || row.sender_username, body, link: `/messages/${conversationId}` };
     },
 
+    /** True once per (conversation, pending recipient): the caller then sends the anonymous request push. */
+    markRequestPushed: ({ userId, conversationId }) => chatDb.markRequestPushed({ userId, conversationId }),
+
     markRead: async ({ userId, conversationId, seq }) => {
         if (!SEQ.test(String(seq))) throw badRequest("Invalid seq");
         const result = await withTransaction(async (client) => {
@@ -415,6 +432,38 @@ export const chatService = {
         if (failed.length) await runAfter(() => queueAttachmentDelete(failed));
         await after("afterUpdate", result, { socketId });
         return result;
+    },
+
+    /** Adds the user's reaction, or removes it when already there. Locks the conversation, so toggles and the 20-emoji cap cannot race. */
+    toggleReaction: async ({ userId, messageId, emoji, socketId = null }) => {
+        checkId(messageId, MESSAGE_ID, "message");
+        if (!isSingleEmoji(emoji)) throw new ApiError("emoji: Must be a single emoji", 422);
+        const result = await withTransaction(async (client) => {
+            const first = await chatDb.messageRef(client, { messageId, windowMs: 0 });
+            if (!first) throw new ApiError("Message not found", 404);
+            const conversation = await chatDb.lockByPublicId(client, first.conversation_id);
+            const members = await chatDb.members(client, conversation.id);
+            const mine = members.find((m) => m.public_id === userId && !m.left_at);
+            if (!mine) throw new ApiError("Message not found", 404);
+            if (mine.state !== "accepted") throw refused();
+            // A block either way silences a direct chat, as it does sending; only the block clause of sendRefused applies.
+            const other = conversation.kind === "direct" ? members.find((m) => m !== mine) : null;
+            if (other && await chatDb.isBlocked(client, mine.user_id, other.user_id)) throw refused();
+            // Re-read under the lock: an unsend may have committed while we waited.
+            const ref = await chatDb.messageRef(client, { messageId, windowMs: 0 });
+            if (ref.deleted) throw new ApiError("This message was unsent", 409);
+            const target = { messageDbId: ref.id, userDbId: mine.user_id, emoji };
+            const added = !(await chatDb.removeReaction(client, target));
+            if (added) {
+                if (await chatDb.reactionEmojiCount(client, target) >= MAX_REACTIONS) throw new ApiError(`You can react with at most ${MAX_REACTIONS} emoji`, 422);
+                await chatDb.addReaction(client, target);
+            }
+            const { reactions } = messageDto(await chatDb.messageById(client, messageId));
+            const audience = members.filter((m) => !m.left_at && m.state === "accepted").map((m) => m.public_id);
+            return { added, reactions, conversationId: first.conversation_id, members: audience };
+        });
+        await after("afterReaction", { ...result, messageId, emoji, userId }, { socketId });
+        return { added: result.added, reactions: result.reactions };
     },
 
     respondRequest: async ({ userId, conversationId, accept }) => {

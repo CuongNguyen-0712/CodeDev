@@ -15,7 +15,7 @@ import { Progress } from "@/components/shadcn/progress";
 import { Spinner } from "@/components/shadcn/spinner";
 import { Textarea } from "@/components/shadcn/textarea";
 
-import { LuPaperclip, LuSendHorizontal, LuTriangleAlert, LuX } from "react-icons/lu";
+import { LuPaperclip, LuReply, LuSendHorizontal, LuTriangleAlert, LuX } from "react-icons/lu";
 
 const COUNTER_FROM = MAX_BODY * 0.9;
 const UPLOAD_FAILED = "The file could not be uploaded.";
@@ -71,11 +71,13 @@ function refusal(file) {
  * Message box: Enter sends, Shift+Enter adds a line. `onSubmit({ body, attachmentIds })` returns a promise;
  * when it rejects the text comes back and the error shows here. `optimistic`: the box clears at once (the
  * message shows in the list while it sends); otherwise it waits for the send. Images need `imagesAllowed`
- * (an open conversation that is not a request).
+ * (an open conversation that is not a request). `replyTo` ({ id, senderName, preview }) shows the Replying-to bar and
+ * is sent as `replyToId`; `onCancelReply` is its ✕.
  */
-export default function Composer({ conversationId, imagesAllowed = false, optimistic = false, onSubmit }) {
+export default function Composer({ conversationId, imagesAllowed = false, optimistic = false, replyTo, onCancelReply, onSubmit }) {
     const inputId = useId();
     const fileRef = useRef(null);
+    const boxRef = useRef(null);
     const urls = useRef(new Set());
     const createUpload = useCreateChatUpload();
     const ping = useTypingPing(conversationId);
@@ -88,6 +90,9 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
         const created = urls.current;
         return () => created.forEach((url) => URL.revokeObjectURL(url));
     }, []);
+
+    // Choosing Reply moves the caret to the box.
+    useEffect(() => { if (replyTo) boxRef.current?.focus(); }, [replyTo?.id]);   // eslint-disable-line react-hooks/exhaustive-deps -- the id is the trigger
 
     const update = (key, change) => setImages((list) => list.map((image) => (image.key === key ? { ...image, ...change } : image)));
 
@@ -151,7 +156,7 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
             const attachments = images.map((i) => (i.kind === "image"
                 ? { id: i.attachmentId, kind: "image", width: i.width, height: i.height, previewUrl: i.url }
                 : { id: i.attachmentId, kind: "file", name: i.name, size: i.size }));
-            await onSubmit({ body, attachmentIds: images.map((image) => image.attachmentId), attachments });
+            await onSubmit({ body, attachmentIds: images.map((image) => image.attachmentId), attachments, replyToId: replyTo?.id });
             if (!optimistic) { setBody(""); setImages([]); }
         } catch (err) {
             setBody((current) => current || sent.body);
@@ -172,6 +177,14 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
         // A filled pill, not a framed card: no border at rest, a quiet one on focus. Its controls are all 36px
         // tall and bottom-aligned, so one line of text sits on their centre line and longer text grows upward.
         <form onSubmit={submit} className="flex flex-col gap-2 rounded-3xl border border-transparent bg-muted p-1.5 transition-colors focus-within:border-ring/40 focus-within:bg-background dark:bg-accent dark:focus-within:bg-accent">
+            {replyTo && (
+                // Bordered, so it stays visible on the pill both at rest (muted) and on focus (background).
+                <div className="flex items-center gap-2 rounded-2xl border bg-background py-1.5 pr-1 pl-3 text-xs dark:bg-card">
+                    <LuReply aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+                    <p className="min-w-0 flex-1 truncate">Replying to <span className="font-medium">{replyTo.senderName}</span>: {replyTo.preview}</p>
+                    <Button type="button" variant="ghost" size="icon-xs" onClick={onCancelReply} aria-label="Cancel reply"><LuX aria-hidden="true" /></Button>
+                </div>
+            )}
             {images.length > 0 && (
                 <ul className="m-0 flex list-none flex-wrap gap-2 p-0" aria-label="Attachments to send">
                     {images.map((image) => (image.kind === "file" ? (
@@ -229,6 +242,7 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
                     </>
                 )}
                 <Textarea
+                    ref={boxRef}
                     value={body}
                     onChange={(event) => {
                         setBody(event.target.value);

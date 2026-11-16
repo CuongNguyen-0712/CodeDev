@@ -3,13 +3,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
     blockUserAction, createChatUploadAction, editMessageAction, markReadAction, recallMessageAction,
-    reportMessageAction, respondRequestAction, sendMessageAction, typingAction, unblockUserAction,
+    reportMessageAction, respondRequestAction, sendMessageAction, toggleReactionAction, typingAction, unblockUserAction,
 } from "@/actions/chat.actions";
 import { chatKeys } from "@/keys/chat.keys";
 import { callAction } from "@/lib/actionResult";
 import { READ_DEBOUNCE_MS, TYPING_THROTTLE_MS } from "@/lib/chat/limits";
 import { lowerBadge, markRowRead } from "@/lib/chat/inboxCache";
-import { insertMessage, optimisticMessage, patchMessage } from "@/lib/chat/messageCache";
+import { insertMessage, optimisticMessage, patchMessage, patchReaction, refreshQuotes } from "@/lib/chat/messageCache";
 import { getPusherClient } from "@/lib/pusherClient";
 import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 
@@ -26,25 +26,27 @@ const refreshLists = (queryClient) => {
 };
 
 /**
- * variables: { clientId, body, sender, attachmentIds?, attachments?, toUserId? }. The unsent message lives in the outbox store
+ * variables: { clientId, body, sender, attachmentIds?, attachments?, replyToId?, replyTo?, toUserId? } (replyTo is the preview shown while unsent; a retry that omits replyToId reuses the outbox one). The unsent message lives in the outbox store
  * (a refetch of the messages query must not drop it). Calling mutate again with the same clientId retries it;
  * the server returns the first copy if it arrived.
  */
+const kept = (conversationId, clientId) => useChatOutboxStore.getState().byConversation[conversationId]?.find((m) => m.clientId === clientId);
+
 export function useSendMessage(conversationId) {
     const queryClient = useQueryClient();
     const { reset } = useTypingPing(conversationId);
     return useMutation({
-        mutationFn: ({ clientId, body, attachmentIds, toUserId }) => callAction(() => sendMessageAction(withSocket({
-            clientId, body, ...(attachmentIds?.length ? { attachmentIds } : {}),
+        mutationFn: ({ clientId, body, attachmentIds, replyToId, toUserId }) => callAction(() => sendMessageAction(withSocket({
+            clientId, body, ...(attachmentIds?.length ? { attachmentIds } : {}), ...((replyToId ?? kept(conversationId, clientId)?.replyToId) ? { replyToId: replyToId ?? kept(conversationId, clientId).replyToId } : {}),
             ...(conversationId ? { conversationId } : { toUserId }),
         }))),
-        onMutate: ({ clientId, body, sender, attachmentIds, attachments }) => {
+        onMutate: ({ clientId, body, sender, attachmentIds, attachments, replyToId, replyTo }) => {
             reset(); // the next keystroke after a send may ping at once
             if (!conversationId) return;
             const outbox = useChatOutboxStore.getState();
             if (outbox.byConversation[conversationId]?.some((m) => m.clientId === clientId)) outbox.setUnsentStatus(conversationId, clientId, "sending");
-            // attachmentIds kept so Retry resends the same images.
-            else outbox.addUnsent(conversationId, { ...optimisticMessage({ clientId, body, sender, conversationId, attachments }), attachmentIds: attachmentIds ?? [] });
+            // attachmentIds and replyToId kept so Retry resends the same images and quote.
+            else outbox.addUnsent(conversationId, { ...optimisticMessage({ clientId, body, sender, conversationId, attachments, replyTo }), attachmentIds: attachmentIds ?? [], replyToId: replyToId ?? null });
         },
         onSuccess: ({ message }, { clientId, sender }) => {
             queryClient.setQueryData(chatKeys.messages(message.conversationId), (data) => insertMessage(data, message));
@@ -81,22 +83,24 @@ function useMessageWrite(action, change) {
             }));
             // What the cache really holds, to recognise it later.
             const optimistic = queryClient.getQueryData(key)?.pages.flatMap((p) => p.items).find((m) => m.id === variables.messageId) ?? null;
+            // Replies that quote it follow (and follow the rollback below).
+            if (optimistic) queryClient.setQueryData(key, (data) => refreshQuotes(data, optimistic));
             return { key, previous, optimistic };
         },
         // Touch only the cached message that is still our optimistic object: a realtime update that landed meanwhile stays.
         onError: (_, __, context) => {
             if (!context?.previous || !context.optimistic) return;
-            queryClient.setQueryData(context.key, (data) => data && {
+            queryClient.setQueryData(context.key, (data) => data && refreshQuotes({
                 ...data,
                 pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (isSame(m, context.optimistic) ? context.previous : m)) })),
-            });
+            }, context.previous));
         },
         onSuccess: ({ message }, _, context) => {
             queryClient.setQueryData(chatKeys.messages(message.conversationId), (data) => {
                 if (!data) return data;
                 const mine = data.pages.some((p) => p.items.some((m) => isSame(m, context?.optimistic)));
                 if (!mine) return patchMessage(data, message);
-                return { ...data, pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (isSame(m, context.optimistic) ? message : m)) })) };
+                return refreshQuotes({ ...data, pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (isSame(m, context.optimistic) ? message : m)) })) }, message);
             });
             queryClient.invalidateQueries({ queryKey: chatKeys.inbox("all") });
         },
@@ -206,3 +210,32 @@ export const useReportMessage = () => useMutation({ mutationFn: (input) => callA
 
 // { conversationId, contentType, size, width, height } -> { attachmentId, upload: { url, method, headers } }
 export const useCreateChatUpload = () => useMutation({ mutationFn: (input) => callAction(() => createChatUploadAction(input)) });
+
+/**
+ * Returns { toggle({ messageId, emoji }) }: flips my reaction in the cache at once. On failure only that flip is undone (the inverse patch),
+ * so reactions that arrived meanwhile stay; on success the server's list for that message replaces it.
+ */
+export function useToggleReaction(conversationId, meId) {
+    const queryClient = useQueryClient();
+    const key = chatKeys.messages(conversationId);
+    const mutation = useMutation({
+        mutationFn: ({ messageId, emoji }) => callAction(() => toggleReactionAction(withSocket({ messageId, emoji }))),
+        onMutate: async ({ messageId, emoji }) => {
+            await queryClient.cancelQueries({ queryKey: key });
+            const message = queryClient.getQueryData(key)?.pages.flatMap((p) => p.items).find((m) => m.id === messageId);
+            const added = !message?.reactions?.some((r) => r.emoji === emoji && r.userIds.includes(meId));
+            queryClient.setQueryData(key, (data) => patchReaction(data, { messageId, emoji, userId: meId, added }));
+            return { added };
+        },
+        onError: (_, { messageId, emoji }, context) => {
+            if (context) queryClient.setQueryData(key, (data) => patchReaction(data, { messageId, emoji, userId: meId, added: !context.added }));
+        },
+        onSuccess: ({ reactions }, { messageId }) => {
+            queryClient.setQueryData(key, (data) => data && {
+                ...data,
+                pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (m.id === messageId ? { ...m, reactions } : m)) })),
+            });
+        },
+    });
+    return { toggle: mutation.mutate };
+}

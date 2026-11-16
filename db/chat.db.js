@@ -17,11 +17,21 @@ const MESSAGE = `
            COALESCE((SELECT json_agg(CASE WHEN a.kind = 'file'
                                            THEN json_build_object('id', a.public_id, 'kind', 'file', 'name', a.file_name, 'size', a.size_bytes)
                                            ELSE json_build_object('id', a.public_id, 'kind', 'image', 'width', a.width, 'height', a.height) END ORDER BY a.id)
-                     FROM community.chat_attachment a WHERE a.message_id = m.id), '[]'::json) AS attachments
+                     FROM community.chat_attachment a WHERE a.message_id = m.id), '[]'::json) AS attachments,
+           COALESCE((SELECT json_agg(json_build_object('emoji', x.emoji, 'count', x.n, 'userIds', x.users) ORDER BY x.first_at, x.emoji)
+                     FROM (SELECT rx.emoji, count(*)::int AS n, min(rx.created_at) AS first_at, array_agg(rxu.public_id ORDER BY rx.created_at, rx.user_id) AS users
+                           FROM community.chat_reaction rx JOIN identity.users rxu ON rxu.id = rx.user_id
+                           WHERE rx.message_id = m.id GROUP BY rx.emoji) x), '[]'::json) AS reactions,
+           r.public_id AS reply_id, r.body AS reply_body, r.deleted_at IS NOT NULL AS reply_deleted,
+           COALESCE(${NICKNAME("ri")}, ru.username) AS reply_sender_name,
+           (SELECT a.kind FROM community.chat_attachment a WHERE a.message_id = r.id ORDER BY (a.kind = 'image') DESC, a.id LIMIT 1) AS reply_attachment_kind
     FROM community.chat_message m
     JOIN community.conversation c ON c.id = m.conversation_id
     JOIN identity.users u ON u.id = m.sender_id
-    LEFT JOIN profile.info i ON i.user_id = u.id`;
+    LEFT JOIN profile.info i ON i.user_id = u.id
+    LEFT JOIN community.chat_message r ON r.id = m.reply_to_id
+    LEFT JOIN identity.users ru ON ru.id = r.sender_id
+    LEFT JOIN profile.info ri ON ri.user_id = ru.id`;
 
 /** SQL for community.conversation, conversation_member, chat_message and user_block; ids that leave the service are public ids. */
 export const chatDb = {
@@ -117,8 +127,19 @@ export const chatDb = {
     /** Marks the message unsent, drops its attachment rows and returns them as chatMedia attachments. */
     recall: async (client, messageDbId) => {
         await client.query(`UPDATE community.chat_message SET deleted_at = now(), body = '' WHERE id = $1`, [messageDbId]);
+        await client.query(`DELETE FROM community.chat_reaction WHERE message_id = $1`, [messageDbId]);
         return (await client.query(`DELETE FROM community.chat_attachment a WHERE a.message_id = $1 RETURNING ${ATTACHMENT}`, [messageDbId])).rows;
     },
+
+    /** Removes the user's reaction; true when there was one. */
+    removeReaction: async (client, { messageDbId, userDbId, emoji }) => (await client.query(
+        `DELETE FROM community.chat_reaction WHERE message_id = $1 AND user_id = $2 AND emoji = $3`, [messageDbId, userDbId, emoji])).rowCount > 0,
+
+    reactionEmojiCount: async (client, { messageDbId, userDbId }) => (await one(client,
+        `SELECT count(*)::int AS n FROM community.chat_reaction WHERE message_id = $1 AND user_id = $2`, [messageDbId, userDbId])).n,
+
+    addReaction: (client, { messageDbId, userDbId, emoji }) => client.query(
+        `INSERT INTO community.chat_reaction (message_id, user_id, emoji) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, [messageDbId, userDbId, emoji]),
 
     insertAttachment: (client, { publicId, conversationDbId, uploaderDbId, kind, provider, storageKey, contentType, size, fileName, width, height }) => client.query(
         `INSERT INTO community.chat_attachment (public_id, conversation_id, uploader_id, kind, provider, storage_key, content_type, size_bytes, file_name, width, height)
@@ -243,12 +264,16 @@ export const chatDb = {
         `SELECT public_id, conversation_id::text AS conversation_id FROM community.chat_message WHERE sender_id = $1 AND client_id = $2`,
         [senderDbId, clientId]),
 
+    /** The db id of a sent (not unsent) message of this conversation, or null. */
+    replyTarget: async (client, { publicId, conversationDbId }) => (await one(client,
+        `SELECT id::text AS id FROM community.chat_message WHERE public_id = $1 AND conversation_id = $2 AND deleted_at IS NULL`, [publicId, conversationDbId]))?.id ?? null,
+
     /** Inserts the message, moves the conversation's last message and marks it read (and accepted) for the sender; null on a duplicate clientId. */
-    insertMessage: async (client, { publicId, conversationDbId, senderDbId, clientId, body }) => {
+    insertMessage: async (client, { publicId, conversationDbId, senderDbId, clientId, body, replyToDbId = null }) => {
         const row = await one(client,
-            `INSERT INTO community.chat_message (public_id, conversation_id, sender_id, client_id, body) VALUES ($1, $2, $3, $4, $5)
+            `INSERT INTO community.chat_message (public_id, conversation_id, sender_id, client_id, body, reply_to_id) VALUES ($1, $2, $3, $4, $5, $6)
              ON CONFLICT (sender_id, client_id) DO NOTHING RETURNING id, created_at`,
-            [publicId, conversationDbId, senderDbId, clientId, body]);
+            [publicId, conversationDbId, senderDbId, clientId, body, replyToDbId]);
         if (!row) return null;
         await client.query(`UPDATE community.conversation SET last_message_id = $2, last_message_at = $3 WHERE id = $1`, [conversationDbId, row.id, row.created_at]);
         await client.query(
@@ -304,6 +329,20 @@ export const chatDb = {
          FROM identity.users me
          JOIN community.conversation_member cm ON cm.user_id = me.id AND cm.left_at IS NULL
          WHERE me.public_id = $1`, [userId])).rows[0],
+
+    /**
+     * Claims the one "new request" push for a pending, live member: true only for the call that set request_pushed_at.
+     * A block either way with any other member of the conversation, or a declined/accepted state, claims nothing.
+     */
+    markRequestPushed: async ({ userId, conversationId }) => Boolean(await one(null,
+        `UPDATE community.conversation_member cm SET request_pushed_at = now()
+         FROM identity.users me, community.conversation c
+         WHERE me.public_id = $1 AND c.public_id = $2 AND cm.user_id = me.id AND cm.conversation_id = c.id
+           AND cm.state = 'pending' AND cm.left_at IS NULL AND cm.request_pushed_at IS NULL
+           AND NOT EXISTS (SELECT 1 FROM community.conversation_member o
+                           JOIN community.user_block b ON (b.blocker_id = me.id AND b.blocked_id = o.user_id) OR (b.blocker_id = o.user_id AND b.blocked_id = me.id)
+                           WHERE o.conversation_id = c.id AND o.user_id <> me.id)
+         RETURNING cm.user_id`, [userId, conversationId])),
 
     /** Unread (same definition as the inbox) in a conversation the user is an accepted, live member of; the latest unread message supplies the preview. */
     pushSummary: ({ userId, conversationId }) => one(null,

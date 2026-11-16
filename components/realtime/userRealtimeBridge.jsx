@@ -126,7 +126,7 @@ export function UserRealtimeBridge() {
                 queryClient.invalidateQueries({ queryKey: userKeys.notifications() }, { cancelRefetch: false });
             },
 
-            // chat-message, chat-message-updated, chat-read, chat-typing, chat-conversation-updated
+            // chat-message, chat-message-updated, chat-reaction, chat-read, chat-typing, chat-conversation-updated
             [events.CHAT_MESSAGE]: (payload) => {
                 // Outside /messages and in a visible tab only; a later message of the same conversation replaces the toast.
                 const toast = messageToast({ pathname, visible: document.visibilityState === "visible", meId: userId, payload });
@@ -137,6 +137,7 @@ export function UserRealtimeBridge() {
                 return chatHandlers["chat-message"](payload);
             },
             [events.CHAT_MESSAGE_UPDATED]: chatHandlers["chat-message-updated"],
+            [events.CHAT_REACTION]: chatHandlers["chat-reaction"],
             [events.CHAT_READ]: chatHandlers["chat-read"],
             [events.CHAT_TYPING]: chatHandlers["chat-typing"],
             [events.CHAT_CONVERSATION_UPDATED]: chatHandlers["chat-conversation-updated"],
