@@ -66,7 +66,7 @@ describe("MessageBubble image viewer", () => {
         fireEvent.click(triggerOf("Attached image"));
         const dialog = await screen.findByRole("dialog");
         fireEvent.error(dialog.querySelector("img"));
-        expect(screen.getByText("This image could not be loaded")).toBeTruthy();
+        expect(screen.getByText("This image could not be loaded.")).toBeTruthy();
     });
 });
 

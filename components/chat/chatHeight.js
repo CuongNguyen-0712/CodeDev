@@ -1,7 +1,12 @@
-// One height for the chat pane, the inbox column and the messages layout grid. 100dvh follows the
-// browser's dynamic toolbars (not the on-screen keyboard). Subtracted: navbar h-12 (3rem) + the messages
-// layout's top padding (pt-6 = 1.5rem, lg:pt-10 = 2.5rem) + its bottom padding (none below md, md:pb-4 = 1rem).
-// Keep in sync with layout.jsx. Written out in full so Tailwind sees every class.
-export const CHAT_HEIGHT = "h-[calc(100dvh-4.5rem)] md:h-[calc(100dvh-5.5rem)] lg:h-[calc(100dvh-6.5rem)] min-h-96";
-// Layout wrapper padding the height above is derived from.
+// The chat fills the page scroller (#container in homeLayout.jsx), which already starts below the navbar and
+// anything shown under it (the verify-email banner), so no height is subtracted by hand.
+// The messages layout is a flex column at least as tall as the scroller: min-h-full! replaces the shell's
+// min-h-dvh for page roots, which would be too tall by the navbar and the banner.
+export const CHAT_LAYOUT_HEIGHT = "min-h-full!";
+// Layout wrapper padding.
 export const CHAT_LAYOUT_PADDING = "pt-6 md:px-6 md:pb-4 lg:pt-10";
+// The grid takes what the padding leaves. basis-0: the inbox list's length never sizes it; min-h-96: on a
+// very short screen (a phone held sideways) the page scrolls instead of squeezing the pane.
+export const CHAT_GRID_HEIGHT = "min-h-96 grow basis-0";
+// The chat pane and the inbox column fill their grid cell.
+export const CHAT_HEIGHT = "h-full";

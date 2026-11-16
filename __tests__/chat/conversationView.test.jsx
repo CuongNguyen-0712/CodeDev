@@ -60,12 +60,10 @@ describe("ConversationView", () => {
         await screen.findByText("hello 2");
         const pane = container.firstElementChild;
         CHAT_HEIGHT.split(" ").forEach((c) => expect(pane.classList.contains(c)).toBe(true));
-        expect(pane.classList.contains("min-h-96")).toBe(true);
-        expect(CHAT_HEIGHT).toContain("h-[calc(100dvh-4.5rem)]");
-        expect(CHAT_HEIGHT).toContain("md:h-[calc(100dvh-5.5rem)]");
-        expect(CHAT_HEIGHT).toContain("lg:h-[calc(100dvh-6.5rem)]");
+        // It fills its grid cell: no viewport offset that would ignore the verify-email banner (messagesLayout.test.jsx).
+        expect(CHAT_HEIGHT).toBe("h-full");
         expect(CHAT_LAYOUT_PADDING.split(" ")).toEqual(["pt-6", "md:px-6", "md:pb-4", "lg:pt-10"]);
-        expect(pane.className).not.toMatch(/svh/);
+        expect(pane.className).not.toMatch(/vh|calc\(/);
         expect(pane.classList.contains("max-md:rounded-none")).toBe(true);
     });
 
@@ -227,13 +225,40 @@ describe("ConversationView", () => {
             await screen.findByText("hello 2");
             expect(screen.queryByRole("button", { name: /Jump to latest messages/ })).toBeNull();
             await scrollTo_(100);
-            fireEvent.click(await screen.findByRole("button", { name: "Jump to latest messages" }));
+            const jump = await screen.findByRole("button", { name: "Jump to latest messages" });
+            jump.focus();
+            fireEvent.click(jump);
             expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: "smooth" });
-            // Back at the bottom: the button goes.
+            // Back at the bottom: the button goes, and keyboard focus stays on the thread instead of <body>.
             const log = screen.getByRole("log");
             log.scrollTop = 600;
             fireEvent.scroll(log);
             await waitFor(() => expect(screen.queryByRole("button", { name: /Jump to latest messages/ })).toBeNull());
+            expect(document.activeElement).toBe(log);
+        });
+
+        it("hiding the typing bubble on the way up brings a reader near the end back to the bottom", async () => {
+            renderWith(<ConversationView conversationId="cnv_a" />);
+            await screen.findByText("hello 2");
+            act(() => useChatTypingStore.getState().setTyping("cnv_a", "P2"));
+            const log = await screen.findByRole("log");
+            // The in-list bubble adds 60px: 60px from the end with it, at the end without it (no scroll event).
+            Object.defineProperty(log, "scrollHeight", { configurable: true, get: () => (log.querySelector(".animate-typing-dot") ? 1000 : 940) });
+            Object.defineProperty(log, "clientHeight", { configurable: true, value: 400 });
+            log.scrollTop = 540;
+            fireEvent.scroll(log);
+            await waitFor(() => expect(screen.queryByRole("button", { name: /Jump to latest messages/ })).toBeNull());
+            expect(log.querySelectorAll(".animate-typing-dot")).toHaveLength(3);
+        });
+
+        it("a cached message without a readable seq does not break the new-message count", async () => {
+            page = { items: [message(3, "P2"), { ...message(2, "P2"), seq: "not-a-seq" }, message(1, "P1")], nextCursor: null };
+            renderWith(<ConversationView conversationId="cnv_a" />);
+            await screen.findByText("hello 3");
+            await scrollTo_(100);
+            await screen.findByRole("button", { name: "Jump to latest messages" });
+            arrive(4, "P2");
+            expect(await screen.findByRole("button", { name: "Jump to latest messages, 1 new" })).toBeTruthy();
         });
 
         it("jumps instantly under prefers-reduced-motion", async () => {

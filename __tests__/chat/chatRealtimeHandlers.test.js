@@ -132,6 +132,15 @@ describe("revision 3 thread and typing", () => {
         h["chat-message"]({ conversationId: CID, message: msg(2, { sender: { id: "u2" } }) });
         expect(useChatTypingStore.getState().byConversation[CID]?.u2).toBeUndefined();
     });
+    it("a request message (no sender) clears everyone typing in that conversation only", () => {
+        const store = useChatTypingStore.getState();
+        store.setTyping(CID, "u2");
+        store.setTyping(CID, "u3");
+        store.setTyping("cnv_other", "u2");
+        h["chat-message"]({ conversationId: CID, messageId: "msg_2", seq: "2", createdAt: "t1", toRequest: true });
+        expect(selectTypingUsers(useChatTypingStore.getState(), CID)).toEqual([]);
+        expect(selectTypingUsers(useChatTypingStore.getState(), "cnv_other")).toEqual(["u2"]);
+    });
 });
 
 describe("inbox and unread follow events without refetching", () => {

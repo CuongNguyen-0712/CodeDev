@@ -6,7 +6,7 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 
 import { chatKeys } from "@/keys/chat.keys";
 
-import { mergeOutbox } from "@/lib/chat/messageCache";
+import { mergeOutbox, older } from "@/lib/chat/messageCache";
 import { retryTransient } from "@/lib/queryTimes";
 import { useMarkRead } from "@/mutations/chat.mutation";
 import { chatQueries } from "@/queries/chat.query";
@@ -95,7 +95,7 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     // Others' messages newer than what the reader last saw at the bottom.
     const newSinceScroll = useMemo(() => {
         if (!scrolledUp || seenSeq === null) return 0;
-        return serverItems.filter((m) => m.sender?.id !== meId && BigInt(m.seq) > BigInt(seenSeq)).length;
+        return serverItems.filter((m) => m.sender?.id !== meId && older(seenSeq, m.seq)).length;
     }, [scrolledUp, seenSeq, serverItems, meId]);
 
     useLayoutEffect(() => {
@@ -123,10 +123,23 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
         if (atBottom.current) markIfSeen();
     };
 
+    // Scrolling up hides the in-list typing bubble; the thread shrinks with no scroll event and the reader
+    // may be back within BOTTOM_SLACK: measure again, or the jump button stays and nothing is marked read.
+    useLayoutEffect(() => {
+        const el = scroller.current;
+        if (!scrolledUp || !el) return;
+        atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_SLACK;
+        if (!atBottom.current) return;
+        setScrolledUp(false);
+        markIfSeen();
+    }, [scrolledUp, markIfSeen]);
+
     const jumpToLatest = () => {
         const el = scroller.current;
         const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
         el.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" });
+        // The button unmounts at the bottom: keep keyboard focus on the thread, not <body>.
+        el.focus({ preventScroll: true });
     };
 
     // The typing bubble grows the thread: a reader at the bottom stays there.

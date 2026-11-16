@@ -42,7 +42,7 @@ import { Spinner } from "@/components/shadcn/spinner";
 
 import { LuArrowLeft, LuBan, LuEllipsis, LuLogOut, LuPencil, LuUserPlus, LuUserRound, LuUsers } from "react-icons/lu";
 
-// The pane is sized to the viewport (CHAT_HEIGHT) and the thread scrolls inside it, keeping the composer in view.
+// The pane fills the space below the navbar (CHAT_HEIGHT) and the thread scrolls inside it, keeping the composer in view.
 const PANE = `flex ${CHAT_HEIGHT} flex-col overflow-hidden rounded-lg border bg-card max-md:rounded-none max-md:border-x-0 max-md:border-b-0`;
 const CANT_SEND = "You can't send messages in this conversation";
 

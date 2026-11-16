@@ -56,17 +56,18 @@ export function ImageLightbox({ src, alt = "", images, index = 0, label = "View 
     const [open, setOpen] = useState(false);
     const [zoomed, setZoomed] = useState(false);
     const [current, setCurrent] = useState(index);
-    const [failed, setFailed] = useState(() => new Set());
+    // The src that failed; cleared on open and on each move, so a short-lived URL gets another try.
+    const [failedSrc, setFailedSrc] = useState(null);
     const list = images?.length ? images : src ? [{ src, alt }] : [];
     if (!list.length) return children;
     const avatar = variant === "avatar";
     const at = Math.min(Math.max(current, 0), list.length - 1);
     const shown = list[at];
     const many = list.length > 1;
-    const go = (step) => { setCurrent((at + step + list.length) % list.length); setZoomed(false); };
+    const go = (step) => { setCurrent((at + step + list.length) % list.length); setZoomed(false); setFailedSrc(null); };
 
     return (
-        <Dialog open={open} onOpenChange={(next) => { setOpen(next); setZoomed(false); if (next) setCurrent(index); }}>
+        <Dialog open={open} onOpenChange={(next) => { setOpen(next); setZoomed(false); if (next) { setCurrent(index); setFailedSrc(null); } }}>
             <DialogTrigger asChild>
                 <button
                     type="button"
@@ -127,8 +128,8 @@ export function ImageLightbox({ src, alt = "", images, index = 0, label = "View 
                     >
                         {many && navButton("Previous image", LuChevronLeft, () => go(-1), "left-2 sm:left-6")}
                         {many && navButton("Next image", LuChevronRight, () => go(1), "right-2 sm:right-6")}
-                        {failed.has(shown.src) ? (
-                            <p role="alert" className="text-sm text-white/80">This image could not be loaded</p>
+                        {failedSrc === shown.src ? (
+                            <p role="alert" className="text-sm text-white/80">This image could not be loaded.</p>
                         ) : (
                         // Fitted to the screen; a tap shows it at full size to pan around (wide diagrams on phones).
                         <button
@@ -145,7 +146,7 @@ export function ImageLightbox({ src, alt = "", images, index = 0, label = "View 
                                 key={shown.src}
                                 src={shown.src}
                                 alt={shown.alt ?? ""}
-                                onError={() => setFailed((prev) => new Set(prev).add(shown.src))}
+                                onError={() => setFailedSrc(shown.src)}
                                 className={zoomed ? "max-w-none" : "size-full object-contain"}
                             />
                         </button>
@@ -155,7 +156,7 @@ export function ImageLightbox({ src, alt = "", images, index = 0, label = "View 
                         {caption
                             ? <DialogDescription className="text-sm text-white/80">{caption}</DialogDescription>
                             : <DialogDescription className="sr-only">{label}</DialogDescription>}
-                        {many && <p className="text-xs text-white/60">{at + 1} / {list.length}</p>}
+                        {many && <p aria-live="polite" className="text-xs text-white/60">{at + 1} / {list.length}</p>}
                         <p className="text-xs text-white/60">{zoomed ? "Drag to look around. Tap the image to fit it." : "Tap the image to see it at full size."}</p>
                     </div>
                 </DialogContent>

@@ -49,10 +49,29 @@ describe("ImageLightbox gallery", () => {
         expect(screen.queryByText(/ \/ /)).toBeNull();
     });
 
+    it("announces the position politely", async () => {
+        await open({ index: 1 });
+        expect(screen.getByText("2 / 3").getAttribute("aria-live")).toBe("polite");
+    });
+
     it("shows the error text when the image fails to load", async () => {
         const dialog = await open({ index: 0 });
         fireEvent.error(dialog.querySelector("img"));
-        expect(screen.getByText("This image could not be loaded")).toBeTruthy();
+        expect(screen.getByText("This image could not be loaded.")).toBeTruthy();
+    });
+
+    it("tries a failed image again after moving away and back, and after reopening", async () => {
+        const dialog = await open({ index: 0 });
+        fireEvent.error(dialog.querySelector("img"));
+        fireEvent.click(screen.getByRole("button", { name: "Next image" }));
+        fireEvent.click(screen.getByRole("button", { name: "Previous image" }));
+        expect(dialog.querySelector("img").getAttribute("src")).toBe("/a.png");
+        fireEvent.error(dialog.querySelector("img"));
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+        fireEvent.click(screen.getByRole("button", { name: "View larger image" }));
+        const reopened = await screen.findByRole("dialog");
+        expect(screen.queryByText(/could not be loaded/)).toBeNull();
+        expect(reopened.querySelector("img").getAttribute("src")).toBe("/a.png");
     });
 
     it("looks exactly as before for an existing single-image caller", async () => {
