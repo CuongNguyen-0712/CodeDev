@@ -28,3 +28,18 @@ describe("quotes follow their original", () => {
         expect(file.pages[0].items[0].replyTo.preview).toBe("[file]");
     });
 });
+
+describe("the original is not in the cache", () => {
+    const withoutOriginal = () => data([quoted(), msg(5)]);
+
+    it("unsend still blanks the quote", () => {
+        const after = patchMessage(withoutOriginal(), msg(3, { deleted: true, body: "", attachments: [] }));
+        expect(after.pages[0].items[0].replyTo).toMatchObject({ preview: null, deleted: true });
+        expect(after.pages[0].items).toHaveLength(2);
+    });
+
+    it("edit still refreshes the quote", () => {
+        const after = patchMessage(withoutOriginal(), msg(3, { body: "new text", editedAt: "2026-11-11T10:05:00Z" }));
+        expect(after.pages[0].items[0].replyTo).toMatchObject({ preview: "new text", deleted: false });
+    });
+});
