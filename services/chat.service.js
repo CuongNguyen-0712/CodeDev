@@ -443,6 +443,9 @@ export const chatService = {
             const mine = members.find((m) => m.public_id === userId && !m.left_at);
             if (!mine) throw new ApiError("Message not found", 404);
             if (mine.state !== "accepted") throw refused();
+            // A block either way silences a direct chat, as it does sending; only the block clause of sendRefused applies.
+            const other = conversation.kind === "direct" ? members.find((m) => m !== mine) : null;
+            if (other && await chatDb.isBlocked(client, mine.user_id, other.user_id)) throw refused();
             // Re-read under the lock: an unsend may have committed while we waited.
             const ref = await chatDb.messageRef(client, { messageId, windowMs: 0 });
             if (ref.deleted) throw new ApiError("This message was unsent", 409);

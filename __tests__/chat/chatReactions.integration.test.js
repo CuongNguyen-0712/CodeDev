@@ -98,4 +98,12 @@ describe.skipIf(!hasDb)("chat reactions (PostgreSQL)", () => {
         const listed = await chatService.listMessages({ userId: a, conversationId });
         expect(listed.items.find((m) => m.id === messageId).reactions).toEqual(expected);
     });
+
+    it("a block between the two members refuses reactions in both directions", async () => {
+        const { a, b, messageId } = await setup();
+        await chatService.block({ userId: a, targetId: b });
+        await expect(toggle(b, messageId, "👍")).rejects.toMatchObject({ status: 403 });
+        await expect(toggle(a, messageId, "👍")).rejects.toMatchObject({ status: 403 });
+        expect(await rowCount(messageId)).toBe(0);
+    });
 });
