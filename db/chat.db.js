@@ -18,6 +18,10 @@ const MESSAGE = `
                                            THEN json_build_object('id', a.public_id, 'kind', 'file', 'name', a.file_name, 'size', a.size_bytes)
                                            ELSE json_build_object('id', a.public_id, 'kind', 'image', 'width', a.width, 'height', a.height) END ORDER BY a.id)
                      FROM community.chat_attachment a WHERE a.message_id = m.id), '[]'::json) AS attachments,
+           COALESCE((SELECT json_agg(json_build_object('emoji', x.emoji, 'count', x.n, 'userIds', x.users) ORDER BY x.first_at, x.emoji)
+                     FROM (SELECT rx.emoji, count(*)::int AS n, min(rx.created_at) AS first_at, array_agg(rxu.public_id ORDER BY rx.created_at, rx.user_id) AS users
+                           FROM community.chat_reaction rx JOIN identity.users rxu ON rxu.id = rx.user_id
+                           WHERE rx.message_id = m.id GROUP BY rx.emoji) x), '[]'::json) AS reactions,
            r.public_id AS reply_id, r.body AS reply_body, r.deleted_at IS NOT NULL AS reply_deleted,
            COALESCE(${NICKNAME("ri")}, ru.username) AS reply_sender_name,
            (SELECT a.kind FROM community.chat_attachment a WHERE a.message_id = r.id ORDER BY (a.kind = 'image') DESC, a.id LIMIT 1) AS reply_attachment_kind
@@ -123,8 +127,19 @@ export const chatDb = {
     /** Marks the message unsent, drops its attachment rows and returns them as chatMedia attachments. */
     recall: async (client, messageDbId) => {
         await client.query(`UPDATE community.chat_message SET deleted_at = now(), body = '' WHERE id = $1`, [messageDbId]);
+        await client.query(`DELETE FROM community.chat_reaction WHERE message_id = $1`, [messageDbId]);
         return (await client.query(`DELETE FROM community.chat_attachment a WHERE a.message_id = $1 RETURNING ${ATTACHMENT}`, [messageDbId])).rows;
     },
+
+    /** Removes the user's reaction; true when there was one. */
+    removeReaction: async (client, { messageDbId, userDbId, emoji }) => (await client.query(
+        `DELETE FROM community.chat_reaction WHERE message_id = $1 AND user_id = $2 AND emoji = $3`, [messageDbId, userDbId, emoji])).rowCount > 0,
+
+    reactionEmojiCount: async (client, { messageDbId, userDbId }) => (await one(client,
+        `SELECT count(*)::int AS n FROM community.chat_reaction WHERE message_id = $1 AND user_id = $2`, [messageDbId, userDbId])).n,
+
+    addReaction: (client, { messageDbId, userDbId, emoji }) => client.query(
+        `INSERT INTO community.chat_reaction (message_id, user_id, emoji) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, [messageDbId, userDbId, emoji]),
 
     insertAttachment: (client, { publicId, conversationDbId, uploaderDbId, kind, provider, storageKey, contentType, size, fileName, width, height }) => client.query(
         `INSERT INTO community.chat_attachment (public_id, conversation_id, uploader_id, kind, provider, storage_key, content_type, size_bytes, file_name, width, height)

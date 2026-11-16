@@ -158,3 +158,11 @@ describe("chatRealtime", () => {
         await expect(svc.afterSend({ message: msg("hi"), recipients }, { socketId: null })).resolves.toBe(false);
     });
 });
+
+describe("chatRealtime.reactionChanged", () => {
+    it("chat-reaction goes to accepted members except the sender's socket", async () => {
+        await chatRealtime.reactionChanged({ conversationId: "cnv_1", messageId: "msg_1", emoji: "👍", userId: "u_b", added: true, members: ["u_a", "u_b"], socketId: "1.2" });
+        expect(publish).toHaveBeenCalledWith(["private-user-u_a", "private-user-u_b"], "chat-reaction",
+            { conversationId: "cnv_1", messageId: "msg_1", emoji: "👍", userId: "u_b", added: true }, { socketId: "1.2" });
+    });
+});

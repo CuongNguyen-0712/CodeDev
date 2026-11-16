@@ -64,6 +64,10 @@ export const chatRealtime = {
         return send([...recipients.map((r) => r.publicId), senderId], events.CHAT_MESSAGE_UPDATED, payload, socketId);
     },
 
+    /** A reaction was added or removed; every accepted member gets it, minus the toggling tab's socket. */
+    reactionChanged: ({ conversationId, messageId, emoji, userId, added, members, socketId }) =>
+        send(members, events.CHAT_REACTION, { conversationId, messageId, emoji, userId, added }, socketId),
+
     // `others` is empty for a pending reader, so no receipt leaks. The reader's own channel is added so
     // their other tabs and devices clear the row and the badge.
     read: ({ conversationId, userId, seq, others }) =>
@@ -98,6 +102,9 @@ export function installChatRealtime(chatService) {
 
     chatService.afterUpdate = ({ message, preview, recipients }, { socketId } = {}) =>
         chatRealtime.messageUpdated({ message, preview, recipients, senderId: message.sender.id, socketId });
+
+    chatService.afterReaction = ({ conversationId, messageId, emoji, userId, added, members }, { socketId } = {}) =>
+        chatRealtime.reactionChanged({ conversationId, messageId, emoji, userId, added, members, socketId });
 
     chatService.afterRead = ({ conversationId, userId, lastReadSeq, others }) =>
         chatRealtime.read({ conversationId, userId, seq: lastReadSeq, others });

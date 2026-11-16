@@ -4,6 +4,7 @@ import { rateLimiters } from "@/lib/rateLimit";
 import { runAction } from "@/lib/serverAction";
 import {
     chatReportSchema, editMessageSchema, markReadSchema, parseChat, recallSchema,
+    toggleReactionSchema,
     respondSchema, sendMessageSchema, targetSchema, typingSchema, uploadSchema,
 } from "@/lib/validation/chat";
 import { chatService } from "@/services/chat.service";
@@ -34,6 +35,14 @@ export async function recallMessageAction(input) {
         const { messageId, socketId } = parseChat(recallSchema, asObject(input, "messageId"));
         return { message: (await chatService.recallMessage({ userId, messageId, socketId })).message };
     }, { limiter: rateLimiters.chatSend, context: "recallMessageAction" });
+}
+
+// Add or remove your reaction: { messageId, emoji, socketId? } -> { added, reactions }.
+export async function toggleReactionAction(input) {
+    return runAction(
+        async ({ userId }) => chatService.toggleReaction({ userId, ...parseChat(toggleReactionSchema, input) }),
+        { limiter: rateLimiters.chatSend, context: "toggleReactionAction" }
+    );
 }
 
 // Mark read up to a message: { conversationId, seq }.
