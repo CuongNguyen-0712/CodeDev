@@ -7,15 +7,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/actions/chat.actions", () => ({
     sendMessageAction: vi.fn(), editMessageAction: vi.fn(), recallMessageAction: vi.fn(), markReadAction: vi.fn(),
     typingAction: vi.fn(), respondRequestAction: vi.fn(), createChatUploadAction: vi.fn(), blockUserAction: vi.fn(),
-    unblockUserAction: vi.fn(), reportMessageAction: vi.fn(),
+    unblockUserAction: vi.fn(), reportMessageAction: vi.fn(), toggleReactionAction: vi.fn(),
 }));
 vi.mock("@/lib/actionResult", () => ({ callAction: (run) => run() }));
 vi.mock("@/lib/pusherClient", () => ({ getPusherClient: () => null, isPusherConnected: () => false }));
 
-import { editMessageAction, markReadAction, recallMessageAction, sendMessageAction, typingAction } from "@/actions/chat.actions";
+import { editMessageAction, markReadAction, recallMessageAction, sendMessageAction, toggleReactionAction, typingAction } from "@/actions/chat.actions";
 import { chatKeys } from "@/keys/chat.keys";
-import { insertMessage, mergeOutbox, patchMessage } from "@/lib/chat/messageCache";
-import { useEditMessage, useMarkRead, useRecallMessage, useSendMessage, useTypingPing } from "@/mutations/chat.mutation";
+import { insertMessage, mergeOutbox, patchMessage, patchReaction } from "@/lib/chat/messageCache";
+import { useEditMessage, useMarkRead, useRecallMessage, useSendMessage, useToggleReaction, useTypingPing } from "@/mutations/chat.mutation";
 import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 
 const CID = "cnv_1";
@@ -253,5 +253,33 @@ describe("useMarkRead", () => {
         const { result } = renderHook(() => useMarkRead(), { wrapper });
         act(() => { result.current(CID, "2"); });
         await waitFor(() => expect(spy).toHaveBeenCalledWith({ queryKey: chatKeys.unread() }), { timeout: 3000 });
+    });
+});
+
+describe("reply and reaction data", () => {
+    it("a failed reply resent from the outbox keeps replyToId", async () => {
+        sendMessageAction.mockRejectedValueOnce(new Error("offline"));
+        const { result } = renderHook(() => useSendMessage(CID), { wrapper });
+        const replyTo = { id: "msg_1", senderName: "A", preview: "hi", deleted: false };
+        await act(async () => { await result.current.mutateAsync({ clientId: "k1", body: "re", sender: { id: "u1" }, replyToId: "msg_1", replyTo }).catch(() => { }); });
+        expect(sendMessageAction.mock.calls[0][0].replyToId).toBe("msg_1");
+        expect(outbox()[0]).toMatchObject({ status: "failed", replyToId: "msg_1", replyTo });
+
+        sendMessageAction.mockResolvedValueOnce({ message: server(2, { clientId: "k1" }) });
+        await act(async () => { await result.current.mutateAsync({ clientId: "k1", body: "re", sender: { id: "u1" } }); }); // a retry that only knows the clientId
+        expect(sendMessageAction.mock.calls[1][0].replyToId).toBe("msg_1");
+    });
+
+    it("optimistic toggle rolls back only its own change on error", async () => {
+        qc.setQueryData(chatKeys.messages(CID), pagesOf(server(1, { reactions: [{ emoji: "👍", count: 1, userIds: ["u2"] }] })));
+        let fail;
+        toggleReactionAction.mockReturnValueOnce(new Promise((_, r) => { fail = r; }));
+        const { result } = renderHook(() => useToggleReaction(CID, "u1"), { wrapper });
+        act(() => { result.current.toggle({ messageId: "msg_1", emoji: "👍" }); });
+        await waitFor(() => expect(cached()[0].reactions[0]).toEqual({ emoji: "👍", count: 2, userIds: ["u2", "u1"] }));
+        // Meanwhile someone else reacts: the rollback must keep that.
+        qc.setQueryData(chatKeys.messages(CID), (d) => patchReaction(d, { messageId: "msg_1", emoji: "❤️", userId: "u3", added: true }));
+        await act(async () => { fail(new Error("nope")); });
+        await waitFor(() => expect(cached()[0].reactions).toEqual([{ emoji: "👍", count: 1, userIds: ["u2"] }, { emoji: "❤️", count: 1, userIds: ["u3"] }]));
     });
 });

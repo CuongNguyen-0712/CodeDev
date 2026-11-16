@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { insertMessage, mergeOutbox, optimisticMessage, patchMessage } from "@/lib/chat/messageCache";
+import { insertMessage, mergeOutbox, optimisticMessage, patchMessage, patchReaction } from "@/lib/chat/messageCache";
 
 const msg = (seq, extra = {}) => ({ id: `msg_${seq}`, seq: String(seq), clientId: `c${seq}`, body: `m${seq}`, ...extra });
 const data = (...pages) => ({ pages: pages.map((items) => ({ items, nextCursor: null })), pageParams: pages.map(() => undefined) });
@@ -95,5 +95,31 @@ describe("patchMessage stale guards", () => {
         expect(patchMessage(before, msg(1, { deleted: false, editedAt: "2026-01-01T00:00:00Z", body: "older" }))).toBe(before);
         const after = patchMessage(before, msg(1, { deleted: false, editedAt: "2026-01-03T00:00:00Z", body: "newer" }));
         expect(after.pages[0].items[0].body).toBe("newer");
+    });
+});
+
+describe("patchReaction", () => {
+    const withReactions = (reactions) => data([msg(1, { reactions }), msg(2, { reactions: [] })]);
+    const first = (d) => d.pages[0].items[0].reactions;
+    const base = [{ emoji: "👍", count: 1, userIds: ["u1"] }, { emoji: "❤️", count: 1, userIds: ["u2"] }];
+
+    it("adds, removes, never goes below zero and ignores a repeated event", () => {
+        let d = withReactions(base);
+        d = patchReaction(d, { messageId: "msg_1", emoji: "👍", userId: "u3", added: true });
+        expect(first(d)[0]).toEqual({ emoji: "👍", count: 2, userIds: ["u1", "u3"] });
+        expect(patchReaction(d, { messageId: "msg_1", emoji: "👍", userId: "u3", added: true })).toBe(d); // repeated add
+        d = patchReaction(d, { messageId: "msg_1", emoji: "👍", userId: "u1", added: false });
+        expect(first(d)[0]).toEqual({ emoji: "👍", count: 1, userIds: ["u3"] });
+        d = patchReaction(d, { messageId: "msg_1", emoji: "👍", userId: "u3", added: false });
+        expect(first(d).map((r) => r.emoji)).toEqual(["❤️"]); // entry dropped at 0, order kept
+        expect(patchReaction(d, { messageId: "msg_1", emoji: "👍", userId: "u3", added: false })).toBe(d); // repeated remove
+        d = patchReaction(d, { messageId: "msg_1", emoji: "😂", userId: "u1", added: true });
+        expect(first(d).map((r) => r.emoji)).toEqual(["❤️", "😂"]); // new emoji goes last
+    });
+
+    it("leaves an unknown message and an empty cache alone", () => {
+        const d = withReactions(base);
+        expect(patchReaction(d, { messageId: "msg_9", emoji: "👍", userId: "u3", added: true })).toBe(d);
+        expect(patchReaction(undefined, { messageId: "msg_1", emoji: "👍", userId: "u3", added: true })).toBeUndefined();
     });
 });

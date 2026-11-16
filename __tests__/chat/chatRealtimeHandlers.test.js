@@ -249,3 +249,16 @@ describe("inbox and unread follow events without refetching", () => {
         expect(invalidated(spy)).toEqual(expect.arrayContaining([chatKeys.inbox("all"), chatKeys.inbox("requests"), chatKeys.unread()]));
     });
 });
+
+describe("chat-reaction", () => {
+    it("patches the loaded message and ignores unknown messages", () => {
+        seedMessages([msg(1, { reactions: [] })]);
+        h["chat-reaction"]({ conversationId: CID, messageId: "msg_1", emoji: "👍", userId: "u2", added: true });
+        expect(qc.getQueryData(chatKeys.messages(CID)).pages[0].items[0].reactions).toEqual([{ emoji: "👍", count: 1, userIds: ["u2"] }]);
+        const before = qc.getQueryData(chatKeys.messages(CID));
+        h["chat-reaction"]({ conversationId: CID, messageId: "msg_404", emoji: "👍", userId: "u2", added: true });
+        h["chat-reaction"]({ conversationId: "cnv_other", messageId: "msg_1", emoji: "👍", userId: "u2", added: true });
+        expect(qc.getQueryData(chatKeys.messages(CID))).toBe(before);
+        expect(qc.getQueryData(chatKeys.messages("cnv_other"))).toBeUndefined();
+    });
+});
