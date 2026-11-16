@@ -9,7 +9,7 @@ import { chatKeys } from "@/keys/chat.keys";
 import { callAction } from "@/lib/actionResult";
 import { READ_DEBOUNCE_MS, TYPING_THROTTLE_MS } from "@/lib/chat/limits";
 import { lowerBadge, markRowRead } from "@/lib/chat/inboxCache";
-import { insertMessage, optimisticMessage, patchMessage, patchReaction } from "@/lib/chat/messageCache";
+import { insertMessage, optimisticMessage, patchMessage, patchReaction, refreshQuotes } from "@/lib/chat/messageCache";
 import { getPusherClient } from "@/lib/pusherClient";
 import { useChatOutboxStore } from "@/stores/chatOutboxStore";
 
@@ -83,22 +83,24 @@ function useMessageWrite(action, change) {
             }));
             // What the cache really holds, to recognise it later.
             const optimistic = queryClient.getQueryData(key)?.pages.flatMap((p) => p.items).find((m) => m.id === variables.messageId) ?? null;
+            // Replies that quote it follow (and follow the rollback below).
+            if (optimistic) queryClient.setQueryData(key, (data) => refreshQuotes(data, optimistic));
             return { key, previous, optimistic };
         },
         // Touch only the cached message that is still our optimistic object: a realtime update that landed meanwhile stays.
         onError: (_, __, context) => {
             if (!context?.previous || !context.optimistic) return;
-            queryClient.setQueryData(context.key, (data) => data && {
+            queryClient.setQueryData(context.key, (data) => data && refreshQuotes({
                 ...data,
                 pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (isSame(m, context.optimistic) ? context.previous : m)) })),
-            });
+            }, context.previous));
         },
         onSuccess: ({ message }, _, context) => {
             queryClient.setQueryData(chatKeys.messages(message.conversationId), (data) => {
                 if (!data) return data;
                 const mine = data.pages.some((p) => p.items.some((m) => isSame(m, context?.optimistic)));
                 if (!mine) return patchMessage(data, message);
-                return { ...data, pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (isSame(m, context.optimistic) ? message : m)) })) };
+                return refreshQuotes({ ...data, pages: data.pages.map((page) => ({ ...page, items: page.items.map((m) => (isSame(m, context.optimistic) ? message : m)) })) }, message);
             });
             queryClient.invalidateQueries({ queryKey: chatKeys.inbox("all") });
         },
