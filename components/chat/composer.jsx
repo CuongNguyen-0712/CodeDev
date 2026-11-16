@@ -169,7 +169,9 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
     };
 
     return (
-        <form onSubmit={submit} className="flex flex-col gap-2 rounded-lg border bg-card p-3 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+        // A filled pill, not a framed card: no border at rest, a quiet one on focus. Its controls are all 36px
+        // tall and bottom-aligned, so one line of text sits on their centre line and longer text grows upward.
+        <form onSubmit={submit} className="flex flex-col gap-2 rounded-3xl border border-transparent bg-muted p-1.5 transition-colors focus-within:border-ring/40 focus-within:bg-background dark:bg-accent dark:focus-within:bg-accent">
             {images.length > 0 && (
                 <ul className="m-0 flex list-none flex-wrap gap-2 p-0" aria-label="Attachments to send">
                     {images.map((image) => (image.kind === "file" ? (
@@ -209,15 +211,15 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
                     )))}
                 </ul>
             )}
-            <div className="flex items-end gap-2">
+            <div className="flex items-end gap-1">
                 {imagesAllowed && (
                     <>
                         <input ref={fileRef} type="file" accept={ATTACHMENT_ACCEPT} multiple hidden onChange={pick} />
                         <Button
                             type="button"
                             variant="ghost"
-                            size="icon-sm"
-                            className="text-muted-foreground"
+                            size="icon"
+                            className="shrink-0 rounded-full text-muted-foreground hover:bg-background hover:text-foreground dark:hover:bg-card"
                             onClick={() => fileRef.current?.click()}
                             disabled={images.length >= MAX_ATTACHMENTS}
                             aria-label="Attach files"
@@ -243,15 +245,16 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
                     placeholder="Write a message"
                     aria-label="Message"
                     aria-describedby={error ? `${inputId}-error` : undefined}
-                    // Grows with the text from one line; max-h-36 is about six lines of text-sm, then it scrolls.
-                    className="min-h-0 max-h-36 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 shadow-none focus-visible:ring-0 dark:bg-transparent"
+                    // Grows with the text from one line (36px: 20px line + 8px top and bottom, the buttons' height);
+                    // max-h-36 is about six lines of text-sm, then it scrolls.
+                    className="min-h-9 max-h-36 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1.5 py-2 text-sm leading-5 shadow-none placeholder:text-muted-foreground focus-visible:ring-0 md:text-sm dark:bg-transparent"
                 />
-                <Button type="submit" size="icon" disabled={!canSend} aria-label="Send">
+                <Button type="submit" size="icon" disabled={!canSend} aria-label="Send" className="shrink-0 rounded-full disabled:bg-transparent disabled:text-muted-foreground disabled:opacity-100">
                     {pending ? <Spinner /> : <LuSendHorizontal aria-hidden="true" />}
                 </Button>
             </div>
             {(error || showCounter) && (
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start justify-between gap-3 px-3 pb-1">
                     {error ? <p id={`${inputId}-error`} role="alert" className="text-xs text-destructive">{error}</p> : <span />}
                     {/* The counter only matters near the limit. */}
                     {showCounter && <span className="text-xs text-muted-foreground tabular-nums">{`${body.length}/${MAX_BODY}`}</span>}

@@ -62,7 +62,7 @@ describe("ConversationView", () => {
         CHAT_HEIGHT.split(" ").forEach((c) => expect(pane.classList.contains(c)).toBe(true));
         // It fills its grid cell: no viewport offset that would ignore the verify-email banner (messagesLayout.test.jsx).
         expect(CHAT_HEIGHT).toBe("h-full");
-        expect(CHAT_LAYOUT_PADDING.split(" ")).toEqual(["pt-6", "md:px-6", "md:pb-4", "lg:pt-10"]);
+        expect(CHAT_LAYOUT_PADDING.split(" ")).toEqual(["md:p-4", "lg:px-6", "lg:pt-10"]);
         expect(pane.className).not.toMatch(/vh|calc\(/);
         expect(pane.classList.contains("max-md:rounded-none")).toBe(true);
     });

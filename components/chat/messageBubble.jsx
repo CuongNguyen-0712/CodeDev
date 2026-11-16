@@ -94,7 +94,7 @@ function EditForm({ message, onSave, onCancel }) {
  * One message. Mine sit on the right with their send state (sending / failed / ✓ / ✓✓); `others` are the
  * other members (for ✓✓). `failure`: { message, retryable } for a failed send, when known.
  */
-export default function MessageBubble({ message, mine = false, others, showSender = false, failure, onRetry, onDiscard, onEdit, onUnsend, onReport }) {
+export default function MessageBubble({ message, mine = false, others, showSender = false, groupStart = true, groupEnd = true, failure, onRetry, onDiscard, onEdit, onUnsend, onReport }) {
     const [editing, setEditing] = useState(false);
     const [openedAt, setOpenedAt] = useState(0);
     const [confirmUnsend, setConfirmUnsend] = useState(false);
@@ -118,10 +118,16 @@ export default function MessageBubble({ message, mine = false, others, showSende
     );
 
     return (
-        <li className={cn("flex items-end gap-2", mine && "flex-row-reverse")}>
-            {!mine && <UserAvatar name={nameOf(message.sender)} image={message.sender?.image} className="size-8" />}
+        // A group (messageGroups.js) shows the name once at its top and the avatar and time once at its foot;
+        // the avatar sits beside the last bubble, not beside the time under it. Name and time line up with the
+        // bubble's text: 32px avatar + 8px gap + the bubble's 12px padding = pl-13.
+        <li className={cn("group/msg flex flex-col", mine ? "items-end" : "items-start", groupStart ? "mt-4 first:mt-0" : "mt-0.5")}>
+            {showSender && !mine && groupStart && <span className="mb-1 pl-13 text-xs text-muted-foreground">{nameOf(message.sender)}</span>}
+            <div className={cn("flex w-full items-end gap-2", mine && "flex-row-reverse")}>
+            {!mine && (groupEnd
+                ? <UserAvatar name={nameOf(message.sender)} image={message.sender?.image} className="size-8" />
+                : <span aria-hidden="true" className="size-8 shrink-0" />)}
             <div className={cn("flex max-w-[85%] min-w-0 flex-col gap-1 sm:max-w-[75%]", mine ? "items-end" : "items-start")}>
-                {showSender && !mine && <span className="px-1 text-xs text-muted-foreground">{nameOf(message.sender)}</span>}
                 <div className={cn("flex min-w-0 max-w-full items-center gap-1", mine && "flex-row-reverse")}>
                     {editing ? (
                         <EditForm message={message} onSave={(body) => onEdit(message, body)} onCancel={() => setEditing(false)} />
@@ -178,7 +184,8 @@ export default function MessageBubble({ message, mine = false, others, showSende
                                     : <a key={a.id} href={`/api/chat/attachments/${a.id}`} download aria-label={`Download ${a.name}, ${size}`} className={card}>{inner}</a>;
                             })}
                             {message.body && (
-                                <div className={cn("min-w-0 max-w-full rounded-2xl px-3 py-2", mine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground")}>
+                                // dark:bg-accent: muted is almost the card colour in dark mode, so the bubble disappeared.
+                                <div className={cn("min-w-0 max-w-full rounded-2xl px-3 py-2", mine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground dark:bg-accent")}>
                                     <MessageBody body={message.body} />
                                 </div>
                             )}
@@ -186,8 +193,9 @@ export default function MessageBubble({ message, mine = false, others, showSende
                     )}
                     {hasMenu && !editing && (
                         <DropdownMenu onOpenChange={(open) => open && setOpenedAt(Date.now())}>
+                            {/* The trigger shows on hover or focus of the row; always where there is no hover (touch). */}
                             <DropdownMenuTrigger asChild>
-                                <Button size="icon-sm" variant="ghost" className="shrink-0 text-muted-foreground data-[state=open]:bg-accent" aria-label={`More actions for ${nameOf(message.sender)}`}>
+                                <Button size="icon-sm" variant="ghost" className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/msg:opacity-100 focus-visible:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100" aria-label={`More actions for ${nameOf(message.sender)}`}>
                                     <LuEllipsis />
                                 </Button>
                             </DropdownMenuTrigger>
@@ -207,12 +215,16 @@ export default function MessageBubble({ message, mine = false, others, showSende
                         </DropdownMenu>
                     )}
                 </div>
-                <p className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
+            </div>
+            </div>
+            {/* The time once per group; a message being sent, failed or edited keeps its own line. */}
+            {(groupEnd || failure || message.status === "sending" || (message.editedAt && !message.deleted)) && (
+                <p className={cn("mt-1 flex items-center gap-1.5 text-xs text-muted-foreground", mine ? "pr-3" : "pl-13")}>
                     {message.createdAt && <time dateTime={message.createdAt}>{formatRelative(message.createdAt)}</time>}
                     {message.editedAt && !message.deleted && <span>edited</span>}
                     {mine && !message.deleted && <Status message={message} others={others} failure={failure} onRetry={onRetry} onDiscard={onDiscard} />}
                 </p>
-            </div>
+            )}
 
             <AlertDialog open={confirmUnsend} onOpenChange={setConfirmUnsend}>
                 <AlertDialogContent>

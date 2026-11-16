@@ -43,7 +43,8 @@ import { Spinner } from "@/components/shadcn/spinner";
 import { LuArrowLeft, LuBan, LuEllipsis, LuLogOut, LuPencil, LuUserPlus, LuUserRound, LuUsers } from "react-icons/lu";
 
 // The pane fills the space below the navbar (CHAT_HEIGHT) and the thread scrolls inside it, keeping the composer in view.
-const PANE = `flex ${CHAT_HEIGHT} flex-col overflow-hidden rounded-lg border bg-card max-md:rounded-none max-md:border-x-0 max-md:border-b-0`;
+// Phones: edge to edge with no border; the navbar's bottom line is the pane's top (a border here doubled it).
+const PANE = `flex ${CHAT_HEIGHT} flex-col overflow-hidden rounded-lg border bg-card max-md:rounded-none max-md:border-0`;
 const CANT_SEND = "You can't send messages in this conversation";
 
 function ThreadHeader({ name, image, subtitle, team = false, children }) {
@@ -251,7 +252,7 @@ export default function ConversationView({ conversationId }) {
                 </div>
             )}
             <MessageList conversation={conversation} meId={meId} failures={failures} {...handlers} />
-            <div className="flex flex-col gap-1 border-t px-3 pt-3 pb-3">
+            <div className="flex flex-col gap-1 px-3 pt-2 pb-3">
                 {conversation.canSend
                     ? <Composer conversationId={conversationId} imagesAllowed={!isRequest} optimistic onSubmit={onSubmit} />
                     : <CantSend />}
@@ -295,7 +296,7 @@ export function NewConversationView({ recipient }) {
         <div className={PANE}>
             <ThreadHeader name={name} image={recipient.image} subtitle={`@${recipient.username}`} />
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4"><EmptyThread /></div>
-            <div className="border-t p-3">
+            <div className="px-3 pt-2 pb-3">
                 <Composer onSubmit={onSubmit} />
             </div>
         </div>

@@ -12,6 +12,7 @@ import { useMarkRead } from "@/mutations/chat.mutation";
 import { chatQueries } from "@/queries/chat.query";
 import { selectUnsent, useChatOutboxStore } from "@/stores/chatOutboxStore";
 
+import { groupFlags } from "@/components/chat/messageGroups";
 import MessageBubble from "@/components/chat/messageBubble";
 import TypingLine from "@/components/chat/typingLine";
 import { ErrorReload } from "@/components/ui/error";
@@ -79,6 +80,7 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     const serverItems = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
     // Newest first in the cache; the thread reads top to bottom.
     const items = useMemo(() => [...mergeOutbox(serverItems, unsent)].reverse(), [serverItems, unsent]);
+    const groups = useMemo(() => groupFlags(items), [items]);
     const others = useMemo(() => conversation.members.filter((m) => m.id !== meId), [conversation.members, meId]);
     // Server items only: an unsent message has no seq.
     const newestSeq = serverItems[0]?.seq ?? null;
@@ -168,11 +170,12 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
                 </div>
             )}
             {items.length === 0 ? <EmptyThread /> : (
-                <ul className="m-0 mt-auto flex list-none flex-col gap-3 p-0">
-                    {items.map((message) => (
+                <ul className="m-0 mt-auto flex list-none flex-col p-0">
+                    {items.map((message, index) => (
                         <MessageBubble
                             key={message.clientId || message.id}
                             message={message}
+                            {...groups[index]}
                             mine={message.sender?.id === meId}
                             others={others}
                             showSender={conversation.kind === "team"}

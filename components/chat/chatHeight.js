@@ -3,8 +3,9 @@
 // The messages layout is a flex column at least as tall as the scroller: min-h-full! replaces the shell's
 // min-h-dvh for page roots, which would be too tall by the navbar and the banner.
 export const CHAT_LAYOUT_HEIGHT = "min-h-full!";
-// Layout wrapper padding.
-export const CHAT_LAYOUT_PADDING = "pt-6 md:px-6 md:pb-4 lg:pt-10";
+// Layout wrapper padding. Phones: none, the pane starts right under the navbar (it is full-bleed there).
+// Tablets: a 16px frame. Desktop: the shell's page spacing.
+export const CHAT_LAYOUT_PADDING = "md:p-4 lg:px-6 lg:pt-10";
 // The grid takes what the padding leaves. basis-0: the inbox list's length never sizes it; min-h-96: on a
 // very short screen (a phone held sideways) the page scrolls instead of squeezing the pane.
 // grid-rows-[minmax(0,1fr)]: the one row is exactly the grid's height; an implicit `auto` row would grow to

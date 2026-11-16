@@ -514,6 +514,11 @@
         animation: chat-typing 1.2s ease-in-out infinite;
     }
 
+    /* Typing avatars (typingLine.jsx): a slow 2px bob, staggered per typer. */
+    .animate-typing-avatar {
+        animation: chat-typing-avatar 1.6s ease-in-out infinite;
+    }
+
     /* Page sections (layouts set .page-enter): each top-level block of a page rises in turn. */
     .page-enter > :not(footer) > * {
         animation: cd-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
@@ -552,6 +557,15 @@
     from {
         opacity: 0;
         transform: translateY(8px);
+    }
+}
+
+@keyframes chat-typing-avatar {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-2px);
     }
 }
 

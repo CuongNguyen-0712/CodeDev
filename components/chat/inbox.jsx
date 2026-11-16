@@ -108,7 +108,8 @@ export default function Inbox({ activeId }) {
     const requests = useQuery({ ...chatQueries.unread(), enabled: status === 'authenticated' }).data?.requests ?? 0;
 
     return (
-        <div className={`flex min-w-0 flex-col gap-4 max-md:px-4 ${CHAT_HEIGHT}`}>
+        // Phones: the layout has no padding (the pane runs edge to edge), so the inbox keeps its own.
+        <div className={`flex min-w-0 flex-col gap-4 max-md:px-4 max-md:pt-4 max-md:pb-2 ${CHAT_HEIGHT}`}>
             <Button type="button" variant="outline" size="sm" className="shrink-0 self-start" onClick={() => setCreating(true)}>
                 <LuUsers aria-hidden="true" />New team
             </Button>
