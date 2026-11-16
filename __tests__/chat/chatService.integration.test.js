@@ -272,6 +272,61 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
         expect(await chatService.findDirectConversationId({ userId: a, toUserId: 42 })).toBeNull();
         expect(await chatService.findDirectConversationId({ userId: a, toUserId: a })).toBeNull();
     });
+    describe("quoted replies", () => {
+        const friendsConv = async () => {
+            const [a, b] = await pair();
+            await befriend(a, b);
+            return [a, b, (await send(a, b, "first")).conversation.id];
+        };
+
+        it("a reply carries replyTo with the original's sender and preview", async () => {
+            const [a, b, cid] = await friendsConv();
+            const original = await send(a, cid, "x".repeat(100));
+            const r = await send(b, cid, "re", { replyToId: original.message.id });
+            expect(r.message.replyTo).toEqual({ id: original.message.id, senderName: a, preview: "x".repeat(80), deleted: false });
+            expect((await send(a, cid, "plain")).message.replyTo).toBeNull();
+            const items = await chatService.listMessages({ userId: b, conversationId: cid }).then((p) => p.items ?? p);
+            expect(items.find((m) => m.id === r.message.id).replyTo).toMatchObject({ id: original.message.id });
+        });
+
+        it("replyToId from another conversation or an unsent message is 422", async () => {
+            const [a, b, cid] = await friendsConv();
+            const [c, d, other] = await friendsConv();
+            const foreign = await send(c, other, "elsewhere");
+            await expect(send(a, cid, "re", { replyToId: foreign.message.id })).rejects.toMatchObject({ status: 422 });
+            const gone = await send(a, cid, "oops");
+            await chatService.recallMessage({ userId: a, messageId: gone.message.id });
+            await expect(send(b, cid, "re", { replyToId: gone.message.id })).rejects.toMatchObject({ status: 422 });
+            await expect(send(b, cid, "re", { replyToId: "nope" })).rejects.toMatchObject({ status: 422 });
+        });
+
+        it("a pending recipient can reply and becomes accepted", async () => {
+            const [a, b] = await pair();
+            const original = await send(a, b, "hello");
+            const r = await send(b, original.conversation.id, "hi back", { replyToId: original.message.id });
+            expect(r.message.replyTo.id).toBe(original.message.id);
+            expect(r.acceptedByReply).toBe(true);
+        });
+
+        it("after the original is unsent, replyTo is deleted:true with preview null", async () => {
+            const [a, b, cid] = await friendsConv();
+            const original = await send(a, cid, "secret");
+            const r = await send(b, cid, "re", { replyToId: original.message.id });
+            await chatService.recallMessage({ userId: a, messageId: original.message.id });
+            const items = await chatService.listMessages({ userId: b, conversationId: cid }).then((p) => p.items ?? p);
+            expect(items.find((m) => m.id === r.message.id).replyTo).toEqual({ id: original.message.id, senderName: a, preview: null, deleted: true });
+        });
+
+        it("an edited original shows its current text in replyTo.preview", async () => {
+            const [a, b, cid] = await friendsConv();
+            const original = await send(a, cid, "before");
+            const r = await send(b, cid, "re", { replyToId: original.message.id });
+            await chatService.editMessage({ userId: a, messageId: original.message.id, body: "after" });
+            const items = await chatService.listMessages({ userId: b, conversationId: cid }).then((p) => p.items ?? p);
+            expect(items.find((m) => m.id === r.message.id).replyTo.preview).toBe("after");
+        });
+    });
+
     describe("read state, edit, unsend, requests, blocks, reports, team", () => {
         const friends = async () => {
             const [a, b] = await pair();

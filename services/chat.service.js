@@ -23,6 +23,9 @@ const MESSAGE_ID = /^msg_[0-9a-z]{26}$/;
 const CLIENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SEQ = /^[1-9]\d{0,18}$/;
 
+const checkReplyId = (id) => {
+    if (typeof id !== "string" || !MESSAGE_ID.test(id)) throw new ApiError("replyToId: Invalid message id", 422);
+};
 const badRequest = (message) => new ApiError(message, 400);
 const conversationNotFound = () => new ApiError("Conversation not found", 404);
 const refused = () => new ApiError("You can't send messages in this conversation", 403);
@@ -89,6 +92,10 @@ async function verifyUploads(userId, ids) {
 const directKey = (a, b) => (BigInt(a) < BigInt(b) ? `${a}:${b}` : `${b}:${a}`);
 
 const messageDto = (row) => ({
+    replyTo: row.reply_id ? {
+        id: row.reply_id, senderName: row.reply_sender_name, deleted: row.reply_deleted,
+        preview: row.reply_deleted ? null : preview({ last_deleted: false, last_body: row.reply_body, last_attachment_kind: row.reply_attachment_kind }),
+    } : null,
     id: row.id, seq: row.seq, conversationId: row.conversation_id, clientId: row.client_id,
     sender: { id: row.sender_id, username: row.sender_username, nickname: row.sender_nickname, image: row.sender_image },
     body: row.body, attachments: row.attachments, createdAt: row.created_at, editedAt: row.edited_at, deleted: row.deleted,
@@ -206,7 +213,8 @@ export const chatService = {
     /** Replaced by the realtime / push tasks; called after commit for new messages only, errors are logged. */
     afterSend: async () => { },
 
-    send: async ({ userId, conversationId, toUserId, clientId, body, attachmentIds = [], socketId = null }) => {
+    send: async ({ userId, conversationId, toUserId, clientId, body, attachmentIds = [], replyToId = null, socketId = null }) => {
+        if (replyToId != null) checkReplyId(replyToId);
         if (!conversationId === !toUserId) throw badRequest("Give either a conversation or a recipient");
         if (conversationId) checkId(conversationId, CONVERSATION_ID, "conversation");
         if (typeof clientId !== "string" || !CLIENT_ID.test(clientId)) throw badRequest("Invalid client id");
@@ -246,7 +254,9 @@ export const chatService = {
             if (attachments.length && members.some((m) => !m.left_at && m.state === "pending")) throw new ApiError("Attachments can't be sent in a message request", 422);
 
             const publicId = `msg_${ulid().toLowerCase()}`;
-            const inserted = await chatDb.insertMessage(client, { publicId, conversationDbId: conversation.id, senderDbId: me.id, clientId, body });
+            const replyToDbId = replyToId ? await chatDb.replyTarget(client, { publicId: replyToId, conversationDbId: conversation.id }) : null;
+            if (replyToId && !replyToDbId) throw new ApiError("replyToId: The quoted message is not available", 422);
+            const inserted = await chatDb.insertMessage(client, { publicId, conversationDbId: conversation.id, senderDbId: me.id, clientId, body, replyToDbId });
             if (inserted && attachments.length) {
                 const claimed = await chatDb.claimAttachments(client, { ids: attachments, uploaderDbId: me.id, conversationDbId: conversation.id, messageDbId: inserted.id });
                 if (claimed !== attachments.length) throw badAttachment(); // rolls the message back too
