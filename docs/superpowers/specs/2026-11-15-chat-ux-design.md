@@ -46,6 +46,12 @@ Date: 2026-11-15. Status: approved 2026-11-15. Nối tiếp lõi chat (`2026-11-
 
 ## 5. Đợt 2 — trả lời, cảm xúc, push người lạ
 
+> **Trạng thái:** đợt 2 đã làm xong (nhánh `feat/chat-ux-2`), gồm 5.1–5.3. Khác spec:
+> - **Không có** route `GET /api/chat/messages/[id]/reactions` (quyết định R1): danh sách người thả không hiển thị; chip chỉ cho biết số lượng và `mine`.
+> - DTO gửi `reactions: [{ emoji, count, userIds }]` (public id, tối đa 5); client tự suy ra `mine` từ `userIds`.
+> - Thả cảm xúc giữa hai thành viên đã chặn nhau trong chat 1-1 bị từ chối (quyết định R3).
+> - Bộ chọn `frimousse` chỉ nằm trong chunk nạp lười, chỉ tải bởi `/messages/[id]` và `/messages/new` (đã kiểm sau `npm run build`).
+
 ### 5.1 Dữ liệu (migration số kế tiếp còn trống lúc làm)
 
 - `community.chat_message.reply_to_id bigint NULL REFERENCES community.chat_message(id) ON DELETE SET NULL`; cùng hội thoại (kiểm tra ở service).
