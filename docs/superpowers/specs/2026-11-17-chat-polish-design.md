@@ -1,6 +1,6 @@
 # Chat polish (after chat UX phase 2)
 
-Status: written 2026-11-17. The user asked to go straight to the plan, and every choice here except item 2's approach is mine (marked *my call*).
+Status: done 2026-11-17 (see Deviations). Written 2026-11-17. The user asked to go straight to the plan, and every choice here except item 2's approach is mine (marked *my call*).
 
 ## Why
 
@@ -92,3 +92,11 @@ The goal is that /messages feels like a messenger app on desktop and on a phone.
 - Exact spacing of the new reply marker within the theme's 4px base.
 - The spinner's size at the top of the thread.
 - How `TeamFormContent` scrolls: the whole dialog, or the body between header and footer. Either works if the title stays reachable.
+
+## Deviations (as built)
+
+- **Item 5, Edit / Unsend menu outline:** not reproduced on desktop (ruling R3), so nothing was changed for it. It is left open: the user can report it with the device and the steps.
+- **Item 2, Edit visibility:** Edit is hidden when the conversation cannot send (ruling R5).
+- **Item 7, phone grid:** there is no min-height floor on phones. `min-h-0` applies on phones and `md:min-h-96` on desktop (ruling R8). The shell is top-aligned (`self-start`).
+- **Item 7, viewport meta:** there is no viewport-meta change (no `interactive-widget=resizes-content`). The `visualViewport` hook (`hooks/useVisualViewportHeight.js`) covers both Android and iOS.
+- Real-keyboard behaviour on an iPhone remains for the user to check.
