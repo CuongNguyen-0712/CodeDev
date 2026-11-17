@@ -29,6 +29,9 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push: vi.fn() }
 vi.mock("@/contexts/appContext", () => ({ useApp: () => ({ showAlert: vi.fn() }) }));
 vi.mock("@/components/ui/codeBlock", () => ({ default: () => null }));
 
+// jsdom has no ResizeObserver; the thread observes its message list.
+globalThis.ResizeObserver = class { observe() {} disconnect() {} unobserve() {} };
+
 const { default: ConversationView, NewConversationView } = await import("@/components/chat/conversationView");
 const { CHAT_HEIGHT, CHAT_LAYOUT_PADDING } = await import("@/components/chat/chatHeight");
 const { useChatTypingStore } = await import("@/stores/chatTypingStore");

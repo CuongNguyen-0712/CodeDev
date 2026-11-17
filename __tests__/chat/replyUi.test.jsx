@@ -29,6 +29,9 @@ vi.mock("@/components/ui/alert", async (importOriginal) => ({ ...(await importOr
 // jsdom has no IntersectionObserver; the thread observes its top sentinel to load earlier messages.
 globalThis.IntersectionObserver = class { observe() {} disconnect() {} unobserve() {} };
 
+// jsdom has no ResizeObserver; the thread observes its message list.
+globalThis.ResizeObserver = class { observe() {} disconnect() {} unobserve() {} };
+
 const { default: ConversationView } = await import("@/components/chat/conversationView");
 const { default: MessageBubble } = await import("@/components/chat/messageBubble");
 

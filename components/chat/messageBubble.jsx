@@ -126,7 +126,8 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                                                     width={a.width || undefined}
                                                     height={a.height || undefined}
                                                     loading="lazy"
-                                                    className={images.length > 1 ? "size-full bg-muted object-cover" : "h-auto max-h-72 w-auto max-w-full bg-muted object-cover"}
+                                                    style={images.length === 1 && a.width && a.height ? { aspectRatio: `${a.width} / ${a.height}`, maxWidth: `min(100%, ${a.width}px)` } : undefined}
+                                                    className={images.length > 1 ? "size-full bg-muted object-cover" : cn("max-h-72 bg-muted object-cover", a.width && a.height ? "w-full" : "h-auto w-auto max-w-full")}
                                                 />
                                             );
                                             // Unsent images open their blob preview; the original link is only offered once the send claimed the attachment.

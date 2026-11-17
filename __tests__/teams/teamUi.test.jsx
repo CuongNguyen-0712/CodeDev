@@ -40,6 +40,9 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace }), useSea
 vi.mock("@/contexts/appContext", () => ({ useApp: () => ({ showAlert }) }));
 vi.mock("@/components/ui/codeBlock", () => ({ default: () => null }));
 
+// jsdom has no ResizeObserver; the thread observes its message list.
+globalThis.ResizeObserver = class { observe() {} disconnect() {} unobserve() {} };
+
 const { default: Inbox } = await import("@/components/chat/inbox");
 const { default: ConversationView } = await import("@/components/chat/conversationView");
 

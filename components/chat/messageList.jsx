@@ -165,10 +165,21 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
         if (el && atBottom.current) el.scrollTop = el.scrollHeight;
     }, []);
 
+    // Images and other late content grow the list after layout: a reader at the bottom stays there. Reads atBottom, so it never fights the page-restore above.
+    const listObserver = useRef(null);
+    const setList = useCallback((node) => {
+        listObserver.current?.disconnect();
+        listObserver.current = null;
+        if (!node) return;
+        listObserver.current = new ResizeObserver(keepAtBottom);
+        listObserver.current.observe(node);
+    }, [keepAtBottom]);
+
     const loadEarlier = () => {
         const el = scroller.current;
         fromBottom.current = el.scrollHeight - el.scrollTop;
-        query.fetchNextPage();
+        // A failed fetch must not leave a saved position behind for the next items change to restore.
+        query.fetchNextPage().then((result) => { if (result.isError) fromBottom.current = null; });
     };
 
     const { setRef: sentinelRef } = useInfiniteScroll({ hasMore: !!query.hasNextPage, onLoadMore: loadEarlier, isLoading: query.isFetchingNextPage, root: scrollRoot });
@@ -192,7 +203,7 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
                 </div>
             )}
             {items.length === 0 ? <EmptyThread /> : (
-                <ul className="m-0 mt-auto flex list-none flex-col p-0">
+                <ul ref={setList} className="m-0 mt-auto flex list-none flex-col p-0">
                     {items.map((message, index) => (
                         <MessageBubble
                             key={message.clientId || message.id}

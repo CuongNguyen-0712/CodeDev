@@ -16,6 +16,9 @@ vi.mock("@/actions/chat.actions", () => ({ markReadAction: vi.fn(async () => ({ 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
 vi.mock("@/components/ui/codeBlock", () => ({ default: () => null }));
 
+// jsdom has no ResizeObserver; the thread observes its message list.
+globalThis.ResizeObserver = class { observe() {} disconnect() {} unobserve() {} };
+
 const { default: MessageList } = await import("@/components/chat/messageList");
 const { useChatOutboxStore } = await import("@/stores/chatOutboxStore");
 
