@@ -17,6 +17,7 @@ vi.mock("@/components/shadcn/sidebar", () => ({
 vi.mock("@/stores/uiStore", () => ({ useUiStore: (sel) => sel({ isSidebarOpen: true, setSidebarOpen: () => {} }) }));
 
 const { useVisualViewportHeight } = await import("@/hooks/useVisualViewportHeight");
+const { CHAT_GRID_HEIGHT } = await import("@/components/chat/chatHeight");
 const { default: HomeLayout } = await import("@/components/layouts/homeLayout");
 
 function Probe() {
@@ -34,6 +35,7 @@ describe("useVisualViewportHeight", () => {
     it("sets --app-height from visualViewport on resize, and removes it on unmount", () => {
         const vv = new EventTarget();
         vv.height = 500.4;
+        vv.scale = 1;
         vv.offsetTop = 0;
         window.visualViewport = vv;
         window.scrollTo = vi.fn();
@@ -48,6 +50,15 @@ describe("useVisualViewportHeight", () => {
         window.scrollTo.mockClear();
         vv.dispatchEvent(new Event("scroll"));
         expect(window.scrollTo).not.toHaveBeenCalled();
+    });
+
+    it("scales the visual height by the pinch-zoom scale", () => {
+        const vv = new EventTarget();
+        Object.assign(vv, { height: 300, scale: 2, offsetTop: 0 });
+        window.visualViewport = vv;
+        render(<Probe />);
+        vv.dispatchEvent(new Event("resize"));
+        expect(document.documentElement.style.getPropertyValue("--app-height")).toBe("600px");
     });
 
     it("no visualViewport: no error, no property", () => {
@@ -72,5 +83,13 @@ describe("HomeLayout", () => {
         render(<HomeLayout footer={footer}><div /></HomeLayout>);
         expect(screen.getByTestId("shell").className).toContain("h-[var(--app-height,100dvh)]");
         expect(screen.getByTestId("shell").className).not.toContain("h-dvh");
+    });
+});
+
+describe("CHAT_GRID_HEIGHT", () => {
+    it("the min-height floor is desktop-only", () => {
+        const classes = CHAT_GRID_HEIGHT.split(" ");
+        expect(classes).not.toContain("min-h-96");
+        expect(classes).toContain("md:min-h-96");
     });
 });

@@ -19,7 +19,7 @@ describe("MessagesLayout height", () => {
         expect(frame.classList.contains("min-h-full!")).toBe(true);
         expect(frame.classList.contains("flex-col")).toBe(true);
         // The grid takes the rest after the padding, never under 24rem.
-        ["grow", "basis-0", "min-h-96"].forEach((c) => expect(grid.classList.contains(c)).toBe(true));
+        ["grow", "basis-0", "md:min-h-96"].forEach((c) => expect(grid.classList.contains(c)).toBe(true));
         // One row exactly the grid's height (not an `auto` row sized by the pane's content), and columns that
         // may shrink below their content: otherwise h-full on the pane and inbox is cyclic and they grow.
         expect(grid.classList.contains("grid-rows-[minmax(0,1fr)]")).toBe(true);
