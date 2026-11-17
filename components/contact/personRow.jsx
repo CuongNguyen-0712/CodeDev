@@ -15,7 +15,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 
 import { LuLoaderCircle, LuMessageSquare } from "react-icons/lu";
 
-const LIST = "m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0";
+const LIST = "@container m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0";
 
 function PersonSkeleton() {
     return (
@@ -25,8 +25,8 @@ function PersonSkeleton() {
                 <Skeleton className="h-4 w-40 max-w-full" />
                 <Skeleton className="h-3 w-24" />
             </div>
-            <Skeleton className="hidden h-5 w-20 sm:block" />
-            <Skeleton className="hidden h-4 w-24 md:block" />
+            <Skeleton className="hidden h-5 w-20 @sm:block" />
+            <Skeleton className="hidden h-4 w-24 @md:block" />
         </li>
     );
 }

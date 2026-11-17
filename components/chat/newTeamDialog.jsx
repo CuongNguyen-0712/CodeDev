@@ -19,7 +19,7 @@ import { Spinner } from "@/components/shadcn/spinner";
 export const TEAM_SIZE = 5;
 
 /** The form-in-Dialog frame of the team dialogs: header, body, Cancel and submit; closing is blocked while `pending`. */
-export function TeamFormContent({ title, description, submitLabel, canSubmit, pending, onSubmit, onCancel, className = "sm:max-w-md", children }) {
+export function TeamFormContent({ title, description, submitLabel, canSubmit, pending, onSubmit, onCancel, className = "max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md", children }) {
     const blockClose = (event) => { if (pending) event.preventDefault(); };
     return (
         <DialogContent showCloseButton={!pending} onEscapeKeyDown={blockClose} onInteractOutside={blockClose} className={className}>
