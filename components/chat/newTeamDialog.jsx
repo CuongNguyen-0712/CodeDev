@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { cn } from "@/lib/utils";
 import { useApp } from "@/contexts/appContext";
 import { createTeamSchema, teamNameSchema } from "@/lib/validation/team";
 import { useTeamAction } from "@/mutations/team.mutation";
@@ -19,10 +20,10 @@ import { Spinner } from "@/components/shadcn/spinner";
 export const TEAM_SIZE = 5;
 
 /** The form-in-Dialog frame of the team dialogs: header, body, Cancel and submit; closing is blocked while `pending`. */
-export function TeamFormContent({ title, description, submitLabel, canSubmit, pending, onSubmit, onCancel, className = "max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md", children }) {
+export function TeamFormContent({ title, description, submitLabel, canSubmit, pending, onSubmit, onCancel, className = "sm:max-w-md", children }) {
     const blockClose = (event) => { if (pending) event.preventDefault(); };
     return (
-        <DialogContent showCloseButton={!pending} onEscapeKeyDown={blockClose} onInteractOutside={blockClose} className={className}>
+        <DialogContent showCloseButton={!pending} onEscapeKeyDown={blockClose} onInteractOutside={blockClose} className={cn("max-h-[calc(100dvh-2rem)] overflow-y-auto", className)}>
             <form onSubmit={(event) => { event.preventDefault(); onSubmit(); }} noValidate className="grid gap-5">
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>

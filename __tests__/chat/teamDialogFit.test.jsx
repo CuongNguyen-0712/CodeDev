@@ -33,3 +33,15 @@ it("loading rows size their optional columns by the list, not the screen", () =>
     expect(skeletons.some((c) => c.includes("@sm:block"))).toBe(true);
     expect(skeletons.some((c) => c.includes("@md:block"))).toBe(true);
 });
+
+it("TeamFormContent keeps the fit classes when a caller passes its own className", () => {
+    render(
+        <Dialog open>
+            <TeamFormContent title="t" description="d" submitLabel="Go" canSubmit pending={false} onSubmit={() => {}} onCancel={() => {}} className="sm:max-w-sm" />
+        </Dialog>,
+    );
+    const cls = document.querySelector("[data-slot=dialog-content]").className;
+    expect(cls).toContain("max-h-[calc(100dvh-2rem)]");
+    expect(cls).toContain("overflow-y-auto");
+    expect(cls).toContain("sm:max-w-sm");
+});
