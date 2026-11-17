@@ -15,7 +15,7 @@ import { Progress } from "@/components/shadcn/progress";
 import { Spinner } from "@/components/shadcn/spinner";
 import { Textarea } from "@/components/shadcn/textarea";
 
-import { LuPaperclip, LuReply, LuSendHorizontal, LuTriangleAlert, LuX } from "react-icons/lu";
+import { LuPaperclip, LuPencil, LuReply, LuSendHorizontal, LuTriangleAlert, LuX } from "react-icons/lu";
 
 const COUNTER_FROM = MAX_BODY * 0.9;
 const UPLOAD_FAILED = "The file could not be uploaded.";
@@ -73,8 +73,11 @@ function refusal(file) {
  * message shows in the list while it sends); otherwise it waits for the send. Images need `imagesAllowed`
  * (an open conversation that is not a request). `replyTo` ({ id, senderName, preview }) shows the Replying-to bar and
  * is sent as `replyToId`; `onCancelReply` is its ✕.
+ * `editing` ({ id, body }) turns the box into an edit of that message: the Editing message bar, no Attach, Enter calls
+ * `onSaveEdit(body)` (a promise; it rejects on failure and the box stays in edit mode), Esc or ✕ calls `onCancelEdit`.
+ * The parent leaves edit mode after a save; the text typed before Edit comes back then.
  */
-export default function Composer({ conversationId, imagesAllowed = false, optimistic = false, replyTo, onCancelReply, onSubmit }) {
+export default function Composer({ conversationId, imagesAllowed = false, optimistic = false, replyTo, onCancelReply, editing, onSaveEdit, onCancelEdit, onSubmit }) {
     const inputId = useId();
     const fileRef = useRef(null);
     const boxRef = useRef(null);
@@ -93,6 +96,19 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
 
     // Choosing Reply moves the caret to the box.
     useEffect(() => { if (replyTo) boxRef.current?.focus(); }, [replyTo?.id]);   // eslint-disable-line react-hooks/exhaustive-deps -- the id is the trigger
+
+    // Edit swaps the box's text for the message's and puts the draft back when edit mode ends (set during render, as React advises for state that follows a prop).
+    const [editId, setEditId] = useState(null);
+    const [draft, setDraft] = useState("");
+    if ((editing?.id ?? null) !== editId) {
+        setEditId(editing?.id ?? null);
+        setError("");
+        if (editing) {
+            if (editId === null) setDraft(body);   // moving to another message keeps the first draft
+            setBody(editing.body);
+        } else setBody(draft);
+    }
+    useEffect(() => { if (editing) boxRef.current?.focus(); }, [editing?.id]);   // eslint-disable-line react-hooks/exhaustive-deps -- the id is the trigger
 
     const update = (key, change) => setImages((list) => list.map((image) => (image.key === key ? { ...image, ...change } : image)));
 
@@ -142,10 +158,19 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
 
     const showCounter = body.length > COUNTER_FROM;
     const ready = images.every((image) => image.status === "done");
-    const canSend = (body.trim().length > 0 || images.length > 0) && ready && !pending;
+    const canSend = editing ? body.trim().length > 0 && !pending : (body.trim().length > 0 || images.length > 0) && ready && !pending;
 
     const submit = async (event) => {
         event?.preventDefault();
+        if (editing) {
+            if (pending) return;
+            // Nothing to save: leave edit mode, as Messenger does.
+            if (!body.trim() || body === editing.body) return onCancelEdit();
+            setError("");
+            setPending(true);
+            try { await onSaveEdit(body); } catch (err) { setError(userMessage(err)); } finally { setPending(false); }
+            return;
+        }
         // Enter submits past the disabled button, so the same rule is checked here.
         if (!canSend) return;
         const sent = { body, images };
@@ -177,7 +202,14 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
         // A filled pill, not a framed card: no border at rest, a quiet one on focus. Its controls are all 36px
         // tall and bottom-aligned, so one line of text sits on their centre line and longer text grows upward.
         <form onSubmit={submit} className="flex flex-col gap-2 rounded-3xl border border-transparent bg-muted p-1.5 transition-colors focus-within:border-ring/40 focus-within:bg-background dark:bg-accent dark:focus-within:bg-accent">
-            {replyTo && (
+            {editing && (
+                <div className="flex items-center gap-2 rounded-2xl border bg-background py-1.5 pr-1 pl-3 text-xs dark:bg-card">
+                    <LuPencil aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+                    <p className="min-w-0 flex-1 truncate">Editing message</p>
+                    <Button type="button" variant="ghost" size="icon-xs" onClick={onCancelEdit} aria-label="Cancel edit"><LuX aria-hidden="true" /></Button>
+                </div>
+            )}
+            {replyTo && !editing && (
                 // Bordered, so it stays visible on the pill both at rest (muted) and on focus (background).
                 <div className="flex items-center gap-2 rounded-2xl border bg-background py-1.5 pr-1 pl-3 text-xs dark:bg-card">
                     <LuReply aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
@@ -225,7 +257,7 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
                 </ul>
             )}
             <div className="flex items-end gap-1">
-                {imagesAllowed && (
+                {imagesAllowed && !editing && (
                     <>
                         <input ref={fileRef} type="file" accept={ATTACHMENT_ACCEPT} multiple hidden onChange={pick} />
                         <Button
@@ -249,6 +281,7 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
                         if (conversationId) ping();
                     }}
                     onKeyDown={(event) => {
+                        if (event.key === "Escape" && editing) return onCancelEdit();
                         // isComposing: Enter that confirms an IME candidate is not a send.
                         if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
                         event.preventDefault();

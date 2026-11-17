@@ -15,7 +15,7 @@ const message = (over = {}) => ({
     attachments: [], createdAt: "2026-11-11T10:00:00Z", editedAt: null, deleted: false, ...over,
 });
 const noop = () => {};
-const handlers = { onRetry: noop, onDiscard: noop, onEdit: noop, onUnsend: noop, onReport: noop };
+const handlers = { onRetry: noop, onDiscard: noop, onUnsend: noop, onReport: noop };
 const sentImages = [{ id: "att_1", kind: "image" }, { id: "att_2", kind: "image" }, { id: "att_3", kind: "image" }];
 const triggerOf = (name) => screen.getByRole("img", { name }).closest("button");
 

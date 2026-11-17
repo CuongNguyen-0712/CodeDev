@@ -186,6 +186,7 @@ export default function ConversationView({ conversationId }) {
     const report = useReportMessage();
     const { toggle } = useToggleReaction(conversationId, meId);
     const [reply, setReply] = useState(null);   // { conversationId, id, senderName, preview }; ignored once the open conversation changes
+    const [editing, setEditing] = useState(null);   // { conversationId, id, body }; ignored once the open conversation changes, and exclusive with reply
     const [failures, setFailures] = useState({});   // clientId -> { message, retryable }
 
     const gone = useLeaveWhenGone(query.error);
@@ -204,6 +205,7 @@ export default function ConversationView({ conversationId }) {
 
     const conversation = query.data;
     const replyTo = reply?.conversationId === conversationId ? reply : null;
+    const editingNow = editing?.conversationId === conversationId ? editing : null;
     const name = conversation.title || "Conversation";
     const me = conversation.members.find((m) => m.id === meId);
     const other = conversation.kind === "direct" ? conversation.members.find((m) => m.id !== meId) : null;
@@ -241,14 +243,20 @@ export default function ConversationView({ conversationId }) {
         });
     };
 
+    // Rejects after the toast so the composer stays in edit mode with the typed text.
+    const onSaveEdit = (body) => edit.mutateAsync({ conversationId, messageId: editingNow.id, body }).then(
+        () => setEditing(null),
+        (error) => { fail(error); throw error; },
+    );
+
     const handlers = {
         canReact: me?.state === "accepted",
         // A pending member can reply (sending accepts the request); only a member who can send gets Reply.
-        onReply: conversation.canSend ? (m) => setReply({ conversationId, id: m.id, senderName: nameOf(m.sender), preview: previewOf(m) }) : undefined,
+        onReply: conversation.canSend ? (m) => { setEditing(null); setReply({ conversationId, id: m.id, senderName: nameOf(m.sender), preview: previewOf(m) }); } : undefined,
         onReact: (m, emoji) => toggle({ messageId: m.id, emoji }, { onError: fail }),
         onRetry: (m) => deliver({ clientId: m.clientId, body: m.body, attachmentIds: m.attachmentIds ?? [] }).catch(() => { }),
         onDiscard: discard,
-        onEdit: (m, body) => edit.mutateAsync({ conversationId, messageId: m.id, body }).catch(fail),
+        onStartEdit: (m) => { setReply(null); setEditing({ conversationId, id: m.id, body: m.body }); },
         onUnsend: (m) => recall.mutateAsync({ conversationId, messageId: m.id }).catch(fail),
         onReport: (m, reason) => report.mutateAsync({ messageId: m.id, reason })
             .then(() => showAlert(200, "Thanks. Moderators will review this message."), fail),
@@ -270,7 +278,7 @@ export default function ConversationView({ conversationId }) {
             <MessageList conversation={conversation} meId={meId} failures={failures} {...handlers} />
             <div className="flex flex-col gap-1 px-3 pt-2 pb-3">
                 {conversation.canSend
-                    ? <Composer conversationId={conversationId} imagesAllowed={!isRequest} optimistic replyTo={replyTo} onCancelReply={() => setReply(null)} onSubmit={onSubmit} />
+                    ? <Composer conversationId={conversationId} imagesAllowed={!isRequest} optimistic replyTo={replyTo} onCancelReply={() => setReply(null)} editing={editingNow} onSaveEdit={onSaveEdit} onCancelEdit={() => setEditing(null)} onSubmit={onSubmit} />
                     : <CantSend />}
             </div>
         </div>

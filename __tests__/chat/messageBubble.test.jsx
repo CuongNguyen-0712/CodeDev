@@ -13,7 +13,7 @@ const message = (over = {}) => ({
     attachments: [], createdAt: "2026-11-11T10:00:00Z", editedAt: null, deleted: false, ...over,
 });
 const noop = () => {};
-const handlers = { onRetry: noop, onDiscard: noop, onEdit: noop, onUnsend: noop, onReport: noop };
+const handlers = { onRetry: noop, onDiscard: noop, onUnsend: noop, onReport: noop };
 
 afterEach(cleanup);
 

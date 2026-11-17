@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 
 import { formatFileSize } from "@/lib/chat/fileInfo";
-import { EDIT_WINDOW_MS, MAX_BODY } from "@/lib/chat/limits";
+import { EDIT_WINDOW_MS } from "@/lib/chat/limits";
 import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +25,6 @@ import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
-import { Textarea } from "@/components/shadcn/textarea";
 
 import { LuCheck, LuCheckCheck, LuCopy, LuDownload, LuEllipsis, LuFlag, LuPencil, LuReply, LuSmilePlus, LuUndo2 } from "react-icons/lu";
 
@@ -65,46 +64,13 @@ function Status({ message, others, failure, onRetry, onDiscard }) {
     );
 }
 
-function EditForm({ message, onSave, onCancel }) {
-    const [draft, setDraft] = useState(message.body);
-    const save = (event) => {
-        event.preventDefault();
-        if (draft.trim() && draft !== message.body) onSave(draft);
-        onCancel();
-    };
-    return (
-        <form onSubmit={save} className="flex w-full min-w-64 flex-col gap-2">
-            <Textarea
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                    if (event.key === "Escape") onCancel();
-                    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                        event.preventDefault();
-                        event.currentTarget.form.requestSubmit();
-                    }
-                }}
-                maxLength={MAX_BODY}
-                aria-label="Edit message"
-                className="h-20 resize-none field-sizing-fixed"
-                autoFocus
-            />
-            <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
-                <Button type="submit" size="sm" disabled={!draft.trim()}>Save</Button>
-            </div>
-        </form>
-    );
-}
-
 /**
  * One message. Mine sit on the right with their send state (sending / failed / ✓ / ✓✓); `others` are the
  * other members (for ✓✓). `failure`: { message, retryable } for a failed send, when known. Reply shows when
  * `onReply` is given; React and the chips toggle only when `canReact` (an accepted member); `flash` rings
  * the message after a jump to it.
  */
-export default function MessageBubble({ message, mine = false, meId, others, showSender = false, groupStart = true, groupEnd = true, failure, canReact = false, flash = false, onRetry, onDiscard, onEdit, onUnsend, onReport, onReply, onReact, onJump }) {
-    const [editing, setEditing] = useState(false);
+export default function MessageBubble({ message, mine = false, meId, others, showSender = false, groupStart = true, groupEnd = true, failure, canReact = false, flash = false, onRetry, onDiscard, onStartEdit, onUnsend, onReport, onReply, onReact, onJump }) {
     const [openedAt, setOpenedAt] = useState(0);
     const [confirmUnsend, setConfirmUnsend] = useState(false);
     const [reporting, setReporting] = useState(false);
@@ -142,9 +108,7 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                     <Popover open={reacting} onOpenChange={setReacting}>
                     <PopoverAnchor asChild>
                     <div className={cn("flex min-w-0 max-w-full items-center gap-1", mine && "flex-row-reverse")}>
-                        {editing ? (
-                            <EditForm message={message} onSave={(body) => onEdit(message, body)} onCancel={() => setEditing(false)} />
-                        ) : message.deleted ? (
+                        {message.deleted ? (
                             <p className="rounded-2xl border px-3 py-2 text-sm text-muted-foreground italic">This message was unsent</p>
                         ) : (
                             // Images, files and text are separate pieces, like other messengers: only text sits in a coloured bubble.
@@ -205,15 +169,15 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                                 )}
                             </div>
                         )}
-                        {hasMenu && !editing && onReply && (
+                        {hasMenu && onReply && (
                             <Button type="button" size="icon-sm" variant="ghost" onClick={() => onReply(message)} aria-label="Reply to message" className={QUICK}><LuReply aria-hidden="true" /></Button>
                         )}
-                        {hasMenu && !editing && canReact && (
+                        {hasMenu && canReact && (
                             <PopoverTrigger asChild>
                                 <Button type="button" size="icon-sm" variant="ghost" aria-label="React to message" className={QUICK}><LuSmilePlus aria-hidden="true" /></Button>
                             </PopoverTrigger>
                         )}
-                        {hasMenu && !editing && (
+                        {hasMenu && (
                             <DropdownMenu onOpenChange={(open) => open && setOpenedAt(Date.now())}>
                                 {/* The trigger shows on hover or focus of the row; always where there is no hover (touch). */}
                                 <DropdownMenuTrigger asChild>
@@ -239,7 +203,7 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                                     {(onReply || canReact || message.body) && <DropdownMenuSeparator />}
                                     {mine ? (
                                         <>
-                                            {canEdit && <DropdownMenuItem onSelect={() => setEditing(true)}><LuPencil />Edit</DropdownMenuItem>}
+                                            {canEdit && <DropdownMenuItem onSelect={() => onStartEdit(message)}><LuPencil />Edit</DropdownMenuItem>}
                                             {canEdit && <DropdownMenuSeparator />}
                                             <DropdownMenuItem variant="destructive" onSelect={() => setConfirmUnsend(true)}><LuUndo2 />Unsend</DropdownMenuItem>
                                         </>

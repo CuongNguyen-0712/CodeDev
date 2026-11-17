@@ -84,7 +84,7 @@ describe("replying", () => {
     });
 });
 
-const handlers = { onRetry() {}, onDiscard() {}, onEdit() {}, onUnsend() {}, onReport() {} };
+const handlers = { onRetry() {}, onDiscard() {}, onUnsend() {}, onReport() {} };
 
 describe("the quote in a reply bubble", () => {
     it("a reply bubble shows the quote; an unsent original shows Message unsent", () => {
