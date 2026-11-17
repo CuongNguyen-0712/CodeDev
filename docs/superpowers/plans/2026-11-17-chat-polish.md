@@ -66,7 +66,7 @@
   - `LIST` gains `@container`.
   - The two optional skeleton columns change from `sm:block` / `md:block` to `@sm:block` / `@md:block`.
   - The name skeleton keeps `max-w-full`.
-- [ ] **Step 4: Run** `npx vitest run __tests__/chat __tests__/contact 2>/dev/null || npx vitest run __tests__/chat`. Expected: PASS.
+- [ ] **Step 4: Run** `npx vitest run __tests__`. Expected: PASS (PersonList is shared with /contact).
 - [ ] **Step 5: Commit** `fix(chat): team dialog fits a phone; loading rows stay in the list`
 
 ---
