@@ -95,7 +95,7 @@ const directKey = (a, b) => (BigInt(a) < BigInt(b) ? `${a}:${b}` : `${b}:${a}`);
 
 const messageDto = (row) => ({
     replyTo: row.reply_id ? {
-        id: row.reply_id, senderName: row.reply_sender_name, deleted: row.reply_deleted,
+        id: row.reply_id, senderId: row.reply_sender_id, senderName: row.reply_sender_name, deleted: row.reply_deleted,
         preview: row.reply_deleted ? null : preview({ last_deleted: false, last_body: row.reply_body, last_attachment_kind: row.reply_attachment_kind }),
     } : null,
     reactions: row.reactions,

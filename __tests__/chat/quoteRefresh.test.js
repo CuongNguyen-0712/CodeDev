@@ -5,18 +5,19 @@ import { patchMessage } from "@/lib/chat/messageCache";
 /** A reply's quote follows its original when the original is edited or unsent (realtime or the sender's own write). */
 const msg = (seq, extra = {}) => ({ id: `msg_${seq}`, seq: String(seq), clientId: `c${seq}`, body: `m${seq}`, ...extra });
 const data = (...pages) => ({ pages: pages.map((items) => ({ items, nextCursor: null })), pageParams: pages.map(() => undefined) });
-const quoted = (over = {}) => msg(9, { replyTo: { id: "msg_3", senderName: "Ada", preview: "m3", deleted: false }, ...over });
+const quoted = (over = {}) => msg(9, { replyTo: { id: "msg_3", senderId: "P2", senderName: "Ada", preview: "m3", deleted: false }, ...over });
 
 describe("quotes follow their original", () => {
     it("an unsent original blanks the quote in every reply", () => {
         const after = patchMessage(data([quoted(), msg(5)], [msg(3)]), msg(3, { deleted: true, body: "", attachments: [] }));
-        expect(after.pages[0].items[0].replyTo).toEqual({ id: "msg_3", senderName: "Ada", preview: null, deleted: true });
+        expect(after.pages[0].items[0].replyTo).toEqual({ id: "msg_3", senderId: "P2", senderName: "Ada", preview: null, deleted: true });
     });
 
     it("an edited original refreshes the quote preview to 80 characters of the new body", () => {
         const after = patchMessage(data([quoted(), msg(5)], [msg(3)]), msg(3, { body: "x".repeat(100), editedAt: "2026-11-11T10:05:00Z" }));
         expect(after.pages[0].items[0].replyTo.preview).toBe("x".repeat(80));
         expect(after.pages[0].items[0].replyTo.deleted).toBe(false);
+        expect(after.pages[0].items[0].replyTo.senderId).toBe("P2");
     });
 
     it("uses the inbox words for code and attachments, and leaves other replies alone", () => {

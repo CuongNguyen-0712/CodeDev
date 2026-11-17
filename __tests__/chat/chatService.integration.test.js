@@ -279,11 +279,11 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
             return [a, b, (await send(a, b, "first")).conversation.id];
         };
 
-        it("a reply carries replyTo with the original's sender and preview", async () => {
+        it("the reply DTO carries replyTo.senderId (public id)", async () => {
             const [a, b, cid] = await friendsConv();
             const original = await send(a, cid, "x".repeat(100));
             const r = await send(b, cid, "re", { replyToId: original.message.id });
-            expect(r.message.replyTo).toEqual({ id: original.message.id, senderName: a, preview: "x".repeat(80), deleted: false });
+            expect(r.message.replyTo).toEqual({ id: original.message.id, senderId: a, senderName: a, preview: "x".repeat(80), deleted: false });
             expect((await send(a, cid, "plain")).message.replyTo).toBeNull();
             const items = await chatService.listMessages({ userId: b, conversationId: cid }).then((p) => p.items ?? p);
             expect(items.find((m) => m.id === r.message.id).replyTo).toMatchObject({ id: original.message.id });
@@ -314,7 +314,7 @@ describe.skipIf(!hasDb)("chat service (PostgreSQL)", () => {
             const r = await send(b, cid, "re", { replyToId: original.message.id });
             await chatService.recallMessage({ userId: a, messageId: original.message.id });
             const items = await chatService.listMessages({ userId: b, conversationId: cid }).then((p) => p.items ?? p);
-            expect(items.find((m) => m.id === r.message.id).replyTo).toEqual({ id: original.message.id, senderName: a, preview: null, deleted: true });
+            expect(items.find((m) => m.id === r.message.id).replyTo).toEqual({ id: original.message.id, senderId: a, senderName: a, preview: null, deleted: true });
         });
 
         it("an edited original shows its current text in replyTo.preview", async () => {

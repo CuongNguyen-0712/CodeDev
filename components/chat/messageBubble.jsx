@@ -90,6 +90,7 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
         const alt = images.length > 1 ? `Attached image ${index + 1} of ${images.length}` : "Attached image";
         return unsent ? { src: a.previewUrl, alt } : { src: `/api/chat/attachments/${a.id}`, alt, original: `/api/chat/attachments/${a.id}` };
     });
+    const lift = message.replyTo ? "-mt-3 relative" : "";   // the reply's first piece covers the quote's bottom padding
     const copy = () => navigator.clipboard.writeText(message.body).then(
         () => showAlert(200, "Copied"),
         () => showAlert(500, "Could not copy the message."),
@@ -114,9 +115,9 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                         ) : (
                             // Images, files and text are separate pieces, like other messengers: only text sits in a coloured bubble.
                             <div className={cn("flex min-w-0 max-w-full flex-col gap-1", mine ? "items-end" : "items-start", message.status === "sending" && "opacity-70")}>
-                                <ReplyQuote replyTo={message.replyTo} onJump={onJump} />
+                                <ReplyQuote replyTo={message.replyTo} replierName={nameOf(message.sender)} mine={mine} meId={meId} onJump={onJump} />
                                 {images.length > 0 && (
-                                    <div className={cn("overflow-hidden rounded-2xl", images.length > 1 && "grid w-64 max-w-full grid-cols-2 gap-0.5")}>
+                                    <div className={cn("overflow-hidden rounded-2xl", lift, images.length > 1 && "grid w-64 max-w-full grid-cols-2 gap-0.5")}>
                                         {images.map((a, index) => {
                                             const sized = images.length === 1 && a.width && a.height;
                                             const tile = images.length > 1 && "block aspect-square odd:last:col-span-2 odd:last:aspect-[2/1]";
@@ -139,10 +140,11 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                                         })}
                                     </div>
                                 )}
-                                {files.map((a) => {
+                                {files.map((a, fileIndex) => {
                                     const size = formatFileSize(a.size);
                                     const card = cn(
                                         "flex w-64 max-w-full min-w-0 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm",
+                                        !images.length && fileIndex === 0 && lift,
                                         mine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
                                         !unsent && (mine ? "hover:bg-primary/90" : "hover:bg-muted/70"),
                                         !unsent && "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
@@ -166,7 +168,7 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                                 })}
                                 {message.body && (
                                     // dark:bg-accent: muted is almost the card colour in dark mode, so the bubble disappeared.
-                                    <div className={cn("min-w-0 max-w-full rounded-2xl px-3 py-2", mine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground dark:bg-accent")}>
+                                    <div className={cn("min-w-0 max-w-full rounded-2xl px-3 py-2", !images.length && !files.length && lift, mine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground dark:bg-accent")}>
                                         <MessageBody body={message.body} />
                                     </div>
                                 )}

@@ -185,7 +185,7 @@ export default function ConversationView({ conversationId }) {
     const recall = useRecallMessage();
     const report = useReportMessage();
     const { toggle } = useToggleReaction(conversationId, meId);
-    const [reply, setReply] = useState(null);   // { conversationId, id, senderName, preview }; ignored once the open conversation changes
+    const [reply, setReply] = useState(null);   // { conversationId, id, senderId, senderName, preview }; ignored once the open conversation changes
     const [editing, setEditing] = useState(null);   // { conversationId, id, body }; ignored once the open conversation changes, and exclusive with reply
     const [failures, setFailures] = useState({});   // clientId -> { message, retryable }
 
@@ -234,7 +234,7 @@ export default function ConversationView({ conversationId }) {
         const clientId = crypto.randomUUID();
         const quote = replyTo;
         setReply(null);
-        const quoted = quote && { replyToId: quote.id, replyTo: { id: quote.id, senderName: quote.senderName, preview: quote.preview, deleted: false } };
+        const quoted = quote && { replyToId: quote.id, replyTo: { id: quote.id, senderId: quote.senderId, senderName: quote.senderName, preview: quote.preview, deleted: false } };
         return deliver({ clientId, body, attachmentIds, attachments, ...quoted }).catch((error) => {
             if (error?.status !== 422) return;
             discard({ clientId });
@@ -252,7 +252,7 @@ export default function ConversationView({ conversationId }) {
     const handlers = {
         canReact: me?.state === "accepted",
         // A pending member can reply (sending accepts the request); only a member who can send gets Reply.
-        onReply: conversation.canSend ? (m) => { setEditing(null); setReply({ conversationId, id: m.id, senderName: nameOf(m.sender), preview: previewOf(m) }); } : undefined,
+        onReply: conversation.canSend ? (m) => { setEditing(null); setReply({ conversationId, id: m.id, senderId: m.sender?.id, senderName: nameOf(m.sender), preview: previewOf(m) }); } : undefined,
         onReact: (m, emoji) => toggle({ messageId: m.id, emoji }, { onError: fail }),
         onRetry: (m) => deliver({ clientId: m.clientId, body: m.body, attachmentIds: m.attachmentIds ?? [] }).catch(() => { }),
         onDiscard: discard,

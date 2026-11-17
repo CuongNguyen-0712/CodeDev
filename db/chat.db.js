@@ -23,7 +23,7 @@ const MESSAGE = `
                            FROM community.chat_reaction rx JOIN identity.users rxu ON rxu.id = rx.user_id
                            WHERE rx.message_id = m.id GROUP BY rx.emoji) x), '[]'::json) AS reactions,
            r.public_id AS reply_id, r.body AS reply_body, r.deleted_at IS NOT NULL AS reply_deleted,
-           COALESCE(${NICKNAME("ri")}, ru.username) AS reply_sender_name,
+           ru.public_id AS reply_sender_id, COALESCE(${NICKNAME("ri")}, ru.username) AS reply_sender_name,
            (SELECT a.kind FROM community.chat_attachment a WHERE a.message_id = r.id ORDER BY (a.kind = 'image') DESC, a.id LIMIT 1) AS reply_attachment_kind
     FROM community.chat_message m
     JOIN community.conversation c ON c.id = m.conversation_id

@@ -93,21 +93,54 @@ describe("replying", () => {
 const handlers = { onRetry() {}, onDiscard() {}, onUnsend() {}, onReport() {} };
 
 describe("the quote in a reply bubble", () => {
-    it("a reply bubble shows the quote; an unsent original shows Message unsent", () => {
-        const replyTo = { id: "msg_1", senderName: "Ada", preview: "the original", deleted: false };
+    const quoteOf = (senderId, senderName = "Ada", over = {}) => ({ id: "msg_1", senderId, senderName, preview: "the original", deleted: false, ...over });
+    const bubble = (replier, replyTo, props = {}) => render(<MessageBubble message={message(5, replier, { replyTo })} mine={replier === "P1"} meId="P1" others={[]} {...handlers} {...props} />);
+
+    it.each([
+        ["P1", quoteOf("P1", "me"), "You replied to yourself"],
+        ["P1", quoteOf("P2"), "You replied to Ada"],
+        ["P2", quoteOf("P1", "me"), "p2 replied to you"],
+        ["P2", quoteOf("P3", "Bob"), "p2 replied to Bob"],
+    ])("label: %s replies, reads %s", (replier, replyTo, label) => {
+        bubble(replier, replyTo);
+        expect(screen.getByText(label)).toBeTruthy();
+    });
+
+    it("the quote is one button that jumps; an unsent original reads Original message was unsent", () => {
+        const replyTo = quoteOf("P1", "Ada");
         const onJump = vi.fn();
-        const { rerender } = render(<MessageBubble message={message(5, "P2", { replyTo })} others={[]} onJump={onJump} {...handlers} />);
+        const { rerender } = bubble("P2", replyTo, { onJump });
         const quote = screen.getByRole("button", { name: "Reply to Ada: the original, go to original" });
-        expect(quote.textContent).toContain("Ada");
         expect(quote.textContent).toContain("the original");
         fireEvent.click(quote);
         expect(onJump).toHaveBeenCalledWith(replyTo);
 
-        rerender(<MessageBubble message={message(5, "P2", { replyTo: { ...replyTo, preview: null, deleted: true } })} others={[]} onJump={onJump} {...handlers} />);
-        expect(screen.getByText("Message unsent")).toBeTruthy();
+        rerender(<MessageBubble message={message(5, "P2", { replyTo: { ...replyTo, preview: null, deleted: true } })} meId="P1" others={[]} onJump={onJump} {...handlers} />);
+        expect(screen.getByText("Original message was unsent").className).toContain("italic");
 
-        rerender(<MessageBubble message={message(5, "P2", { replyTo: null })} others={[]} onJump={onJump} {...handlers} />);
-        expect(screen.queryByText("Message unsent")).toBeNull();
+        rerender(<MessageBubble message={message(5, "P2", { replyTo: null })} meId="P1" others={[]} onJump={onJump} {...handlers} />);
+        expect(screen.queryByText("Original message was unsent")).toBeNull();
+        expect(screen.queryByText(/replied to/)).toBeNull();
+    });
+
+    it("the quote sits above the reply bubble on the bubble's side, and the bubble overlaps it", () => {
+        bubble("P1", quoteOf("P2"));
+        const quote = screen.getByRole("button", { name: /go to original/ });
+        expect(quote.className).toMatch(/\bbg-muted\b/);
+        expect(quote.className).toMatch(/\bopacity-80\b/);
+        const text = screen.getByText("hello 5").closest("div.rounded-2xl");
+        expect(text.className).toContain("-mt-3");
+        expect(text.className).toContain("relative");
+        expect(screen.getByText("You replied to Ada").className).toContain("self-end");
+        expect(quote.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("Reply from the menu carries the original's senderId into the optimistic quote", async () => {
+        render(wrap(<ConversationView conversationId="cnv_a" />));
+        await reply();
+        fireEvent.change(box(), { target: { value: "answer" } });
+        fireEvent.keyDown(box(), { key: "Enter" });
+        expect(await screen.findByText("You replied to p2")).toBeTruthy();
     });
 });
 
