@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 import { useSelectedLayoutSegment } from "next/navigation";
+import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 
 import { CHAT_COLUMN, CHAT_GRID_HEIGHT, CHAT_LAYOUT_HEIGHT, CHAT_LAYOUT_PADDING } from "@/components/chat/chatHeight";
 import Inbox from "@/components/chat/inbox";
@@ -13,6 +14,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 // plain content. Below 768px one column shows: the inbox on /messages, the pane on /messages/[id].
 // Pure CSS (`md:`), so nothing flashes on load. Height: components/chat/chatHeight.js.
 export default function MessagesLayout({ children }) {
+    useVisualViewportHeight();
     const segment = useSelectedLayoutSegment();
     const open = segment !== null;
 

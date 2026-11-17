@@ -2,7 +2,7 @@
 import Navbar from '@/components/ui/navbar';
 import Dashboard from '@/components/ui/dashboard';
 import dynamic from 'next/dynamic';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import VerifyEmailBanner from '@/components/auth/verifyEmailBanner';
 import { SignedIn } from '@/components/auth/signedIn';
 
@@ -33,12 +33,14 @@ function FeedbackGate() {
 function LayoutContent({ children, footer }) {
     const isSidebarOpen = useUiStore((s) => s.isSidebarOpen);
     const setSidebarOpen = useUiStore((s) => s.setSidebarOpen);
+    // The chat is a full-height app screen: no site footer under it.
+    const onMessages = usePathname().startsWith("/messages");
 
     return (
         <SidebarProvider
             open={isSidebarOpen}
             onOpenChange={setSidebarOpen}
-            className="h-dvh min-h-0 overflow-hidden"
+            className="h-[var(--app-height,100dvh)] min-h-0 overflow-hidden"
         >
             <a
                 href="#container"
@@ -64,7 +66,7 @@ function LayoutContent({ children, footer }) {
                     className='page-enter [&>:not(footer)]:min-h-dvh [&>:not(footer)]:shrink-0 outline-none flex min-h-0 w-full flex-1 flex-col items-center overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background [overflow-anchor:none] **:[overflow-anchor:none]'
                 >
                     {children}
-                    {footer}
+                    {!onMessages && footer}
                 </section>
             </SidebarInset>
 
