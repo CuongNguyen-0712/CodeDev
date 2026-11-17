@@ -83,6 +83,8 @@ describe("HomeLayout", () => {
         render(<HomeLayout footer={footer}><div /></HomeLayout>);
         expect(screen.getByTestId("shell").className).toContain("h-[var(--app-height,100dvh)]");
         expect(screen.getByTestId("shell").className).not.toContain("h-dvh");
+        // <body> centres its children: a shell shorter than the body must sit at the top.
+        expect(screen.getByTestId("shell").className.split(" ")).toContain("self-start");
     });
 });
 
@@ -91,5 +93,7 @@ describe("CHAT_GRID_HEIGHT", () => {
         const classes = CHAT_GRID_HEIGHT.split(" ");
         expect(classes).not.toContain("min-h-96");
         expect(classes).toContain("md:min-h-96");
+        // min-h-0 overrides the flex item's `min-height: auto`, which would grow the grid to its content.
+        expect(classes).toContain("min-h-0");
     });
 });

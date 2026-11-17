@@ -8,10 +8,11 @@ export const CHAT_LAYOUT_HEIGHT = "min-h-full!";
 export const CHAT_LAYOUT_PADDING = "md:p-4 lg:px-6 lg:pt-10";
 // The grid takes what the padding leaves. basis-0: the inbox list's length never sizes it; md:min-h-96: on a
 // short desktop window the page scrolls instead of squeezing the pane. Phones have no floor: the shell
-// follows the visible height (--app-height), so with the keyboard open the pane shrinks to fit.
+// follows the visible height (--app-height), so with the keyboard open the pane shrinks to fit. min-h-0
+// is required there: without a floor the flex item keeps `min-height: auto` and grows to its content.
 // grid-rows-[minmax(0,1fr)]: the one row is exactly the grid's height; an implicit `auto` row would grow to
 // the pane's content (h-full below would then be cyclic).
-export const CHAT_GRID_HEIGHT = "md:min-h-96 grow basis-0 grid-rows-[minmax(0,1fr)]";
+export const CHAT_GRID_HEIGHT = "min-h-0 md:min-h-96 grow basis-0 grid-rows-[minmax(0,1fr)]";
 // The columns (aside, section) are not sized by their content either.
 export const CHAT_COLUMN = "min-h-0 min-w-0";
 // The chat pane and the inbox column fill their grid cell.

@@ -40,7 +40,7 @@ function LayoutContent({ children, footer }) {
         <SidebarProvider
             open={isSidebarOpen}
             onOpenChange={setSidebarOpen}
-            className="h-[var(--app-height,100dvh)] min-h-0 overflow-hidden"
+            className="h-[var(--app-height,100dvh)] self-start min-h-0 overflow-hidden"
         >
             <a
                 href="#container"
