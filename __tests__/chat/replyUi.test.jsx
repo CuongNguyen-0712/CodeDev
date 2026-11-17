@@ -26,6 +26,9 @@ vi.mock("@/contexts/appContext", () => ({ useApp: () => ({ showAlert: vi.fn() })
 vi.mock("@/components/ui/codeBlock", () => ({ default: () => null }));
 vi.mock("@/components/ui/alert", async (importOriginal) => ({ ...(await importOriginal()), showAlert: (...a) => showAlert(...a) }));
 
+// jsdom has no IntersectionObserver; the thread observes its top sentinel to load earlier messages.
+globalThis.IntersectionObserver = class { observe() {} disconnect() {} unobserve() {} };
+
 const { default: ConversationView } = await import("@/components/chat/conversationView");
 const { default: MessageBubble } = await import("@/components/chat/messageBubble");
 

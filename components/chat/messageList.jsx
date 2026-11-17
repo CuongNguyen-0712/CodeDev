@@ -9,6 +9,7 @@ import { chatKeys } from "@/keys/chat.keys";
 import { mergeOutbox, older } from "@/lib/chat/messageCache";
 import { retryTransient } from "@/lib/queryTimes";
 import { useMarkRead } from "@/mutations/chat.mutation";
+import useInfiniteScroll from "@/hooks/useInfiniteScroll";
 import { chatQueries } from "@/queries/chat.query";
 import { selectUnsent, useChatOutboxStore } from "@/stores/chatOutboxStore";
 
@@ -70,7 +71,7 @@ function ThreadSkeleton() {
 }
 
 /**
- * The thread, oldest at the top. "Load earlier" keeps the reading position; new messages scroll into view
+ * The thread, oldest at the top. Earlier messages load when the sentinel at the top nears view, and the reading position is kept; new messages scroll into view
  * only when the reader is already at the bottom, and only then (tab visible) is the newest server seq marked read.
  */
 export default function MessageList({ conversation, meId, failures, ...handlers }) {
@@ -88,6 +89,8 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     const newestSeq = serverItems[0]?.seq ?? null;
 
     const scroller = useRef(null);
+    const [scrollRoot, setScrollRoot] = useState(null);   // the scroller as state: the observer re-attaches once it exists
+    const setScroller = useCallback((node) => { scroller.current = node; setScrollRoot(node); }, []);
     const atBottom = useRef(true);
     const [scrolledUp, setScrolledUp] = useState(false);   // atBottom mirrored into state, to show the jump button
     const [seenSeq, setSeenSeq] = useState(null);          // newest server seq when the reader left the bottom
@@ -167,6 +170,8 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
         query.fetchNextPage();
     };
 
+    const { setRef: sentinelRef } = useInfiniteScroll({ hasMore: !!query.hasNextPage, onLoadMore: loadEarlier, isLoading: query.isFetchingNextPage, root: scrollRoot });
+
     const gone = useLeaveWhenGone(query.error);
 
     if (query.isPending || gone) return <div className="min-h-0 flex-1"><ThreadSkeleton /></div>;
@@ -177,13 +182,11 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     return (
         // The jump button and the floating typing bar are absolute siblings of the scroller, so they do not scroll away.
         <div className="relative flex min-h-0 flex-1 flex-col">
-        <div ref={scroller} onScroll={onScroll} role="log" aria-label="Messages" tabIndex={0} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pt-4 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset sm:px-4">
-            {query.hasNextPage && (
-                <div className="flex justify-center pb-3">
-                    <Button type="button" variant="outline" size="sm" onClick={loadEarlier} disabled={query.isFetchingNextPage}>
-                        {query.isFetchingNextPage && <Spinner />}
-                        Load earlier
-                    </Button>
+        <div ref={setScroller} onScroll={onScroll} role="log" aria-label="Messages" tabIndex={0} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pt-4 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset sm:px-4">
+            <div ref={sentinelRef} aria-hidden="true" className="h-px" />
+            {query.isFetchingNextPage && (
+                <div className="flex justify-center py-2">
+                    <Spinner aria-label="Loading earlier messages" />
                 </div>
             )}
             {items.length === 0 ? <EmptyThread /> : (
