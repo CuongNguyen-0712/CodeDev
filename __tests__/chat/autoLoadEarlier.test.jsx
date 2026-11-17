@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 /** Earlier messages load when a sentinel at the top of the thread scrolls into view. */
@@ -90,6 +90,44 @@ describe("auto-load earlier messages", () => {
         await act(async () => second.resolve({ items: [msg(1)], nextCursor: null }));
         await screen.findByText("body 1");
         expect(log.scrollTop).toBe(600);
+    });
+
+    it("scrolling during a fetch: after the page lands, the distance from the end equals the one at the last scroll before it landed", async () => {
+        const second = deferred();
+        getMessages.mockResolvedValueOnce({ items: [msg(2)], nextCursor: "cur" }).mockReturnValueOnce(second.promise);
+        view();
+        const log = await screen.findByRole("log");
+        await screen.findByText("body 2");
+        let height = 1000;
+        Object.defineProperty(log, "scrollHeight", { configurable: true, get: () => height });
+        log.scrollTop = 0;
+        await waitFor(() => expect(liveObserver()).toBeTruthy());
+        await intersect();
+        await screen.findByRole("status", SPINNER);
+        log.scrollTop = 120;   // the reader keeps scrolling while the page loads
+        fireEvent.scroll(log);
+        height = 1600;
+        await act(async () => second.resolve({ items: [msg(1)], nextCursor: null }));
+        await screen.findByText("body 1");
+        expect(log.scrollTop).toBe(1600 - (1000 - 120));
+    });
+
+    it("the top row has the same height while fetching and while idle", async () => {
+        const second = deferred();
+        getMessages.mockResolvedValueOnce({ items: [msg(2)], nextCursor: "cur" }).mockReturnValueOnce(second.promise);
+        view();
+        const log = await screen.findByRole("log");
+        await screen.findByText("body 2");
+        const row = () => log.firstElementChild.nextElementSibling;
+        const idle = row();
+        expect(idle.className).toMatch(/\bh-8\b/);
+        await waitFor(() => expect(liveObserver()).toBeTruthy());
+        await intersect();
+        await screen.findByRole("status", SPINNER);
+        expect(row().className).toBe(idle.className);
+        await act(async () => second.resolve({ items: [msg(1)], nextCursor: null }));
+        await screen.findByText("body 1");
+        expect(screen.queryByRole("status", SPINNER)).toBeNull();
     });
 
     it("shows a spinner at the top while fetching, with aria-label \"Loading earlier messages\"", async () => {

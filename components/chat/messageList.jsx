@@ -132,6 +132,7 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
 
     const onScroll = () => {
         const el = scroller.current;
+        if (fromBottom.current !== null) fromBottom.current = el.scrollHeight - el.scrollTop;   // a page is loading: restore to where the reader is now
         atBottom.current = distanceToEnd(el) < (scrolledUp ? RETURN_SLACK : BOTTOM_SLACK);
         if (!atBottom.current && !scrolledUp) setSeenSeq(newestSeq);   // leaving the bottom: everything up to here was seen
         setScrolledUp(!atBottom.current);
@@ -184,9 +185,10 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
         <div className="relative flex min-h-0 flex-1 flex-col">
         <div ref={setScroller} onScroll={onScroll} role="log" aria-label="Messages" tabIndex={0} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pt-4 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset sm:px-4">
             <div ref={sentinelRef} aria-hidden="true" className="h-px" />
-            {query.isFetchingNextPage && (
-                <div className="flex justify-center py-2">
-                    <Spinner aria-label="Loading earlier messages" />
+            {/* Fixed height while more pages exist, so the spinner appearing never shifts the thread. */}
+            {query.hasNextPage && (
+                <div className="flex h-8 shrink-0 items-center justify-center">
+                    {query.isFetchingNextPage && <Spinner aria-label="Loading earlier messages" />}
                 </div>
             )}
             {items.length === 0 ? <EmptyThread /> : (
