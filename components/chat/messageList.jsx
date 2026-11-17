@@ -97,6 +97,7 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     const marked = useRef(null);
     const fromBottom = useRef(null);   // distance from the end, saved while an older page loads
     const pageCount = query.data?.pages.length ?? 0;
+    const seenPages = useRef(pageCount);   // pageCount at the last layout: a grown count means a page landed
     const [flashId, setFlashId] = useState(null);   // the message a quote just jumped to
     const flashTimer = useRef(null);
     useEffect(() => () => clearTimeout(flashTimer.current), []);
@@ -116,7 +117,10 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     useLayoutEffect(() => {
         const el = scroller.current;
         if (!el) return;
-        if (fromBottom.current !== null) {
+        // Only a landed page restores: a message or reaction arriving during the fetch must not consume the saved distance.
+        const landed = pageCount > seenPages.current;
+        seenPages.current = pageCount;
+        if (fromBottom.current !== null && landed) {
             el.scrollTop = el.scrollHeight - fromBottom.current;
             fromBottom.current = null;
         } else if (atBottom.current) {
@@ -174,6 +178,14 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
         listObserver.current = new ResizeObserver(keepAtBottom);
         listObserver.current.observe(node);
     }, [keepAtBottom]);
+
+    // The scroller shrinking (keyboard, Editing or Replying bar, growing textarea) hides the newest messages the same way.
+    useEffect(() => {
+        if (!scrollRoot) return;
+        const observer = new ResizeObserver(keepAtBottom);
+        observer.observe(scrollRoot);
+        return () => observer.disconnect();
+    }, [scrollRoot, keepAtBottom]);
 
     const loadEarlier = () => {
         const el = scroller.current;

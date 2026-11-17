@@ -22,8 +22,8 @@ beforeEach(() => {
     intersectors = [];
     getMessages.mockReset();
     globalThis.ResizeObserver = class {
-        constructor(callback) { this.callback = callback; this.live = true; resizers.push(this); }
-        observe() {}
+        constructor(callback) { this.callback = callback; this.live = true; this.nodes = []; resizers.push(this); }
+        observe(node) { this.nodes.push(node); }
         disconnect() { this.live = false; }
         unobserve() {}
     };
@@ -95,6 +95,40 @@ describe("thread stays at the newest message", () => {
         await act(async () => useChatOutboxStore.getState().addUnsent("cnv_a", unsent));
         await screen.findByText("mine");
         expect(log.scrollTop).toBe(0);   // a stale restore would put it at 1500 - 1000 = 500
+    });
+
+    it("while at the bottom, a resize of the scroller itself (keyboard, Editing bar) scrolls to the end", async () => {
+        getMessages.mockResolvedValue({ items: [msg(1)], nextCursor: null });
+        view();
+        const log = await screen.findByRole("log");
+        await screen.findByText("body 1");
+        tall(log, 2000);
+        const watcher = resizers.find((o) => o.live && o.nodes.includes(log));
+        expect(watcher).toBeTruthy();
+        await act(async () => watcher.callback([]));
+        expect(log.scrollTop).toBe(2000);
+    });
+
+    it("an item that arrives during an older-page fetch does not drop the saved position", async () => {
+        let land;
+        getMessages.mockResolvedValueOnce({ items: [msg(2)], nextCursor: "cur" }).mockReturnValueOnce(new Promise((resolve) => { land = resolve; }));
+        view();
+        const log = await screen.findByRole("log");
+        await screen.findByText("body 2");
+        tall(log, 1000);
+        log.scrollTop = 0;
+        fireEvent.scroll(log);   // 1000px from the end
+        await waitFor(() => expect(intersectors.some((o) => o.live)).toBe(true));
+        await act(async () => intersectors.filter((o) => o.live).at(-1).callback([{ isIntersecting: true }]));
+        await waitFor(() => expect(getMessages).toHaveBeenCalledTimes(2));
+        tall(log, 1100);
+        const unsent = { clientId: "u1", id: null, seq: null, sender: member("P1"), body: "mine", attachments: [], status: "sending", createdAt: "2026-11-11T10:01:00Z", reactions: [], replyTo: null };
+        await act(async () => useChatOutboxStore.getState().addUnsent("cnv_a", unsent));
+        await screen.findByText("mine");
+        tall(log, 3100);   // the page lands, 2000px taller
+        await act(async () => land({ items: [msg(1)], nextCursor: null }));
+        await screen.findByText("body 1");
+        expect(log.scrollTop).toBe(2100);   // scrollHeight - 1000, the distance saved when the fetch began
     });
 
     it("a single image with width and height reserves its box: style aspect-ratio \"w / h\"", async () => {

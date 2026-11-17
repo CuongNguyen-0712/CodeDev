@@ -99,4 +99,8 @@ The goal is that /messages feels like a messenger app on desktop and on a phone.
 - **Item 2, Edit visibility:** Edit is hidden when the conversation cannot send (ruling R5).
 - **Item 7, phone grid:** there is no min-height floor on phones. `min-h-0` applies on phones and `md:min-h-96` on desktop (ruling R8). The shell is top-aligned (`self-start`).
 - **Item 7, viewport meta:** there is no viewport-meta change (no `interactive-widget=resizes-content`). The `visualViewport` hook (`hooks/useVisualViewportHeight.js`) covers both Android and iOS.
+- **Item 2, edit errors:** a failed save shows the error as a toast and also inline under the composer's text box (the composer's own error line). The composer stays in edit mode with the typed text.
+- **Reply label, own message:** a reply to your own message reads "You replied to yourself".
+- **Reply label, teams:** a member replying to their own message reads "Name replied to their own message" (ruling R10).
+- **Edit mode and unsend:** edit mode ends when the message being edited is unsent, here or by realtime (ruling R10).
 - Real-keyboard behaviour on an iPhone remains for the user to check.

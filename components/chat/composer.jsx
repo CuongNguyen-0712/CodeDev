@@ -281,7 +281,7 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
                         if (conversationId) ping();
                     }}
                     onKeyDown={(event) => {
-                        if (event.key === "Escape" && editing) return onCancelEdit();
+                        if (event.key === "Escape" && editing && !event.nativeEvent.isComposing) return onCancelEdit();
                         // isComposing: Enter that confirms an IME candidate is not a send.
                         if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
                         event.preventDefault();

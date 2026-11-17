@@ -22,7 +22,7 @@ This checklist covers three changes to the existing /messages pane: the composer
 - [ ] **Bubble menu Edit** (`messageBubble.jsx`). The Edit item stays where it is in the ⋯ menu, with `LuPencil` and the label "Edit". It calls `onStartEdit(message)`. `EditForm` and the bubble's `editing` state are removed, so no in-thread form renders.
 - [ ] **Auto-load row** (`messageList.jsx`). The "Load earlier" `Button` is removed.
   - A sentinel `<div aria-hidden className="h-px" />` sits first in the scroller.
-  - While `isFetchingNextPage`, a row `div.flex.justify-center.py-2` holds the project's `Spinner`. That is the same piece the composer and banners use: 5 uses in `components/chat`.
+  - While `hasNextPage`, a fixed-height row `div.flex.h-8.shrink-0.items-center.justify-center` sits under the sentinel, so the spinner appearing never shifts the thread. It holds the project's `Spinner` only while `isFetchingNextPage`. That is the same piece the composer and banners use: 8 uses in `components/chat`.
   - The spinner has `aria-label="Loading earlier messages"`.
   - Nothing renders when there are no more pages.
 - [ ] **Reply marker** (`replyQuote.jsx` and its place in `messageBubble.jsx`, inside the non-deleted branch, above images and files):

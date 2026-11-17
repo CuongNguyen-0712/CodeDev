@@ -9,8 +9,8 @@ export function useVisualViewportHeight() {
         if (!vv) return;
         const root = document.documentElement;
         const onResize = () => root.style.setProperty("--app-height", `${Math.round(vv.height * vv.scale)}px`);
-        // iOS scrolls the layout viewport to reveal the focused input; pin it back.
-        const onScroll = () => { if (vv.offsetTop > 0) window.scrollTo(0, 0); };
+        // iOS scrolls the layout viewport to reveal the focused input; pin it back (not while pinch-zoomed: that is the reader panning).
+        const onScroll = () => { if (vv.offsetTop > 0 && vv.scale <= 1.01) window.scrollTo(0, 0); };
         vv.addEventListener("resize", onResize);
         vv.addEventListener("scroll", onScroll);
         return () => {

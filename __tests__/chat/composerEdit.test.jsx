@@ -86,6 +86,13 @@ describe("Composer edit mode", () => {
         expect(p.onSubmit).not.toHaveBeenCalled();
     });
 
+    it("Esc that closes an IME candidate list does not cancel the edit", () => {
+        const p = props();
+        render(inClient(<Composer {...p} editing={editing} />));
+        fireEvent.keyDown(box(), { key: "Escape", isComposing: true });
+        expect(p.onCancelEdit).not.toHaveBeenCalled();
+    });
+
     it("Esc and the ✕ (Cancel edit) leave edit mode without saving and restore the draft", () => {
         const p = props();
         const { rerender } = render(inClient(<Composer {...p} editing={null} />));

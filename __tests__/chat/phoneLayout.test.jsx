@@ -52,6 +52,16 @@ describe("useVisualViewportHeight", () => {
         expect(window.scrollTo).not.toHaveBeenCalled();
     });
 
+    it("while pinch-zoomed, a scroll of the visual viewport is not pinned back", () => {
+        const vv = new EventTarget();
+        Object.assign(vv, { height: 300, scale: 2, offsetTop: 40 });
+        window.visualViewport = vv;
+        window.scrollTo = vi.fn();
+        render(<Probe />);
+        vv.dispatchEvent(new Event("scroll"));
+        expect(window.scrollTo).not.toHaveBeenCalled();
+    });
+
     it("scales the visual height by the pinch-zoom scale", () => {
         const vv = new EventTarget();
         Object.assign(vv, { height: 300, scale: 2, offsetTop: 0 });

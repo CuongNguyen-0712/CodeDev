@@ -101,6 +101,7 @@ describe("the quote in a reply bubble", () => {
         ["P1", quoteOf("P2"), "You replied to Ada"],
         ["P2", quoteOf("P1", "me"), "p2 replied to you"],
         ["P2", quoteOf("P3", "Bob"), "p2 replied to Bob"],
+        ["P2", quoteOf("P2", "p2"), "p2 replied to their own message"],
     ])("label: %s replies, reads %s", (replier, replyTo, label) => {
         bubble(replier, replyTo);
         expect(screen.getByText(label)).toBeTruthy();

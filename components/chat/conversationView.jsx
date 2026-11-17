@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useApp } from "@/contexts/appContext";
 import { getOpenConversation, setOpenConversation } from "@/lib/chat/openConversation";
+import { chatKeys } from "@/keys/chat.keys";
 import { retryTransient } from "@/lib/queryTimes";
 import { useEditMessage, useRecallMessage, useReportMessage, useSendMessage, useToggleReaction } from "@/mutations/chat.mutation";
 import { useTeamAction } from "@/mutations/team.mutation";
@@ -190,6 +191,20 @@ export default function ConversationView({ conversationId }) {
     const [failures, setFailures] = useState({});   // clientId -> { message, retryable }
 
     const gone = useLeaveWhenGone(query.error);
+
+    // The message being edited was unsent (here or by realtime) or left the cache: there is nothing to save to.
+    const queryClient = useQueryClient();
+    useEffect(() => {
+        if (!editing) return;
+        const check = () => {
+            const data = queryClient.getQueryData(chatKeys.messages(editing.conversationId));
+            if (!data?.pages) return;
+            const target = data.pages.flatMap((p) => p.items).find((m) => m.id === editing.id);
+            if (!target || target.deleted) setEditing(null);
+        };
+        check();
+        return queryClient.getQueryCache().subscribe(check);
+    }, [editing, queryClient]);
 
     // Tells the realtime handlers which thread the viewer is looking at, so its new messages do not count as unread.
     useEffect(() => {

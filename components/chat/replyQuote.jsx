@@ -6,15 +6,15 @@ import { cn } from "@/lib/utils";
 
 /**
  * The marker above a reply, Messenger style: a label ("You replied to Ada") and the quoted original, which
- * the reply's next piece overlaps. `mine`: the reply is mine; `replierName`: its sender. Renders nothing when
+ * the reply's next piece overlaps. `mine`: the reply is mine; `replierName` and `replierId`: its sender. Renders nothing when
  * the original is gone (hard-deleted).
  */
-export default function ReplyQuote({ replyTo, replierName, mine, meId, onJump }) {
+export default function ReplyQuote({ replyTo, replierName, replierId, mine, meId, onJump }) {
     if (!replyTo) return null;
     const toMe = replyTo.senderId === meId;
     const label = mine
         ? (toMe ? "You replied to yourself" : `You replied to ${replyTo.senderName}`)
-        : (toMe ? `${replierName} replied to you` : `${replierName} replied to ${replyTo.senderName}`);
+        : (toMe ? `${replierName} replied to you` : replyTo.senderId === replierId ? `${replierName} replied to their own message` : `${replierName} replied to ${replyTo.senderName}`);
     const preview = replyTo.deleted ? "Original message was unsent" : replyTo.preview;
     return (
         <>

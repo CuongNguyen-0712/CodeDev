@@ -115,7 +115,7 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                         ) : (
                             // Images, files and text are separate pieces, like other messengers: only text sits in a coloured bubble.
                             <div className={cn("flex min-w-0 max-w-full flex-col gap-1", mine ? "items-end" : "items-start", message.status === "sending" && "opacity-70")}>
-                                <ReplyQuote replyTo={message.replyTo} replierName={nameOf(message.sender)} mine={mine} meId={meId} onJump={onJump} />
+                                <ReplyQuote replyTo={message.replyTo} replierName={nameOf(message.sender)} replierId={message.sender?.id} mine={mine} meId={meId} onJump={onJump} />
                                 {images.length > 0 && (
                                     <div className={cn("overflow-hidden rounded-2xl", lift, images.length > 1 && "grid w-64 max-w-full grid-cols-2 gap-0.5")}>
                                         {images.map((a, index) => {
