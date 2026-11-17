@@ -138,9 +138,25 @@ describe("ConversationView edit wiring", () => {
         expect(screen.queryByText(/Replying to/)).toBeNull();
     });
 
+    it("choosing Edit from the menu leaves focus in the composer textarea", async () => {
+        render(wrap(<ConversationView conversationId="cnv_a" />));
+        await menuItem("p1", "Edit");
+        await screen.findByText("Editing message");
+        await waitFor(() => expect(document.activeElement).toBe(box()));
+    });
+
+    it("with canSend false the menu has no Edit item", async () => {
+        detail = { ...detail, canSend: false };
+        render(wrap(<ConversationView conversationId="cnv_a" />));
+        fireEvent.pointerDown(await screen.findByRole("button", { name: "More actions for p1" }), { button: 0, ctrlKey: false });
+        await screen.findByRole("menuitem", { name: "Unsend" });
+        expect(screen.queryByRole("menuitem", { name: "Edit" })).toBeNull();
+    });
+
     it("saving an edit goes through the edit mutation and leaves edit mode", async () => {
         render(wrap(<ConversationView conversationId="cnv_a" />));
         await menuItem("p1", "Edit");
+        await screen.findByText("Editing message");
         fireEvent.change(box(), { target: { value: "changed" } });
         fireEvent.keyDown(box(), { key: "Enter" });
         await waitFor(() => expect(editMessageAction).toHaveBeenCalled());
@@ -163,7 +179,7 @@ describe("MessageBubble Edit", () => {
         const onStartEdit = vi.fn();
         render(<MessageBubble message={message(1, "P1")} mine others={[]} meId="P1" onRetry={() => {}} onDiscard={() => {}} onUnsend={() => {}} onReport={() => {}} onStartEdit={onStartEdit} />);
         await menuItem("p1", "Edit");
-        expect(onStartEdit).toHaveBeenCalledWith(expect.objectContaining({ id: "msg_1" }));
+        await waitFor(() => expect(onStartEdit).toHaveBeenCalledWith(expect.objectContaining({ id: "msg_1" })));
         expect(screen.queryByRole("textbox")).toBeNull();
         expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
         expect(screen.getByText("hello 1")).toBeTruthy();

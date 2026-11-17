@@ -256,7 +256,8 @@ export default function ConversationView({ conversationId }) {
         onReact: (m, emoji) => toggle({ messageId: m.id, emoji }, { onError: fail }),
         onRetry: (m) => deliver({ clientId: m.clientId, body: m.body, attachmentIds: m.attachmentIds ?? [] }).catch(() => { }),
         onDiscard: discard,
-        onStartEdit: (m) => { setReply(null); setEditing({ conversationId, id: m.id, body: m.body }); },
+        // Like Reply, only where the composer shows (it hosts the edit).
+        onStartEdit: conversation.canSend ? (m) => { setReply(null); setEditing({ conversationId, id: m.id, body: m.body }); } : undefined,
         onUnsend: (m) => recall.mutateAsync({ conversationId, messageId: m.id }).catch(fail),
         onReport: (m, reason) => report.mutateAsync({ messageId: m.id, reason })
             .then(() => showAlert(200, "Thanks. Moderators will review this message."), fail),

@@ -75,10 +75,10 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
     const [confirmUnsend, setConfirmUnsend] = useState(false);
     const [reporting, setReporting] = useState(false);
     const [reacting, setReacting] = useState(false);
-    const afterMenu = useRef(null);   // "react" | "reply": what the chosen item does once the menu has closed, so its focus return does not undo it
+    const afterMenu = useRef(null);   // "react" | "reply" | "edit": what the chosen item does once the menu has closed, so its focus return does not undo it
 
     const sent = message.seq != null && !message.deleted;
-    const canEdit = mine && sent && openedAt - Date.parse(message.createdAt) < EDIT_WINDOW_MS;
+    const canEdit = mine && sent && openedAt - Date.parse(message.createdAt) < EDIT_WINDOW_MS && Boolean(onStartEdit);
     const hasMenu = sent;
     const unsent = message.seq == null;
     // A message without `kind` on an attachment is an image.
@@ -194,6 +194,7 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                                         if (!chosen) return;
                                         event.preventDefault();
                                         if (chosen === "react") setReacting(true);
+                                        else if (chosen === "edit") onStartEdit(message);
                                         else onReply(message);
                                     }}
                                 >
@@ -203,7 +204,7 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                                     {(onReply || canReact || message.body) && <DropdownMenuSeparator />}
                                     {mine ? (
                                         <>
-                                            {canEdit && <DropdownMenuItem onSelect={() => onStartEdit(message)}><LuPencil />Edit</DropdownMenuItem>}
+                                            {canEdit && <DropdownMenuItem onSelect={() => { afterMenu.current = "edit"; }}><LuPencil />Edit</DropdownMenuItem>}
                                             {canEdit && <DropdownMenuSeparator />}
                                             <DropdownMenuItem variant="destructive" onSelect={() => setConfirmUnsend(true)}><LuUndo2 />Unsend</DropdownMenuItem>
                                         </>

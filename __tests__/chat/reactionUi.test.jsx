@@ -19,7 +19,7 @@ const message = (over = {}) => ({
     attachments: [], createdAt: "2026-11-11T10:00:00Z", editedAt: null, deleted: false, replyTo: null, reactions: [], ...over,
 });
 const noop = () => {};
-const base = { others: [], meId: "P1", canReact: true, onReply: noop, onReact: noop, onRetry: noop, onDiscard: noop, onUnsend: noop, onReport: noop };
+const base = { others: [], meId: "P1", canReact: true, onReply: noop, onReact: noop, onStartEdit: noop, onRetry: noop, onDiscard: noop, onUnsend: noop, onReport: noop };
 const openMenu = () => fireEvent.pointerDown(screen.getByRole("button", { name: /More actions for/ }), { button: 0, ctrlKey: false });
 
 afterEach(cleanup);
