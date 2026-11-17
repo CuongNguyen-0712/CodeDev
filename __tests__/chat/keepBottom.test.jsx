@@ -103,7 +103,16 @@ describe("thread stays at the newest message", () => {
         const img = await screen.findByRole("img");
         expect(img.style.aspectRatio).toBe("800 / 600");
         expect(img.className).toMatch(/max-h-72/);
-        expect(img.className).not.toMatch(/\bw-auto\b/);
+        expect(img.className).not.toMatch(/(^| )(w-auto|w-full)( |$)/);
+        expect(img.className).toMatch(/\bh-auto\b/);
+    });
+
+    it.each([[600, 800, "216px"], [300, 100, "300px"], [2000, 1000, "576px"]])("a %ix%i image gets an inline width of %s and can still shrink", async (w, h, width) => {
+        getMessages.mockResolvedValue({ items: [msg(1, { attachments: [{ id: "a1", width: w, height: h, name: "p.png" }] })], nextCursor: null });
+        view();
+        const img = await screen.findByRole("img");
+        expect(img.style.width).toBe(width);
+        expect(img.className).toMatch(/\bmax-w-full\b/);
     });
 
     it("an image without a size renders as today", async () => {

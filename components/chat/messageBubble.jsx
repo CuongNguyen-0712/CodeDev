@@ -41,6 +41,7 @@ export function seenByAll(seq, others) {
 const QUICK = "shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/msg:opacity-100 group-focus-within/msg:opacity-100 focus-visible:opacity-100 max-md:hidden";
 const CHIP = "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-xs font-medium tabular-nums transition-colors";
 
+const MAX_IMAGE_H = 288;   // px, the max-h-72 cap: width must follow it, or a tall image is squeezed instead of scaled
 const nameOf = (user) => user?.nickname || user?.username || "Someone";
 
 function Status({ message, others, failure, onRetry, onDiscard }) {
@@ -117,6 +118,7 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                                 {images.length > 0 && (
                                     <div className={cn("overflow-hidden rounded-2xl", images.length > 1 && "grid w-64 max-w-full grid-cols-2 gap-0.5")}>
                                         {images.map((a, index) => {
+                                            const sized = images.length === 1 && a.width && a.height;
                                             const tile = images.length > 1 && "block aspect-square odd:last:col-span-2 odd:last:aspect-[2/1]";
                                             const img = (
                                                 // eslint-disable-next-line @next/next/no-img-element -- the route 302s to a short-lived signed URL; previewUrl is a local blob while sending
@@ -126,8 +128,8 @@ export default function MessageBubble({ message, mine = false, meId, others, sho
                                                     width={a.width || undefined}
                                                     height={a.height || undefined}
                                                     loading="lazy"
-                                                    style={images.length === 1 && a.width && a.height ? { aspectRatio: `${a.width} / ${a.height}`, maxWidth: `min(100%, ${a.width}px)` } : undefined}
-                                                    className={images.length > 1 ? "size-full bg-muted object-cover" : cn("max-h-72 bg-muted object-cover", a.width && a.height ? "w-full" : "h-auto w-auto max-w-full")}
+                                                    style={sized ? { width: Math.min(a.width, MAX_IMAGE_H * a.width / a.height), aspectRatio: `${a.width} / ${a.height}` } : undefined}
+                                                    className={images.length > 1 ? "size-full bg-muted object-cover" : sized ? "h-auto max-h-72 max-w-full bg-muted object-cover" : "h-auto max-h-72 w-auto max-w-full bg-muted object-cover"}
                                                 />
                                             );
                                             // Unsent images open their blob preview; the original link is only offered once the send claimed the attachment.
