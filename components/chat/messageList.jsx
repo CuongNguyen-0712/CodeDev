@@ -195,7 +195,7 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
                             {...groups[index]}
                             mine={message.sender?.id === meId}
                             meId={meId}
-                            flash={message.id === flashId}
+                            flash={flashId != null && message.id === flashId}   // outbox messages have id null: never match an idle flashId
                             onJump={jumpTo}
                             others={others}
                             showSender={conversation.kind === "team"}
