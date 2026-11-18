@@ -399,7 +399,7 @@ export default function ProfilePage() {
                                 </Avatar>
                             </ImageLightbox>
                             <div className="min-w-0 space-y-2">
-                                <h1 className="text-3xl font-semibold tracking-tight break-words text-foreground sm:text-4xl">
+                                <h1 title={displayName} className="line-clamp-2 text-2xl font-semibold tracking-tight break-words text-foreground md:text-4xl">
                                     {displayName}
                                 </h1>
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">

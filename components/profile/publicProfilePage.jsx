@@ -53,27 +53,29 @@ export default function PublicProfilePage({ profile }) {
                 </div>
             ) : null}
 
-            <header className="flex min-w-0 items-start gap-4">
-                <ImageLightbox src={profile.image} alt={displayName} caption={displayName} variant="avatar" label="View profile photo" className="shrink-0 rounded-full">
-                    <Avatar className="size-16 border sm:size-20">
-                        <AvatarImage src={profile.image || undefined} alt="" className="object-cover" />
-                        <AvatarFallback className="bg-primary-soft text-lg font-semibold text-primary-soft-foreground">
-                            {initials(displayName)}
-                        </AvatarFallback>
-                    </Avatar>
-                </ImageLightbox>
-                <div className="min-w-0 space-y-2">
-                    <h1 className="text-3xl font-semibold tracking-tight break-words text-foreground sm:text-4xl">
-                        {displayName}
-                    </h1>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
-                        <span className="tabular">@{profile.username}</span>
-                        {since ? <span>Member since {since}</span> : null}
-                        <LevelBadge level={progress.level} title={progress.title} />
+            <header className="flex flex-col gap-4 md:flex-row md:items-start">
+                <div className="flex min-w-0 items-start gap-4">
+                    <ImageLightbox src={profile.image} alt={displayName} caption={displayName} variant="avatar" label="View profile photo" className="shrink-0 rounded-full">
+                        <Avatar className="size-16 border sm:size-20">
+                            <AvatarImage src={profile.image || undefined} alt="" className="object-cover" />
+                            <AvatarFallback className="bg-primary-soft text-lg font-semibold text-primary-soft-foreground">
+                                {initials(displayName)}
+                            </AvatarFallback>
+                        </Avatar>
+                    </ImageLightbox>
+                    <div className="min-w-0 space-y-2">
+                        <h1 title={displayName} className="line-clamp-2 text-2xl font-semibold tracking-tight break-words text-foreground md:text-4xl">
+                            {displayName}
+                        </h1>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
+                            <span className="tabular">@{profile.username}</span>
+                            {since ? <span>Member since {since}</span> : null}
+                            <LevelBadge level={progress.level} title={progress.title} />
+                        </div>
                     </div>
                 </div>
                 {session?.user?.id && !isSelf ? (
-                    <Button asChild size="sm" className="ml-auto shrink-0">
+                    <Button asChild size="sm" className="w-full md:ml-auto md:w-auto">
                         <Link href={`/messages/new?to=${encodeURIComponent(profile.id)}`}>
                             <LuMessageSquare aria-hidden="true" />
                             Message
