@@ -31,6 +31,26 @@ function PersonSkeleton() {
     );
 }
 
+/** Loading row shaped like PersonRow: badge, then the action and Message buttons. */
+export function PersonSkeletonWithActions() {
+    return (
+        <li className="flex items-center gap-3 px-4 py-3" aria-hidden="true">
+            <Skeleton className="size-9 rounded-full" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+                <Skeleton className="h-4 w-40 max-w-full" />
+                <Skeleton className="h-3 w-24" />
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
+                <Skeleton className="h-5 w-12 rounded-full" />
+                <div className="flex items-center gap-2">
+                    <Skeleton className="h-8 w-20 rounded-md" />
+                    <Skeleton className="size-8 rounded-md" />
+                </div>
+            </div>
+        </li>
+    );
+}
+
 /**
  * One person on /contact: avatar, username (linked when the profile is public), nickname ('None' means unset),
  * level and actions; Message for anyone but me.
@@ -105,7 +125,7 @@ export function PeopleEmpty({ icon: Icon, title, description, children }) {
  * An infinite list of people from a useInfiniteQuery result: skeleton, first-load error, `empty`, rows, then the
  * scroll sentinel. `noun` names the rows in the footer lines ("Loading more friends...").
  */
-export function PersonList({ query, noun, errorTitle, empty, renderRow }) {
+export function PersonList({ query, noun, errorTitle, empty, renderRow, skeleton: Row = PersonSkeleton }) {
     const { status } = useSession();
     const { data, isLoading, isError, error, refetch, hasNextPage, fetchNextPage, isFetchingNextPage, isPlaceholderData } = query;
     const items = data?.pages?.flatMap((page) => page?.items || []) || [];
@@ -121,7 +141,7 @@ export function PersonList({ query, noun, errorTitle, empty, renderRow }) {
     if ((status === 'loading' || isLoading) && items.length === 0) {
         return (
             <ul className={LIST} aria-busy="true">
-                {Array.from({ length: 6 }, (_, index) => <PersonSkeleton key={index} />)}
+                {Array.from({ length: 6 }, (_, index) => <Row key={index} />)}
             </ul>
         );
     }

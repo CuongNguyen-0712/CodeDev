@@ -9,7 +9,7 @@ import { useFriendAction } from "@/mutations/friend.mutation";
 import { useApp } from "@/contexts/appContext";
 import { failAlert } from "@/components/chat/requestBanner";
 import SearchBar from "@/components/ui/searchBar";
-import { PeopleEmpty, PersonList, PersonRow } from "./personRow";
+import { PeopleEmpty, PersonList, PersonRow, PersonSkeletonWithActions } from "./personRow";
 
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -82,6 +82,7 @@ export default function FriendsTab() {
             <PersonList
                 query={query}
                 noun="friends"
+                skeleton={PersonSkeletonWithActions}
                 errorTitle="Could not load your friends"
                 empty={hasQuery ? (
                     <PeopleEmpty icon={LuUsers} title="No friends match this name" description="Check the spelling or try a shorter part of the name.">

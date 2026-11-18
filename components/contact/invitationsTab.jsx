@@ -10,7 +10,7 @@ import { useTeamAction } from "@/mutations/team.mutation";
 import { failAlert } from "@/components/chat/requestBanner";
 import TeamAvatar from "@/components/chat/teamAvatar";
 import FriendButton from "./friendButton";
-import { PeopleEmpty, PersonList, PersonRow } from "./personRow";
+import { PeopleEmpty, PersonList, PersonRow, PersonSkeletonWithActions } from "./personRow";
 
 import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
@@ -43,6 +43,7 @@ function Section({ direction }) {
             <PersonList
                 query={query}
                 noun="invitations"
+                skeleton={PersonSkeletonWithActions}
                 errorTitle="Could not load your invitations"
                 empty={<PeopleEmpty icon={Icon} title={empty[0]} description={empty[1]} />}
                 renderRow={(item, index) => (

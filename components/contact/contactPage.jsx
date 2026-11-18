@@ -11,7 +11,7 @@ import SearchBar from "@/components/ui/searchBar";
 import FriendButton from "./friendButton";
 import FriendsTab from "./friendsTab";
 import InvitationsTab from "./invitationsTab";
-import { PeopleEmpty, PersonList, PersonRow } from "./personRow";
+import { PeopleEmpty, PersonList, PersonRow, PersonSkeletonWithActions } from "./personRow";
 
 import { Button } from "@/components/shadcn/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
@@ -54,6 +54,7 @@ function FindPeople() {
                 <PersonList
                     query={query}
                     noun="people"
+                skeleton={PersonSkeletonWithActions}
                     errorTitle="Could not load learners"
                     empty={hasQuery ? (
                         <PeopleEmpty icon={LuUserSearch} title="No one matches this username" description="Check the spelling or try a shorter part of the username.">
