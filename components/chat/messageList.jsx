@@ -180,7 +180,7 @@ export default function MessageList({ conversation, meId, failures, editing, onC
         listObserver.current.observe(node);
     }, [keepAtBottom]);
 
-    // The scroller shrinking (keyboard, Editing or Replying bar, growing textarea) hides the newest messages the same way.
+    // The scroller shrinking (keyboard, Replying bar, growing textarea) hides the newest messages the same way.
     useEffect(() => {
         if (!scrollRoot) return;
         const observer = new ResizeObserver(keepAtBottom);
@@ -237,7 +237,7 @@ export default function MessageList({ conversation, meId, failures, editing, onC
             <TypingLine conversationId={id} members={conversation.members} meId={meId} onShow={keepAtBottom} bubble={!scrolledUp} />
         </div>
         {scrolledUp && <TypingLine conversationId={id} members={conversation.members} meId={meId} floating />}
-        {scrolledUp && (
+        {scrolledUp && !editing && (
             <Button type="button" size="icon" variant="secondary" onClick={jumpToLatest} className="absolute right-3 bottom-3 z-10 rounded-full shadow-md"
                 aria-label={newSinceScroll > 0 ? `Jump to latest messages, ${newSinceScroll} new` : "Jump to latest messages"}>
                 <LuArrowDown aria-hidden="true" />

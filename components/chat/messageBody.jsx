@@ -1,4 +1,4 @@
-import { Children } from "react";
+import { Children, memo } from "react";
 import ReactMarkdown from "react-markdown";
 
 import CodeBlock from "@/components/ui/codeBlock";
@@ -56,7 +56,7 @@ const components = {
  * links and images never render.
  * Bare http(s) URLs become links that open in a new tab.
  */
-export default function MessageBody({ body }) {
+function MessageBody({ body }) {
     return (
         <div className="flex min-w-0 flex-col gap-2 text-sm">
             <ReactMarkdown allowedElements={ALLOWED} unwrapDisallowed components={components}>
@@ -65,3 +65,5 @@ export default function MessageBody({ body }) {
         </div>
     );
 }
+
+export default memo(MessageBody);

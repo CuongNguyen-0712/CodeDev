@@ -207,9 +207,13 @@ export default function ConversationView({ conversationId }) {
         return queryClient.getQueryCache().subscribe(check);
     }, [editing, queryClient]);
 
-    // Every way edit mode ends (save, cancel, Esc, another conversation, unsent) clears the preview text here.
+    // Every way edit mode starts or ends (save, cancel, Esc, another conversation, unsent) clears the preview text, set during render so the old text never shows.
     const editingKey = editing?.conversationId === conversationId ? editing.id : null;
-    useEffect(() => { if (!editingKey) setEditDraft(""); }, [editingKey]);
+    const [seenEditKey, setSeenEditKey] = useState(editingKey);
+    if (editingKey !== seenEditKey) {
+        setSeenEditKey(editingKey);
+        setEditDraft("");
+    }
 
     // Tells the realtime handlers which thread the viewer is looking at, so its new messages do not count as unread.
     useEffect(() => {

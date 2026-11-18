@@ -139,6 +139,50 @@ describe("edit overlay", () => {
         expect(box().value).toBe("my typing");
     });
 
+    it("the preview bubble hugs its text on the right instead of stretching", async () => {
+        render(wrap(<ConversationView conversationId="cnv_a" />));
+        await startEdit();
+        expect(bubble().className).toContain("self-end");
+        expect(bubble().className.split(" ")).not.toContain("w-full");
+    });
+
+    it("a new edit never shows the previous edit's typed text", async () => {
+        page = { items: [message(2, "P1", { body: "second" }), message(1, "P1")], nextCursor: null };
+        render(wrap(<ConversationView conversationId="cnv_a" />));
+        const edit = async (index) => {
+            fireEvent.pointerDown((await screen.findAllByRole("button", { name: "More actions for p1" }))[index], { button: 0, ctrlKey: false });
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
+            await screen.findByRole("button", { name: "Cancel edit" });
+        };
+        await edit(0);
+        fireEvent.change(box(), { target: { value: "old draft" } });
+        fireEvent.keyDown(box(), { key: "Escape" });
+        await edit(1);
+        expect(bubble().textContent).toBe("second");
+    });
+
+    it("focus stays in the edit textarea after a mousedown inside the card or on the overlay", async () => {
+        render(wrap(<ConversationView conversationId="cnv_a" />));
+        await startEdit();
+        box().focus();
+        for (const el of [bubble(), screen.getByText("Edit message", { selector: "p" }), overlay()]) {
+            expect(fireEvent.mouseDown(el)).toBe(false);   // default prevented, so the browser keeps focus
+            expect(document.activeElement).toBe(box());
+        }
+    });
+
+    it("the jump-to-latest button is not rendered under the overlay", async () => {
+        render(wrap(<ConversationView conversationId="cnv_a" />));
+        const log = await screen.findByRole("log");
+        Object.defineProperty(log, "scrollHeight", { configurable: true, value: 1000 });
+        Object.defineProperty(log, "clientHeight", { configurable: true, value: 400 });
+        log.scrollTop = 100;
+        fireEvent.scroll(log);
+        await screen.findByRole("button", { name: "Jump to latest messages" });
+        await startEdit();
+        expect(screen.queryByRole("button", { name: /Jump to latest messages/, hidden: true })).toBeNull();
+    });
+
     it("the preview never reaches the query cache", async () => {
         render(wrap(<ConversationView conversationId="cnv_a" />));
         await startEdit();
