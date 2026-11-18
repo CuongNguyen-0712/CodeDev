@@ -45,6 +45,16 @@ function HeaderSkeleton() {
     );
 }
 
+export function CoursePreviewSkeleton() {
+    return (
+        <CoursePageFrame title="" loading={true}>
+            <div className="[&>*]:![animation:none]">
+                <HeaderSkeleton />
+            </div>
+        </CoursePageFrame>
+    );
+}
+
 /**
  * Client fallback of the course page, used when the server has no public copy to render: a course
  * that is not published (still open to the learners who own it, decided by the API with their

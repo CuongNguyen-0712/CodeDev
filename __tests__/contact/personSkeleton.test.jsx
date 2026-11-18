@@ -8,6 +8,7 @@ vi.mock("next/link", () => ({ default: ({ children, ...p }) => <a {...p}>{childr
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 
 import { PersonList, PersonSkeletonWithActions } from "@/components/contact/personRow";
+import { ContactSkeleton } from "@/components/contact/contactPage";
 
 afterEach(cleanup);
 
@@ -45,4 +46,19 @@ it("Find people, Friends and Invitations pass the actions skeleton; the friend p
         expect(src(`components/contact/${f}.jsx`)).toContain(pass);
     }
     expect(src("components/chat/friendPicker.jsx")).not.toContain("skeleton=");
+});
+
+it("ContactSkeleton renders Find people layout with list rows and no aspect-video card grid", () => {
+    const { container } = render(<ContactSkeleton />);
+    expect(container.querySelector("h1")?.textContent).toBe("Contacts");
+    expect(container.querySelectorAll("[role=tab]")).toHaveLength(3);
+    expect(container.querySelector("input[placeholder='Search by username...']")).not.toBeNull();
+    expect(container.querySelectorAll("li")).toHaveLength(6);
+    expect(container.querySelector(".aspect-video")).toBeNull();
+});
+
+it("app/(shell)/contact/page.jsx uses ContactSkeleton as Suspense fallback", () => {
+    const src = readFileSync("app/(shell)/contact/page.jsx", "utf8");
+    expect(src).toContain("fallback={<ContactSkeleton />}");
+    expect(src).not.toContain("PageSkeleton");
 });

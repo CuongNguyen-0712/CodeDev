@@ -63,15 +63,15 @@ function OverallRank({ status }) {
     );
 }
 
-export default function HomeOverview() {
+export default function HomeOverview({ viewerId }) {
     const { status } = useSession();
 
-    const isAuthenticated = status === 'authenticated';
-    const isSessionLoading = status === 'loading';
+    const isAuthed = !!viewerId || status === 'authenticated';
+    const isSessionLoading = !isAuthed && status === 'loading';
 
-    const { data, isLoading, error, isError, refetch } = useQuery(userQueries.me(status));
+    const { data, isLoading, error, isError, refetch } = useQuery(userQueries.me(isAuthed ? 'authenticated' : status));
 
-    const showLoading = isSessionLoading || (isAuthenticated && isLoading);
+    const showLoading = isSessionLoading || (isAuthed && isLoading);
 
     const displayName = data?.name || data?.username || 'User';
 
@@ -90,7 +90,7 @@ export default function HomeOverview() {
         );
     }
 
-    if (!isAuthenticated) {
+    if (!isAuthed) {
         return (
             <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-2">

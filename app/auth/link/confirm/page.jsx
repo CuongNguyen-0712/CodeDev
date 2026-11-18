@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { PageSkeleton } from "@/components/ui/loading";
+import AuthCardSkeleton from "@/components/auth/authCardSkeleton";
 
 import ConfirmLink from "@/components/auth/confirmLink"
 
@@ -18,7 +18,7 @@ export default function Page() {
     return (
         <DefaultLayout>
             <main className="flex min-h-[70dvh] w-full items-center justify-center px-4 py-16 sm:px-6">
-                <Suspense fallback={<PageSkeleton />}>
+                <Suspense fallback={<AuthCardSkeleton />}>
                     <ConfirmLink />
                 </Suspense>
             </main>

@@ -100,6 +100,14 @@ function ProfileSkeleton() {
     );
 }
 
+export function ProfilePageSkeleton() {
+    return (
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10 [&>*]:![animation:none]" role="status" aria-busy="true" aria-label="Loading profile">
+            <ProfileSkeleton />
+        </div>
+    );
+}
+
 export function CourseList({ status, courses, total }) {
     if (courses.length === 0) {
         const copy = EMPTY_COPY[status];
@@ -346,15 +354,17 @@ function ActivitySection({ status }) {
     );
 }
 
-export default function ProfilePage() {
+export default function ProfilePage({ viewerId }) {
     const { status } = useSession();
+    const isAuthed = !!viewerId || status === 'authenticated';
+    const authStatus = isAuthed ? 'authenticated' : status;
 
-    const { data, isLoading, error, isError, refetch } = useQuery(userQueries.me(status));
-    const { data: overview } = useQuery(userQueries.overview(status));
-    const { data: privacy } = useQuery(userQueries.privacy(status));
+    const { data, isLoading, error, isError, refetch } = useQuery(userQueries.me(authStatus));
+    const { data: overview } = useQuery(userQueries.overview(authStatus));
+    const { data: privacy } = useQuery(userQueries.privacy(authStatus));
 
-    const isSessionLoading = status === 'loading';
-    const showLoading = isSessionLoading || (status === 'authenticated' && isLoading);
+    const isSessionLoading = !isAuthed && status === 'loading';
+    const showLoading = isSessionLoading || (isAuthed && isLoading);
 
     const fullName = [data?.surname, data?.name].filter(Boolean).join(' ');
     const displayName = fullName || data?.username || 'Your profile';
@@ -367,7 +377,7 @@ export default function ProfilePage() {
                 <ProfileSkeleton />
             ) : isError ? (
                 <ErrorReload data={error} refetch={refetch} title="Could not load your profile" />
-            ) : status !== 'authenticated' ? (
+            ) : !isAuthed ? (
                 <Empty className="border">
                     <EmptyHeader>
                         <EmptyMedia variant="icon">
@@ -470,8 +480,8 @@ export default function ProfilePage() {
 
                     <MyRankSummary />
                     <AchievementsSection user={data} overview={overview} />
-                    <ActivitySection status={status} />
-                    <ExperienceSection status={status} currentLevel={progress.level} />
+                    <ActivitySection status={authStatus} />
+                    <ExperienceSection status={authStatus} currentLevel={progress.level} />
                 </>
             )}
         </div>

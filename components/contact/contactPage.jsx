@@ -15,19 +15,21 @@ import { PeopleEmpty, PersonList, PersonRow, PersonSkeletonWithActions } from ".
 
 import { Button } from "@/components/shadcn/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/shadcn/input-group";
 
-import { LuUserPlus, LuUsers, LuUserSearch, LuX } from "react-icons/lu";
+import { LuInbox, LuSearch, LuSend, LuUserPlus, LuUsers, LuUserSearch, LuX } from "react-icons/lu";
 
 const TABS = ['find', 'friends', 'invitations'];
 
-function FindPeople() {
+function FindPeople({ viewerId }) {
     const { status } = useSession();
     const [search, setSearch] = useState('');
-    const query = useInfiniteQuery(userQueries.users(status, search));
+    const isAuthed = !!viewerId || status === 'authenticated';
+    const query = useInfiniteQuery(userQueries.users(isAuthed ? 'authenticated' : status, search));
 
     const people = query.data?.pages?.flatMap((page) => page?.items || []) || [];
     const hasQuery = search.trim().length > 0;
-    const isInitialLoading = (status === 'loading' || query.isLoading) && people.length === 0;
+    const isInitialLoading = !isAuthed && query.isLoading && people.length === 0;
     const countLabel = `${people.length}${query.hasNextPage ? '+' : ''} ${people.length === 1 ? 'person' : 'people'}`;
     const listLabel = isInitialLoading
         ? 'Loading people...'
@@ -54,7 +56,7 @@ function FindPeople() {
                 <PersonList
                     query={query}
                     noun="people"
-                skeleton={PersonSkeletonWithActions}
+                    skeleton={PersonSkeletonWithActions}
                     errorTitle="Could not load learners"
                     empty={hasQuery ? (
                         <PeopleEmpty icon={LuUserSearch} title="No one matches this username" description="Check the spelling or try a shorter part of the username.">
@@ -64,7 +66,7 @@ function FindPeople() {
                         <PeopleEmpty icon={LuUserSearch} title="No other learners yet" description="New learners will appear here as they join." />
                     )}
                     renderRow={(item, index) => (
-                        <PersonRow key={item.id} item={item} index={index}
+                        <PersonRow key={item.id} item={item} index={index} viewerId={viewerId}
                             actions={<FriendButton user={item} friendship={item.friendship ?? null} />} />
                     )}
                 />
@@ -73,13 +75,14 @@ function FindPeople() {
     );
 }
 
-export default function Contact({ state, setState }) {
+export default function Contact({ state, setState, viewerId }) {
     const { status } = useSession();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const requested = searchParams?.get('tab');
     const tab = TABS.includes(requested) ? requested : 'find';
-    const { data: counts } = useQuery(friendQueries.counts(status));
+    const isAuthed = !!viewerId || status === 'authenticated';
+    const { data: counts } = useQuery(friendQueries.counts(isAuthed ? 'authenticated' : status));
     const isVisible = state !== false;
 
     // The tab lives in the URL (reloads and notification links land on it). The native history call updates
@@ -126,7 +129,112 @@ export default function Contact({ state, setState }) {
             </Tabs>
 
             {/* Only the open tab is mounted, so only it fetches. */}
-            {isVisible && (tab === 'friends' ? <FriendsTab /> : tab === 'invitations' ? <InvitationsTab /> : <FindPeople />)}
+            {isVisible && (
+                tab === 'friends' ? (
+                    <FriendsTab viewerId={viewerId} />
+                ) : tab === 'invitations' ? (
+                    <InvitationsTab viewerId={viewerId} />
+                ) : (
+                    <FindPeople viewerId={viewerId} />
+                )
+            )}
+        </div>
+    );
+}
+
+/**
+ * Skeleton shown while the /contact page suspends during initial fetch.
+ * Mirrors the frame, header, tabs and person list rows so there is no layout jump.
+ */
+export function ContactSkeleton({ tab = 'find' }) {
+    return (
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10 [&>*]:![animation:none]" role="status" aria-busy="true" aria-label="Loading contacts">
+            <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="space-y-2">
+                    <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                        Contacts
+                    </h1>
+                    <p className="max-w-[60ch] text-sm text-muted-foreground">
+                        Find other CodeDev learners, add them as friends and answer the requests you receive.
+                    </p>
+                </div>
+            </header>
+
+            <Tabs defaultValue={tab} value={tab} onValueChange={() => {}}>
+                <TabsList>
+                    <TabsTrigger value="find"><LuUserSearch aria-hidden="true" />Find people</TabsTrigger>
+                    <TabsTrigger value="friends"><LuUsers aria-hidden="true" />Friends</TabsTrigger>
+                    <TabsTrigger value="invitations"><LuUserPlus aria-hidden="true" />Invitations</TabsTrigger>
+                </TabsList>
+            </Tabs>
+
+            {tab === 'friends' ? (
+                <section aria-label="Friends" className="flex flex-col gap-3">
+                    <div className="flex w-full flex-col gap-2.5">
+                        <InputGroup className="h-10 bg-background">
+                            <InputGroupAddon aria-hidden="true">
+                                <LuSearch />
+                            </InputGroupAddon>
+                            <InputGroupInput type="search" placeholder="Search your friends..." readOnly aria-label="Search your friends..." />
+                        </InputGroup>
+                    </div>
+                    <ul className="@container m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0" aria-busy="true">
+                        {Array.from({ length: 6 }, (_, index) => <PersonSkeletonWithActions key={index} />)}
+                    </ul>
+                </section>
+            ) : tab === 'invitations' ? (
+                <div className="flex flex-col gap-6">
+                    <section className="flex flex-col gap-3">
+                        <h2 className="flex min-h-8 items-center gap-2 text-sm font-medium text-foreground">
+                            <LuInbox className="size-4 text-muted-foreground" aria-hidden="true" />
+                            Received
+                        </h2>
+                        <ul className="@container m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0" aria-busy="true">
+                            {Array.from({ length: 3 }, (_, index) => <PersonSkeletonWithActions key={index} />)}
+                        </ul>
+                    </section>
+                    <section className="flex flex-col gap-3">
+                        <h2 className="flex min-h-8 items-center gap-2 text-sm font-medium text-foreground">
+                            <LuSend className="size-4 text-muted-foreground" aria-hidden="true" />
+                            Sent
+                        </h2>
+                        <ul className="@container m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0" aria-busy="true">
+                            {Array.from({ length: 3 }, (_, index) => <PersonSkeletonWithActions key={index} />)}
+                        </ul>
+                    </section>
+                </div>
+            ) : (
+                <>
+                    <section className="w-full" aria-label="Search people">
+                        <div className="flex w-full flex-col gap-2.5">
+                            <InputGroup className="h-10 bg-background">
+                                <InputGroupAddon aria-hidden="true">
+                                    <LuSearch />
+                                </InputGroupAddon>
+                                <InputGroupInput
+                                    type="search"
+                                    placeholder="Search by username..."
+                                    readOnly
+                                    aria-label="Search by username..."
+                                />
+                            </InputGroup>
+                        </div>
+                    </section>
+
+                    <section aria-labelledby="contacts-list-heading" className="flex flex-col gap-3">
+                        <h2 id="contacts-list-heading" className="flex min-h-8 items-center gap-2 text-sm font-medium text-foreground">
+                            <LuUsers className="size-4 text-muted-foreground" aria-hidden="true" />
+                            <span aria-live="polite">Loading people...</span>
+                        </h2>
+
+                        <ul className="@container m-0 list-none divide-y overflow-hidden rounded-lg border bg-card p-0" aria-busy="true">
+                            {Array.from({ length: 6 }, (_, index) => (
+                                <PersonSkeletonWithActions key={index} />
+                            ))}
+                        </ul>
+                    </section>
+                </>
+            )}
         </div>
     );
 }

@@ -101,19 +101,20 @@ function PanelEmpty({ icon: Icon, title, description, action = null }) {
     );
 }
 
-export default function HomeLearning() {
+export default function HomeLearning({ viewerId }) {
     const { status } = useSession();
 
     const [target, setTarget] = useState(null);
     const [visible, setVisible] = useState(false);
 
-    const { data, isLoading, error, isError, refetch } = useQuery(userQueries.overview(status));
+    const isAuthed = !!viewerId || status === 'authenticated';
+    const { data, isLoading, error, isError, refetch } = useQuery(userQueries.overview(isAuthed ? 'authenticated' : status));
 
     const coursesByStatus = data?.courses?.[target] || [];
     const targetStatusMeta = target ? statusMeta(target) : null;
 
     // The query waits for the session, so treat a loading session as loading data.
-    const showLoading = isLoading || status === 'loading';
+    const showLoading = (!isAuthed || isLoading) && !data;
 
     // Fixed order (what to continue first), whatever order the API returns the counts in.
     const statusRows = data?.summary?.by_status

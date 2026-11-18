@@ -17,11 +17,12 @@ function PendingIcon({ icon: Icon }) {
     return pending ? <LuLoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Icon className="size-4" aria-hidden="true" />;
 }
 
-export default function NextActionCard() {
+export default function NextActionCard({ viewerId }) {
     const { status } = useSession();
-    const { data, isLoading } = useQuery(userQueries.overview(status));
+    const isAuthed = !!viewerId || status === 'authenticated';
+    const { data, isLoading } = useQuery(userQueries.overview(isAuthed ? 'authenticated' : status));
 
-    if (status !== 'authenticated') return null;
+    if (!isAuthed) return null;
 
     if (isLoading) {
         return (

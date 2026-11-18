@@ -1,7 +1,6 @@
 import { Suspense } from "react";
-import { PageSkeleton } from "@/components/ui/loading";
-
-import ProfilePage from "@/components/profile/profilePage"
+import ProfilePage, { ProfilePageSkeleton } from "@/components/profile/profilePage";
+import { getAuthSession } from "@/lib/session";
 
 export async function generateMetadata() {
     return {
@@ -10,10 +9,15 @@ export async function generateMetadata() {
     }
 }
 
-export default function Page() {
+export const instant = false;
+
+export default async function Page() {
+    const session = await getAuthSession({ soft: true });
+    const viewerId = session?.user?.id;
+
     return (
-        <Suspense fallback={<PageSkeleton />}>
-            <ProfilePage />
+        <Suspense fallback={<ProfilePageSkeleton />}>
+            <ProfilePage viewerId={viewerId} />
         </Suspense>
     )
 }

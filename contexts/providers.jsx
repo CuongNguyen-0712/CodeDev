@@ -38,9 +38,11 @@ export function Provider({ children }) {
                 </TooltipProvider>
                 {/* The only toast region: survives navigation (see components/ui/alert.jsx). */}
                 <AppToaster />
-                <LevelUpDialog />
-                <RatePromptDialog />
-                <SignedIn><RankUpWatcher /></SignedIn>
+                <SignedIn>
+                    <LevelUpDialog />
+                    <RatePromptDialog />
+                    <RankUpWatcher />
+                </SignedIn>
             </QueryProvider>
         </SessionProvider>
     )

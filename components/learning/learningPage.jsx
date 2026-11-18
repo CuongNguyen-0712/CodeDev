@@ -61,11 +61,62 @@ function RowSkeleton() {
     );
 }
 
-export default function LearningPage() {
+export function LearningPageSkeleton() {
+    return (
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10 [&>*]:![animation:none]">
+            <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="space-y-2">
+                    <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                        My learning
+                    </h1>
+                    <Skeleton className="h-4 w-48" />
+                </div>
+                <Skeleton className="h-9 w-36 rounded-md" />
+            </header>
+
+            <section className="w-full" aria-label="Search and filter courses">
+                <div className="flex h-10 w-full items-center rounded-md border border-input bg-card px-3">
+                    <Skeleton className="h-4 w-40" />
+                </div>
+            </section>
+
+            <section className="flex flex-col gap-3">
+                <div className="flex min-h-8 items-center gap-2">
+                    <Skeleton className="size-4 rounded-full" />
+                    <Skeleton className="h-4 w-28" />
+                </div>
+
+                <div className="overflow-hidden rounded-lg border bg-card">
+                    <Table className="max-lg:block">
+                        <TableHeader className="bg-muted/60 max-lg:sr-only">
+                            <TableRow className="hover:bg-transparent">
+                                <TableHead className="h-9 pl-4 text-xs font-medium text-muted-foreground">Course</TableHead>
+                                <TableHead className="h-9 text-xs font-medium text-muted-foreground max-xl:hidden">Level</TableHead>
+                                <TableHead className="h-9 text-xs font-medium text-muted-foreground">Status</TableHead>
+                                <TableHead className="h-9 text-xs font-medium text-muted-foreground">Lessons</TableHead>
+                                <TableHead className="h-9 pr-4 text-right text-xs font-medium text-muted-foreground">
+                                    <span className="sr-only">Actions</span>
+                                </TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody className="max-lg:block">
+                            {Array.from({ length: 5 }, (_, index) => (
+                                <RowSkeleton key={index} />
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </section>
+        </div>
+    );
+}
+
+export default function LearningPage({ viewerId }) {
     const { status } = useSession();
 
     // `?status=` absent = enrolled + in progress; `?status=all` = every enrolment.
     const { search, filter, params: queryParams, isFiltered, setSearch, setFilter, reset: resetFilters } = useListQueryState('learning');
+    const isAuthed = !!viewerId || status === 'authenticated';
 
     const {
         data,
@@ -78,7 +129,7 @@ export default function LearningPage() {
         fetchNextPage,
         isFetching,
         isPlaceholderData,
-    } = useInfiniteQuery(userQueries.courseProgress(status, queryParams));
+    } = useInfiniteQuery(userQueries.courseProgress(isAuthed ? 'authenticated' : status, queryParams));
 
     const courses = data?.pages?.flatMap(page => page?.data || []) || [];
 
@@ -94,10 +145,11 @@ export default function LearningPage() {
         },
     });
 
-    const showError = !isLoading && isError && courses.length === 0;
-    const showEmpty = !isLoading && !isError && courses.length === 0;
+    const showLoading = (!isAuthed || isLoading) && courses.length === 0;
+    const showError = !showLoading && isError && courses.length === 0;
+    const showEmpty = !showLoading && !isError && courses.length === 0;
 
-    const { data: overview } = useQuery(userQueries.overview(status));
+    const { data: overview } = useQuery(userQueries.overview(isAuthed ? 'authenticated' : status));
     const counts = overview?.courses;
     const finding = counts
         ? [
@@ -147,7 +199,7 @@ export default function LearningPage() {
                 <h2 id="learning-list-heading" className="flex min-h-8 items-center gap-2 text-sm font-medium text-foreground">
                     <LuBookOpen className="size-4 text-muted-foreground" aria-hidden="true" />
                     <span aria-live="polite">
-                        {isLoading
+                        {showLoading
                             ? 'Loading courses...'
                             : `${courses.length}${hasNextPage ? '+' : ''} course${courses.length === 1 ? '' : 's'}`}
                     </span>
@@ -199,7 +251,7 @@ export default function LearningPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody className="max-lg:block">
-                                {isLoading
+                                {showLoading
                                     ? Array.from({ length: 5 }, (_, index) => <RowSkeleton key={index} />)
                                     : courses.map((item, index) => (
                                         <LearningCourse key={item.id} item={item} index={index} />

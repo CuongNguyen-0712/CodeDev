@@ -278,14 +278,63 @@ function BoardSkeleton() {
     );
 }
 
-export default function RankingPage() {
+export function RankingSkeleton({ board = "overall", period = "all" }) {
+    return (
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10 [&>*]:![animation:none]" role="status" aria-busy="true" aria-label="Loading leaderboard">
+            <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="space-y-2">
+                    <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Leaderboard</h1>
+                    <p className="max-w-[60ch] text-sm text-muted-foreground">
+                        Rankings from the EXP and points you earn in lessons and challenges. Spending points never lowers your rank.
+                    </p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">Period</span>
+                    <div className="inline-flex h-9 items-center rounded-md border p-1">
+                        {PERIODS.map((value) => (
+                            <span key={value} className={cn("px-3 text-xs font-medium", value === period ? "rounded-sm bg-muted text-foreground" : "text-muted-foreground")}>
+                                {PERIOD_LABELS[value]}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            </header>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b">
+                <div className="flex h-10 items-center gap-4">
+                    {BOARDS.map((value) => (
+                        <span key={value} className={cn("border-b-2 px-3 py-2 text-sm font-medium", value === board ? "border-primary text-foreground" : "border-transparent text-muted-foreground")}>
+                            {BOARD_LABELS[value]}
+                        </span>
+                    ))}
+                </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[auto_1fr] lg:items-start">
+                <div className="order-2 flex min-w-0 flex-col gap-4 lg:order-1 lg:row-span-2">
+                    <BoardSkeleton />
+                </div>
+                <div className="order-1 flex flex-col gap-6 lg:order-2">
+                    <Skeleton className="h-44 w-full rounded-lg" />
+                    <Skeleton className="h-56 w-full rounded-lg" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default function RankingPage({ viewerId: propViewerId }) {
     const { status, data: session } = useSession();
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const { board, period } = parseRankingQuery(searchParams);
 
-    const { data, isLoading, isError, error, refetch, isFetching } = useQuery(userQueries.ranking(status, board, period));
+    const viewerId = propViewerId ?? session?.user?.id;
+    const isAuthed = !!viewerId || status === 'authenticated';
+
+    const { data, isLoading, isError, error, refetch, isFetching } = useQuery(userQueries.ranking(isAuthed ? 'authenticated' : status, board, period));
+    const showLoading = (!isAuthed || isLoading) && !data;
 
     const setQuery = (next) => {
         const params = new URLSearchParams(searchParams);
@@ -293,7 +342,6 @@ export default function RankingPage() {
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     };
 
-    const viewerId = session?.user?.id;
     const entries = data?.entries || [];
     const me = data?.me || null;
     const podium = entries.slice(0, 3);
@@ -358,7 +406,7 @@ export default function RankingPage() {
 
                 {BOARDS.map((value) => (
                     <TabsContent key={value} value={value} className="mt-0">
-                        {value !== board ? null : isLoading ? (
+                        {value !== board ? null : showLoading ? (
                             <BoardSkeleton />
                         ) : isError ? (
                             <ErrorReload data={error} refetch={refetch} title="Could not load the leaderboard" />

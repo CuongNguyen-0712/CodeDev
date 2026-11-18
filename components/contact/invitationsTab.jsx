@@ -28,9 +28,10 @@ const SECTIONS = {
     },
 };
 
-function Section({ direction }) {
+function Section({ direction, viewerId }) {
     const { status } = useSession();
-    const query = useInfiniteQuery(friendQueries.invitations(status, direction));
+    const isAuthed = !!viewerId || status === 'authenticated';
+    const query = useInfiniteQuery(friendQueries.invitations(isAuthed ? 'authenticated' : status, direction));
     const { title, icon: Icon, empty } = SECTIONS[direction];
     const headingId = `invitations-${direction}-heading`;
 
@@ -47,7 +48,7 @@ function Section({ direction }) {
                 errorTitle="Could not load your invitations"
                 empty={<PeopleEmpty icon={Icon} title={empty[0]} description={empty[1]} />}
                 renderRow={(item, index) => (
-                    <PersonRow key={item.id} item={item} index={index}
+                    <PersonRow key={item.id} item={item} index={index} viewerId={viewerId}
                         actions={<FriendButton user={item} friendship={direction} invitation />} />
                 )}
             />
@@ -88,9 +89,10 @@ function TeamInvitationRow({ item }) {
     );
 }
 
-function TeamSection() {
+function TeamSection({ viewerId }) {
     const { status } = useSession();
-    const query = useInfiniteQuery(teamQueries.invitations(status));
+    const isAuthed = !!viewerId || status === 'authenticated';
+    const query = useInfiniteQuery(teamQueries.invitations(isAuthed ? 'authenticated' : status));
 
     return (
         <section aria-labelledby="invitations-teams-heading" className="flex flex-col gap-3">
@@ -110,12 +112,12 @@ function TeamSection() {
 }
 
 /** Invitations tab: pending requests I received (Accept / Decline) and sent (Cancel), each its own infinite list. */
-export default function InvitationsTab() {
+export default function InvitationsTab({ viewerId }) {
     return (
         <div className="flex flex-col gap-6">
-            <Section direction="received" />
-            <Section direction="sent" />
-            <TeamSection />
+            <Section direction="received" viewerId={viewerId} />
+            <Section direction="sent" viewerId={viewerId} />
+            <TeamSection viewerId={viewerId} />
         </div>
     );
 }

@@ -7,7 +7,7 @@ import { Spinner } from "@/components/shadcn/spinner";
 // Content skeleton that preserves the shell (navbar + sidebar) while a page suspends (UX-106)
 export function PageSkeleton() {
     return (
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10" role="status" aria-busy="true" aria-label="Loading page content">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10 [&>*]:![animation:none]" role="status" aria-busy="true" aria-label="Loading page content">
             <div className="space-y-3">
                 <div className="h-8 w-56 rounded-md bg-muted-foreground/20 animate-pulse" />
                 <div className="h-4 w-96 max-w-full rounded-md bg-muted-foreground/20 animate-pulse" />

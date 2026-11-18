@@ -1,12 +1,10 @@
 import { Suspense } from "react";
-import { PageSkeleton } from "@/components/ui/loading";
-
 import { redirect } from "next/navigation";
 
 import { getAuthSession } from "@/lib/session";
 import { onboardingService } from "@/services/onboarding.service";
 
-import HomePage from "@/components/home/homePage";
+import HomePage, { HomePageSkeleton } from "@/components/home/homePage";
 
 // The onboarding check redirects before anything is sent, so this page waits for the server
 // (docs/rendering-strategy-plan.md, decision on /home).
@@ -28,8 +26,8 @@ export default async function Page() {
     }
 
     return (
-        <Suspense fallback={<PageSkeleton />}>
-            <HomePage />
+        <Suspense fallback={<HomePageSkeleton />}>
+            <HomePage viewerId={session?.user?.id} />
         </Suspense>
     );
 }

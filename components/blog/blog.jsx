@@ -137,7 +137,7 @@ function PostCardSkeleton({ cover }) {
 export function BlogSkeleton() {
     const pills = ["w-20", "w-24", "w-16", "w-20"];
     return (
-        <div className={FRAME} role="status" aria-busy="true" aria-label="Loading posts">
+        <div className={`${FRAME} [&>*]:![animation:none]`} role="status" aria-busy="true" aria-label="Loading posts">
             <div className="flex flex-col gap-2">
                 <Skeleton className="h-9 w-28 sm:h-10" />
                 <Skeleton className="my-0.5 h-4 w-80 max-w-full" />

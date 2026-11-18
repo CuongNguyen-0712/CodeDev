@@ -55,8 +55,9 @@ export function PersonSkeletonWithActions() {
  * One person on /contact: avatar, username (linked when the profile is public), nickname ('None' means unset),
  * level and actions; Message for anyone but me.
  */
-export function PersonRow({ item, actions, index = 0 }) {
+export function PersonRow({ item, actions, index = 0, viewerId }) {
     const { data: session } = useSession();
+    const currentUserId = viewerId ?? session?.user?.id;
     const name = item.username || 'Unknown user';
     const profileHref = item.showProfile && item.username ? `/profile/${encodeURIComponent(item.username)}` : null;
     return (
@@ -93,7 +94,7 @@ export function PersonRow({ item, actions, index = 0 }) {
                 </div>
                 <div className="flex items-center gap-2">
                     {actions}
-                    {session?.user?.id && item.id !== session.user.id ? (
+                    {currentUserId && item.id !== currentUserId ? (
                         <Button asChild variant="outline" size="sm">
                             <Link href={`/messages/new?to=${encodeURIComponent(item.id)}`} aria-label={`Message ${name}`}>
                                 <LuMessageSquare aria-hidden="true" />

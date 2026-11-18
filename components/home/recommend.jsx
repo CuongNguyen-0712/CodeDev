@@ -31,7 +31,7 @@ function CardSkeleton() {
     );
 }
 
-export default function HomeRecommend() {
+export default function HomeRecommend({ viewerId }) {
     const sliderRef = useRef(null);
 
     const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -44,6 +44,7 @@ export default function HomeRecommend() {
     const [hasDragged, setHasDragged] = useState(false);
 
     const { status } = useSession();
+    const isAuthed = !!viewerId || status === 'authenticated';
 
     const {
         data,
@@ -51,12 +52,12 @@ export default function HomeRecommend() {
         isError,
         error,
         refetch
-    } = useQuery(onboardingQueries.recommendations(status, 6));
+    } = useQuery(onboardingQueries.recommendations(isAuthed ? 'authenticated' : status, 6));
 
     // Only used to pick where the "personalise" link goes (onboarding vs Settings).
-    const { data: onboarding } = useQuery(onboardingQueries.status(status));
+    const { data: onboarding } = useQuery(onboardingQueries.status(isAuthed ? 'authenticated' : status));
 
-    const isLoading = status === "loading" || isQueryLoading;
+    const isLoading = (!isAuthed || isQueryLoading) && !data;
     const items = Array.isArray(data?.items) ? data.items : [];
     const isFallback = Boolean(data?.fallback);
     const personaliseHref = onboarding?.status === "completed" ? "/settings#settings-preferences" : "/onboarding";

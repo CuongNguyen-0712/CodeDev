@@ -17,7 +17,28 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/shadcn/input-group";
 import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 
+import { Skeleton } from "@/components/shadcn/skeleton";
+
 import { LuInbox, LuLoaderCircle, LuMessageSquare, LuSearch, LuUsers } from "react-icons/lu";
+
+export function InboxSkeleton() {
+    return (
+        <div className={`flex min-w-0 flex-col gap-4 max-md:px-4 max-md:pt-4 max-md:pb-2 ${CHAT_HEIGHT} [&>*]:![animation:none]`} aria-hidden="true">
+            <Skeleton className="h-8 w-24 rounded-md shrink-0 self-start" />
+            <Skeleton className="h-9 w-full rounded-md" />
+            <div className="flex h-9 w-44 rounded-lg bg-muted/60 p-1">
+                <Skeleton className="h-full w-1/2 rounded-md" />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="flex flex-col">
+                    <div className="divide-y overflow-hidden rounded-lg border">
+                        <ConversationSkeleton rows={5} />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 const TABS = ['all', 'requests'];
 

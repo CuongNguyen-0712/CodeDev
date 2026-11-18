@@ -4,7 +4,10 @@ import { cleanup, render, screen } from "@testing-library/react";
 
 /** The /messages frame sizes itself against the page scroller, not the viewport (final review, Important 2). */
 vi.mock("next/navigation", () => ({ useSelectedLayoutSegment: () => "cnv_a" }));
-vi.mock("@/components/chat/inbox", () => ({ default: () => <div data-testid="inbox" /> }));
+vi.mock("@/components/chat/inbox", () => ({
+    default: () => <div data-testid="inbox" />,
+    InboxSkeleton: () => <div data-testid="inbox-skeleton" />,
+}));
 
 const { default: MessagesLayout } = await import("@/app/(shell)/messages/layout");
 

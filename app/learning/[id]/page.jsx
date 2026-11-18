@@ -1,10 +1,8 @@
 import { Suspense } from "react";
 
-import { LoadingRedirect } from "@/components/ui/loading";
-
 import DefaultLayout from "@/components/layouts/defaultLayout";
 
-import StydyingPage from "@/components/learning/[id]/studyingPage";
+import StydyingPage, { WorkspaceSkeleton } from "@/components/learning/[id]/studyingPage";
 
 import { courseService } from "@/services/course.service";
 
@@ -29,15 +27,15 @@ export async function generateMetadata({ params }) {
 }
 
 export default async function Page({ params }) {
-    const { id } = await params
+    const { id } = await params;
 
     return (
-        <Suspense fallback={<LoadingRedirect />}>
-            <DefaultLayout enter={false}>
+        <DefaultLayout enter={false}>
+            <Suspense fallback={<WorkspaceSkeleton />}>
                 <StydyingPage
                     params={{ id }}
                 />
-            </DefaultLayout>
-        </Suspense>
-    )
+            </Suspense>
+        </DefaultLayout>
+    );
 }

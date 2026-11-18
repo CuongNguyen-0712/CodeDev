@@ -526,13 +526,33 @@ function SettingsSkeleton() {
     );
 }
 
-export default function SettingsPage() {
+export function SettingsPageSkeleton() {
+    return (
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 pt-6 pb-10 sm:px-6 lg:pt-10 [&>*]:![animation:none]" role="status" aria-busy="true" aria-label="Loading settings">
+            <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="space-y-2">
+                    <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Settings</h1>
+                    <p className="max-w-[60ch] text-sm text-muted-foreground">
+                        Update your profile photo, personal details, learning preferences and the email on your account.
+                    </p>
+                </div>
+                <div className="h-9 w-32 rounded-md border" />
+            </header>
+
+            <SettingsSkeleton />
+        </div>
+    );
+}
+
+export default function SettingsPage({ viewerId }) {
     const { status } = useSession();
+    const isAuthed = !!viewerId || status === 'authenticated';
+    const authStatus = isAuthed ? 'authenticated' : status;
     const queryClient = useQueryClient();
 
-    const { data, isLoading, error, isError, refetch } = useQuery(userQueries.me(status));
+    const { data, isLoading, error, isError, refetch } = useQuery(userQueries.me(authStatus));
 
-    const showLoading = status === 'loading' || (status === 'authenticated' && isLoading);
+    const showLoading = (!isAuthed && status === 'loading') || (isAuthed && isLoading);
 
     const handleSaved = () => queryClient.invalidateQueries({ queryKey: userKeys.me() });
     const handlePhotoSaved = () => Promise.all([handleSaved(), queryClient.invalidateQueries({ queryKey: userKeys.avatars() })]);
@@ -555,7 +575,7 @@ export default function SettingsPage() {
                 <SettingsSkeleton />
             ) : isError ? (
                 <ErrorReload data={error} refetch={refetch} title="Could not load your settings" />
-            ) : status !== 'authenticated' ? (
+            ) : !isAuthed ? (
                 <Empty className="border border-dashed">
                     <EmptyHeader>
                         <EmptyMedia variant="icon">

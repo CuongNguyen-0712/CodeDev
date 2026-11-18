@@ -1,9 +1,8 @@
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
 
-import PreviewPage from "@/components/course/params/previewPage"
+import PreviewPage, { CoursePreviewSkeleton } from "@/components/course/params/previewPage"
 import { CourseContent, CourseMobileBar, CoursePageFrame } from "@/components/course/params/courseContent"
-import { PageSkeleton } from "@/components/ui/loading"
 
 import { courseQueries } from "@/queries/course.query"
 import { courseExists, getPrerenderedCourseIds, getPublicCourse } from "@/lib/cachedData"
@@ -77,7 +76,7 @@ export default async function Page({ params }) {
                         <CourseContent course={data} courseId={id} />
                     </CoursePageFrame>
                 ) : (
-                    <Suspense fallback={<PageSkeleton />}>
+                    <Suspense fallback={<CoursePreviewSkeleton />}>
                         <PreviewPage params={{ id }} />
                     </Suspense>
                 )}

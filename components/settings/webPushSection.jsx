@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useSession } from "next-auth/react";
 
 import { useApp } from "@/contexts/appContext";
@@ -18,6 +18,7 @@ const COPY = {
 };
 
 const ID = "web-push";
+const emptySubscribe = () => () => {};
 
 // Per device, not per account: the choice lives in this browser (lib/beamsClient), so the switch
 // reads it after mount instead of from the server.
@@ -26,12 +27,16 @@ export default function WebPushSection() {
     const { showAlert } = useApp();
     const userId = session?.user?.id ?? null;
 
-    const [state, setState] = useState(null);
+    const [overrideState, setOverrideState] = useState(null);
     const [pending, setPending] = useState(false);
 
-    useEffect(() => {
-        if (userId) setState(webPushState(userId));
-    }, [userId]);
+    const clientState = useSyncExternalStore(
+        emptySubscribe,
+        () => (userId ? webPushState(userId) : null),
+        () => null
+    );
+
+    const state = overrideState ?? clientState;
 
     const toggle = async (on) => {
         setPending(true);
@@ -41,7 +46,7 @@ export default function WebPushSection() {
         } catch {
             showAlert(500, on ? "Could not turn on browser notifications" : "Could not turn off browser notifications");
         } finally {
-            setState(webPushState(userId));
+            setOverrideState(webPushState(userId));
             setPending(false);
         }
     };

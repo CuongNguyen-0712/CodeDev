@@ -102,6 +102,17 @@ function OrderSkeleton() {
     );
 }
 
+export function OrderStatusPageSkeleton() {
+    return (
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10 [&>*]:![animation:none]" role="status" aria-busy="true" aria-label="Loading order status">
+            <div>
+                <div className="h-8 w-24 rounded-md border" />
+            </div>
+            <OrderSkeleton />
+        </div>
+    );
+}
+
 export default function OrderStatusPage({ orderId }) {
     const { status } = useSession();
     // Status always comes from the server (polled while pending); URL query params are ignored.

@@ -1,8 +1,7 @@
 import { Suspense } from 'react';
 
-import { PageSkeleton } from '@/components/ui/loading';
-
-import NotificationsPage from '@/components/notifications/notificationsPage';
+import NotificationsPage, { NotificationsPageSkeleton } from '@/components/notifications/notificationsPage';
+import { getAuthSession } from '@/lib/session';
 
 export async function generateMetadata() {
     return {
@@ -11,10 +10,15 @@ export async function generateMetadata() {
     };
 }
 
+export const instant = false;
+
 export default async function Page() {
+    const session = await getAuthSession({ soft: true });
+    const viewerId = session?.user?.id;
+
     return (
-        <Suspense fallback={<PageSkeleton />}>
-            <NotificationsPage />
+        <Suspense fallback={<NotificationsPageSkeleton />}>
+            <NotificationsPage viewerId={viewerId} />
         </Suspense>
     );
 }

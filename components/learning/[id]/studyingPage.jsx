@@ -44,6 +44,49 @@ import {
     LuX,
 } from "react-icons/lu";
 
+export function WorkspaceSkeleton() {
+    return (
+        <div className="flex h-screen flex-col bg-background text-foreground [&>*]:![animation:none]" aria-hidden="true">
+            <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
+                <div className="flex items-center gap-3">
+                    <Skeleton className="size-8 rounded-md" />
+                    <Skeleton className="size-7 rounded-md" />
+                    <Skeleton className="h-4 w-48" />
+                </div>
+                <div className="flex items-center gap-2">
+                    <Skeleton className="h-8 w-20 rounded-md" />
+                    <Skeleton className="size-8 rounded-full" />
+                </div>
+            </header>
+            <div className="flex min-h-0 flex-1">
+                <aside className="hidden w-72 shrink-0 border-r bg-card p-4 md:block xl:w-80">
+                    <div className="space-y-4">
+                        <Skeleton className="h-4 w-24" />
+                        <div className="space-y-3">
+                            {[0, 1, 2, 3].map((i) => (
+                                <div key={i} className="space-y-2">
+                                    <Skeleton className="h-4 w-3/4" />
+                                    <Skeleton className="h-3 w-full" />
+                                    <Skeleton className="h-3 w-5/6" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </aside>
+                <main className="min-w-0 flex-1 p-6 sm:p-10">
+                    <div className="mx-auto w-full max-w-3xl space-y-4">
+                        <Skeleton className="h-3 w-32" />
+                        <Skeleton className="h-8 w-3/4" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-5/6" />
+                        <Skeleton className="mt-8 h-64 w-full rounded-lg" />
+                    </div>
+                </main>
+            </div>
+        </div>
+    );
+}
+
 function LessonStatusIcon({ status, locked }) {
     if (locked) return <LuLock className="size-3.5 text-muted-foreground" aria-hidden="true" />;
     if (status === 'completed') return <LuCircleCheck className="size-3.5 text-success" aria-hidden="true" />;

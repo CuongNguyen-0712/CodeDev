@@ -1,8 +1,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import DefaultLayout from "@/components/layouts/defaultLayout";
-import { PageSkeleton } from "@/components/ui/loading";
-import RoadmapDetailsPage from "@/components/roadmap/[id]/roadmapDetailsPage";
+import RoadmapDetailsPage, { RoadmapDetailsSkeleton } from "@/components/roadmap/[id]/roadmapDetailsPage";
 import { roadmapService } from "@/services/roadmap.service";
 import { getPublicRoadmap } from "@/lib/cachedData";
 
@@ -67,7 +66,7 @@ export default async function Page({ params }) {
                 <RoadmapDetailsPage params={{ id }} initialData={roadmapData} />
             ) : (
                 // No server copy (the lookup failed): the client fetches it, which reads React Query.
-                <Suspense fallback={<PageSkeleton />}>
+                <Suspense fallback={<RoadmapDetailsSkeleton />}>
                     <RoadmapDetailsPage params={{ id }} initialData={null} />
                 </Suspense>
             )}

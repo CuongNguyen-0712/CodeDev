@@ -70,10 +70,11 @@ function FriendMenu({ user, name }) {
  * Friends tab: search by name (server side) and an infinite list; each row has Message and a menu with Unfriend.
  * shortcut: rows are not virtualised (pages of 20); virtualise if someone has more than ~1,000 friends.
  */
-export default function FriendsTab() {
+export default function FriendsTab({ viewerId }) {
     const { status } = useSession();
     const [search, setSearch] = useState('');
-    const query = useInfiniteQuery(friendQueries.list(status, search));
+    const isAuthed = !!viewerId || status === 'authenticated';
+    const query = useInfiniteQuery(friendQueries.list(isAuthed ? 'authenticated' : status, search));
     const hasQuery = search.trim().length > 0;
 
     return (
@@ -92,7 +93,7 @@ export default function FriendsTab() {
                     <PeopleEmpty icon={LuUsers} title="No friends yet" description="Send a friend request from Find people. Once it is accepted, they show up here." />
                 )}
                 renderRow={(item, index) => (
-                    <PersonRow key={item.id} item={item} index={index} actions={<FriendMenu user={item} name={item.username} />} />
+                    <PersonRow key={item.id} item={item} index={index} viewerId={viewerId} actions={<FriendMenu user={item} name={item.username} />} />
                 )}
             />
         </section>

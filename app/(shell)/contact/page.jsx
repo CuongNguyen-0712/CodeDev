@@ -1,8 +1,6 @@
 import { Suspense } from "react";
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query";
-import { PageSkeleton } from "@/components/ui/loading";
-
-import ContactPage from "@/components/contact/contactPage";
+import ContactPage, { ContactSkeleton } from "@/components/contact/contactPage";
 
 import { socialService } from "@/services/social.service";
 import { friendQueries } from "@/queries/friend.query";
@@ -46,14 +44,17 @@ async function ContactPrefetch({ searchParams }) {
 
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
-            <ContactPage />
+            <ContactPage viewerId={userId} />
         </HydrationBoundary>
     );
 }
 
+// Render per request instead of streaming an empty skeleton shell (as on /home, /course).
+export const instant = false;
+
 export default function Page({ searchParams }) {
     return (
-        <Suspense fallback={<PageSkeleton />}>
+        <Suspense fallback={<ContactSkeleton />}>
             <ContactPrefetch searchParams={searchParams} />
         </Suspense>
     )

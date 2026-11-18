@@ -89,6 +89,25 @@ function PathSkeleton() {
     );
 }
 
+export function RoadmapDetailsSkeleton() {
+    return (
+        <div className="flex h-full min-h-0 w-full flex-col bg-background [&>*]:![animation:none]" aria-hidden="true">
+            <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
+                <div className="flex items-center gap-2">
+                    <Skeleton className="h-8 w-24 rounded-md" />
+                    <Skeleton className="h-5 w-40" />
+                </div>
+                <Skeleton className="h-8 w-24 rounded-md" />
+            </header>
+            <div className="flex min-h-0 flex-1">
+                <main className="min-w-0 flex-1 overflow-y-auto">
+                    <PathSkeleton />
+                </main>
+            </div>
+        </div>
+    );
+}
+
 function NodeDetailsPanel({ node, stepNumber, onClose = null }) {
     if (!node) {
         return (

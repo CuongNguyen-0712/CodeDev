@@ -157,7 +157,7 @@ function AccountMenu() {
   useEffect(() => {
     if (!isError) return;
     alert(error?.status || 500, error?.message || 'Failed to load data, try again.');
-  }, [isError]);
+  }, [isError, alert, error]);
 
   const handleLogout = (event) => {
     event.preventDefault();
@@ -464,7 +464,13 @@ export default function Navbar() {
         <ThemeToggle />
         {status === 'authenticated' && <NotificationCenter />}
         {status === 'authenticated' && <MessagesNavButton />}
-        {status === 'loading' && <Skeleton className="h-8 w-32" />}
+        {status === 'loading' && (
+          <div className="flex items-center gap-1.5 sm:gap-2" aria-hidden="true">
+            <Skeleton className="size-8 rounded-md" />
+            <Skeleton className="size-8 rounded-md" />
+            <Skeleton className="h-8 w-28 rounded-md" />
+          </div>
+        )}
         {status === 'authenticated' && <AccountMenu />}
         {status === 'unauthenticated' && (
           <Button asChild size="sm">

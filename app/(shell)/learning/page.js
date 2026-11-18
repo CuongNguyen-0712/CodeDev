@@ -1,8 +1,7 @@
 import { Suspense } from 'react';
 
-import { PageSkeleton } from '@/components/ui/loading';
-
-import LearngingPage from '@/components/learning/learningPage';
+import LearningPage, { LearningPageSkeleton } from '@/components/learning/learningPage';
+import { getAuthSession } from '@/lib/session';
 
 export async function generateMetadata() {
     return {
@@ -11,10 +10,15 @@ export async function generateMetadata() {
     };
 }
 
+export const instant = false;
+
 export default async function Page() {
+    const session = await getAuthSession({ soft: true });
+    const viewerId = session?.user?.id;
+
     return (
-        <Suspense fallback={<PageSkeleton />}>
-            <LearngingPage />
+        <Suspense fallback={<LearningPageSkeleton />}>
+            <LearningPage viewerId={viewerId} />
         </Suspense>
-    )
+    );
 }

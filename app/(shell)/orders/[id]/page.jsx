@@ -1,7 +1,5 @@
 import { Suspense } from "react";
-import { PageSkeleton } from "@/components/ui/loading";
-
-import OrderStatusPage from '@/components/commerce/orderStatusPage';
+import OrderStatusPage, { OrderStatusPageSkeleton } from '@/components/commerce/orderStatusPage';
 
 // Order status is per request and never cached.
 export const instant = false;
@@ -18,7 +16,7 @@ export default async function Page({ params }) {
     const { id } = await params;
 
     return (
-        <Suspense fallback={<PageSkeleton />}>
+        <Suspense fallback={<OrderStatusPageSkeleton />}>
             <OrderStatusPage orderId={id} />
         </Suspense>
     );

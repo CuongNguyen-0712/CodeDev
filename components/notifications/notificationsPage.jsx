@@ -79,13 +79,15 @@ function NotificationList({ status, unread }) {
     );
 }
 
-export default function NotificationsPage() {
+export default function NotificationsPage({ viewerId }) {
     const { status } = useSession();
+    const isAuthed = !!viewerId || status === 'authenticated';
+    const authStatus = isAuthed ? 'authenticated' : status;
     const searchParams = useSearchParams();
     const requested = searchParams?.get('tab');
     const defaultTab = TABS.includes(requested) ? requested : 'all';
     const markRead = useMarkNotificationsRead();
-    const first = useInfiniteQuery(userQueries.notifications(status)).data?.pages?.[0];
+    const first = useInfiniteQuery(userQueries.notifications(authStatus)).data?.pages?.[0];
     const unreadCount = first?.unreadCount ?? 0;
     // The line under the title states what the data says, not what the page is for.
     const finding = !first ? null
@@ -128,12 +130,45 @@ export default function NotificationsPage() {
                     </TabsTrigger>
                 </TabsList>
                 <TabsContent value="all">
-                    <NotificationList status={status} unread={false} />
+                    <NotificationList status={authStatus} unread={false} />
                 </TabsContent>
                 <TabsContent value="unread">
-                    <NotificationList status={status} unread />
+                    <NotificationList status={authStatus} unread />
                 </TabsContent>
             </Tabs>
+        </div>
+    );
+}
+
+export function NotificationsPageSkeleton() {
+    return (
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10 [&>*]:![animation:none]" role="status" aria-busy="true" aria-label="Loading notifications">
+            <header className="flex flex-wrap items-start justify-between gap-4">
+                <div className="space-y-2">
+                    <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                        Notifications
+                    </h1>
+                    <Skeleton className="h-4 w-28" />
+                </div>
+                <div className="h-8 w-28 rounded-md border" />
+            </header>
+
+            <div className="flex flex-col gap-4">
+                <div className="inline-flex h-9 w-fit items-center justify-center rounded-lg bg-muted p-[3px] text-muted-foreground">
+                    <div className="inline-flex items-center justify-center gap-1.5 rounded-md bg-background px-3 py-1 text-sm font-medium text-foreground shadow-xs">
+                        <LuBell className="size-4" aria-hidden="true" />
+                        All
+                    </div>
+                    <div className="inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium text-muted-foreground">
+                        <LuMailOpen className="size-4" aria-hidden="true" />
+                        Unread
+                    </div>
+                </div>
+
+                <div className="divide-y overflow-hidden rounded-lg border">
+                    <NotificationSkeleton rows={5} />
+                </div>
+            </div>
         </div>
     );
 }

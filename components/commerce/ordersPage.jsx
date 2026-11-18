@@ -276,13 +276,15 @@ function PointsTab({ status }) {
     );
 }
 
-export default function OrdersPage() {
+export default function OrdersPage({ viewerId }) {
     const { status } = useSession();
+    const isAuthed = !!viewerId || status === 'authenticated';
+    const authStatus = isAuthed ? 'authenticated' : status;
     const searchParams = useSearchParams();
     const requested = searchParams?.get('tab');
     const defaultTab = TABS.includes(requested) ? requested : 'orders';
     // Same query as the Points tab (one request): the balance belongs in the page's first line.
-    const balance = useInfiniteQuery(commerceQueries.wallet(status)).data?.pages?.[0]?.balance;
+    const balance = useInfiniteQuery(commerceQueries.wallet(authStatus)).data?.pages?.[0]?.balance;
 
     return (
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
@@ -301,12 +303,55 @@ export default function OrdersPage() {
                     <TabsTrigger value="points"><LuCoins aria-hidden="true" />Points</TabsTrigger>
                 </TabsList>
                 <TabsContent value="orders">
-                    <OrdersTab status={status} />
+                    <OrdersTab status={authStatus} />
                 </TabsContent>
                 <TabsContent value="points">
-                    <PointsTab status={status} />
+                    <PointsTab status={authStatus} />
                 </TabsContent>
             </Tabs>
+        </div>
+    );
+}
+
+export function OrdersPageSkeleton() {
+    return (
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10 [&>*]:![animation:none]" role="status" aria-busy="true" aria-label="Loading orders">
+            <header className="space-y-2">
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                    Orders and points
+                </h1>
+                <Skeleton className="h-4 w-72" />
+            </header>
+
+            <div className="flex flex-col gap-4">
+                <div className="inline-flex h-9 w-fit items-center justify-center rounded-lg bg-muted p-[3px] text-muted-foreground">
+                    <div className="inline-flex items-center justify-center gap-1.5 rounded-md bg-background px-3 py-1 text-sm font-medium text-foreground shadow-xs">
+                        <LuReceipt className="size-4" aria-hidden="true" />
+                        Orders
+                    </div>
+                    <div className="inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium text-muted-foreground">
+                        <LuCoins className="size-4" aria-hidden="true" />
+                        Points
+                    </div>
+                </div>
+
+                <div className="overflow-hidden rounded-lg border">
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="hover:bg-transparent">
+                                <TableHead className="pl-4">Item</TableHead>
+                                <TableHead className="max-sm:hidden">Date</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Price</TableHead>
+                                <TableHead className="w-10 pr-4" />
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <SkeletonRows columns={5} />
+                        </TableBody>
+                    </Table>
+                </div>
+            </div>
         </div>
     );
 }
