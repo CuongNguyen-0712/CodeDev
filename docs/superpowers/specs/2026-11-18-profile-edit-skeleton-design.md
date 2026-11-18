@@ -1,6 +1,6 @@
 # Profile header, edit preview, /contact loading rows
 
-Status: written 2026-11-18 at the user's request ("update plan"). Choices marked *my call* were made for them and can be corrected.
+Status: DONE (2026-11-18). Written 2026-11-18 at the user's request ("update plan"). Choices marked *my call* were made for them and can be corrected.
 
 ## Why
 
@@ -59,6 +59,11 @@ Three spots still look unfinished on a phone or while waiting:
 **Overlay** *(the user's design)*: one absolute layer inside `MessageList`'s existing `relative` wrapper, which already holds the scroller, the jump button and the floating typing bar. The thread keeps its scroll position under it.
 
 **Skeleton** *(my call)*: `PersonList` gets an optional `skeleton` prop (a row component). The /contact tabs pass the new `PersonSkeleton` with actions, and the picker keeps the default.
+
+## Decisions made while building
+
+- The Teams invitation list keeps the default skeleton: its rows are 60px, not the person-row height. Received and Sent use the new one.
+- While editing, the thread scroller is `inert` (and `aria-hidden`), so nothing under the overlay takes focus or clicks.
 
 ## Left to the builder
 
