@@ -42,7 +42,7 @@ const message = (seq, senderId, over = {}) => ({
 });
 const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const wrap = (ui) => <QueryClientProvider client={client}>{ui}</QueryClientProvider>;
-const box = () => screen.getByRole("textbox", { name: "Message" });
+const box = () => screen.getByRole("textbox", { name: /^(Edit message|Message)$/ });
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -57,12 +57,12 @@ describe("edit mode when the edited message is unsent", () => {
         render(wrap(<ConversationView conversationId="cnv_a" />));
         fireEvent.pointerDown(await screen.findByRole("button", { name: "More actions for p1" }), { button: 0, ctrlKey: false });
         fireEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
-        await screen.findByText("Editing message");
+        await screen.findByText("Edit message", { selector: "p" });
         expect(box().value).toBe("hello 1");
         await act(async () => client.setQueryData(chatKeys.messages("cnv_a"), (data) => ({
             ...data, pages: data.pages.map((p) => ({ ...p, items: p.items.map((m) => (m.id === "msg_1" ? { ...m, deleted: true, body: null } : m)) })),
         })));
-        expect(screen.queryByText("Editing message")).toBeNull();
+        expect(screen.queryByText("Edit message", { selector: "p" })).toBeNull();
         expect(box().value).toBe("");
     });
 });

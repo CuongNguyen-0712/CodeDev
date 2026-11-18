@@ -14,6 +14,7 @@ import { chatQueries } from "@/queries/chat.query";
 import { selectUnsent, useChatOutboxStore } from "@/stores/chatOutboxStore";
 
 import { groupFlags } from "@/components/chat/messageGroups";
+import EditPreview from "@/components/chat/editPreview";
 import MessageBubble from "@/components/chat/messageBubble";
 import TypingLine from "@/components/chat/typingLine";
 import { showAlert } from "@/components/ui/alert";
@@ -74,7 +75,7 @@ function ThreadSkeleton() {
  * The thread, oldest at the top. Earlier messages load when the sentinel at the top nears view, and the reading position is kept; new messages scroll into view
  * only when the reader is already at the bottom, and only then (tab visible) is the newest server seq marked read.
  */
-export default function MessageList({ conversation, meId, failures, ...handlers }) {
+export default function MessageList({ conversation, meId, failures, editing, onCancelEdit, ...handlers }) {
     const id = conversation.id;
     const query = useInfiniteQuery({ ...chatQueries.messages(id), retry: retryTransient });
     const unsent = useChatOutboxStore(selectUnsent(id));
@@ -206,7 +207,7 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
     return (
         // The jump button and the floating typing bar are absolute siblings of the scroller, so they do not scroll away.
         <div className="relative flex min-h-0 flex-1 flex-col">
-        <div ref={setScroller} onScroll={onScroll} role="log" aria-label="Messages" tabIndex={0} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pt-4 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset sm:px-4">
+        <div ref={setScroller} onScroll={onScroll} role="log" aria-label="Messages" aria-hidden={editing ? "true" : undefined} inert={editing ? true : undefined} tabIndex={0} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pt-4 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset sm:px-4">
             <div ref={sentinelRef} aria-hidden="true" className="h-px" />
             {/* Fixed height while more pages exist, so the spinner appearing never shifts the thread. */}
             {query.hasNextPage && (
@@ -247,6 +248,7 @@ export default function MessageList({ conversation, meId, failures, ...handlers 
                 )}
             </Button>
         )}
+        {editing && <EditPreview original={editing.body} draft={editing.draft} onCancel={onCancelEdit} />}
         </div>
     );
 }

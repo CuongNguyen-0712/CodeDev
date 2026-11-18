@@ -15,7 +15,7 @@ import { Progress } from "@/components/shadcn/progress";
 import { Spinner } from "@/components/shadcn/spinner";
 import { Textarea } from "@/components/shadcn/textarea";
 
-import { LuPaperclip, LuPencil, LuReply, LuSendHorizontal, LuTriangleAlert, LuX } from "react-icons/lu";
+import { LuCheck, LuPaperclip, LuReply, LuSendHorizontal, LuTriangleAlert, LuX } from "react-icons/lu";
 
 const COUNTER_FROM = MAX_BODY * 0.9;
 const UPLOAD_FAILED = "The file could not be uploaded.";
@@ -73,11 +73,11 @@ function refusal(file) {
  * message shows in the list while it sends); otherwise it waits for the send. Images need `imagesAllowed`
  * (an open conversation that is not a request). `replyTo` ({ id, senderName, preview }) shows the Replying-to bar and
  * is sent as `replyToId`; `onCancelReply` is its ✕.
- * `editing` ({ id, body }) turns the box into an edit of that message: the Editing message bar, no Attach, Enter calls
- * `onSaveEdit(body)` (a promise; it rejects on failure and the box stays in edit mode), Esc or ✕ calls `onCancelEdit`.
+ * `editing` ({ id, body }) turns the box into an edit of that message: no Attach (the thread's overlay previews the text via `onEditDraftChange(body)`), Enter calls
+ * `onSaveEdit(body)` (a promise; it rejects on failure and the box stays in edit mode), Esc calls `onCancelEdit`.
  * The parent leaves edit mode after a save; the text typed before Edit comes back then.
  */
-export default function Composer({ conversationId, imagesAllowed = false, optimistic = false, replyTo, onCancelReply, editing, onSaveEdit, onCancelEdit, onSubmit }) {
+export default function Composer({ conversationId, imagesAllowed = false, optimistic = false, replyTo, onCancelReply, editing, onSaveEdit, onCancelEdit, onEditDraftChange, onSubmit }) {
     const inputId = useId();
     const fileRef = useRef(null);
     const boxRef = useRef(null);
@@ -108,6 +108,8 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
             setBody(editing.body);
         } else setBody(draft);
     }
+    // The thread previews what is typed: the starting text, then every change.
+    useEffect(() => { if (editing) onEditDraftChange?.(body); }, [editing?.id, body]);   // eslint-disable-line react-hooks/exhaustive-deps -- the callback's identity is not a trigger
     useEffect(() => { if (editing) boxRef.current?.focus(); }, [editing?.id]);   // eslint-disable-line react-hooks/exhaustive-deps -- the id is the trigger
 
     const update = (key, change) => setImages((list) => list.map((image) => (image.key === key ? { ...image, ...change } : image)));
@@ -202,13 +204,6 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
         // A filled pill, not a framed card: no border at rest, a quiet one on focus. Its controls are all 36px
         // tall and bottom-aligned, so one line of text sits on their centre line and longer text grows upward.
         <form onSubmit={submit} className="flex flex-col gap-2 rounded-3xl border border-transparent bg-muted p-1.5 transition-colors focus-within:border-ring/40 focus-within:bg-background dark:bg-accent dark:focus-within:bg-accent">
-            {editing && (
-                <div className="flex items-center gap-2 rounded-2xl border bg-background py-1.5 pr-1 pl-3 text-xs dark:bg-card">
-                    <LuPencil aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-                    <p className="min-w-0 flex-1 truncate">Editing message</p>
-                    <Button type="button" variant="ghost" size="icon-xs" onClick={onCancelEdit} aria-label="Cancel edit"><LuX aria-hidden="true" /></Button>
-                </div>
-            )}
             {replyTo && !editing && (
                 // Bordered, so it stays visible on the pill both at rest (muted) and on focus (background).
                 <div className="flex items-center gap-2 rounded-2xl border bg-background py-1.5 pr-1 pl-3 text-xs dark:bg-card">
@@ -290,14 +285,14 @@ export default function Composer({ conversationId, imagesAllowed = false, optimi
                     maxLength={MAX_BODY}
                     rows={1}
                     placeholder="Write a message"
-                    aria-label="Message"
+                    aria-label={editing ? "Edit message" : "Message"}
                     aria-describedby={error ? `${inputId}-error` : undefined}
                     // Grows with the text from one line (36px: 20px line + 8px top and bottom, the buttons' height);
                     // max-h-36 is about six lines of text-sm, then it scrolls.
                     className="min-h-9 max-h-36 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1.5 py-2 text-sm leading-5 shadow-none placeholder:text-muted-foreground focus-visible:ring-0 md:text-sm dark:bg-transparent"
                 />
-                <Button type="submit" size="icon" disabled={!canSend} aria-label="Send" className="shrink-0 rounded-full disabled:bg-transparent disabled:text-muted-foreground disabled:opacity-100">
-                    {pending ? <Spinner /> : <LuSendHorizontal aria-hidden="true" />}
+                <Button type="submit" size="icon" disabled={!canSend} aria-label={editing ? "Save changes" : "Send"} className="shrink-0 rounded-full disabled:bg-transparent disabled:text-muted-foreground disabled:opacity-100">
+                    {pending ? <Spinner /> : editing ? <LuCheck aria-hidden="true" /> : <LuSendHorizontal aria-hidden="true" />}
                 </Button>
             </div>
             {(error || showCounter) && (

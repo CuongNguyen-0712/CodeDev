@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-/** Editing a message in the composer: the Editing message bar, its draft, save and cancel (chat polish task 2). */
+/** Editing a message in the composer: its draft, save and cancel (chat polish task 2). */
 let detail;
 let page;
 const editMessageAction = vi.fn();
@@ -40,7 +40,7 @@ const message = (seq, senderId, over = {}) => ({
 const wrap = (ui) => <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>;
 const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const inClient = (ui) => <QueryClientProvider client={client}>{ui}</QueryClientProvider>;
-const box = () => screen.getByRole("textbox", { name: "Message" });
+const box = () => screen.getByRole("textbox", { name: /^(Edit message|Message)$/ });
 const menuItem = async (who, name) => {
     fireEvent.pointerDown(await screen.findByRole("button", { name: `More actions for ${who}` }), { button: 0, ctrlKey: false });
     fireEvent.click(await screen.findByRole("menuitem", { name }));
@@ -58,14 +58,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Composer edit mode", () => {
-    it("Edit puts the text in the composer under an Editing message bar, and hides Attach", () => {
+    it("Edit puts the text in the composer, and hides Attach", () => {
         const { rerender } = render(inClient(<Composer {...props()} editing={null} />));
         expect(screen.getByRole("button", { name: "Attach files" })).toBeTruthy();
         rerender(inClient(<Composer {...props()} editing={editing} />));
-        expect(screen.getByText("Editing message")).toBeTruthy();
+        expect(screen.queryByText("Editing message")).toBeNull();
+        expect(screen.getByRole("textbox", { name: "Edit message" })).toBeTruthy();
         expect(box().value).toBe("hello 1");
         expect(screen.queryByRole("button", { name: "Attach files" })).toBeNull();
-        expect(screen.getByRole("button", { name: "Send" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Save changes" })).toBeTruthy();
         expect(document.activeElement).toBe(box());
     });
 
@@ -80,7 +81,7 @@ describe("Composer edit mode", () => {
         await waitFor(() => expect(p.onSaveEdit).toHaveBeenCalledWith("hello changed"));
         // The parent leaves edit mode once onSaveEdit resolves.
         rerender(inClient(<Composer {...p} editing={null} />));
-        expect(screen.queryByText("Editing message")).toBeNull();
+        expect(screen.queryByRole("textbox", { name: "Edit message" })).toBeNull();
         expect(box().value).toBe("my draft");
         expect(screen.getByRole("button", { name: "Attach files" })).toBeTruthy();
         expect(p.onSubmit).not.toHaveBeenCalled();
@@ -93,15 +94,13 @@ describe("Composer edit mode", () => {
         expect(p.onCancelEdit).not.toHaveBeenCalled();
     });
 
-    it("Esc and the ✕ (Cancel edit) leave edit mode without saving and restore the draft", () => {
+    it("Esc leaves edit mode without saving and restores the draft", () => {
         const p = props();
         const { rerender } = render(inClient(<Composer {...p} editing={null} />));
         fireEvent.change(box(), { target: { value: "draft" } });
         rerender(inClient(<Composer {...p} editing={editing} />));
         fireEvent.keyDown(box(), { key: "Escape" });
         expect(p.onCancelEdit).toHaveBeenCalledTimes(1);
-        fireEvent.click(screen.getByRole("button", { name: "Cancel edit" }));
-        expect(p.onCancelEdit).toHaveBeenCalledTimes(2);
         expect(p.onSaveEdit).not.toHaveBeenCalled();
         rerender(inClient(<Composer {...p} editing={null} />));
         expect(box().value).toBe("draft");
@@ -125,33 +124,32 @@ describe("Composer edit mode", () => {
         fireEvent.change(box(), { target: { value: "typed" } });
         fireEvent.keyDown(box(), { key: "Enter" });
         await waitFor(() => expect(p.onSaveEdit).toHaveBeenCalledWith("typed"));
-        await waitFor(() => expect(screen.getByRole("button", { name: "Send" }).disabled).toBe(false));
-        expect(screen.getByText("Editing message")).toBeTruthy();
+        await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" }).disabled).toBe(false));
+        expect(screen.getByRole("textbox", { name: "Edit message" })).toBeTruthy();
         expect(box().value).toBe("typed");
         expect(p.onCancelEdit).not.toHaveBeenCalled();
     });
 });
 
 describe("ConversationView edit wiring", () => {
-    it("starting a reply while editing clears the edit bar, and Edit clears the reply bar", async () => {
+    it("Edit clears the reply bar; the thread is inert while editing, and Reply works again once the overlay is cancelled", async () => {
         render(wrap(<ConversationView conversationId="cnv_a" />));
-        await menuItem("p1", "Edit");
-        expect(await screen.findByText("Editing message")).toBeTruthy();
-        expect(box().value).toBe("hello 1");
-
         await menuItem("p2", "Reply");
         await screen.findByText(/Replying to/);
-        expect(screen.queryByText("Editing message")).toBeNull();
-
         await menuItem("p1", "Edit");
-        await screen.findByText("Editing message");
+        expect(await screen.findByText("Edit message", { selector: "p" })).toBeTruthy();
+        expect(box().value).toBe("hello 1");
         expect(screen.queryByText(/Replying to/)).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Cancel edit" }));
+        expect(screen.queryByText("Edit message", { selector: "p" })).toBeNull();
+        await menuItem("p2", "Reply");
+        await screen.findByText(/Replying to/);
     });
 
     it("choosing Edit from the menu leaves focus in the composer textarea", async () => {
         render(wrap(<ConversationView conversationId="cnv_a" />));
         await menuItem("p1", "Edit");
-        await screen.findByText("Editing message");
+        await screen.findByText("Edit message", { selector: "p" });
         await waitFor(() => expect(document.activeElement).toBe(box()));
     });
 
@@ -166,21 +164,21 @@ describe("ConversationView edit wiring", () => {
     it("saving an edit goes through the edit mutation and leaves edit mode", async () => {
         render(wrap(<ConversationView conversationId="cnv_a" />));
         await menuItem("p1", "Edit");
-        await screen.findByText("Editing message");
+        await screen.findByText("Edit message", { selector: "p" });
         fireEvent.change(box(), { target: { value: "changed" } });
         fireEvent.keyDown(box(), { key: "Enter" });
         await waitFor(() => expect(editMessageAction).toHaveBeenCalled());
         expect(editMessageAction.mock.calls[0][0]).toMatchObject({ messageId: "msg_1", body: "changed" });
-        await waitFor(() => expect(screen.queryByText("Editing message")).toBeNull());
+        await waitFor(() => expect(screen.queryByText("Edit message", { selector: "p" })).toBeNull());
     });
 
     it("changing conversation while editing clears edit mode", async () => {
         const { rerender } = render(wrap(<ConversationView conversationId="cnv_a" />));
         await menuItem("p1", "Edit");
-        await screen.findByText("Editing message");
+        await screen.findByText("Edit message", { selector: "p" });
         detail = { ...detail, id: "cnv_b" };
         rerender(wrap(<ConversationView conversationId="cnv_b" />));
-        await waitFor(() => expect(screen.queryByText("Editing message")).toBeNull());
+        await waitFor(() => expect(screen.queryByText("Edit message", { selector: "p" })).toBeNull());
     });
 });
 

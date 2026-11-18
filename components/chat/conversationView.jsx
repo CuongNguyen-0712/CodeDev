@@ -188,6 +188,7 @@ export default function ConversationView({ conversationId }) {
     const { toggle } = useToggleReaction(conversationId, meId);
     const [reply, setReply] = useState(null);   // { conversationId, id, senderId, senderName, preview }; ignored once the open conversation changes
     const [editing, setEditing] = useState(null);   // { conversationId, id, body }; ignored once the open conversation changes, and exclusive with reply
+    const [editDraft, setEditDraft] = useState("");   // what is typed in the edit box, for the thread's preview
     const [failures, setFailures] = useState({});   // clientId -> { message, retryable }
 
     const gone = useLeaveWhenGone(query.error);
@@ -205,6 +206,10 @@ export default function ConversationView({ conversationId }) {
         check();
         return queryClient.getQueryCache().subscribe(check);
     }, [editing, queryClient]);
+
+    // Every way edit mode ends (save, cancel, Esc, another conversation, unsent) clears the preview text here.
+    const editingKey = editing?.conversationId === conversationId ? editing.id : null;
+    useEffect(() => { if (!editingKey) setEditDraft(""); }, [editingKey]);
 
     // Tells the realtime handlers which thread the viewer is looking at, so its new messages do not count as unread.
     useEffect(() => {
@@ -291,10 +296,10 @@ export default function ConversationView({ conversationId }) {
                     <RequestBanner conversationId={conversationId} name={name} otherId={other?.id} />
                 </div>
             )}
-            <MessageList conversation={conversation} meId={meId} failures={failures} {...handlers} />
+            <MessageList conversation={conversation} meId={meId} failures={failures} editing={editingNow && { id: editingNow.id, body: editingNow.body, draft: editDraft }} onCancelEdit={() => setEditing(null)} {...handlers} />
             <div className="flex flex-col gap-1 px-3 pt-2 pb-3">
                 {conversation.canSend
-                    ? <Composer conversationId={conversationId} imagesAllowed={!isRequest} optimistic replyTo={replyTo} onCancelReply={() => setReply(null)} editing={editingNow} onSaveEdit={onSaveEdit} onCancelEdit={() => setEditing(null)} onSubmit={onSubmit} />
+                    ? <Composer conversationId={conversationId} imagesAllowed={!isRequest} optimistic replyTo={replyTo} onCancelReply={() => setReply(null)} editing={editingNow} onSaveEdit={onSaveEdit} onCancelEdit={() => setEditing(null)} onEditDraftChange={setEditDraft} onSubmit={onSubmit} />
                     : <CantSend />}
             </div>
         </div>
